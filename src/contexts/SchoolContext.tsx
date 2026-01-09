@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Student, Guardian, Course, ClassGroup, Enrollment, Schedule } from '@/types/school';
+import { Student, Guardian, Course, ClassGroup, Enrollment, Schedule, ContractClause, ContractConfig } from '@/types/school';
 
 interface SchoolContextType {
   students: Student[];
@@ -8,9 +8,23 @@ interface SchoolContextType {
   classGroups: ClassGroup[];
   enrollments: Enrollment[];
   schedules: Schedule[];
+  contractConfig: ContractConfig;
   addStudent: (student: Omit<Student, 'id'>) => Student;
   addGuardian: (guardian: Omit<Guardian, 'id'>) => Guardian;
   addEnrollment: (enrollment: Omit<Enrollment, 'id'>) => Enrollment;
+  addCourse: (course: Omit<Course, 'id'>) => Course;
+  updateCourse: (id: string, course: Partial<Course>) => void;
+  deleteCourse: (id: string) => void;
+  addSchedule: (schedule: Omit<Schedule, 'id'>) => Schedule;
+  updateSchedule: (id: string, schedule: Partial<Schedule>) => void;
+  deleteSchedule: (id: string) => void;
+  addClassGroup: (classGroup: Omit<ClassGroup, 'id'>) => ClassGroup;
+  updateClassGroup: (id: string, classGroup: Partial<ClassGroup>) => void;
+  deleteClassGroup: (id: string) => void;
+  updateContractConfig: (config: Partial<ContractConfig>) => void;
+  addContractClause: (clause: Omit<ContractClause, 'id'>) => ContractClause;
+  updateContractClause: (id: string, clause: Partial<ContractClause>) => void;
+  deleteContractClause: (id: string) => void;
   getGuardianById: (id: string) => Guardian | undefined;
   getStudentById: (id: string) => Student | undefined;
   getCourseById: (id: string) => Course | undefined;
@@ -48,13 +62,29 @@ const initialClassGroups: ClassGroup[] = [
   { id: 'c6', name: 'Turma Reforço', courseId: '5', scheduleId: 's6', maxStudents: 8, currentStudents: 4 },
 ];
 
+const initialContractClauses: ContractClause[] = [
+  { id: 'cl1', title: 'Objeto do Contrato', content: 'O presente contrato tem por objeto a prestação de serviços educacionais pelo CONTRATADO ao ALUNO, conforme curso e turma especificados.', order: 1, isActive: true },
+  { id: 'cl2', title: 'Obrigações do Contratante', content: 'O CONTRATANTE se compromete a efetuar o pagamento das mensalidades até o dia 10 de cada mês, bem como acompanhar o desempenho escolar do aluno.', order: 2, isActive: true },
+  { id: 'cl3', title: 'Obrigações do Contratado', content: 'O CONTRATADO se compromete a fornecer ensino de qualidade, disponibilizar material didático adequado e manter comunicação regular com o responsável.', order: 3, isActive: true },
+  { id: 'cl4', title: 'Cancelamento', content: 'O cancelamento da matrícula deverá ser solicitado com antecedência mínima de 30 dias, mediante comunicação por escrito.', order: 4, isActive: true },
+  { id: 'cl5', title: 'Foro', content: 'Fica eleito o foro da comarca da sede do CONTRATADO para dirimir quaisquer dúvidas oriundas do presente contrato.', order: 5, isActive: true },
+];
+
+const initialContractConfig: ContractConfig = {
+  schoolName: 'EduGestor Escola de Cursos',
+  schoolCnpj: '00.000.000/0001-00',
+  schoolAddress: 'Rua da Educação, 123 - Centro',
+  clauses: initialContractClauses,
+};
+
 export function SchoolProvider({ children }: { children: ReactNode }) {
   const [students, setStudents] = useState<Student[]>([]);
   const [guardians, setGuardians] = useState<Guardian[]>([]);
-  const [courses] = useState<Course[]>(initialCourses);
+  const [courses, setCourses] = useState<Course[]>(initialCourses);
   const [classGroups, setClassGroups] = useState<ClassGroup[]>(initialClassGroups);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [schedules] = useState<Schedule[]>(initialSchedules);
+  const [schedules, setSchedules] = useState<Schedule[]>(initialSchedules);
+  const [contractConfig, setContractConfig] = useState<ContractConfig>(initialContractConfig);
 
   const addStudent = (student: Omit<Student, 'id'>): Student => {
     const newStudent = { ...student, id: generateId() };
@@ -72,7 +102,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const newEnrollment = { ...enrollment, id: generateId() };
     setEnrollments(prev => [...prev, newEnrollment]);
     
-    // Update class group count
     setClassGroups(prev => 
       prev.map(cg => 
         cg.id === enrollment.classGroupId 
@@ -82,6 +111,79 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     );
     
     return newEnrollment;
+  };
+
+  // Course CRUD
+  const addCourse = (course: Omit<Course, 'id'>): Course => {
+    const newCourse = { ...course, id: generateId() };
+    setCourses(prev => [...prev, newCourse]);
+    return newCourse;
+  };
+
+  const updateCourse = (id: string, course: Partial<Course>) => {
+    setCourses(prev => prev.map(c => c.id === id ? { ...c, ...course } : c));
+  };
+
+  const deleteCourse = (id: string) => {
+    setCourses(prev => prev.filter(c => c.id !== id));
+  };
+
+  // Schedule CRUD
+  const addSchedule = (schedule: Omit<Schedule, 'id'>): Schedule => {
+    const newSchedule = { ...schedule, id: generateId() };
+    setSchedules(prev => [...prev, newSchedule]);
+    return newSchedule;
+  };
+
+  const updateSchedule = (id: string, schedule: Partial<Schedule>) => {
+    setSchedules(prev => prev.map(s => s.id === id ? { ...s, ...schedule } : s));
+  };
+
+  const deleteSchedule = (id: string) => {
+    setSchedules(prev => prev.filter(s => s.id !== id));
+  };
+
+  // ClassGroup CRUD
+  const addClassGroup = (classGroup: Omit<ClassGroup, 'id'>): ClassGroup => {
+    const newClassGroup = { ...classGroup, id: generateId() };
+    setClassGroups(prev => [...prev, newClassGroup]);
+    return newClassGroup;
+  };
+
+  const updateClassGroup = (id: string, classGroup: Partial<ClassGroup>) => {
+    setClassGroups(prev => prev.map(cg => cg.id === id ? { ...cg, ...classGroup } : cg));
+  };
+
+  const deleteClassGroup = (id: string) => {
+    setClassGroups(prev => prev.filter(cg => cg.id !== id));
+  };
+
+  // Contract Config
+  const updateContractConfig = (config: Partial<ContractConfig>) => {
+    setContractConfig(prev => ({ ...prev, ...config }));
+  };
+
+  const addContractClause = (clause: Omit<ContractClause, 'id'>): ContractClause => {
+    const newClause = { ...clause, id: generateId() };
+    setContractConfig(prev => ({
+      ...prev,
+      clauses: [...prev.clauses, newClause],
+    }));
+    return newClause;
+  };
+
+  const updateContractClause = (id: string, clause: Partial<ContractClause>) => {
+    setContractConfig(prev => ({
+      ...prev,
+      clauses: prev.clauses.map(c => c.id === id ? { ...c, ...clause } : c),
+    }));
+  };
+
+  const deleteContractClause = (id: string) => {
+    setContractConfig(prev => ({
+      ...prev,
+      clauses: prev.clauses.filter(c => c.id !== id),
+    }));
   };
 
   const getGuardianById = (id: string) => guardians.find(g => g.id === id);
@@ -98,9 +200,23 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       classGroups,
       enrollments,
       schedules,
+      contractConfig,
       addStudent,
       addGuardian,
       addEnrollment,
+      addCourse,
+      updateCourse,
+      deleteCourse,
+      addSchedule,
+      updateSchedule,
+      deleteSchedule,
+      addClassGroup,
+      updateClassGroup,
+      deleteClassGroup,
+      updateContractConfig,
+      addContractClause,
+      updateContractClause,
+      deleteContractClause,
       getGuardianById,
       getStudentById,
       getCourseById,

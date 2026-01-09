@@ -71,3 +71,18 @@ export interface EnrollmentFormData {
   courseId: string;
   classGroupId: string;
 }
+
+export interface ContractClause {
+  id: string;
+  title: string;
+  content: string;
+  order: number;
+  isActive: boolean;
+}
+
+export interface ContractConfig {
+  schoolName: string;
+  schoolCnpj: string;
+  schoolAddress: string;
+  clauses: ContractClause[];
+}

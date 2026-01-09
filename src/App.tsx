@@ -12,6 +12,7 @@ import Classes from "./pages/Classes";
 import Courses from "./pages/Courses";
 import Schedules from "./pages/Schedules";
 import Contracts from "./pages/Contracts";
+import ContractConfig from "./pages/ContractConfig";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
               <Route path="/cursos" element={<Courses />} />
               <Route path="/horarios" element={<Schedules />} />
               <Route path="/contratos" element={<Contracts />} />
+              <Route path="/contrato-config" element={<ContractConfig />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </MainLayout>
