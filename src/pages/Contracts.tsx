@@ -1,10 +1,10 @@
-import { FileText, Download, Eye, Calendar, User } from 'lucide-react';
+import { FileText, Download, Calendar, User, Settings } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 
 export default function Contracts() {
-  const { enrollments, getStudentById, getGuardianById, getClassGroupById, getCourseById } = useSchool();
+  const { enrollments, getStudentById, getGuardianById, getClassGroupById, getCourseById, getScheduleById, contractConfig } = useSchool();
 
   const contractEnrollments = enrollments.filter(e => e.contractGenerated);
 
@@ -16,9 +16,27 @@ export default function Contracts() {
     const guardian = getGuardianById(enrollment.guardianId);
     const classGroup = getClassGroupById(enrollment.classGroupId);
     const course = classGroup ? getCourseById(classGroup.courseId) : undefined;
+    const schedule = classGroup ? getScheduleById(classGroup.scheduleId) : undefined;
+
+    const activeClauses = contractConfig.clauses
+      .filter(c => c.isActive)
+      .sort((a, b) => a.order - b.order);
+
+    const clausesText = activeClauses
+      .map((clause, index) => `Cláusula ${index + 1}ª - ${clause.title}\n${clause.content}`)
+      .join('\n\n');
 
     const contractContent = `
 CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS
+
+================================================================================
+
+CONTRATADO:
+${contractConfig.schoolName}
+CNPJ: ${contractConfig.schoolCnpj}
+Endereço: ${contractConfig.schoolAddress}
+
+================================================================================
 
 CONTRATANTE (Responsável Financeiro):
 Nome: ${guardian?.name}
@@ -27,22 +45,43 @@ E-mail: ${guardian?.email}
 Telefone: ${guardian?.phone}
 Endereço: ${guardian?.address}
 
+================================================================================
+
 ALUNO:
 Nome: ${student?.name}
 Data de Nascimento: ${student?.birthDate ? new Date(student.birthDate).toLocaleDateString('pt-BR') : '-'}
 
+================================================================================
+
 CURSO:
 Nome: ${course?.name}
+Descrição: ${course?.description}
 Duração: ${course?.duration}
 Turma: ${classGroup?.name}
+Horário: ${schedule ? `${schedule.dayOfWeek} - ${schedule.startTime} às ${schedule.endTime}` : '-'}
+
+================================================================================
 
 VALOR:
 Mensalidade: R$ ${course?.price.toFixed(2).replace('.', ',')}
 
+================================================================================
+
 Data da Matrícula: ${new Date(enrollment.enrollmentDate).toLocaleDateString('pt-BR')}
 
----
-Este contrato estabelece os termos e condições para a prestação de serviços educacionais.
+================================================================================
+
+CLÁUSULAS CONTRATUAIS
+
+${clausesText}
+
+================================================================================
+
+Local e Data: _________________________________, ___/___/_______
+
+
+_______________________________          _______________________________
+        CONTRATANTE                              CONTRATADO
     `;
 
     const blob = new Blob([contractContent], { type: 'text/plain' });
@@ -58,9 +97,17 @@ Este contrato estabelece os termos e condições para a prestação de serviços
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header">
-        <h1 className="page-title">Contratos</h1>
-        <p className="page-subtitle">Contratos gerados das matrículas</p>
+      <div className="page-header flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Contratos</h1>
+          <p className="page-subtitle">Contratos gerados das matrículas</p>
+        </div>
+        <Link to="/contrato-config">
+          <Button variant="outline" className="gap-2">
+            <Settings className="w-4 h-4" />
+            Configurar Contrato
+          </Button>
+        </Link>
       </div>
 
       {contractEnrollments.length > 0 ? (

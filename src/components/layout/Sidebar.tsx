@@ -6,7 +6,8 @@ import {
   BookOpen, 
   FileText, 
   Calendar,
-  UserPlus
+  UserPlus,
+  Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,6 +19,7 @@ const menuItems = [
   { icon: BookOpen, label: 'Cursos', path: '/cursos' },
   { icon: Calendar, label: 'Horários', path: '/horarios' },
   { icon: FileText, label: 'Contratos', path: '/contratos' },
+  { icon: Settings, label: 'Config. Contrato', path: '/contrato-config' },
 ];
 
 export function Sidebar() {
