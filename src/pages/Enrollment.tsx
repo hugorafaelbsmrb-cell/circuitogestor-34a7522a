@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2 } from 'lucide-react';
+import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSchool } from '@/contexts/SchoolContext';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
+import { EnrollmentSummary } from '@/components/enrollment/EnrollmentSummary';
+import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
 
-type Step = 'student' | 'guardian' | 'course' | 'schedule' | 'payment' | 'contract';
+type Step = 'student' | 'guardian' | 'course' | 'schedule' | 'payment' | 'contract' | 'summary';
 
 const steps: { id: Step; title: string; icon: React.ElementType }[] = [
   { id: 'student', title: 'Aluno', icon: User },
@@ -19,6 +22,7 @@ const steps: { id: Step; title: string; icon: React.ElementType }[] = [
   { id: 'schedule', title: 'Horário', icon: Calendar },
   { id: 'payment', title: 'Pagamento', icon: CreditCard },
   { id: 'contract', title: 'Contrato', icon: FileText },
+  { id: 'summary', title: 'Conclusão', icon: CheckCircle },
 ];
 
 export default function Enrollment() {
@@ -42,10 +46,18 @@ export default function Enrollment() {
     isLoading: isDataLoading
   } = useSchool();
   
-  const { isLoading: isAsaasLoading, createCustomer, createCarne: createAsaasCarne, createPayment: createAsaasPayment } = useAsaasPayment();
+  const { isLoading: isAsaasLoading, createCustomer, createCarne: createAsaasCarne, createPayment: createAsaasPayment, getInstallmentBooklet } = useAsaasPayment();
   
   const [currentStep, setCurrentStep] = useState<Step>('student');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingCarne, setIsLoadingCarne] = useState(false);
+  const [showContractModal, setShowContractModal] = useState(false);
+  const [enrollmentResult, setEnrollmentResult] = useState<{
+    contract: { id: string; content: any } | null;
+    carne: { id: string; asaasInstallmentId: string } | null;
+  } | null>(null);
+  
+  const contractPrintRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     student: { name: '', birthDate: '' },
     guardian: { 
@@ -210,9 +222,11 @@ export default function Enrollment() {
         externalReference: enrollment.id,
       });
 
+      let carneData = null;
+      
       if (asaasPayment) {
         // Save carnê to database
-        await createCarne({
+        const savedCarne = await createCarne({
           enrollment_id: enrollment.id,
           guardian_id: guardian.id,
           contract_id: contract.id,
@@ -222,6 +236,11 @@ export default function Enrollment() {
           installment_count: installmentCount,
           first_due_date: formData.payment.dueDate,
         });
+
+        carneData = {
+          id: savedCarne.id,
+          asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
+        };
 
         // Save the first payment record
         await createPayment({
@@ -244,12 +263,22 @@ export default function Enrollment() {
       // 7. Update enrollment with contract flag
       await updateEnrollment(enrollment.id, { contract_generated: true });
 
+      // Set enrollment result for summary
+      setEnrollmentResult({
+        contract: {
+          id: contract.id,
+          content: contractContent,
+        },
+        carne: carneData,
+      });
+
       toast({
         title: "Matrícula realizada com sucesso!",
         description: "O contrato e o carnê foram gerados automaticamente.",
       });
 
-      navigate('/contratos');
+      // Go to summary step instead of navigating away
+      setCurrentStep('summary');
     } catch (error) {
       console.error('Enrollment error:', error);
       toast({
@@ -260,6 +289,151 @@ export default function Enrollment() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Handler functions for summary actions
+  const handlePrintContract = () => {
+    if (contractPrintRef.current) {
+      const printContent = contractPrintRef.current.innerHTML;
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Contrato de Matrícula</title>
+            <style>
+              body { font-family: 'Times New Roman', serif; margin: 0; padding: 20px; }
+              * { box-sizing: border-box; }
+              .font-bold { font-weight: bold; }
+              .text-center { text-align: center; }
+              .text-justify { text-align: justify; }
+              .mb-2 { margin-bottom: 8px; }
+              .mb-4 { margin-bottom: 16px; }
+              .mb-6 { margin-bottom: 24px; }
+              .mb-8 { margin-bottom: 32px; }
+              .mb-12 { margin-bottom: 48px; }
+              .mt-12 { margin-top: 48px; }
+              .mt-16 { margin-top: 64px; }
+              .p-4 { padding: 16px; }
+              .pt-2 { padding-top: 8px; }
+              .border { border: 1px solid #ccc; }
+              .border-t { border-top: 1px solid #000; }
+              .border-black { border-color: #000; }
+              .border-gray-300 { border-color: #ccc; }
+              .rounded { border-radius: 4px; }
+              .leading-relaxed { line-height: 1.6; }
+              .text-sm { font-size: 14px; }
+              .text-xl { font-size: 20px; }
+              .text-2xl { font-size: 24px; }
+              .uppercase { text-transform: uppercase; }
+              .flex { display: flex; }
+              .justify-between { justify-content: space-between; }
+              .w-2\\/5 { width: 40%; }
+              @media print {
+                body { padding: 0; }
+              }
+            </style>
+          </head>
+          <body>${printContent}</body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    } else {
+      // If modal not open, open it first
+      setShowContractModal(true);
+      setTimeout(() => {
+        handlePrintContract();
+      }, 500);
+    }
+  };
+
+  const handleViewCarne = async () => {
+    if (!enrollmentResult?.carne?.asaasInstallmentId) {
+      toast({
+        title: "Erro",
+        description: "Carnê não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoadingCarne(true);
+    try {
+      const booklet = await getInstallmentBooklet(enrollmentResult.carne.asaasInstallmentId);
+      if (booklet?.url) {
+        window.open(booklet.url, '_blank');
+      } else {
+        toast({
+          title: "Erro",
+          description: "Não foi possível obter o carnê",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoadingCarne(false);
+    }
+  };
+
+  const handleDownloadCarne = async () => {
+    if (!enrollmentResult?.carne?.asaasInstallmentId) {
+      toast({
+        title: "Erro",
+        description: "Carnê não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoadingCarne(true);
+    try {
+      const booklet = await getInstallmentBooklet(enrollmentResult.carne.asaasInstallmentId);
+      if (booklet?.url) {
+        // Create a link and trigger download
+        const link = document.createElement('a');
+        link.href = booklet.url;
+        link.target = '_blank';
+        link.download = `carne_${enrollmentResult.carne.asaasInstallmentId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        toast({
+          title: "Erro",
+          description: "Não foi possível baixar o carnê",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsLoadingCarne(false);
+    }
+  };
+
+  const handleNewEnrollment = () => {
+    // Reset form
+    setFormData({
+      student: { name: '', birthDate: '' },
+      guardian: { 
+        name: '', 
+        cpf: '', 
+        email: '', 
+        phone: '', 
+        address: '',
+        addressNumber: '',
+        province: '',
+        postalCode: ''
+      },
+      courseId: '',
+      classGroupId: '',
+      payment: {
+        installments: '6',
+        dueDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0],
+      }
+    });
+    setEnrollmentResult(null);
+    setCurrentStep('student');
   };
 
   const selectedCourse = getCourseById(formData.courseId);
@@ -654,51 +828,105 @@ export default function Enrollment() {
           </div>
         )}
 
-        {/* Navigation Buttons */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
-          <Button
-            variant="outline"
-            onClick={goToPreviousStep}
-            disabled={currentStepIndex === 0 || isSubmitting}
-          >
-            Voltar
-          </Button>
-          
-          {currentStep === 'contract' ? (
-            <Button 
-              onClick={handleSubmit} 
-              className="gap-2"
-              disabled={isSubmitting || isAsaasLoading}
+        {currentStep === 'summary' && enrollmentResult && (
+          <EnrollmentSummary
+            data={{
+              student: formData.student,
+              guardian: formData.guardian,
+              course: selectedCourse ? {
+                name: selectedCourse.name,
+                duration: selectedCourse.duration,
+                price: selectedCourse.price,
+              } : null,
+              classGroup: selectedClassGroup ? { name: selectedClassGroup.name } : null,
+              schedule: selectedSchedule ? {
+                day_of_week: selectedSchedule.day_of_week,
+                start_time: selectedSchedule.start_time,
+                end_time: selectedSchedule.end_time,
+              } : null,
+              payment: formData.payment,
+              contract: enrollmentResult.contract,
+              carne: enrollmentResult.carne,
+            }}
+            onPrintContract={handlePrintContract}
+            onViewContract={() => setShowContractModal(true)}
+            onPrintCarne={handleDownloadCarne}
+            onViewCarne={handleViewCarne}
+            onNewEnrollment={handleNewEnrollment}
+            onGoToContracts={() => navigate('/contratos')}
+            isLoadingCarne={isLoadingCarne}
+          />
+        )}
+
+        {/* Navigation Buttons - Hide on summary step */}
+        {currentStep !== 'summary' && (
+          <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+            <Button
+              variant="outline"
+              onClick={goToPreviousStep}
+              disabled={currentStepIndex === 0 || isSubmitting}
             >
-              {(isSubmitting || isAsaasLoading) ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Processando...
-                </>
-              ) : (
-                <>
-                  <FileText className="w-4 h-4" />
-                  Finalizar Matrícula
-                </>
-              )}
+              Voltar
             </Button>
-          ) : (
-            <Button 
-              onClick={goToNextStep}
-              disabled={
-                (currentStep === 'student' && !validateStudent()) ||
-                (currentStep === 'guardian' && !validateGuardian()) ||
-                (currentStep === 'course' && !formData.courseId) ||
-                (currentStep === 'schedule' && !formData.classGroupId)
-              }
-              className="gap-2"
-            >
-              Continuar
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
+            
+            {currentStep === 'contract' ? (
+              <Button 
+                onClick={handleSubmit} 
+                className="gap-2"
+                disabled={isSubmitting || isAsaasLoading}
+              >
+                {(isSubmitting || isAsaasLoading) ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4" />
+                    Finalizar Matrícula
+                  </>
+                )}
+              </Button>
+            ) : (
+              <Button 
+                onClick={goToNextStep}
+                disabled={
+                  (currentStep === 'student' && !validateStudent()) ||
+                  (currentStep === 'guardian' && !validateGuardian()) ||
+                  (currentStep === 'course' && !formData.courseId) ||
+                  (currentStep === 'schedule' && !formData.classGroupId)
+                }
+                className="gap-2"
+              >
+                Continuar
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Contract Print Modal */}
+      <Dialog open={showContractModal} onOpenChange={setShowContractModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Contrato de Matrícula</DialogTitle>
+          </DialogHeader>
+          {enrollmentResult?.contract?.content && (
+            <>
+              <ContractPrintView ref={contractPrintRef} content={enrollmentResult.contract.content} />
+              <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
+                <Button variant="outline" onClick={() => setShowContractModal(false)}>
+                  Fechar
+                </Button>
+                <Button onClick={handlePrintContract}>
+                  Imprimir
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
