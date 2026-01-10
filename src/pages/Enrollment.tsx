@@ -35,7 +35,8 @@ export default function Enrollment() {
     contractConfig,
     contractClauses,
     createStudent, 
-    createGuardian, 
+    createGuardian,
+    updateGuardian,
     createEnrollment,
     createContract,
     createPayment,
@@ -43,6 +44,7 @@ export default function Enrollment() {
     updateEnrollment,
     getCourseById, 
     getScheduleById,
+    getGuardianByCpf,
     isLoading: isDataLoading
   } = useSchool();
   
@@ -130,18 +132,45 @@ export default function Enrollment() {
     setIsSubmitting(true);
     
     try {
-      // 1. Create Guardian in database
-      const guardian = await createGuardian({
-        name: formData.guardian.name,
-        cpf: formData.guardian.cpf,
-        email: formData.guardian.email,
-        phone: formData.guardian.phone,
-        address: formData.guardian.address,
-        address_number: formData.guardian.addressNumber || 'S/N',
-        province: formData.guardian.province || 'Centro',
-        postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
-        asaas_customer_id: null,
-      });
+      // 1. Check if Guardian already exists by CPF
+      const cleanCpf = formData.guardian.cpf.replace(/\D/g, '');
+      let guardian = getGuardianByCpf(cleanCpf);
+      
+      if (guardian) {
+        // Update existing guardian with new data
+        await updateGuardian(guardian.id, {
+          name: formData.guardian.name,
+          email: formData.guardian.email,
+          phone: formData.guardian.phone,
+          address: formData.guardian.address,
+          address_number: formData.guardian.addressNumber || 'S/N',
+          province: formData.guardian.province || 'Centro',
+          postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
+        });
+        // Refresh guardian data
+        guardian = { ...guardian, ...{
+          name: formData.guardian.name,
+          email: formData.guardian.email,
+          phone: formData.guardian.phone,
+          address: formData.guardian.address,
+          address_number: formData.guardian.addressNumber || 'S/N',
+          province: formData.guardian.province || 'Centro',
+          postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
+        }};
+      } else {
+        // Create new Guardian in database
+        guardian = await createGuardian({
+          name: formData.guardian.name,
+          cpf: cleanCpf,
+          email: formData.guardian.email,
+          phone: formData.guardian.phone,
+          address: formData.guardian.address,
+          address_number: formData.guardian.addressNumber || 'S/N',
+          province: formData.guardian.province || 'Centro',
+          postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
+          asaas_customer_id: null,
+        });
+      }
 
       // 2. Create Student in database
       const student = await createStudent({
