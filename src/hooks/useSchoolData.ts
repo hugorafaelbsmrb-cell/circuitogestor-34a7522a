@@ -541,6 +541,7 @@ export function useSchoolData() {
 
   // Helper functions
   const getGuardianById = (id: string) => guardians.find(g => g.id === id);
+  const getGuardianByCpf = (cpf: string) => guardians.find(g => g.cpf.replace(/\D/g, '') === cpf.replace(/\D/g, ''));
   const getStudentById = (id: string) => students.find(s => s.id === id);
   const getCourseById = (id: string) => courses.find(c => c.id === id);
   const getClassGroupById = (id: string) => classGroups.find(cg => cg.id === id);
@@ -609,6 +610,7 @@ export function useSchoolData() {
     
     // Helpers
     getGuardianById,
+    getGuardianByCpf,
     getStudentById,
     getCourseById,
     getClassGroupById,
