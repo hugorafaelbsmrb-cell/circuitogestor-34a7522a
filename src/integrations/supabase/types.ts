@@ -14,7 +14,549 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      carnes: {
+        Row: {
+          asaas_installment_id: string
+          contract_id: string | null
+          created_at: string
+          description: string
+          enrollment_id: string | null
+          first_due_date: string
+          guardian_id: string
+          id: string
+          installment_count: number
+          status: string
+          total_value: number
+          updated_at: string
+        }
+        Insert: {
+          asaas_installment_id: string
+          contract_id?: string | null
+          created_at?: string
+          description: string
+          enrollment_id?: string | null
+          first_due_date: string
+          guardian_id: string
+          id?: string
+          installment_count: number
+          status?: string
+          total_value: number
+          updated_at?: string
+        }
+        Update: {
+          asaas_installment_id?: string
+          contract_id?: string | null
+          created_at?: string
+          description?: string
+          enrollment_id?: string | null
+          first_due_date?: string
+          guardian_id?: string
+          id?: string
+          installment_count?: number
+          status?: string
+          total_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carnes_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carnes_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carnes_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      class_groups: {
+        Row: {
+          course_id: string
+          created_at: string
+          current_students: number | null
+          id: string
+          is_active: boolean | null
+          max_students: number | null
+          name: string
+          schedule_id: string
+          updated_at: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          current_students?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_students?: number | null
+          name: string
+          schedule_id: string
+          updated_at?: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          current_students?: number | null
+          id?: string
+          is_active?: boolean | null
+          max_students?: number | null
+          name?: string
+          schedule_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_groups_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_groups_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_clauses: {
+        Row: {
+          clause_order: number
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          clause_order: number
+          content: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          clause_order?: number
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      contract_config: {
+        Row: {
+          created_at: string
+          id: string
+          school_address: string
+          school_cnpj: string
+          school_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          school_address: string
+          school_cnpj: string
+          school_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          school_address?: string
+          school_cnpj?: string
+          school_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      contracts: {
+        Row: {
+          contract_content: Json
+          course_id: string
+          created_at: string
+          enrollment_id: string
+          guardian_id: string
+          id: string
+          installment_count: number | null
+          signed_at: string | null
+          status: string
+          student_id: string
+          total_value: number
+        }
+        Insert: {
+          contract_content: Json
+          course_id: string
+          created_at?: string
+          enrollment_id: string
+          guardian_id: string
+          id?: string
+          installment_count?: number | null
+          signed_at?: string | null
+          status?: string
+          student_id: string
+          total_value: number
+        }
+        Update: {
+          contract_content?: Json
+          course_id?: string
+          created_at?: string
+          enrollment_id?: string
+          guardian_id?: string
+          id?: string
+          installment_count?: number | null
+          signed_at?: string | null
+          status?: string
+          student_id?: string
+          total_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contracts_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration: string
+          id: string
+          is_active: boolean | null
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          price: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      enrollments: {
+        Row: {
+          class_group_id: string
+          contract_generated: boolean | null
+          contract_signed_at: string | null
+          created_at: string
+          enrollment_date: string
+          guardian_id: string
+          id: string
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          class_group_id: string
+          contract_generated?: boolean | null
+          contract_signed_at?: string | null
+          created_at?: string
+          enrollment_date?: string
+          guardian_id: string
+          id?: string
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          class_group_id?: string
+          contract_generated?: boolean | null
+          contract_signed_at?: string | null
+          created_at?: string
+          enrollment_date?: string
+          guardian_id?: string
+          id?: string
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollments_class_group_id_fkey"
+            columns: ["class_group_id"]
+            isOneToOne: false
+            referencedRelation: "class_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guardians: {
+        Row: {
+          address: string
+          address_number: string | null
+          asaas_customer_id: string | null
+          cpf: string
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string
+          postal_code: string | null
+          province: string | null
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          address_number?: string | null
+          asaas_customer_id?: string | null
+          cpf: string
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone: string
+          postal_code?: string | null
+          province?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          address_number?: string | null
+          asaas_customer_id?: string | null
+          cpf?: string
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string
+          postal_code?: string | null
+          province?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          asaas_installment_id: string | null
+          asaas_payment_id: string | null
+          bank_slip_url: string | null
+          billing_type: string | null
+          contract_id: string | null
+          created_at: string
+          description: string
+          due_date: string
+          enrollment_id: string | null
+          external_reference: string | null
+          guardian_id: string
+          id: string
+          installment_number: number | null
+          invoice_url: string | null
+          payment_date: string | null
+          status: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          asaas_installment_id?: string | null
+          asaas_payment_id?: string | null
+          bank_slip_url?: string | null
+          billing_type?: string | null
+          contract_id?: string | null
+          created_at?: string
+          description: string
+          due_date: string
+          enrollment_id?: string | null
+          external_reference?: string | null
+          guardian_id: string
+          id?: string
+          installment_number?: number | null
+          invoice_url?: string | null
+          payment_date?: string | null
+          status?: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          asaas_installment_id?: string | null
+          asaas_payment_id?: string | null
+          bank_slip_url?: string | null
+          billing_type?: string | null
+          contract_id?: string | null
+          created_at?: string
+          description?: string
+          due_date?: string
+          enrollment_id?: string | null
+          external_reference?: string | null
+          guardian_id?: string
+          id?: string
+          installment_number?: number | null
+          invoice_url?: string | null
+          payment_date?: string | null
+          status?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schedules: {
+        Row: {
+          available_slots: number | null
+          course_id: string
+          created_at: string
+          day_of_week: string
+          end_time: string
+          id: string
+          start_time: string
+        }
+        Insert: {
+          available_slots?: number | null
+          course_id: string
+          created_at?: string
+          day_of_week: string
+          end_time: string
+          id?: string
+          start_time: string
+        }
+        Update: {
+          available_slots?: number | null
+          course_id?: string
+          created_at?: string
+          day_of_week?: string
+          end_time?: string
+          id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedules_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          birth_date: string
+          created_at: string
+          guardian_id: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          birth_date: string
+          created_at?: string
+          guardian_id: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          birth_date?: string
+          created_at?: string
+          guardian_id?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
