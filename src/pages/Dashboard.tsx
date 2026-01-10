@@ -8,8 +8,8 @@ export default function Dashboard() {
   const { students, courses, classGroups, enrollments } = useSchool();
 
   const activeEnrollments = enrollments.filter(e => e.status === 'active').length;
-  const totalSlots = classGroups.reduce((acc, cg) => acc + cg.maxStudents, 0);
-  const usedSlots = classGroups.reduce((acc, cg) => acc + cg.currentStudents, 0);
+  const totalSlots = classGroups.reduce((acc, cg) => acc + cg.max_students, 0);
+  const usedSlots = classGroups.reduce((acc, cg) => acc + cg.current_students, 0);
   const occupancyRate = totalSlots > 0 ? Math.round((usedSlots / totalSlots) * 100) : 0;
 
   return (
@@ -62,9 +62,9 @@ export default function Dashboard() {
             </Link>
           </div>
           <div className="space-y-4">
-            {classGroups.filter(cg => cg.currentStudents < cg.maxStudents).slice(0, 5).map((classGroup) => {
-              const course = courses.find(c => c.id === classGroup.courseId);
-              const availableSlots = classGroup.maxStudents - classGroup.currentStudents;
+            {classGroups.filter(cg => cg.current_students < cg.max_students).slice(0, 5).map((classGroup) => {
+              const course = courses.find(c => c.id === classGroup.course_id);
+              const availableSlots = classGroup.max_students - classGroup.current_students;
               return (
                 <div key={classGroup.id} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
                   <div>
@@ -73,7 +73,7 @@ export default function Dashboard() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-success">{availableSlots} vagas</p>
-                    <p className="text-xs text-muted-foreground">{classGroup.currentStudents}/{classGroup.maxStudents} alunos</p>
+                    <p className="text-xs text-muted-foreground">{classGroup.current_students}/{classGroup.max_students} alunos</p>
                   </div>
                 </div>
               );

@@ -32,7 +32,7 @@ export function useSchool() {
     throw new Error('useSchool must be used within a SchoolProvider');
   }
   
-  // Add aliases for backward compatibility
+  // Add aliases for backward compatibility with snake_case
   return {
     ...context,
     addCourse: context.createCourse,

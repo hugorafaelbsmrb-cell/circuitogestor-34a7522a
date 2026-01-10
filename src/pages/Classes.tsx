@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { GraduationCap, Users, Plus, Pencil, Trash2 } from 'lucide-react';
-import { useSchool } from '@/contexts/SchoolContext';
+import { useSchool, ClassGroup } from '@/contexts/SchoolContext';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ClassGroup } from '@/types/school';
 
 export default function Classes() {
   const { classGroups, courses, schedules, getCourseById, getScheduleById, addClassGroup, updateClassGroup, deleteClassGroup } = useSchool();
@@ -15,13 +14,13 @@ export default function Classes() {
   const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    courseId: '',
-    scheduleId: '',
-    maxStudents: '',
+    course_id: '',
+    schedule_id: '',
+    max_students: '',
   });
 
   const resetForm = () => {
-    setFormData({ name: '', courseId: '', scheduleId: '', maxStudents: '' });
+    setFormData({ name: '', course_id: '', schedule_id: '', max_students: '' });
     setEditingClass(null);
   };
 
@@ -30,9 +29,9 @@ export default function Classes() {
       setEditingClass(classGroup);
       setFormData({
         name: classGroup.name,
-        courseId: classGroup.courseId,
-        scheduleId: classGroup.scheduleId,
-        maxStudents: classGroup.maxStudents.toString(),
+        course_id: classGroup.course_id,
+        schedule_id: classGroup.schedule_id,
+        max_students: classGroup.max_students.toString(),
       });
     } else {
       resetForm();
@@ -44,10 +43,9 @@ export default function Classes() {
     e.preventDefault();
     const classData = {
       name: formData.name,
-      courseId: formData.courseId,
-      scheduleId: formData.scheduleId,
-      maxStudents: parseInt(formData.maxStudents) || 0,
-      currentStudents: editingClass?.currentStudents || 0,
+      course_id: formData.course_id,
+      schedule_id: formData.schedule_id,
+      max_students: parseInt(formData.max_students) || 0,
     };
 
     if (editingClass) {
@@ -65,8 +63,8 @@ export default function Classes() {
     }
   };
 
-  const filteredSchedules = formData.courseId 
-    ? schedules.filter(s => s.courseId === formData.courseId)
+  const filteredSchedules = formData.course_id 
+    ? schedules.filter(s => s.course_id === formData.course_id)
     : schedules;
 
   return (
@@ -101,8 +99,8 @@ export default function Classes() {
               <div className="space-y-2">
                 <Label>Curso</Label>
                 <Select 
-                  value={formData.courseId} 
-                  onValueChange={(value) => setFormData({ ...formData, courseId: value, scheduleId: '' })}
+                  value={formData.course_id} 
+                  onValueChange={(value) => setFormData({ ...formData, course_id: value, schedule_id: '' })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o curso" />
@@ -119,29 +117,29 @@ export default function Classes() {
               <div className="space-y-2">
                 <Label>Horário</Label>
                 <Select 
-                  value={formData.scheduleId} 
-                  onValueChange={(value) => setFormData({ ...formData, scheduleId: value })}
-                  disabled={!formData.courseId}
+                  value={formData.schedule_id} 
+                  onValueChange={(value) => setFormData({ ...formData, schedule_id: value })}
+                  disabled={!formData.course_id}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder={formData.courseId ? "Selecione o horário" : "Selecione um curso primeiro"} />
+                    <SelectValue placeholder={formData.course_id ? "Selecione o horário" : "Selecione um curso primeiro"} />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredSchedules.map((schedule) => (
                       <SelectItem key={schedule.id} value={schedule.id}>
-                        {schedule.dayOfWeek} - {schedule.startTime} às {schedule.endTime}
+                        {schedule.day_of_week} - {schedule.start_time} às {schedule.end_time}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="maxStudents">Máximo de Alunos</Label>
+                <Label htmlFor="max_students">Máximo de Alunos</Label>
                 <Input
-                  id="maxStudents"
+                  id="max_students"
                   type="number"
-                  value={formData.maxStudents}
-                  onChange={(e) => setFormData({ ...formData, maxStudents: e.target.value })}
+                  value={formData.max_students}
+                  onChange={(e) => setFormData({ ...formData, max_students: e.target.value })}
                   required
                 />
               </div>
@@ -160,10 +158,10 @@ export default function Classes() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {classGroups.map((classGroup) => {
-          const course = getCourseById(classGroup.courseId);
-          const schedule = getScheduleById(classGroup.scheduleId);
-          const occupancyPercent = (classGroup.currentStudents / classGroup.maxStudents) * 100;
-          const availableSlots = classGroup.maxStudents - classGroup.currentStudents;
+          const course = getCourseById(classGroup.course_id);
+          const schedule = getScheduleById(classGroup.schedule_id);
+          const occupancyPercent = (classGroup.current_students / classGroup.max_students) * 100;
+          const availableSlots = classGroup.max_students - classGroup.current_students;
 
           return (
             <div key={classGroup.id} className="bg-card rounded-xl border border-border/50 shadow-sm p-6 hover:shadow-md transition-shadow">
@@ -193,9 +191,9 @@ export default function Classes() {
 
               {schedule && (
                 <div className="bg-secondary/30 rounded-lg p-3 mb-4">
-                  <p className="text-sm font-medium text-foreground">{schedule.dayOfWeek}</p>
+                  <p className="text-sm font-medium text-foreground">{schedule.day_of_week}</p>
                   <p className="text-sm text-muted-foreground">
-                    {schedule.startTime} às {schedule.endTime}
+                    {schedule.start_time} às {schedule.end_time}
                   </p>
                 </div>
               )}
@@ -207,7 +205,7 @@ export default function Classes() {
                     Alunos
                   </span>
                   <span className="font-medium text-foreground">
-                    {classGroup.currentStudents}/{classGroup.maxStudents}
+                    {classGroup.current_students}/{classGroup.max_students}
                   </span>
                 </div>
                 <Progress value={occupancyPercent} className="h-2" />

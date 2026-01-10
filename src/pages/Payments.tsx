@@ -34,10 +34,10 @@ export default function Payments() {
   );
 
   const selectedGuardian = guardians.find(g => g.id === paymentForm.guardianId);
-  const guardianEnrollments = enrollments.filter(e => e.guardianId === paymentForm.guardianId);
+  const guardianEnrollments = enrollments.filter(e => e.guardian_id === paymentForm.guardianId);
   const selectedEnrollment = enrollments.find(e => e.id === paymentForm.enrollmentId);
-  const selectedClassGroup = selectedEnrollment ? getClassGroupById(selectedEnrollment.classGroupId) : undefined;
-  const selectedCourse = selectedClassGroup ? getCourseById(selectedClassGroup.courseId) : undefined;
+  const selectedClassGroup = selectedEnrollment ? getClassGroupById(selectedEnrollment.class_group_id) : undefined;
+  const selectedCourse = selectedClassGroup ? getCourseById(selectedClassGroup.course_id) : undefined;
 
   const handleGeneratePayment = async () => {
     if (!selectedGuardian || !selectedCourse) return;
@@ -53,15 +53,15 @@ export default function Payments() {
       email: selectedGuardian.email,
       phone: selectedGuardian.phone,
       address: address,
-      addressNumber: 'S/N',
-      province: 'Centro',
-      postalCode: '00000000',
+      addressNumber: selectedGuardian.address_number || 'S/N',
+      province: selectedGuardian.province || 'Centro',
+      postalCode: selectedGuardian.postal_code || '00000000',
     });
 
     if (!customer) return;
 
     const installmentCount = parseInt(paymentForm.installments);
-    const student = selectedEnrollment ? getStudentById(selectedEnrollment.studentId) : undefined;
+    const student = selectedEnrollment ? getStudentById(selectedEnrollment.student_id) : undefined;
     const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student?.name || 'N/A'}`;
 
     let payment: AsaasPayment | null;
@@ -174,9 +174,9 @@ export default function Payments() {
                     </SelectTrigger>
                     <SelectContent>
                       {guardianEnrollments.map((enrollment) => {
-                        const student = getStudentById(enrollment.studentId);
-                        const classGroup = getClassGroupById(enrollment.classGroupId);
-                        const course = classGroup ? getCourseById(classGroup.courseId) : undefined;
+                        const student = getStudentById(enrollment.student_id);
+                        const classGroup = getClassGroupById(enrollment.class_group_id);
+                        const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
                         return (
                           <SelectItem key={enrollment.id} value={enrollment.id}>
                             {student?.name} - {course?.name}

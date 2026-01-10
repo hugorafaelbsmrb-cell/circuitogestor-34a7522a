@@ -44,7 +44,7 @@ export default function Students() {
         {filteredStudents.length > 0 ? (
           <div className="divide-y divide-border">
             {filteredStudents.map((student) => {
-              const guardian = getGuardianById(student.guardianId);
+              const guardian = getGuardianById(student.guardian_id);
               return (
                 <div key={student.id} className="p-4 hover:bg-secondary/30 transition-colors">
                   <div className="flex items-center justify-between">
@@ -55,7 +55,7 @@ export default function Students() {
                       <div>
                         <p className="font-medium text-foreground">{student.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          Nascimento: {new Date(student.birthDate).toLocaleDateString('pt-BR')}
+                          Nascimento: {new Date(student.birth_date).toLocaleDateString('pt-BR')}
                         </p>
                       </div>
                     </div>
