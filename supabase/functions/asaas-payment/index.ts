@@ -27,9 +27,10 @@ interface CreatePaymentRequest {
   installmentValue?: number;
 }
 
-const ASAAS_API_URL = Deno.env.get("ASAAS_SANDBOX") === "true" 
-  ? "https://sandbox.asaas.com/api/v3"
-  : "https://api.asaas.com/api/v3";
+// Default to sandbox for safety - set ASAAS_PRODUCTION=true to use production
+const ASAAS_API_URL = Deno.env.get("ASAAS_PRODUCTION") === "true" 
+  ? "https://api.asaas.com/api/v3"
+  : "https://sandbox.asaas.com/api/v3";
 
 const getApiKey = () => {
   const apiKey = Deno.env.get("ASAAS_API_KEY");
@@ -39,15 +40,45 @@ const getApiKey = () => {
   return apiKey;
 };
 
+const getHeaders = () => ({
+  "Content-Type": "application/json",
+  "accept": "application/json",
+  "access_token": getApiKey(),
+});
+
+async function handleAsaasResponse(response: Response, operation: string) {
+  const text = await response.text();
+  
+  console.log(`Asaas ${operation} response status:`, response.status);
+  console.log(`Asaas ${operation} response body:`, text.substring(0, 500));
+  
+  // Check if response is HTML (error page)
+  if (text.startsWith("<!") || text.startsWith("<html")) {
+    throw new Error(`Erro de autenticação ou URL inválida. Verifique sua chave API Asaas. Status: ${response.status}`);
+  }
+  
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch {
+    throw new Error(`Resposta inválida da API Asaas: ${text.substring(0, 200)}`);
+  }
+  
+  if (!response.ok) {
+    const errorMsg = result.errors?.[0]?.description || result.message || `Erro na operação ${operation}`;
+    throw new Error(errorMsg);
+  }
+  
+  return result;
+}
+
 async function createCustomer(data: CreateCustomerRequest) {
   console.log("Criando cliente no Asaas:", data.name);
+  console.log("API URL:", ASAAS_API_URL);
   
   const response = await fetch(`${ASAAS_API_URL}/customers`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "access_token": getApiKey(),
-    },
+    headers: getHeaders(),
     body: JSON.stringify({
       name: data.name,
       cpfCnpj: data.cpfCnpj.replace(/\D/g, ""),
@@ -60,13 +91,7 @@ async function createCustomer(data: CreateCustomerRequest) {
     }),
   });
 
-  const result = await response.json();
-  
-  if (!response.ok) {
-    console.error("Erro ao criar cliente:", result);
-    throw new Error(result.errors?.[0]?.description || "Erro ao criar cliente no Asaas");
-  }
-
+  const result = await handleAsaasResponse(response, "createCustomer");
   console.log("Cliente criado com sucesso:", result.id);
   return result;
 }
@@ -76,10 +101,7 @@ async function createPayment(data: CreatePaymentRequest) {
   
   const response = await fetch(`${ASAAS_API_URL}/payments`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "access_token": getApiKey(),
-    },
+    headers: getHeaders(),
     body: JSON.stringify({
       customer: data.customerId,
       billingType: data.billingType,
@@ -92,13 +114,7 @@ async function createPayment(data: CreatePaymentRequest) {
     }),
   });
 
-  const result = await response.json();
-  
-  if (!response.ok) {
-    console.error("Erro ao criar cobrança:", result);
-    throw new Error(result.errors?.[0]?.description || "Erro ao criar cobrança no Asaas");
-  }
-
+  const result = await handleAsaasResponse(response, "createPayment");
   console.log("Cobrança criada com sucesso:", result.id);
   return result;
 }
@@ -108,20 +124,10 @@ async function getPaymentBoleto(paymentId: string) {
   
   const response = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/identificationField`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "access_token": getApiKey(),
-    },
+    headers: getHeaders(),
   });
 
-  const result = await response.json();
-  
-  if (!response.ok) {
-    console.error("Erro ao obter boleto:", result);
-    throw new Error(result.errors?.[0]?.description || "Erro ao obter dados do boleto");
-  }
-
-  return result;
+  return await handleAsaasResponse(response, "getBoleto");
 }
 
 async function createInstallments(data: {
@@ -138,10 +144,7 @@ async function createInstallments(data: {
   
   const response = await fetch(`${ASAAS_API_URL}/payments`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "access_token": getApiKey(),
-    },
+    headers: getHeaders(),
     body: JSON.stringify({
       customer: data.customerId,
       billingType: "BOLETO",
@@ -154,13 +157,7 @@ async function createInstallments(data: {
     }),
   });
 
-  const result = await response.json();
-  
-  if (!response.ok) {
-    console.error("Erro ao criar parcelamento:", result);
-    throw new Error(result.errors?.[0]?.description || "Erro ao criar parcelamento no Asaas");
-  }
-
+  const result = await handleAsaasResponse(response, "createInstallments");
   console.log("Parcelamento criado com sucesso");
   return result;
 }
@@ -170,20 +167,10 @@ async function listPayments(customerId: string) {
   
   const response = await fetch(`${ASAAS_API_URL}/payments?customer=${customerId}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "access_token": getApiKey(),
-    },
+    headers: getHeaders(),
   });
 
-  const result = await response.json();
-  
-  if (!response.ok) {
-    console.error("Erro ao listar cobranças:", result);
-    throw new Error(result.errors?.[0]?.description || "Erro ao listar cobranças");
-  }
-
-  return result;
+  return await handleAsaasResponse(response, "listPayments");
 }
 
 serve(async (req) => {
@@ -194,6 +181,7 @@ serve(async (req) => {
   try {
     const { action, data } = await req.json();
     console.log("Ação recebida:", action);
+    console.log("Ambiente Asaas:", Deno.env.get("ASAAS_PRODUCTION") === "true" ? "Produção" : "Sandbox");
 
     let result;
 
