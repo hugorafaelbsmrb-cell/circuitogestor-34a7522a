@@ -86,3 +86,42 @@ export interface ContractConfig {
   schoolAddress: string;
   clauses: ContractClause[];
 }
+
+// Asaas Payment Types
+export interface AsaasCustomer {
+  id: string;
+  name: string;
+  cpfCnpj: string;
+  email: string;
+  phone: string;
+}
+
+export interface AsaasPayment {
+  id: string;
+  customerId: string;
+  value: number;
+  netValue: number;
+  billingType: 'BOLETO';
+  status: 'PENDING' | 'RECEIVED' | 'CONFIRMED' | 'OVERDUE' | 'REFUNDED' | 'RECEIVED_IN_CASH' | 'REFUND_REQUESTED' | 'CHARGEBACK_REQUESTED' | 'CHARGEBACK_DISPUTE' | 'AWAITING_CHARGEBACK_REVERSAL' | 'DUNNING_REQUESTED' | 'DUNNING_RECEIVED' | 'AWAITING_RISK_ANALYSIS';
+  dueDate: string;
+  paymentDate?: string;
+  invoiceUrl?: string;
+  bankSlipUrl?: string;
+  invoiceNumber?: string;
+  description?: string;
+  externalReference?: string;
+  installment?: string;
+}
+
+export interface AsaasBoleto {
+  identificationField: string;
+  nossoNumero: string;
+  barCode: string;
+}
+
+export interface PaymentConfig {
+  dueDay: number;
+  installments: number;
+  finePercentage: number;
+  interestPercentage: number;
+}
