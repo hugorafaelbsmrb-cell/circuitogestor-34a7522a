@@ -8,6 +8,7 @@ import {
   Calendar,
   UserPlus,
   Settings,
+  Wallet,
   CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -19,7 +20,8 @@ const menuItems = [
   { icon: GraduationCap, label: 'Turmas', path: '/turmas' },
   { icon: BookOpen, label: 'Cursos', path: '/cursos' },
   { icon: Calendar, label: 'Horários', path: '/horarios' },
-  { icon: CreditCard, label: 'Pagamentos', path: '/pagamentos' },
+  { icon: Wallet, label: 'Financeiro', path: '/financeiro' },
+  { icon: CreditCard, label: 'Gerar Boleto', path: '/pagamentos' },
   { icon: FileText, label: 'Contratos', path: '/contratos' },
   { icon: Settings, label: 'Config. Contrato', path: '/contrato-config' },
 ];
