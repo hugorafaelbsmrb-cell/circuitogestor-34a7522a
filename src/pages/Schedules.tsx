@@ -1,30 +1,29 @@
 import { useState } from 'react';
 import { Calendar, Clock, Plus, Pencil, Trash2 } from 'lucide-react';
-import { useSchool } from '@/contexts/SchoolContext';
+import { useSchool, Schedule } from '@/contexts/SchoolContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Schedule } from '@/types/school';
 
 export default function Schedules() {
   const { schedules, courses, getCourseById, addSchedule, updateSchedule, deleteSchedule } = useSchool();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [formData, setFormData] = useState({
-    courseId: '',
-    dayOfWeek: '',
-    startTime: '',
-    endTime: '',
-    availableSlots: '',
+    course_id: '',
+    day_of_week: '',
+    start_time: '',
+    end_time: '',
+    available_slots: '',
   });
 
   const groupedByDay = schedules.reduce((acc, schedule) => {
-    if (!acc[schedule.dayOfWeek]) {
-      acc[schedule.dayOfWeek] = [];
+    if (!acc[schedule.day_of_week]) {
+      acc[schedule.day_of_week] = [];
     }
-    acc[schedule.dayOfWeek].push(schedule);
+    acc[schedule.day_of_week].push(schedule);
     return acc;
   }, {} as Record<string, typeof schedules>);
 
@@ -40,7 +39,7 @@ export default function Schedules() {
   ];
 
   const resetForm = () => {
-    setFormData({ courseId: '', dayOfWeek: '', startTime: '', endTime: '', availableSlots: '' });
+    setFormData({ course_id: '', day_of_week: '', start_time: '', end_time: '', available_slots: '' });
     setEditingSchedule(null);
   };
 
@@ -48,11 +47,11 @@ export default function Schedules() {
     if (schedule) {
       setEditingSchedule(schedule);
       setFormData({
-        courseId: schedule.courseId,
-        dayOfWeek: schedule.dayOfWeek,
-        startTime: schedule.startTime,
-        endTime: schedule.endTime,
-        availableSlots: schedule.availableSlots.toString(),
+        course_id: schedule.course_id,
+        day_of_week: schedule.day_of_week,
+        start_time: schedule.start_time,
+        end_time: schedule.end_time,
+        available_slots: schedule.available_slots.toString(),
       });
     } else {
       resetForm();
@@ -63,11 +62,11 @@ export default function Schedules() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const scheduleData = {
-      courseId: formData.courseId,
-      dayOfWeek: formData.dayOfWeek,
-      startTime: formData.startTime,
-      endTime: formData.endTime,
-      availableSlots: parseInt(formData.availableSlots) || 0,
+      course_id: formData.course_id,
+      day_of_week: formData.day_of_week,
+      start_time: formData.start_time,
+      end_time: formData.end_time,
+      available_slots: parseInt(formData.available_slots) || 0,
     };
 
     if (editingSchedule) {
@@ -106,7 +105,7 @@ export default function Schedules() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label>Curso</Label>
-                <Select value={formData.courseId} onValueChange={(value) => setFormData({ ...formData, courseId: value })}>
+                <Select value={formData.course_id} onValueChange={(value) => setFormData({ ...formData, course_id: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o curso" />
                   </SelectTrigger>
@@ -121,7 +120,7 @@ export default function Schedules() {
               </div>
               <div className="space-y-2">
                 <Label>Dia da Semana</Label>
-                <Select value={formData.dayOfWeek} onValueChange={(value) => setFormData({ ...formData, dayOfWeek: value })}>
+                <Select value={formData.day_of_week} onValueChange={(value) => setFormData({ ...formData, day_of_week: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione o dia" />
                   </SelectTrigger>
@@ -136,33 +135,33 @@ export default function Schedules() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="startTime">Hora Início</Label>
+                  <Label htmlFor="start_time">Hora Início</Label>
                   <Input
-                    id="startTime"
+                    id="start_time"
                     type="time"
-                    value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                    value={formData.start_time}
+                    onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="endTime">Hora Término</Label>
+                  <Label htmlFor="end_time">Hora Término</Label>
                   <Input
-                    id="endTime"
+                    id="end_time"
                     type="time"
-                    value={formData.endTime}
-                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                    value={formData.end_time}
+                    onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
                     required
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="availableSlots">Vagas</Label>
+                <Label htmlFor="available_slots">Vagas</Label>
                 <Input
-                  id="availableSlots"
+                  id="available_slots"
                   type="number"
-                  value={formData.availableSlots}
-                  onChange={(e) => setFormData({ ...formData, availableSlots: e.target.value })}
+                  value={formData.available_slots}
+                  onChange={(e) => setFormData({ ...formData, available_slots: e.target.value })}
                   required
                 />
               </div>
@@ -190,7 +189,7 @@ export default function Schedules() {
             </div>
             <div className="divide-y divide-border">
               {daySchedules.map((schedule) => {
-                const course = getCourseById(schedule.courseId);
+                const course = getCourseById(schedule.course_id);
                 return (
                   <div key={schedule.id} className="p-4 flex items-center justify-between hover:bg-secondary/30 transition-colors">
                     <div className="flex items-center gap-4">
@@ -200,13 +199,13 @@ export default function Schedules() {
                       <div>
                         <p className="font-medium text-foreground">{course?.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {schedule.startTime} às {schedule.endTime}
+                          {schedule.start_time} às {schedule.end_time}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="px-3 py-1 rounded-full text-xs font-medium bg-success/10 text-success">
-                        {schedule.availableSlots} vagas
+                        {schedule.available_slots} vagas
                       </span>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(schedule)}>
                         <Pencil className="w-4 h-4" />

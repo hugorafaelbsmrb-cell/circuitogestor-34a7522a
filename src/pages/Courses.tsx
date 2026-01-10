@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { BookOpen, Clock, DollarSign, Plus, Pencil, Trash2 } from 'lucide-react';
-import { useSchool } from '@/contexts/SchoolContext';
+import { useSchool, Course } from '@/contexts/SchoolContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Course } from '@/types/school';
 
 export default function Courses() {
   const { courses, classGroups, addCourse, updateCourse, deleteCourse } = useSchool();
@@ -20,13 +19,13 @@ export default function Courses() {
   });
 
   const getClassCount = (courseId: string) => {
-    return classGroups.filter(cg => cg.courseId === courseId).length;
+    return classGroups.filter(cg => cg.course_id === courseId).length;
   };
 
   const getTotalStudents = (courseId: string) => {
     return classGroups
-      .filter(cg => cg.courseId === courseId)
-      .reduce((acc, cg) => acc + cg.currentStudents, 0);
+      .filter(cg => cg.course_id === courseId)
+      .reduce((acc, cg) => acc + cg.current_students, 0);
   };
 
   const resetForm = () => {
@@ -39,7 +38,7 @@ export default function Courses() {
       setEditingCourse(course);
       setFormData({
         name: course.name,
-        description: course.description,
+        description: course.description || '',
         duration: course.duration,
         price: course.price.toString(),
       });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Settings, Plus, Pencil, Trash2, GripVertical, Eye, Save, FileText } from 'lucide-react';
-import { useSchool } from '@/contexts/SchoolContext';
+import { useSchool, ContractClause, ContractConfig as ContractConfigType } from '@/contexts/SchoolContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -8,33 +8,32 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ContractClause } from '@/types/school';
 
 export default function ContractConfig() {
-  const { contractConfig, updateContractConfig, addContractClause, updateContractClause, deleteContractClause } = useSchool();
+  const { contractConfig, contractClauses, updateContractConfig, addContractClause, updateContractClause, deleteContractClause } = useSchool();
   const [isClauseDialogOpen, setIsClauseDialogOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [editingClause, setEditingClause] = useState<ContractClause | null>(null);
   const [clauseFormData, setClauseFormData] = useState({
     title: '',
     content: '',
-    order: 1,
-    isActive: true,
+    clause_order: 1,
+    is_active: true,
   });
   const [configFormData, setConfigFormData] = useState({
-    schoolName: contractConfig.schoolName,
-    schoolCnpj: contractConfig.schoolCnpj,
-    schoolAddress: contractConfig.schoolAddress,
+    school_name: contractConfig?.school_name || '',
+    school_cnpj: contractConfig?.school_cnpj || '',
+    school_address: contractConfig?.school_address || '',
   });
 
-  const sortedClauses = [...contractConfig.clauses].sort((a, b) => a.order - b.order);
+  const sortedClauses = [...contractClauses].sort((a, b) => a.clause_order - b.clause_order);
 
   const resetClauseForm = () => {
     setClauseFormData({
       title: '',
       content: '',
-      order: contractConfig.clauses.length + 1,
-      isActive: true,
+      clause_order: contractClauses.length + 1,
+      is_active: true,
     });
     setEditingClause(null);
   };
@@ -45,8 +44,8 @@ export default function ContractConfig() {
       setClauseFormData({
         title: clause.title,
         content: clause.content,
-        order: clause.order,
-        isActive: clause.isActive,
+        clause_order: clause.clause_order,
+        is_active: clause.is_active,
       });
     } else {
       resetClauseForm();
@@ -76,7 +75,7 @@ export default function ContractConfig() {
   };
 
   const toggleClauseActive = (clause: ContractClause) => {
-    updateContractClause(clause.id, { isActive: !clause.isActive });
+    updateContractClause(clause.id, { is_active: !clause.is_active });
   };
 
   return (
@@ -97,27 +96,27 @@ export default function ContractConfig() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="schoolName">Nome da Escola</Label>
+              <Label htmlFor="school_name">Nome da Escola</Label>
               <Input
-                id="schoolName"
-                value={configFormData.schoolName}
-                onChange={(e) => setConfigFormData({ ...configFormData, schoolName: e.target.value })}
+                id="school_name"
+                value={configFormData.school_name}
+                onChange={(e) => setConfigFormData({ ...configFormData, school_name: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="schoolCnpj">CNPJ</Label>
+              <Label htmlFor="school_cnpj">CNPJ</Label>
               <Input
-                id="schoolCnpj"
-                value={configFormData.schoolCnpj}
-                onChange={(e) => setConfigFormData({ ...configFormData, schoolCnpj: e.target.value })}
+                id="school_cnpj"
+                value={configFormData.school_cnpj}
+                onChange={(e) => setConfigFormData({ ...configFormData, school_cnpj: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="schoolAddress">Endereço</Label>
+              <Label htmlFor="school_address">Endereço</Label>
               <Textarea
-                id="schoolAddress"
-                value={configFormData.schoolAddress}
-                onChange={(e) => setConfigFormData({ ...configFormData, schoolAddress: e.target.value })}
+                id="school_address"
+                value={configFormData.school_address}
+                onChange={(e) => setConfigFormData({ ...configFormData, school_address: e.target.value })}
                 rows={3}
               />
             </div>
@@ -150,13 +149,13 @@ export default function ContractConfig() {
                   <div className="prose prose-sm max-w-none">
                     <h2 className="text-center text-lg font-bold">CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS</h2>
                     <div className="my-4 p-4 bg-secondary/30 rounded-lg">
-                      <p className="font-semibold">{contractConfig.schoolName}</p>
-                      <p className="text-sm text-muted-foreground">CNPJ: {contractConfig.schoolCnpj}</p>
-                      <p className="text-sm text-muted-foreground">{contractConfig.schoolAddress}</p>
+                      <p className="font-semibold">{contractConfig?.school_name}</p>
+                      <p className="text-sm text-muted-foreground">CNPJ: {contractConfig?.school_cnpj}</p>
+                      <p className="text-sm text-muted-foreground">{contractConfig?.school_address}</p>
                     </div>
                     <p className="text-muted-foreground italic">[Dados do contratante e aluno serão preenchidos automaticamente]</p>
                     {sortedClauses
-                      .filter(c => c.isActive)
+                      .filter(c => c.is_active)
                       .map((clause, index) => (
                         <div key={clause.id} className="mb-4">
                           <h3 className="font-semibold">
@@ -219,8 +218,8 @@ export default function ContractConfig() {
                           id="clauseOrder"
                           type="number"
                           min="1"
-                          value={clauseFormData.order}
-                          onChange={(e) => setClauseFormData({ ...clauseFormData, order: parseInt(e.target.value) || 1 })}
+                          value={clauseFormData.clause_order}
+                          onChange={(e) => setClauseFormData({ ...clauseFormData, clause_order: parseInt(e.target.value) || 1 })}
                           required
                         />
                       </div>
@@ -228,8 +227,8 @@ export default function ContractConfig() {
                         <Label>Ativa</Label>
                         <div className="flex items-center h-10">
                           <Switch
-                            checked={clauseFormData.isActive}
-                            onCheckedChange={(checked) => setClauseFormData({ ...clauseFormData, isActive: checked })}
+                            checked={clauseFormData.is_active}
+                            onCheckedChange={(checked) => setClauseFormData({ ...clauseFormData, is_active: checked })}
                           />
                         </div>
                       </div>
@@ -253,12 +252,12 @@ export default function ContractConfig() {
                 <div
                   key={clause.id}
                   className={`flex items-start gap-3 p-4 rounded-lg border transition-colors ${
-                    clause.isActive ? 'bg-card border-border' : 'bg-muted/50 border-border/50 opacity-60'
+                    clause.is_active ? 'bg-card border-border' : 'bg-muted/50 border-border/50 opacity-60'
                   }`}
                 >
                   <div className="flex items-center gap-2 text-muted-foreground pt-1">
                     <GripVertical className="w-4 h-4" />
-                    <span className="text-xs font-medium w-6">{clause.order}.</span>
+                    <span className="text-xs font-medium w-6">{clause.clause_order}.</span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <h4 className="font-medium text-foreground">{clause.title}</h4>
@@ -266,7 +265,7 @@ export default function ContractConfig() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
-                      checked={clause.isActive}
+                      checked={clause.is_active}
                       onCheckedChange={() => toggleClauseActive(clause)}
                       className="data-[state=checked]:bg-success"
                     />

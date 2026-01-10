@@ -4,23 +4,23 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 
 export default function Contracts() {
-  const { enrollments, getStudentById, getGuardianById, getClassGroupById, getCourseById, getScheduleById, contractConfig } = useSchool();
+  const { enrollments, contractClauses, getStudentById, getGuardianById, getClassGroupById, getCourseById, getScheduleById, contractConfig } = useSchool();
 
-  const contractEnrollments = enrollments.filter(e => e.contractGenerated);
+  const contractEnrollments = enrollments.filter(e => e.contract_generated);
 
   const handleDownload = (enrollmentId: string) => {
     const enrollment = enrollments.find(e => e.id === enrollmentId);
     if (!enrollment) return;
 
-    const student = getStudentById(enrollment.studentId);
-    const guardian = getGuardianById(enrollment.guardianId);
-    const classGroup = getClassGroupById(enrollment.classGroupId);
-    const course = classGroup ? getCourseById(classGroup.courseId) : undefined;
-    const schedule = classGroup ? getScheduleById(classGroup.scheduleId) : undefined;
+    const student = getStudentById(enrollment.student_id);
+    const guardian = getGuardianById(enrollment.guardian_id);
+    const classGroup = getClassGroupById(enrollment.class_group_id);
+    const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
+    const schedule = classGroup ? getScheduleById(classGroup.schedule_id) : undefined;
 
-    const activeClauses = contractConfig.clauses
-      .filter(c => c.isActive)
-      .sort((a, b) => a.order - b.order);
+    const activeClauses = contractClauses
+      .filter(c => c.is_active)
+      .sort((a, b) => a.clause_order - b.clause_order);
 
     const clausesText = activeClauses
       .map((clause, index) => `Cláusula ${index + 1}ª - ${clause.title}\n${clause.content}`)
@@ -32,9 +32,9 @@ CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS
 ================================================================================
 
 CONTRATADO:
-${contractConfig.schoolName}
-CNPJ: ${contractConfig.schoolCnpj}
-Endereço: ${contractConfig.schoolAddress}
+${contractConfig?.school_name || ''}
+CNPJ: ${contractConfig?.school_cnpj || ''}
+Endereço: ${contractConfig?.school_address || ''}
 
 ================================================================================
 
@@ -49,7 +49,7 @@ Endereço: ${guardian?.address}
 
 ALUNO:
 Nome: ${student?.name}
-Data de Nascimento: ${student?.birthDate ? new Date(student.birthDate).toLocaleDateString('pt-BR') : '-'}
+Data de Nascimento: ${student?.birth_date ? new Date(student.birth_date).toLocaleDateString('pt-BR') : '-'}
 
 ================================================================================
 
@@ -58,7 +58,7 @@ Nome: ${course?.name}
 Descrição: ${course?.description}
 Duração: ${course?.duration}
 Turma: ${classGroup?.name}
-Horário: ${schedule ? `${schedule.dayOfWeek} - ${schedule.startTime} às ${schedule.endTime}` : '-'}
+Horário: ${schedule ? `${schedule.day_of_week} - ${schedule.start_time} às ${schedule.end_time}` : '-'}
 
 ================================================================================
 
@@ -67,7 +67,7 @@ Mensalidade: R$ ${course?.price.toFixed(2).replace('.', ',')}
 
 ================================================================================
 
-Data da Matrícula: ${new Date(enrollment.enrollmentDate).toLocaleDateString('pt-BR')}
+Data da Matrícula: ${new Date(enrollment.enrollment_date).toLocaleDateString('pt-BR')}
 
 ================================================================================
 
@@ -114,10 +114,10 @@ _______________________________          _______________________________
         <div className="bg-card rounded-xl border border-border/50 shadow-sm">
           <div className="divide-y divide-border">
             {contractEnrollments.map((enrollment) => {
-              const student = getStudentById(enrollment.studentId);
-              const guardian = getGuardianById(enrollment.guardianId);
-              const classGroup = getClassGroupById(enrollment.classGroupId);
-              const course = classGroup ? getCourseById(classGroup.courseId) : undefined;
+              const student = getStudentById(enrollment.student_id);
+              const guardian = getGuardianById(enrollment.guardian_id);
+              const classGroup = getClassGroupById(enrollment.class_group_id);
+              const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
 
               return (
                 <div key={enrollment.id} className="p-6 hover:bg-secondary/30 transition-colors">
@@ -140,7 +140,7 @@ _______________________________          _______________________________
                           </span>
                           <span className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
-                            {new Date(enrollment.enrollmentDate).toLocaleDateString('pt-BR')}
+                            {new Date(enrollment.enrollment_date).toLocaleDateString('pt-BR')}
                           </span>
                         </div>
                       </div>
