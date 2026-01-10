@@ -1,34 +1,69 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText } from 'lucide-react';
+import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSchool } from '@/contexts/SchoolContext';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { useAsaasPayment } from '@/hooks/useAsaasPayment';
 
-type Step = 'student' | 'guardian' | 'course' | 'schedule' | 'contract';
+type Step = 'student' | 'guardian' | 'course' | 'schedule' | 'payment' | 'contract';
 
 const steps: { id: Step; title: string; icon: React.ElementType }[] = [
   { id: 'student', title: 'Aluno', icon: User },
   { id: 'guardian', title: 'Responsável', icon: Users },
   { id: 'course', title: 'Curso', icon: BookOpen },
   { id: 'schedule', title: 'Horário', icon: Calendar },
+  { id: 'payment', title: 'Pagamento', icon: CreditCard },
   { id: 'contract', title: 'Contrato', icon: FileText },
 ];
 
 export default function Enrollment() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { courses, classGroups, schedules, addStudent, addGuardian, addEnrollment, getCourseById, getScheduleById } = useSchool();
+  const { 
+    courses, 
+    classGroups, 
+    schedules,
+    contractConfig,
+    contractClauses,
+    createStudent, 
+    createGuardian, 
+    createEnrollment,
+    createContract,
+    createPayment,
+    createCarne,
+    updateEnrollment,
+    getCourseById, 
+    getScheduleById,
+    isLoading: isDataLoading
+  } = useSchool();
+  
+  const { isLoading: isAsaasLoading, createCustomer, createCarne: createAsaasCarne, createPayment: createAsaasPayment } = useAsaasPayment();
   
   const [currentStep, setCurrentStep] = useState<Step>('student');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     student: { name: '', birthDate: '' },
-    guardian: { name: '', cpf: '', email: '', phone: '', address: '' },
+    guardian: { 
+      name: '', 
+      cpf: '', 
+      email: '', 
+      phone: '', 
+      address: '',
+      addressNumber: '',
+      province: '',
+      postalCode: ''
+    },
     courseId: '',
     classGroupId: '',
+    payment: {
+      installments: '6',
+      dueDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0],
+    }
   });
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
@@ -47,13 +82,20 @@ export default function Enrollment() {
     }));
   };
 
+  const handlePaymentChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      payment: { ...prev.payment, [field]: value }
+    }));
+  };
+
   const validateStudent = () => {
     return formData.student.name.trim() !== '' && formData.student.birthDate !== '';
   };
 
   const validateGuardian = () => {
-    const { name, cpf, email, phone, address } = formData.guardian;
-    return name.trim() !== '' && cpf.trim() !== '' && email.trim() !== '' && phone.trim() !== '' && address.trim() !== '';
+    const { name, cpf, email, phone, address, postalCode } = formData.guardian;
+    return name.trim() !== '' && cpf.trim() !== '' && email.trim() !== '' && phone.trim() !== '' && address.trim() !== '' && postalCode.trim() !== '';
   };
 
   const goToNextStep = () => {
@@ -70,37 +112,170 @@ export default function Enrollment() {
     }
   };
 
-  const handleSubmit = () => {
-    const guardian = addGuardian(formData.guardian);
-    const student = addStudent({
-      name: formData.student.name,
-      birthDate: formData.student.birthDate,
-      guardianId: guardian.id,
-    });
+  const handleSubmit = async () => {
+    if (!selectedCourse || !selectedClassGroup) return;
+    
+    setIsSubmitting(true);
+    
+    try {
+      // 1. Create Guardian in database
+      const guardian = await createGuardian({
+        name: formData.guardian.name,
+        cpf: formData.guardian.cpf,
+        email: formData.guardian.email,
+        phone: formData.guardian.phone,
+        address: formData.guardian.address,
+        address_number: formData.guardian.addressNumber || 'S/N',
+        province: formData.guardian.province || 'Centro',
+        postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
+        asaas_customer_id: null,
+      });
 
-    addEnrollment({
-      studentId: student.id,
-      classGroupId: formData.classGroupId,
-      guardianId: guardian.id,
-      enrollmentDate: new Date().toISOString(),
-      status: 'active',
-      contractGenerated: true,
-    });
+      // 2. Create Student in database
+      const student = await createStudent({
+        name: formData.student.name,
+        birth_date: formData.student.birthDate,
+        guardian_id: guardian.id,
+      });
 
-    toast({
-      title: "Matrícula realizada com sucesso!",
-      description: "O contrato foi gerado e está disponível para download.",
-    });
+      // 3. Create Enrollment in database
+      const enrollment = await createEnrollment({
+        student_id: student.id,
+        class_group_id: formData.classGroupId,
+        guardian_id: guardian.id,
+        status: 'active',
+      });
 
-    navigate('/contratos');
+      // 4. Generate Contract
+      const contractContent = {
+        schoolName: contractConfig?.school_name || 'EduGestor',
+        schoolCnpj: contractConfig?.school_cnpj || '',
+        schoolAddress: contractConfig?.school_address || '',
+        guardianName: guardian.name,
+        guardianCpf: guardian.cpf,
+        guardianAddress: guardian.address,
+        studentName: student.name,
+        studentBirthDate: student.birth_date,
+        courseName: selectedCourse.name,
+        courseDuration: selectedCourse.duration,
+        coursePrice: selectedCourse.price,
+        classGroupName: selectedClassGroup.name,
+        schedule: selectedSchedule ? `${selectedSchedule.day_of_week} - ${selectedSchedule.start_time} às ${selectedSchedule.end_time}` : '',
+        installments: parseInt(formData.payment.installments),
+        installmentValue: selectedCourse.price,
+        totalValue: selectedCourse.price * parseInt(formData.payment.installments),
+        clauses: contractClauses.filter(c => c.is_active).map(c => ({
+          title: c.title,
+          content: c.content,
+        })),
+        createdAt: new Date().toISOString(),
+      };
+
+      const contract = await createContract({
+        enrollment_id: enrollment.id,
+        guardian_id: guardian.id,
+        student_id: student.id,
+        course_id: selectedCourse.id,
+        contract_content: contractContent,
+        total_value: contractContent.totalValue,
+        installment_count: contractContent.installments,
+      });
+
+      // 5. Create Customer in Asaas
+      const asaasCustomer = await createCustomer({
+        name: guardian.name,
+        cpfCnpj: guardian.cpf,
+        email: guardian.email,
+        phone: guardian.phone,
+        address: guardian.address,
+        addressNumber: formData.guardian.addressNumber || 'S/N',
+        province: formData.guardian.province || 'Centro',
+        postalCode: guardian.postal_code,
+      });
+
+      if (!asaasCustomer) {
+        throw new Error('Erro ao criar cliente no sistema de pagamentos');
+      }
+
+      // 6. Generate Carnê in Asaas
+      const installmentCount = parseInt(formData.payment.installments);
+      const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student.name}`;
+      
+      const asaasPayment = await createAsaasCarne({
+        customerId: asaasCustomer.id,
+        value: selectedCourse.price * installmentCount,
+        dueDate: formData.payment.dueDate,
+        description,
+        installmentCount,
+        externalReference: enrollment.id,
+      });
+
+      if (asaasPayment) {
+        // Save carnê to database
+        await createCarne({
+          enrollment_id: enrollment.id,
+          guardian_id: guardian.id,
+          contract_id: contract.id,
+          asaas_installment_id: asaasPayment.installment || asaasPayment.id,
+          description,
+          total_value: selectedCourse.price * installmentCount,
+          installment_count: installmentCount,
+          first_due_date: formData.payment.dueDate,
+        });
+
+        // Save the first payment record
+        await createPayment({
+          enrollment_id: enrollment.id,
+          guardian_id: guardian.id,
+          contract_id: contract.id,
+          asaas_payment_id: asaasPayment.id,
+          asaas_installment_id: asaasPayment.installment || null,
+          description,
+          value: asaasPayment.value,
+          due_date: asaasPayment.dueDate,
+          status: asaasPayment.status,
+          invoice_url: asaasPayment.invoiceUrl,
+          bank_slip_url: asaasPayment.bankSlipUrl,
+          installment_number: 1,
+          external_reference: enrollment.id,
+        });
+      }
+
+      // 7. Update enrollment with contract flag
+      await updateEnrollment(enrollment.id, { contract_generated: true });
+
+      toast({
+        title: "Matrícula realizada com sucesso!",
+        description: "O contrato e o carnê foram gerados automaticamente.",
+      });
+
+      navigate('/contratos');
+    } catch (error) {
+      console.error('Enrollment error:', error);
+      toast({
+        title: "Erro na matrícula",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao processar a matrícula.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const selectedCourse = getCourseById(formData.courseId);
   const availableClassGroups = classGroups.filter(cg => 
-    cg.courseId === formData.courseId && cg.currentStudents < cg.maxStudents
+    cg.course_id === formData.courseId && cg.current_students < cg.max_students
   );
   const selectedClassGroup = classGroups.find(cg => cg.id === formData.classGroupId);
-  const selectedSchedule = selectedClassGroup ? getScheduleById(selectedClassGroup.scheduleId) : undefined;
+  const selectedSchedule = selectedClassGroup ? getScheduleById(selectedClassGroup.schedule_id) : undefined;
+
+  if (isDataLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto animate-fade-in">
@@ -217,13 +392,40 @@ export default function Enrollment() {
                   onChange={(e) => handleGuardianChange('phone', e.target.value)}
                 />
               </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="address">Endereço Completo</Label>
+              <div className="space-y-2">
+                <Label htmlFor="address">Endereço</Label>
                 <Input
                   id="address"
-                  placeholder="Rua, número, bairro, cidade - UF"
+                  placeholder="Rua, Avenida..."
                   value={formData.guardian.address}
                   onChange={(e) => handleGuardianChange('address', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="addressNumber">Número</Label>
+                <Input
+                  id="addressNumber"
+                  placeholder="123"
+                  value={formData.guardian.addressNumber}
+                  onChange={(e) => handleGuardianChange('addressNumber', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="province">Bairro</Label>
+                <Input
+                  id="province"
+                  placeholder="Centro"
+                  value={formData.guardian.province}
+                  onChange={(e) => handleGuardianChange('province', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="postalCode">CEP</Label>
+                <Input
+                  id="postalCode"
+                  placeholder="00000-000"
+                  value={formData.guardian.postalCode}
+                  onChange={(e) => handleGuardianChange('postalCode', e.target.value)}
                 />
               </div>
             </div>
@@ -234,7 +436,7 @@ export default function Enrollment() {
           <div>
             <h2 className="form-section-title">Selecione o Curso</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {courses.map((course) => (
+              {courses.filter(c => c.is_active).map((course) => (
                 <button
                   key={course.id}
                   onClick={() => setFormData(prev => ({ ...prev, courseId: course.id, classGroupId: '' }))}
@@ -250,7 +452,7 @@ export default function Enrollment() {
                   <div className="flex items-center justify-between mt-3">
                     <span className="text-sm text-muted-foreground">{course.duration}</span>
                     <span className="text-lg font-semibold text-primary">
-                      R$ {course.price.toFixed(2).replace('.', ',')}
+                      R$ {Number(course.price).toFixed(2).replace('.', ',')}
                     </span>
                   </div>
                 </button>
@@ -270,8 +472,8 @@ export default function Enrollment() {
             <div className="space-y-4">
               {availableClassGroups.length > 0 ? (
                 availableClassGroups.map((classGroup) => {
-                  const schedule = getScheduleById(classGroup.scheduleId);
-                  const availableSlots = classGroup.maxStudents - classGroup.currentStudents;
+                  const schedule = getScheduleById(classGroup.schedule_id);
+                  const availableSlots = classGroup.max_students - classGroup.current_students;
                   return (
                     <button
                       key={classGroup.id}
@@ -288,14 +490,14 @@ export default function Enrollment() {
                           <h3 className="font-semibold text-foreground">{classGroup.name}</h3>
                           {schedule && (
                             <p className="text-sm text-muted-foreground mt-1">
-                              {schedule.dayOfWeek} • {schedule.startTime} às {schedule.endTime}
+                              {schedule.day_of_week} • {schedule.start_time} às {schedule.end_time}
                             </p>
                           )}
                         </div>
                         <div className="text-right">
                           <span className="text-sm font-medium text-success">{availableSlots} vagas</span>
                           <p className="text-xs text-muted-foreground">
-                            {classGroup.currentStudents}/{classGroup.maxStudents} alunos
+                            {classGroup.current_students}/{classGroup.max_students} alunos
                           </p>
                         </div>
                       </div>
@@ -308,6 +510,73 @@ export default function Enrollment() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {currentStep === 'payment' && (
+          <div>
+            <h2 className="form-section-title">Configuração do Carnê</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Configure o parcelamento e a data de vencimento das mensalidades.
+            </p>
+            
+            {selectedCourse && (
+              <div className="bg-secondary/30 rounded-xl p-6 mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-sm text-muted-foreground">Curso selecionado</span>
+                  <span className="font-semibold">{selectedCourse.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Valor por mensalidade</span>
+                  <span className="font-semibold text-primary">
+                    R$ {Number(selectedCourse.price).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Número de Mensalidades</Label>
+                <Select
+                  value={formData.payment.installments}
+                  onValueChange={(value) => handlePaymentChange('installments', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                      <SelectItem key={n} value={n.toString()}>
+                        {n}x {selectedCourse && `(Total: R$ ${(Number(selectedCourse.price) * n).toFixed(2).replace('.', ',')})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Primeiro Vencimento</Label>
+                <Input
+                  type="date"
+                  value={formData.payment.dueDate}
+                  onChange={(e) => handlePaymentChange('dueDate', e.target.value)}
+                />
+              </div>
+            </div>
+
+            {selectedCourse && (
+              <div className="mt-6 p-4 bg-primary/5 rounded-xl border border-primary/20">
+                <div className="flex justify-between items-center">
+                  <span className="font-medium">Valor Total do Carnê</span>
+                  <span className="text-xl font-bold text-primary">
+                    R$ {(Number(selectedCourse.price) * parseInt(formData.payment.installments)).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {formData.payment.installments}x de R$ {Number(selectedCourse.price).toFixed(2).replace('.', ',')}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -338,27 +607,48 @@ export default function Enrollment() {
                   <p className="text-foreground font-medium">{selectedClassGroup?.name}</p>
                   {selectedSchedule && (
                     <p className="text-sm text-muted-foreground">
-                      {selectedSchedule.dayOfWeek} • {selectedSchedule.startTime} às {selectedSchedule.endTime}
+                      {selectedSchedule.day_of_week} • {selectedSchedule.start_time} às {selectedSchedule.end_time}
                     </p>
                   )}
                 </div>
               </div>
               <div className="mt-6 pt-6 border-t border-border">
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-medium text-foreground">Valor Mensal</span>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-muted-foreground">Mensalidade</span>
+                  <span className="font-medium">
+                    R$ {selectedCourse ? Number(selectedCourse.price).toFixed(2).replace('.', ',') : '0,00'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-muted-foreground">Número de parcelas</span>
+                  <span className="font-medium">{formData.payment.installments}x</span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-border">
+                  <span className="text-lg font-medium text-foreground">Valor Total</span>
                   <span className="text-2xl font-semibold text-primary">
-                    R$ {selectedCourse?.price.toFixed(2).replace('.', ',')}
+                    R$ {selectedCourse ? (Number(selectedCourse.price) * parseInt(formData.payment.installments)).toFixed(2).replace('.', ',') : '0,00'}
                   </span>
                 </div>
               </div>
             </div>
-            <div className="bg-success/10 rounded-xl p-4 flex items-start gap-3">
-              <Check className="w-5 h-5 text-success mt-0.5" />
-              <div>
-                <p className="font-medium text-foreground">Contrato será gerado automaticamente</p>
-                <p className="text-sm text-muted-foreground">
-                  Ao finalizar, o contrato será emitido no nome do responsável financeiro.
-                </p>
+            <div className="space-y-3">
+              <div className="bg-success/10 rounded-xl p-4 flex items-start gap-3">
+                <Check className="w-5 h-5 text-success mt-0.5" />
+                <div>
+                  <p className="font-medium text-foreground">Contrato gerado automaticamente</p>
+                  <p className="text-sm text-muted-foreground">
+                    O contrato será emitido no nome do responsável financeiro.
+                  </p>
+                </div>
+              </div>
+              <div className="bg-primary/10 rounded-xl p-4 flex items-start gap-3">
+                <CreditCard className="w-5 h-5 text-primary mt-0.5" />
+                <div>
+                  <p className="font-medium text-foreground">Carnê de pagamento</p>
+                  <p className="text-sm text-muted-foreground">
+                    Serão gerados {formData.payment.installments} boletos com vencimento mensal a partir de {new Date(formData.payment.dueDate).toLocaleDateString('pt-BR')}.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -369,15 +659,28 @@ export default function Enrollment() {
           <Button
             variant="outline"
             onClick={goToPreviousStep}
-            disabled={currentStepIndex === 0}
+            disabled={currentStepIndex === 0 || isSubmitting}
           >
             Voltar
           </Button>
           
           {currentStep === 'contract' ? (
-            <Button onClick={handleSubmit} className="gap-2">
-              <FileText className="w-4 h-4" />
-              Finalizar e Gerar Contrato
+            <Button 
+              onClick={handleSubmit} 
+              className="gap-2"
+              disabled={isSubmitting || isAsaasLoading}
+            >
+              {(isSubmitting || isAsaasLoading) ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Processando...
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4" />
+                  Finalizar Matrícula
+                </>
+              )}
             </Button>
           ) : (
             <Button 
