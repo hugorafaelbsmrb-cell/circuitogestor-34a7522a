@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import type { AsaasCustomer, AsaasPayment, AsaasBoleto } from '@/types/school';
+import type { AsaasCustomer, AsaasPayment, AsaasBoleto, AsaasInstallment } from '@/types/school';
 
 interface CreateCustomerData {
   name: string;
@@ -20,7 +20,17 @@ interface CreatePaymentData {
   dueDate: string;
   description: string;
   externalReference?: string;
-  installmentCount?: number;
+}
+
+interface CreateCarneData {
+  customerId: string;
+  value: number;
+  dueDate: string;
+  description: string;
+  externalReference?: string;
+  installmentCount: number;
+  interest?: { value: number };
+  fine?: { value: number };
 }
 
 export function useAsaasPayment() {
@@ -92,25 +102,27 @@ export function useAsaasPayment() {
     }
   };
 
-  const createInstallments = async (data: CreatePaymentData): Promise<AsaasPayment | null> => {
+  const createCarne = async (data: CreateCarneData): Promise<AsaasPayment | null> => {
     setIsLoading(true);
     try {
-      const result = await callAsaasFunction('createInstallments', {
+      const result = await callAsaasFunction('createCarne', {
         customerId: data.customerId,
         value: data.value,
-        installmentCount: data.installmentCount || 1,
+        installmentCount: data.installmentCount,
         dueDate: data.dueDate,
         description: data.description,
         externalReference: data.externalReference,
+        interest: data.interest,
+        fine: data.fine,
       });
       toast({
-        title: 'Parcelamento criado',
-        description: `Parcelamento em ${data.installmentCount}x criado com sucesso.`,
+        title: 'Carnê criado',
+        description: `Carnê com ${data.installmentCount} parcelas criado com sucesso.`,
       });
       return result as AsaasPayment;
     } catch (error) {
       toast({
-        title: 'Erro ao criar parcelamento',
+        title: 'Erro ao criar carnê',
         description: error instanceof Error ? error.message : 'Erro desconhecido',
         variant: 'destructive',
       });
@@ -154,12 +166,110 @@ export function useAsaasPayment() {
     }
   };
 
+  const listInstallmentPayments = async (installmentId: string): Promise<AsaasPayment[]> => {
+    setIsLoading(true);
+    try {
+      const result = await callAsaasFunction('listInstallmentPayments', { installmentId });
+      return (result?.data || []) as AsaasPayment[];
+    } catch (error) {
+      toast({
+        title: 'Erro ao listar parcelas do carnê',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getInstallment = async (installmentId: string): Promise<AsaasInstallment | null> => {
+    setIsLoading(true);
+    try {
+      const result = await callAsaasFunction('getInstallment', { installmentId });
+      return result as AsaasInstallment;
+    } catch (error) {
+      toast({
+        title: 'Erro ao obter carnê',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteInstallment = async (installmentId: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      await callAsaasFunction('deleteInstallment', { installmentId });
+      toast({
+        title: 'Carnê excluído',
+        description: 'O carnê foi excluído com sucesso.',
+      });
+      return true;
+    } catch (error) {
+      toast({
+        title: 'Erro ao excluir carnê',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refundInstallment = async (installmentId: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      await callAsaasFunction('refundInstallment', { installmentId });
+      toast({
+        title: 'Carnê estornado',
+        description: 'O carnê foi estornado com sucesso.',
+      });
+      return true;
+    } catch (error) {
+      toast({
+        title: 'Erro ao estornar carnê',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getInstallmentBooklet = async (installmentId: string): Promise<{ url: string } | null> => {
+    setIsLoading(true);
+    try {
+      const result = await callAsaasFunction('getInstallmentBooklet', { installmentId });
+      return result as { url: string };
+    } catch (error) {
+      toast({
+        title: 'Erro ao obter carnê PDF',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     isLoading,
     createCustomer,
     createPayment,
-    createInstallments,
+    createCarne,
     getBoleto,
     listPayments,
+    listInstallmentPayments,
+    getInstallment,
+    deleteInstallment,
+    refundInstallment,
+    getInstallmentBooklet,
   };
 }

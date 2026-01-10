@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 
 export default function Payments() {
   const { guardians, enrollments, courses, getCourseById, getClassGroupById, getStudentById } = useSchool();
-  const { isLoading, createCustomer, createPayment, createInstallments } = useAsaasPayment();
+  const { isLoading, createCustomer, createPayment, createCarne } = useAsaasPayment();
   const { toast } = useToast();
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -67,7 +67,7 @@ export default function Payments() {
     let payment: AsaasPayment | null;
 
     if (installmentCount > 1) {
-      payment = await createInstallments({
+      payment = await createCarne({
         customerId: customer.id,
         value: selectedCourse.price * installmentCount,
         dueDate: paymentForm.dueDate,
