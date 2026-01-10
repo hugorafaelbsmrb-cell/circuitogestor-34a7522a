@@ -130,18 +130,21 @@ async function getPaymentBoleto(paymentId: string) {
   return await handleAsaasResponse(response, "getBoleto");
 }
 
-async function createInstallments(data: {
+async function createCarne(data: {
   customerId: string;
   value: number;
   installmentCount: number;
   dueDate: string;
   description: string;
   externalReference?: string;
+  interest?: { value: number };
+  fine?: { value: number };
 }) {
-  console.log("Criando parcelamento no Asaas:", data.installmentCount, "parcelas");
+  console.log("Criando carnê no Asaas:", data.installmentCount, "parcelas");
   
   const installmentValue = Math.ceil((data.value / data.installmentCount) * 100) / 100;
   
+  // Asaas uses the /payments endpoint with installmentCount for carnê
   const response = await fetch(`${ASAAS_API_URL}/payments`, {
     method: "POST",
     headers: getHeaders(),
@@ -154,12 +157,80 @@ async function createInstallments(data: {
       externalReference: data.externalReference,
       installmentCount: data.installmentCount,
       installmentValue: installmentValue,
+      interest: data.interest || { value: 1 }, // 1% de juros ao mês por padrão
+      fine: data.fine || { value: 2 }, // 2% de multa por padrão
     }),
   });
 
-  const result = await handleAsaasResponse(response, "createInstallments");
-  console.log("Parcelamento criado com sucesso");
+  const result = await handleAsaasResponse(response, "createCarne");
+  console.log("Carnê criado com sucesso, installment:", result.installment);
   return result;
+}
+
+async function listInstallmentPayments(installmentId: string) {
+  console.log("Listando parcelas do carnê:", installmentId);
+  
+  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}/payments`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+
+  return await handleAsaasResponse(response, "listInstallmentPayments");
+}
+
+async function getInstallment(installmentId: string) {
+  console.log("Obtendo dados do carnê:", installmentId);
+  
+  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+
+  return await handleAsaasResponse(response, "getInstallment");
+}
+
+async function deleteInstallment(installmentId: string) {
+  console.log("Excluindo carnê:", installmentId);
+  
+  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}`, {
+    method: "DELETE",
+    headers: getHeaders(),
+  });
+
+  return await handleAsaasResponse(response, "deleteInstallment");
+}
+
+async function refundInstallment(installmentId: string) {
+  console.log("Estornando carnê:", installmentId);
+  
+  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}/refund`, {
+    method: "POST",
+    headers: getHeaders(),
+  });
+
+  return await handleAsaasResponse(response, "refundInstallment");
+}
+
+async function getInstallmentBooklet(installmentId: string) {
+  console.log("Obtendo carnê em PDF:", installmentId);
+  
+  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}/paymentBook`, {
+    method: "GET",
+    headers: getHeaders(),
+  });
+
+  // This endpoint returns PDF directly, not JSON
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Erro ao obter carnê: ${text.substring(0, 200)}`);
+  }
+  
+  // Return the URL for the payment book
+  return { 
+    success: true, 
+    url: `${ASAAS_API_URL}/installments/${installmentId}/paymentBook`,
+    message: "Use o link para baixar o carnê em PDF"
+  };
 }
 
 async function listPayments(customerId: string) {
@@ -192,14 +263,29 @@ serve(async (req) => {
       case "createPayment":
         result = await createPayment(data);
         break;
-      case "createInstallments":
-        result = await createInstallments(data);
+      case "createCarne":
+        result = await createCarne(data);
         break;
       case "getBoleto":
         result = await getPaymentBoleto(data.paymentId);
         break;
       case "listPayments":
         result = await listPayments(data.customerId);
+        break;
+      case "listInstallmentPayments":
+        result = await listInstallmentPayments(data.installmentId);
+        break;
+      case "getInstallment":
+        result = await getInstallment(data.installmentId);
+        break;
+      case "deleteInstallment":
+        result = await deleteInstallment(data.installmentId);
+        break;
+      case "refundInstallment":
+        result = await refundInstallment(data.installmentId);
+        break;
+      case "getInstallmentBooklet":
+        result = await getInstallmentBooklet(data.installmentId);
         break;
       default:
         throw new Error("Ação não reconhecida");

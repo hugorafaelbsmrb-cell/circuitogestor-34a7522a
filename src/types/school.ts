@@ -99,6 +99,7 @@ export interface AsaasCustomer {
 export interface AsaasPayment {
   id: string;
   customerId: string;
+  customer?: string;
   value: number;
   netValue: number;
   billingType: 'BOLETO';
@@ -111,12 +112,31 @@ export interface AsaasPayment {
   description?: string;
   externalReference?: string;
   installment?: string;
+  installmentNumber?: number;
+}
+
+export interface AsaasInstallment {
+  id: string;
+  value: number;
+  netValue: number;
+  paymentValue: number;
+  installmentCount: number;
+  billingType: 'BOLETO';
+  status: 'ACTIVE' | 'ENDED' | 'DELETED';
+  description?: string;
+  externalReference?: string;
+  paymentDate?: string;
 }
 
 export interface AsaasBoleto {
   identificationField: string;
   nossoNumero: string;
   barCode: string;
+}
+
+export interface AsaasCarneResult {
+  payment: AsaasPayment;
+  installmentId: string;
 }
 
 export interface PaymentConfig {
