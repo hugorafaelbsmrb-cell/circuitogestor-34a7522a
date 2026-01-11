@@ -259,6 +259,16 @@ export function useSchoolData() {
     return result;
   };
 
+  const updateStudent = async (id: string, data: Partial<DbStudent>) => {
+    const { error } = await supabase
+      .from('students')
+      .update(data)
+      .eq('id', id);
+    
+    if (error) throw error;
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...data } : s));
+  };
+
   // Enrollment CRUD
   const createEnrollment = async (data: {
     student_id: string;
@@ -602,6 +612,7 @@ export function useSchoolData() {
     
     // Student
     createStudent,
+    updateStudent,
     
     // Enrollment
     createEnrollment,
