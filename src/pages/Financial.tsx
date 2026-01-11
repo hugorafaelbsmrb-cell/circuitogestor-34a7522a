@@ -87,12 +87,69 @@ export default function Financial() {
   const currentMonthStart = startOfMonth(today);
   const currentMonthEnd = endOfMonth(today);
 
-  // Calculate financial metrics
-  const metrics = useMemo(() => {
+  // Calculate carnê-based predictability metrics
+  const carneMetrics = useMemo(() => {
     const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    
+    // Calculate expected revenue from carnês for next 6 months
+    const monthlyForecast: { month: Date; expected: number; carneCount: number }[] = [];
+    
+    for (let i = 0; i < 6; i++) {
+      const targetDate = new Date(now);
+      targetDate.setMonth(targetDate.getMonth() + i);
+      const monthStart = startOfMonth(targetDate);
+      const monthEnd = endOfMonth(targetDate);
+      
+      let expectedForMonth = 0;
+      let carneCountForMonth = 0;
+      
+      carnes.forEach(carne => {
+        const firstDueDate = parseISO(carne.first_due_date);
+        const installmentValue = carne.total_value / carne.installment_count;
+        
+        // Calculate which installments fall in this month
+        for (let inst = 0; inst < carne.installment_count; inst++) {
+          const installmentDate = new Date(firstDueDate);
+          installmentDate.setMonth(installmentDate.getMonth() + inst);
+          
+          if (installmentDate >= monthStart && installmentDate <= monthEnd) {
+            expectedForMonth += installmentValue;
+            carneCountForMonth++;
+          }
+        }
+      });
+      
+      monthlyForecast.push({
+        month: targetDate,
+        expected: expectedForMonth,
+        carneCount: carneCountForMonth,
+      });
+    }
 
+    // Total value of all active carnês
+    const totalCarneValue = carnes.reduce((sum, c) => sum + c.total_value, 0);
+    
+    // Active carnês count
+    const activeCarnes = carnes.filter(c => c.status === 'ACTIVE').length;
+    
+    // Average ticket (valor médio por carnê)
+    const averageTicket = carnes.length > 0 ? totalCarneValue / carnes.length : 0;
+    
+    // Total installments expected
+    const totalInstallments = carnes.reduce((sum, c) => sum + c.installment_count, 0);
+
+    return {
+      monthlyForecast,
+      totalCarneValue,
+      activeCarnes,
+      averageTicket,
+      totalInstallments,
+      totalCarnes: carnes.length,
+    };
+  }, [carnes]);
+
+  // Calculate financial metrics from payments
+  const metrics = useMemo(() => {
     // Payments for current month
     const monthPayments = payments.filter(p => {
       const dueDate = parseISO(p.due_date);
@@ -123,16 +180,6 @@ export default function Financial() {
       p.status === 'PENDING' || p.status === 'OVERDUE'
     );
 
-    // Expected revenue (all pending for current and future months)
-    const expectedRevenue = payments
-      .filter(p => p.status === 'PENDING')
-      .reduce((sum, p) => sum + p.value, 0);
-
-    // Received total
-    const receivedTotal = payments
-      .filter(p => p.status === 'RECEIVED' || p.status === 'CONFIRMED')
-      .reduce((sum, p) => sum + p.value, 0);
-
     // Monthly forecast (expected for current month)
     const monthlyForecast = monthPayments.reduce((sum, p) => sum + p.value, 0);
     const monthlyReceived = paidThisMonth.reduce((sum, p) => sum + p.value, 0);
@@ -143,8 +190,6 @@ export default function Financial() {
       overdueToday,
       allOverdue,
       pendingThisMonth,
-      expectedRevenue,
-      receivedTotal,
       monthlyForecast,
       monthlyReceived,
       overdueTotal: allOverdue.reduce((sum, p) => sum + p.value, 0),
@@ -292,46 +337,119 @@ export default function Financial() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
+          {/* Carnê-based forecast cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Total em Carnês</p>
+                    <p className="text-2xl font-bold">{formatCurrency(carneMetrics.totalCarneValue)}</p>
+                    <p className="text-xs text-muted-foreground">{carneMetrics.totalCarnes} carnês gerados</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Carnês Ativos</p>
+                    <p className="text-2xl font-bold">{carneMetrics.activeCarnes}</p>
+                    <p className="text-xs text-muted-foreground">de {carneMetrics.totalCarnes} total</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-green-500" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Ticket Médio</p>
+                    <p className="text-2xl font-bold">{formatCurrency(carneMetrics.averageTicket)}</p>
+                    <p className="text-xs text-muted-foreground">valor médio por carnê</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-blue-500" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Total Parcelas</p>
+                    <p className="text-2xl font-bold">{carneMetrics.totalInstallments}</p>
+                    <p className="text-xs text-muted-foreground">parcelas programadas</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-purple-500/10 flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-purple-500" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Expected Revenue Chart Placeholder */}
+            {/* Revenue Forecast from Carnês */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Previsão de Receita</CardTitle>
-                <CardDescription>Valores esperados para os próximos meses</CardDescription>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  Previsão de Receita (Carnês)
+                </CardTitle>
+                <CardDescription>Valores esperados baseados nos carnês gerados</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[0, 1, 2].map(monthOffset => {
-                    const targetDate = new Date();
-                    targetDate.setMonth(targetDate.getMonth() + monthOffset);
-                    const monthStart = startOfMonth(targetDate);
-                    const monthEnd = endOfMonth(targetDate);
+                  {carneMetrics.monthlyForecast.map((forecast, index) => {
+                    // Find how much was already received for this month from payments
+                    const monthStart = startOfMonth(forecast.month);
+                    const monthEnd = endOfMonth(forecast.month);
+                    const paidForMonth = payments
+                      .filter(p => {
+                        if (!p.payment_date) return false;
+                        const paymentDate = parseISO(p.payment_date);
+                        return paymentDate >= monthStart && paymentDate <= monthEnd;
+                      })
+                      .reduce((sum, p) => sum + p.value, 0);
                     
-                    const monthPayments = payments.filter(p => {
-                      const dueDate = parseISO(p.due_date);
-                      return dueDate >= monthStart && dueDate <= monthEnd;
-                    });
-                    
-                    const total = monthPayments.reduce((sum, p) => sum + p.value, 0);
-                    const paid = monthPayments.filter(p => p.status === 'RECEIVED' || p.status === 'CONFIRMED').reduce((sum, p) => sum + p.value, 0);
-                    const percentage = total > 0 ? (paid / total) * 100 : 0;
+                    const percentage = forecast.expected > 0 ? Math.min((paidForMonth / forecast.expected) * 100, 100) : 0;
+                    const isCurrentMonth = index === 0;
 
                     return (
-                      <div key={monthOffset} className="space-y-2">
+                      <div key={index} className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span className="font-medium capitalize">
-                            {format(targetDate, 'MMMM yyyy', { locale: ptBR })}
+                          <span className={cn("font-medium capitalize", isCurrentMonth && "text-primary")}>
+                            {format(forecast.month, 'MMMM yyyy', { locale: ptBR })}
+                            {isCurrentMonth && <Badge variant="outline" className="ml-2 text-xs">Atual</Badge>}
                           </span>
                           <span className="text-muted-foreground">
-                            {formatCurrency(paid)} / {formatCurrency(total)}
+                            {formatCurrency(paidForMonth)} / {formatCurrency(forecast.expected)}
                           </span>
                         </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className="h-3 bg-muted rounded-full overflow-hidden">
                           <div 
-                            className="h-full bg-primary transition-all duration-300"
+                            className={cn(
+                              "h-full transition-all duration-300",
+                              isCurrentMonth ? "bg-primary" : "bg-primary/60"
+                            )}
                             style={{ width: `${percentage}%` }}
                           />
                         </div>
+                        <p className="text-xs text-muted-foreground">
+                          {forecast.carneCount} parcelas esperadas
+                        </p>
                       </div>
                     );
                   })}
@@ -339,53 +457,57 @@ export default function Financial() {
               </CardContent>
             </Card>
 
-            {/* Quick Stats */}
+            {/* Carnê Summary */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Resumo de Carnês</CardTitle>
-                <CardDescription>Carnês ativos no sistema</CardDescription>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  Detalhes dos Carnês
+                </CardTitle>
+                <CardDescription>Informações dos carnês cadastrados</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Total de Carnês</p>
-                        <p className="text-sm text-muted-foreground">Cadastrados no sistema</p>
-                      </div>
-                    </div>
-                    <span className="text-2xl font-bold">{carnes.length}</span>
+                {carnes.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nenhum carnê cadastrado ainda.
                   </div>
-
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                        <CheckCircle2 className="w-5 h-5 text-green-500" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Carnês Ativos</p>
-                        <p className="text-sm text-muted-foreground">Em dia com pagamentos</p>
-                      </div>
-                    </div>
-                    <span className="text-2xl font-bold">{carnes.filter(c => c.status === 'ACTIVE').length}</span>
+                ) : (
+                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                    {carnes.slice(0, 10).map((carne) => {
+                      const guardian = guardians.find(g => g.id === carne.guardian_id);
+                      const installmentValue = carne.total_value / carne.installment_count;
+                      
+                      return (
+                        <div key={carne.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                          <div className="space-y-1">
+                            <p className="font-medium text-sm">{carne.description}</p>
+                            <p className="text-xs text-muted-foreground">{guardian?.name || 'Responsável não encontrado'}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {carne.installment_count}x de {formatCurrency(installmentValue)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold">{formatCurrency(carne.total_value)}</p>
+                            <Badge 
+                              variant="outline" 
+                              className={carne.status === 'ACTIVE' 
+                                ? 'bg-green-500/10 text-green-500 border-green-500/20' 
+                                : 'bg-muted text-muted-foreground'
+                              }
+                            >
+                              {carne.status === 'ACTIVE' ? 'Ativo' : carne.status}
+                            </Badge>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {carnes.length > 10 && (
+                      <p className="text-center text-sm text-muted-foreground pt-2">
+                        E mais {carnes.length - 10} carnês...
+                      </p>
+                    )}
                   </div>
-
-                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                        <Clock className="w-5 h-5 text-yellow-500" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Valor Total em Carnês</p>
-                        <p className="text-sm text-muted-foreground">Soma de todos os carnês</p>
-                      </div>
-                    </div>
-                    <span className="text-xl font-bold">{formatCurrency(carnes.reduce((sum, c) => sum + c.total_value, 0))}</span>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
