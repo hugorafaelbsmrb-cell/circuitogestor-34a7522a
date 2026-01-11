@@ -54,9 +54,13 @@ interface CarnePayment {
   id: string;
   installmentNumber: number;
   value: number;
+  netValue?: number;
   dueDate: string;
   status: string;
   paymentDate?: string;
+  invoiceUrl?: string;
+  bankSlipUrl?: string;
+  description?: string;
 }
 
 export default function Carnes() {
@@ -132,7 +136,46 @@ export default function Carnes() {
     setIsLoadingPayments(true);
     
     try {
-      // Get payments from local database that belong to this carnê
+      // First try to get payments from Asaas API
+      const asaasPayments = await listInstallmentPayments(carne.asaas_installment_id);
+      
+      if (asaasPayments && asaasPayments.length > 0) {
+        // Use Asaas data for real-time status
+        const carnePaymentsList = asaasPayments.map((p: any) => ({
+          id: p.id,
+          installmentNumber: p.installmentNumber || 0,
+          value: p.value,
+          netValue: p.netValue,
+          dueDate: p.dueDate,
+          status: p.status,
+          paymentDate: p.paymentDate || undefined,
+          invoiceUrl: p.invoiceUrl,
+          bankSlipUrl: p.bankSlipUrl,
+          description: p.description,
+        })).sort((a: CarnePayment, b: CarnePayment) => a.installmentNumber - b.installmentNumber);
+        
+        setCarnePayments(carnePaymentsList);
+      } else {
+        // Fallback to local database
+        const carnePaymentsList = payments.filter(p => 
+          p.asaas_installment_id === carne.asaas_installment_id
+        ).map(p => ({
+          id: p.id,
+          installmentNumber: p.installment_number || 0,
+          value: p.value,
+          dueDate: p.due_date,
+          status: p.status,
+          paymentDate: p.payment_date || undefined,
+          invoiceUrl: p.invoice_url || undefined,
+          bankSlipUrl: p.bank_slip_url || undefined,
+          description: p.description,
+        })).sort((a, b) => a.installmentNumber - b.installmentNumber);
+        
+        setCarnePayments(carnePaymentsList);
+      }
+    } catch (error) {
+      console.error('Error fetching carne payments:', error);
+      // Fallback to local database on error
       const carnePaymentsList = payments.filter(p => 
         p.asaas_installment_id === carne.asaas_installment_id
       ).map(p => ({
@@ -142,16 +185,12 @@ export default function Carnes() {
         dueDate: p.due_date,
         status: p.status,
         paymentDate: p.payment_date || undefined,
+        invoiceUrl: p.invoice_url || undefined,
+        bankSlipUrl: p.bank_slip_url || undefined,
+        description: p.description,
       })).sort((a, b) => a.installmentNumber - b.installmentNumber);
       
       setCarnePayments(carnePaymentsList);
-    } catch (error) {
-      console.error('Error fetching carne payments:', error);
-      toast({
-        title: 'Erro',
-        description: 'Não foi possível carregar as parcelas do carnê',
-        variant: 'destructive',
-      });
     } finally {
       setIsLoadingPayments(false);
     }
@@ -479,51 +518,95 @@ export default function Carnes() {
           {selectedCarne && (
             <div className="space-y-4">
               {/* Carne Info */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
                 <div>
                   <p className="text-sm text-muted-foreground">Responsável</p>
                   <p className="font-medium">{getGuardianById(selectedCarne.guardian_id)?.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className="text-sm text-muted-foreground">CPF</p>
+                  <p className="font-medium">{getGuardianById(selectedCarne.guardian_id)?.cpf || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Status do Carnê</p>
                   {getStatusBadge(selectedCarne.status)}
                 </div>
                 <div>
+                  <p className="text-sm text-muted-foreground">ID Asaas</p>
+                  <p className="font-medium text-xs">{selectedCarne.asaas_installment_id}</p>
+                </div>
+                <div>
                   <p className="text-sm text-muted-foreground">Valor Total</p>
-                  <p className="font-medium">R$ {selectedCarne.total_value.toFixed(2).replace('.', ',')}</p>
+                  <p className="font-medium text-primary">R$ {selectedCarne.total_value.toFixed(2).replace('.', ',')}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Parcelas</p>
-                  <p className="font-medium">{selectedCarne.installment_count}x</p>
+                  <p className="font-medium">{selectedCarne.installment_count}x de R$ {(selectedCarne.total_value / selectedCarne.installment_count).toFixed(2).replace('.', ',')}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">1º Vencimento</p>
+                  <p className="font-medium">{new Date(selectedCarne.first_due_date).toLocaleDateString('pt-BR')}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Descrição</p>
+                  <p className="font-medium text-xs truncate">{selectedCarne.description}</p>
                 </div>
               </div>
 
+              {/* Payment Summary */}
+              {carnePayments.length > 0 && (
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="p-3 bg-success/10 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-success">
+                      {carnePayments.filter(p => ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'].includes(p.status)).length}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Pagas</p>
+                  </div>
+                  <div className="p-3 bg-warning/10 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-warning">
+                      {carnePayments.filter(p => p.status === 'PENDING').length}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Pendentes</p>
+                  </div>
+                  <div className="p-3 bg-destructive/10 rounded-lg text-center">
+                    <p className="text-2xl font-bold text-destructive">
+                      {carnePayments.filter(p => p.status === 'OVERDUE').length}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Vencidas</p>
+                  </div>
+                </div>
+              )}
+
               {/* Payments Table */}
               <div>
-                <h4 className="font-medium mb-2">Parcelas</h4>
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Boletos ({carnePayments.length})
+                </h4>
                 {isLoadingPayments ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-primary" />
                   </div>
                 ) : carnePayments.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">
-                    Nenhuma parcela encontrada no sistema local.
+                    Nenhum boleto encontrado.
                   </p>
                 ) : (
-                  <div className="max-h-[300px] overflow-y-auto">
+                  <div className="max-h-[300px] overflow-y-auto border rounded-lg">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Parcela</TableHead>
+                          <TableHead className="w-16">Parcela</TableHead>
                           <TableHead>Valor</TableHead>
                           <TableHead>Vencimento</TableHead>
                           <TableHead>Pagamento</TableHead>
                           <TableHead>Status</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {carnePayments.map((payment) => (
-                          <TableRow key={payment.id}>
+                          <TableRow key={payment.id} className={payment.status === 'OVERDUE' ? 'bg-destructive/5' : ''}>
                             <TableCell>
                               <Badge variant="outline">{payment.installmentNumber}ª</Badge>
                             </TableCell>
@@ -531,7 +614,10 @@ export default function Carnes() {
                               R$ {payment.value.toFixed(2).replace('.', ',')}
                             </TableCell>
                             <TableCell>
-                              {new Date(payment.dueDate).toLocaleDateString('pt-BR')}
+                              <div className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3 text-muted-foreground" />
+                                {new Date(payment.dueDate).toLocaleDateString('pt-BR')}
+                              </div>
                             </TableCell>
                             <TableCell>
                               {payment.paymentDate 
@@ -540,6 +626,30 @@ export default function Carnes() {
                               }
                             </TableCell>
                             <TableCell>{getPaymentStatusBadge(payment.status)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                {payment.invoiceUrl && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => window.open(payment.invoiceUrl, '_blank')}
+                                    title="Ver fatura"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                )}
+                                {payment.bankSlipUrl && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => window.open(payment.bankSlipUrl, '_blank')}
+                                    title="Ver boleto"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
