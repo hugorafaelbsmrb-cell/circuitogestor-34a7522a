@@ -150,6 +150,17 @@ export interface DbContractClause {
   updated_at: string;
 }
 
+export interface DbDiscount {
+  id: string;
+  name: string;
+  description: string | null;
+  type: 'percentage' | 'fixed';
+  value: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export function useSchoolData() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -165,6 +176,7 @@ export function useSchoolData() {
   const [carnes, setCarnes] = useState<DbCarne[]>([]);
   const [contractConfig, setContractConfig] = useState<DbContractConfig | null>(null);
   const [contractClauses, setContractClauses] = useState<DbContractClause[]>([]);
+  const [discounts, setDiscounts] = useState<DbDiscount[]>([]);
 
   // Fetch all data
   const fetchData = useCallback(async () => {
@@ -182,6 +194,7 @@ export function useSchoolData() {
         carnesRes,
         contractConfigRes,
         contractClausesRes,
+        discountsRes,
       ] = await Promise.all([
         supabase.from('guardians').select('*').order('name'),
         supabase.from('students').select('*').order('name'),
@@ -194,6 +207,7 @@ export function useSchoolData() {
         supabase.from('carnes').select('*').order('created_at', { ascending: false }),
         supabase.from('contract_config').select('*').single(),
         supabase.from('contract_clauses').select('*').order('clause_order'),
+        supabase.from('discounts').select('*').order('name'),
       ]);
 
       if (guardiansRes.data) setGuardians(guardiansRes.data);
@@ -207,6 +221,7 @@ export function useSchoolData() {
       if (carnesRes.data) setCarnes(carnesRes.data);
       if (contractConfigRes.data) setContractConfig(contractConfigRes.data);
       if (contractClausesRes.data) setContractClauses(contractClausesRes.data);
+      if (discountsRes.data) setDiscounts(discountsRes.data as DbDiscount[]);
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -605,6 +620,7 @@ export function useSchoolData() {
     carnes,
     contractConfig,
     contractClauses,
+    discounts,
     
     // Guardian
     createGuardian,
