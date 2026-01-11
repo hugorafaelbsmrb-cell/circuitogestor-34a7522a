@@ -222,14 +222,28 @@ async function getInstallmentBooklet(installmentId: string) {
   // This endpoint returns PDF directly, not JSON
   if (!response.ok) {
     const text = await response.text();
+    console.error("Erro ao obter carnê:", text.substring(0, 500));
     throw new Error(`Erro ao obter carnê: ${text.substring(0, 200)}`);
   }
   
-  // Return the URL for the payment book
+  // Get PDF as ArrayBuffer and convert to base64
+  const pdfBuffer = await response.arrayBuffer();
+  const pdfBytes = new Uint8Array(pdfBuffer);
+  
+  // Convert to base64
+  let binary = '';
+  for (let i = 0; i < pdfBytes.byteLength; i++) {
+    binary += String.fromCharCode(pdfBytes[i]);
+  }
+  const base64Pdf = btoa(binary);
+  
+  console.log("Carnê PDF obtido com sucesso, tamanho:", pdfBytes.byteLength, "bytes");
+  
   return { 
     success: true, 
-    url: `${ASAAS_API_URL}/installments/${installmentId}/paymentBook`,
-    message: "Use o link para baixar o carnê em PDF"
+    pdfBase64: base64Pdf,
+    contentType: "application/pdf",
+    message: "Carnê obtido com sucesso"
   };
 }
 

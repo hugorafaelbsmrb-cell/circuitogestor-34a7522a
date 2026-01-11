@@ -392,8 +392,17 @@ export default function Enrollment() {
     setIsLoadingCarne(true);
     try {
       const booklet = await getInstallmentBooklet(enrollmentResult.carne.asaasInstallmentId);
-      if (booklet?.url) {
-        window.open(booklet.url, '_blank');
+      if (booklet?.pdfBase64) {
+        // Convert base64 to blob and open in new tab
+        const byteCharacters = atob(booklet.pdfBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
       } else {
         toast({
           title: "Erro",
@@ -419,15 +428,25 @@ export default function Enrollment() {
     setIsLoadingCarne(true);
     try {
       const booklet = await getInstallmentBooklet(enrollmentResult.carne.asaasInstallmentId);
-      if (booklet?.url) {
+      if (booklet?.pdfBase64) {
+        // Convert base64 to blob and download
+        const byteCharacters = atob(booklet.pdfBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const blobUrl = URL.createObjectURL(blob);
+        
         // Create a link and trigger download
         const link = document.createElement('a');
-        link.href = booklet.url;
-        link.target = '_blank';
+        link.href = blobUrl;
         link.download = `carne_${enrollmentResult.carne.asaasInstallmentId}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(blobUrl);
       } else {
         toast({
           title: "Erro",
