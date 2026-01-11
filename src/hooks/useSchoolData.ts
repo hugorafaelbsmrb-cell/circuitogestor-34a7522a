@@ -395,6 +395,38 @@ export function useSchoolData() {
     return result;
   };
 
+  const updateCarne = async (id: string, data: Partial<DbCarne>) => {
+    const { error } = await supabase
+      .from('carnes')
+      .update(data)
+      .eq('id', id);
+    
+    if (error) throw error;
+    setCarnes(prev => prev.map(c => c.id === id ? { ...c, ...data } : c));
+  };
+
+  const deleteCarne = async (id: string) => {
+    // We don't actually delete, just update status to DELETED
+    const { error } = await supabase
+      .from('carnes')
+      .update({ status: 'DELETED' })
+      .eq('id', id);
+    
+    if (error) throw error;
+    setCarnes(prev => prev.map(c => c.id === id ? { ...c, status: 'DELETED' } : c));
+  };
+
+  const refetchCarnes = async () => {
+    const { data, error } = await supabase
+      .from('carnes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    
+    if (!error && data) {
+      setCarnes(data);
+    }
+  };
+
   // Course CRUD
   const createCourse = async (data: { name: string; description?: string; duration: string; price: number }) => {
     const { data: result, error } = await supabase
@@ -584,6 +616,9 @@ export function useSchoolData() {
     
     // Carnê
     createCarne,
+    updateCarne,
+    deleteCarne,
+    refetchCarnes,
     
     // Course
     createCourse,

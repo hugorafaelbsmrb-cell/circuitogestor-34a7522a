@@ -21,7 +21,7 @@ const menuItems = [
   { icon: BookOpen, label: 'Cursos', path: '/cursos' },
   { icon: Calendar, label: 'Horários', path: '/horarios' },
   { icon: Wallet, label: 'Financeiro', path: '/financeiro' },
-  { icon: CreditCard, label: 'Gerar Boleto', path: '/pagamentos' },
+  { icon: CreditCard, label: 'Carnês', path: '/carnes' },
   { icon: FileText, label: 'Contratos', path: '/contratos' },
   { icon: Settings, label: 'Config. Contrato', path: '/contrato-config' },
 ];
