@@ -1,11 +1,13 @@
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle } from 'lucide-react';
+import { useState, useRef, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { useSchool } from '@/contexts/SchoolContext';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -27,6 +29,7 @@ const steps: { id: Step; title: string; icon: React.ElementType }[] = [
 
 export default function Enrollment() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { 
     courses, 
@@ -34,6 +37,9 @@ export default function Enrollment() {
     schedules,
     contractConfig,
     contractClauses,
+    discounts,
+    students,
+    guardians,
     createStudent, 
     createGuardian,
     updateGuardian,
@@ -45,15 +51,23 @@ export default function Enrollment() {
     getCourseById, 
     getScheduleById,
     getGuardianByCpf,
+    getStudentById,
+    getGuardianById,
     isLoading: isDataLoading
   } = useSchool();
   
   const { isLoading: isAsaasLoading, createCustomer, createCarne: createAsaasCarne, getInstallmentBooklet } = useAsaasPayment();
   
-  const [currentStep, setCurrentStep] = useState<Step>('student');
+  // Check if this is an enrollment for an existing student (second course flow)
+  const existingStudentId = searchParams.get('studentId');
+  const existingStudent = existingStudentId ? getStudentById(existingStudentId) : null;
+  const existingGuardian = existingStudent ? getGuardianById(existingStudent.guardian_id) : null;
+  
+  const [currentStep, setCurrentStep] = useState<Step>(existingStudent ? 'course' : 'student');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCarne, setIsLoadingCarne] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
+  const [selectedDiscountIds, setSelectedDiscountIds] = useState<string[]>([]);
   const [enrollmentResult, setEnrollmentResult] = useState<{
     contract: { id: string; content: any } | null;
     carne: { id: string; asaasInstallmentId: string } | null;
@@ -61,16 +75,19 @@ export default function Enrollment() {
   
   const contractPrintRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
-    student: { name: '', birthDate: '' },
+    student: { 
+      name: existingStudent?.name || '', 
+      birthDate: existingStudent?.birth_date || '' 
+    },
     guardian: { 
-      name: '', 
-      cpf: '', 
-      email: '', 
-      phone: '', 
-      address: '',
-      addressNumber: '',
-      province: '',
-      postalCode: ''
+      name: existingGuardian?.name || '', 
+      cpf: existingGuardian?.cpf || '', 
+      email: existingGuardian?.email || '', 
+      phone: existingGuardian?.phone || '', 
+      address: existingGuardian?.address || '',
+      addressNumber: existingGuardian?.address_number || '',
+      province: existingGuardian?.province || '',
+      postalCode: existingGuardian?.postal_code || ''
     },
     courseId: '',
     classGroupId: '',
@@ -79,6 +96,41 @@ export default function Enrollment() {
       dueDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0],
     }
   });
+
+  // Selected course and class group
+  const selectedCourse = getCourseById(formData.courseId);
+  const availableClassGroups = classGroups.filter(cg => 
+    cg.course_id === formData.courseId && cg.current_students < cg.max_students
+  );
+  const selectedClassGroup = classGroups.find(cg => cg.id === formData.classGroupId);
+  const selectedSchedule = selectedClassGroup ? getScheduleById(selectedClassGroup.schedule_id) : undefined;
+
+  // Calculate discount values
+  const activeDiscounts = discounts.filter(d => d.is_active && selectedDiscountIds.includes(d.id));
+  
+  const calculateDiscountedPrice = useMemo(() => {
+    if (!selectedCourse) return { originalPrice: 0, discountedPrice: 0, totalDiscount: 0 };
+    
+    const originalPrice = Number(selectedCourse.price);
+    let discountedPrice = originalPrice;
+    let totalDiscount = 0;
+    
+    activeDiscounts.forEach(discount => {
+      if (discount.type === 'percentage') {
+        const discountAmount = (discountedPrice * discount.value) / 100;
+        discountedPrice -= discountAmount;
+        totalDiscount += discountAmount;
+      } else {
+        discountedPrice -= discount.value;
+        totalDiscount += discount.value;
+      }
+    });
+    
+    // Ensure price doesn't go negative
+    discountedPrice = Math.max(0, discountedPrice);
+    
+    return { originalPrice, discountedPrice, totalDiscount };
+  }, [selectedCourse, activeDiscounts]);
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
@@ -131,13 +183,22 @@ export default function Enrollment() {
     
     setIsSubmitting(true);
     
+    // Use discounted price for calculations
+    const finalPrice = calculateDiscountedPrice.discountedPrice;
+    const appliedDiscounts = activeDiscounts.map(d => ({
+      id: d.id,
+      name: d.name,
+      type: d.type,
+      value: d.value,
+    }));
+    
     try {
-      // 1. Check if Guardian already exists by CPF
+      // 1. Check if Guardian already exists by CPF or use existing one for second course
       const cleanCpf = formData.guardian.cpf.replace(/\D/g, '');
-      let guardian = getGuardianByCpf(cleanCpf);
+      let guardian = existingGuardian || getGuardianByCpf(cleanCpf);
       
-      if (guardian) {
-        // Update existing guardian with new data
+      if (guardian && !existingStudent) {
+        // Update existing guardian with new data (only if not second course flow)
         await updateGuardian(guardian.id, {
           name: formData.guardian.name,
           email: formData.guardian.email,
@@ -157,7 +218,7 @@ export default function Enrollment() {
           province: formData.guardian.province || 'Centro',
           postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
         }};
-      } else {
+      } else if (!guardian) {
         // Create new Guardian in database
         guardian = await createGuardian({
           name: formData.guardian.name,
@@ -172,12 +233,15 @@ export default function Enrollment() {
         });
       }
 
-      // 2. Create Student in database
-      const student = await createStudent({
-        name: formData.student.name,
-        birth_date: formData.student.birthDate,
-        guardian_id: guardian.id,
-      });
+      // 2. Create Student in database or use existing one
+      let student = existingStudent;
+      if (!student) {
+        student = await createStudent({
+          name: formData.student.name,
+          birth_date: formData.student.birthDate,
+          guardian_id: guardian.id,
+        });
+      }
 
       // 3. Create Enrollment in database
       const enrollment = await createEnrollment({
@@ -199,12 +263,15 @@ export default function Enrollment() {
         studentBirthDate: student.birth_date,
         courseName: selectedCourse.name,
         courseDuration: selectedCourse.duration,
-        coursePrice: selectedCourse.price,
+        coursePrice: finalPrice, // Use discounted price
+        originalPrice: selectedCourse.price,
         classGroupName: selectedClassGroup.name,
         schedule: selectedSchedule ? `${selectedSchedule.day_of_week} - ${selectedSchedule.start_time} às ${selectedSchedule.end_time}` : '',
         installments: parseInt(formData.payment.installments),
-        installmentValue: selectedCourse.price,
-        totalValue: selectedCourse.price * parseInt(formData.payment.installments),
+        installmentValue: finalPrice, // Use discounted price
+        totalValue: finalPrice * parseInt(formData.payment.installments),
+        discounts: appliedDiscounts,
+        totalDiscount: calculateDiscountedPrice.totalDiscount * parseInt(formData.payment.installments),
         clauses: contractClauses.filter(c => c.is_active).map(c => ({
           title: c.title,
           content: c.content,
@@ -222,29 +289,37 @@ export default function Enrollment() {
         installment_count: contractContent.installments,
       });
 
-      // 5. Create Customer in Asaas
-      const asaasCustomer = await createCustomer({
-        name: guardian.name,
-        cpfCnpj: guardian.cpf,
-        email: guardian.email,
-        phone: guardian.phone,
-        address: guardian.address,
-        addressNumber: formData.guardian.addressNumber || 'S/N',
-        province: formData.guardian.province || 'Centro',
-        postalCode: guardian.postal_code,
-      });
+      // 5. Create Customer in Asaas (or use existing)
+      let asaasCustomer;
+      if (guardian.asaas_customer_id) {
+        asaasCustomer = { id: guardian.asaas_customer_id };
+      } else {
+        asaasCustomer = await createCustomer({
+          name: guardian.name,
+          cpfCnpj: guardian.cpf,
+          email: guardian.email,
+          phone: guardian.phone,
+          address: guardian.address,
+          addressNumber: formData.guardian.addressNumber || guardian.address_number || 'S/N',
+          province: formData.guardian.province || guardian.province || 'Centro',
+          postalCode: guardian.postal_code,
+        });
+      }
 
       if (!asaasCustomer) {
         throw new Error('Erro ao criar cliente no sistema de pagamentos');
       }
 
-      // 6. Generate Carnê in Asaas
+      // 6. Generate Carnê in Asaas with discounted price
       const installmentCount = parseInt(formData.payment.installments);
-      const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student.name}`;
+      const discountInfo = appliedDiscounts.length > 0 
+        ? ` (${appliedDiscounts.map(d => d.name).join(', ')})` 
+        : '';
+      const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student.name}${discountInfo}`;
       
       const asaasPayment = await createAsaasCarne({
         customerId: asaasCustomer.id,
-        value: selectedCourse.price * installmentCount,
+        value: finalPrice * installmentCount, // Use discounted total
         dueDate: formData.payment.dueDate,
         description,
         installmentCount,
@@ -261,7 +336,7 @@ export default function Enrollment() {
           contract_id: contract.id,
           asaas_installment_id: asaasPayment.installment || asaasPayment.id,
           description,
-          total_value: selectedCourse.price * installmentCount,
+          total_value: finalPrice * installmentCount, // Use discounted total
           installment_count: installmentCount,
           first_due_date: formData.payment.dueDate,
         });
@@ -484,12 +559,6 @@ export default function Enrollment() {
     setCurrentStep('student');
   };
 
-  const selectedCourse = getCourseById(formData.courseId);
-  const availableClassGroups = classGroups.filter(cg => 
-    cg.course_id === formData.courseId && cg.current_students < cg.max_students
-  );
-  const selectedClassGroup = classGroups.find(cg => cg.id === formData.classGroupId);
-  const selectedSchedule = selectedClassGroup ? getScheduleById(selectedClassGroup.schedule_id) : undefined;
 
   if (isDataLoading) {
     return (
@@ -739,7 +808,7 @@ export default function Enrollment() {
           <div>
             <h2 className="form-section-title">Configuração do Carnê</h2>
             <p className="text-sm text-muted-foreground mb-6">
-              Configure o parcelamento e a data de vencimento das mensalidades.
+              Configure o parcelamento, descontos e a data de vencimento das mensalidades.
             </p>
             
             {selectedCourse && (
@@ -749,10 +818,69 @@ export default function Enrollment() {
                   <span className="font-semibold">{selectedCourse.name}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Valor por mensalidade</span>
-                  <span className="font-semibold text-primary">
+                  <span className="text-sm text-muted-foreground">Valor original por mensalidade</span>
+                  <span className={cn(
+                    "font-semibold",
+                    selectedDiscountIds.length > 0 ? "line-through text-muted-foreground" : "text-primary"
+                  )}>
                     R$ {Number(selectedCourse.price).toFixed(2).replace('.', ',')}
                   </span>
+                </div>
+                {selectedDiscountIds.length > 0 && (
+                  <div className="flex justify-between items-center mt-2">
+                    <span className="text-sm text-muted-foreground">Valor com desconto</span>
+                    <span className="font-semibold text-success">
+                      R$ {calculateDiscountedPrice.discountedPrice.toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Discount Selection */}
+            {discounts.filter(d => d.is_active).length > 0 && (
+              <div className="mb-6">
+                <Label className="flex items-center gap-2 mb-3">
+                  <Tag className="w-4 h-4" />
+                  Aplicar Descontos
+                </Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {discounts.filter(d => d.is_active).map((discount) => (
+                    <label
+                      key={discount.id}
+                      className={cn(
+                        "flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all",
+                        selectedDiscountIds.includes(discount.id)
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50"
+                      )}
+                    >
+                      <Checkbox
+                        checked={selectedDiscountIds.includes(discount.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedDiscountIds(prev => [...prev, discount.id]);
+                          } else {
+                            setSelectedDiscountIds(prev => prev.filter(id => id !== discount.id));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{discount.name}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {discount.type === 'percentage' 
+                              ? `${discount.value}%` 
+                              : `R$ ${discount.value.toFixed(2).replace('.', ',')}`
+                            }
+                          </Badge>
+                        </div>
+                        {discount.description && (
+                          <p className="text-sm text-muted-foreground mt-1">{discount.description}</p>
+                        )}
+                      </div>
+                    </label>
+                  ))}
                 </div>
               </div>
             )}
@@ -770,7 +898,7 @@ export default function Enrollment() {
                   <SelectContent>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
                       <SelectItem key={n} value={n.toString()}>
-                        {n}x {selectedCourse && `(Total: R$ ${(Number(selectedCourse.price) * n).toFixed(2).replace('.', ',')})`}
+                        {n}x {selectedCourse && `(Total: R$ ${(calculateDiscountedPrice.discountedPrice * n).toFixed(2).replace('.', ',')})`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -788,15 +916,33 @@ export default function Enrollment() {
 
             {selectedCourse && (
               <div className="mt-6 p-4 bg-primary/5 rounded-xl border border-primary/20">
+                {calculateDiscountedPrice.totalDiscount > 0 && (
+                  <div className="flex justify-between items-center mb-2 text-success">
+                    <span className="text-sm flex items-center gap-2">
+                      <Percent className="w-4 h-4" />
+                      Desconto aplicado
+                    </span>
+                    <span className="font-medium">
+                      - R$ {(calculateDiscountedPrice.totalDiscount * parseInt(formData.payment.installments)).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="font-medium">Valor Total do Carnê</span>
                   <span className="text-xl font-bold text-primary">
-                    R$ {(Number(selectedCourse.price) * parseInt(formData.payment.installments)).toFixed(2).replace('.', ',')}
+                    R$ {(calculateDiscountedPrice.discountedPrice * parseInt(formData.payment.installments)).toFixed(2).replace('.', ',')}
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-2">
-                  {formData.payment.installments}x de R$ {Number(selectedCourse.price).toFixed(2).replace('.', ',')}
+                  {formData.payment.installments}x de R$ {calculateDiscountedPrice.discountedPrice.toFixed(2).replace('.', ',')}
                 </p>
+                {activeDiscounts.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-primary/20">
+                    <p className="text-xs text-muted-foreground">
+                      Descontos aplicados: {activeDiscounts.map(d => d.name).join(', ')}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>

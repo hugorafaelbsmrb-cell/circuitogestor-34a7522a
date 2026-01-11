@@ -1,5 +1,5 @@
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useSchoolData, DbGuardian, DbStudent, DbCourse, DbClassGroup, DbEnrollment, DbSchedule, DbContractClause, DbContractConfig, DbContract, DbPayment, DbCarne } from '@/hooks/useSchoolData';
+import { useSchoolData, DbGuardian, DbStudent, DbCourse, DbClassGroup, DbEnrollment, DbSchedule, DbContractClause, DbContractConfig, DbContract, DbPayment, DbCarne, DbDiscount } from '@/hooks/useSchoolData';
 
 // Re-export types for backward compatibility
 export type Guardian = DbGuardian;
@@ -13,6 +13,7 @@ export type ContractConfig = DbContractConfig;
 export type Contract = DbContract;
 export type Payment = DbPayment;
 export type Carne = DbCarne;
+export type Discount = DbDiscount;
 
 const SchoolContext = createContext<ReturnType<typeof useSchoolData> | undefined>(undefined);
 
