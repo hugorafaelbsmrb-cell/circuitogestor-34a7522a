@@ -79,7 +79,32 @@ export default function Carnes() {
   const [carneToDelete, setCarneToDelete] = useState<typeof carnes[0] | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Filter carnês
+  // Calculate real status based on payments for each carnê
+  const getCarneRealStatus = (carne: typeof carnes[0]) => {
+    const carnePaymentsList = payments.filter(p => 
+      p.asaas_installment_id === carne.asaas_installment_id
+    );
+    
+    if (carnePaymentsList.length === 0) {
+      return carne.status; // Return original status if no payments found
+    }
+    
+    const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
+    const allPaid = carnePaymentsList.every(p => paidStatuses.includes(p.status));
+    const hasOverdue = carnePaymentsList.some(p => p.status === 'OVERDUE');
+    
+    if (allPaid && carnePaymentsList.length === carne.installment_count) {
+      return 'ENDED'; // Only ENDED when all installments are paid
+    } else if (hasOverdue) {
+      return 'OVERDUE';
+    } else if (carne.status === 'DELETED') {
+      return 'DELETED';
+    } else {
+      return 'ACTIVE'; // Still active if not all paid
+    }
+  };
+
+  // Filter carnês with calculated status
   const filteredCarnes = carnes.filter(carne => {
     const guardian = getGuardianById(carne.guardian_id);
     const matchesSearch = 
@@ -87,16 +112,18 @@ export default function Carnes() {
       carne.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       carne.asaas_installment_id.toLowerCase().includes(searchTerm.toLowerCase());
     
-    const matchesStatus = statusFilter === 'all' || carne.status === statusFilter;
+    const realStatus = getCarneRealStatus(carne);
+    const matchesStatus = statusFilter === 'all' || realStatus === statusFilter;
     
     return matchesSearch && matchesStatus;
   });
 
-  // Calculate stats
+  // Calculate stats with real status
   const stats = {
     total: carnes.length,
-    active: carnes.filter(c => c.status === 'ACTIVE').length,
-    ended: carnes.filter(c => c.status === 'ENDED').length,
+    active: carnes.filter(c => getCarneRealStatus(c) === 'ACTIVE').length,
+    ended: carnes.filter(c => getCarneRealStatus(c) === 'ENDED').length,
+    overdue: carnes.filter(c => getCarneRealStatus(c) === 'OVERDUE').length,
     totalValue: carnes.reduce((sum, c) => sum + c.total_value, 0),
   };
 
@@ -105,7 +132,9 @@ export default function Carnes() {
       case 'ACTIVE':
         return <Badge className="bg-success/10 text-success border-success/20">Ativo</Badge>;
       case 'ENDED':
-        return <Badge className="bg-muted text-muted-foreground">Finalizado</Badge>;
+        return <Badge className="bg-primary/10 text-primary border-primary/20">Finalizado</Badge>;
+      case 'OVERDUE':
+        return <Badge variant="destructive"><AlertCircle className="w-3 h-3 mr-1" />Em Atraso</Badge>;
       case 'DELETED':
         return <Badge variant="destructive">Excluído</Badge>;
       default:
@@ -338,8 +367,22 @@ export default function Carnes() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center">
-                <XCircle className="w-6 h-6 text-muted-foreground" />
+              <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-destructive" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Em Atraso</p>
+                <p className="text-2xl font-bold">{stats.overdue}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-primary" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Finalizados</p>
@@ -384,6 +427,7 @@ export default function Carnes() {
               <SelectContent>
                 <SelectItem value="all">Todos os status</SelectItem>
                 <SelectItem value="ACTIVE">Ativos</SelectItem>
+                <SelectItem value="OVERDUE">Em Atraso</SelectItem>
                 <SelectItem value="ENDED">Finalizados</SelectItem>
                 <SelectItem value="DELETED">Excluídos</SelectItem>
               </SelectContent>
@@ -446,7 +490,7 @@ export default function Carnes() {
                             {new Date(carne.first_due_date).toLocaleDateString('pt-BR')}
                           </div>
                         </TableCell>
-                        <TableCell>{getStatusBadge(carne.status)}</TableCell>
+                        <TableCell>{getStatusBadge(getCarneRealStatus(carne))}</TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
                             <Button 
