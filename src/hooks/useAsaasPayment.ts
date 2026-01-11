@@ -14,13 +14,6 @@ interface CreateCustomerData {
   postalCode: string;
 }
 
-interface CreatePaymentData {
-  customerId: string;
-  value: number;
-  dueDate: string;
-  description: string;
-  externalReference?: string;
-}
 
 interface CreateCarneData {
   customerId: string;
@@ -74,33 +67,6 @@ export function useAsaasPayment() {
     }
   };
 
-  const createPayment = async (data: CreatePaymentData): Promise<AsaasPayment | null> => {
-    setIsLoading(true);
-    try {
-      const result = await callAsaasFunction('createPayment', {
-        customerId: data.customerId,
-        billingType: 'BOLETO',
-        value: data.value,
-        dueDate: data.dueDate,
-        description: data.description,
-        externalReference: data.externalReference,
-      });
-      toast({
-        title: 'Boleto gerado',
-        description: 'O boleto foi gerado com sucesso.',
-      });
-      return result as AsaasPayment;
-    } catch (error) {
-      toast({
-        title: 'Erro ao gerar boleto',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const createCarne = async (data: CreateCarneData): Promise<AsaasPayment | null> => {
     setIsLoading(true);
@@ -132,22 +98,6 @@ export function useAsaasPayment() {
     }
   };
 
-  const getBoleto = async (paymentId: string): Promise<AsaasBoleto | null> => {
-    setIsLoading(true);
-    try {
-      const result = await callAsaasFunction('getBoleto', { paymentId });
-      return result as AsaasBoleto;
-    } catch (error) {
-      toast({
-        title: 'Erro ao obter boleto',
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-        variant: 'destructive',
-      });
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const listPayments = async (customerId: string): Promise<AsaasPayment[]> => {
     setIsLoading(true);
@@ -262,9 +212,7 @@ export function useAsaasPayment() {
   return {
     isLoading,
     createCustomer,
-    createPayment,
     createCarne,
-    getBoleto,
     listPayments,
     listInstallmentPayments,
     getInstallment,

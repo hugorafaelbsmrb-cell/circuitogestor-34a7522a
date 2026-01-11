@@ -16,16 +16,6 @@ interface CreateCustomerRequest {
   postalCode: string;
 }
 
-interface CreatePaymentRequest {
-  customerId: string;
-  billingType: "BOLETO";
-  value: number;
-  dueDate: string;
-  description: string;
-  externalReference?: string;
-  installmentCount?: number;
-  installmentValue?: number;
-}
 
 // Default to sandbox for safety - set ASAAS_PRODUCTION=true to use production
 const ASAAS_API_URL = Deno.env.get("ASAAS_PRODUCTION") === "true" 
@@ -96,39 +86,6 @@ async function createCustomer(data: CreateCustomerRequest) {
   return result;
 }
 
-async function createPayment(data: CreatePaymentRequest) {
-  console.log("Criando cobrança no Asaas:", data.description);
-  
-  const response = await fetch(`${ASAAS_API_URL}/payments`, {
-    method: "POST",
-    headers: getHeaders(),
-    body: JSON.stringify({
-      customer: data.customerId,
-      billingType: data.billingType,
-      value: data.value,
-      dueDate: data.dueDate,
-      description: data.description,
-      externalReference: data.externalReference,
-      installmentCount: data.installmentCount,
-      installmentValue: data.installmentValue,
-    }),
-  });
-
-  const result = await handleAsaasResponse(response, "createPayment");
-  console.log("Cobrança criada com sucesso:", result.id);
-  return result;
-}
-
-async function getPaymentBoleto(paymentId: string) {
-  console.log("Obtendo boleto:", paymentId);
-  
-  const response = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/identificationField`, {
-    method: "GET",
-    headers: getHeaders(),
-  });
-
-  return await handleAsaasResponse(response, "getBoleto");
-}
 
 async function createCarne(data: {
   customerId: string;
@@ -274,14 +231,8 @@ serve(async (req) => {
       case "createCustomer":
         result = await createCustomer(data);
         break;
-      case "createPayment":
-        result = await createPayment(data);
-        break;
       case "createCarne":
         result = await createCarne(data);
-        break;
-      case "getBoleto":
-        result = await getPaymentBoleto(data.paymentId);
         break;
       case "listPayments":
         result = await listPayments(data.customerId);

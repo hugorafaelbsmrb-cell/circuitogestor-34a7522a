@@ -48,7 +48,7 @@ export default function Enrollment() {
     isLoading: isDataLoading
   } = useSchool();
   
-  const { isLoading: isAsaasLoading, createCustomer, createCarne: createAsaasCarne, createPayment: createAsaasPayment, getInstallmentBooklet } = useAsaasPayment();
+  const { isLoading: isAsaasLoading, createCustomer, createCarne: createAsaasCarne, getInstallmentBooklet } = useAsaasPayment();
   
   const [currentStep, setCurrentStep] = useState<Step>('student');
   const [isSubmitting, setIsSubmitting] = useState(false);

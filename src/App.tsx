@@ -13,7 +13,7 @@ import Courses from "./pages/Courses";
 import Schedules from "./pages/Schedules";
 import Contracts from "./pages/Contracts";
 import ContractConfig from "./pages/ContractConfig";
-import Payments from "./pages/Payments";
+import Carnes from "./pages/Carnes";
 import Financial from "./pages/Financial";
 import NotFound from "./pages/NotFound";
 
@@ -35,7 +35,7 @@ const App = () => (
               <Route path="/cursos" element={<Courses />} />
               <Route path="/horarios" element={<Schedules />} />
               <Route path="/financeiro" element={<Financial />} />
-              <Route path="/pagamentos" element={<Payments />} />
+              <Route path="/carnes" element={<Carnes />} />
               <Route path="/contratos" element={<Contracts />} />
               <Route path="/contrato-config" element={<ContractConfig />} />
               <Route path="*" element={<NotFound />} />
