@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText, Printer, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -8,9 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useSchool } from '@/contexts/SchoolContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { format, startOfMonth, endOfMonth, isToday, parseISO, isBefore, startOfDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, isToday, parseISO, isBefore, startOfDay, isAfter, isWithinInterval } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Payment {
   id: string;
@@ -37,6 +40,12 @@ export default function Financial() {
   const [payments, setPayments] = useState<PaymentWithGuardian[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  
+  // Debtors filter state
+  const [debtorPeriodFilter, setDebtorPeriodFilter] = useState('all');
+  const [debtorStartDate, setDebtorStartDate] = useState('');
+  const [debtorEndDate, setDebtorEndDate] = useState('');
+  const debtorsPrintRef = useRef<HTMLDivElement>(null);
 
   // Fetch payments from database
   const fetchPayments = async () => {
@@ -196,9 +205,51 @@ export default function Financial() {
     };
   }, [payments, today, currentMonthStart, currentMonthEnd]);
 
-  // Group overdue by guardian for debtors view
+  // Filter overdue payments by period
+  const filteredOverdue = useMemo(() => {
+    let result = metrics.allOverdue;
+    
+    if (debtorPeriodFilter === 'custom' && debtorStartDate && debtorEndDate) {
+      const start = parseISO(debtorStartDate);
+      const end = parseISO(debtorEndDate);
+      result = result.filter(p => {
+        const dueDate = parseISO(p.due_date);
+        return isWithinInterval(dueDate, { start, end });
+      });
+    } else if (debtorPeriodFilter === 'last7') {
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      result = result.filter(p => {
+        const dueDate = parseISO(p.due_date);
+        return isAfter(dueDate, sevenDaysAgo) && isBefore(dueDate, today);
+      });
+    } else if (debtorPeriodFilter === 'last30') {
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      result = result.filter(p => {
+        const dueDate = parseISO(p.due_date);
+        return isAfter(dueDate, thirtyDaysAgo) && isBefore(dueDate, today);
+      });
+    } else if (debtorPeriodFilter === 'last90') {
+      const ninetyDaysAgo = new Date(today);
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      result = result.filter(p => {
+        const dueDate = parseISO(p.due_date);
+        return isAfter(dueDate, ninetyDaysAgo) && isBefore(dueDate, today);
+      });
+    } else if (debtorPeriodFilter === 'currentMonth') {
+      result = result.filter(p => {
+        const dueDate = parseISO(p.due_date);
+        return dueDate >= currentMonthStart && dueDate <= currentMonthEnd;
+      });
+    }
+    
+    return result;
+  }, [metrics.allOverdue, debtorPeriodFilter, debtorStartDate, debtorEndDate, today, currentMonthStart, currentMonthEnd]);
+
+  // Group filtered overdue by guardian for debtors view
   const debtorsByGuardian = useMemo(() => {
-    const grouped = metrics.allOverdue.reduce((acc, payment) => {
+    const grouped = filteredOverdue.reduce((acc, payment) => {
       if (!acc[payment.guardian_id]) {
         acc[payment.guardian_id] = {
           guardian_id: payment.guardian_id,
@@ -215,7 +266,117 @@ export default function Financial() {
     }, {} as Record<string, { guardian_id: string; guardian_name: string; guardian_phone: string; guardian_email: string; payments: PaymentWithGuardian[]; totalDebt: number }>);
 
     return Object.values(grouped).sort((a, b) => b.totalDebt - a.totalDebt);
-  }, [metrics.allOverdue]);
+  }, [filteredOverdue]);
+
+  const filteredOverdueTotal = useMemo(() => {
+    return filteredOverdue.reduce((sum, p) => sum + p.value, 0);
+  }, [filteredOverdue]);
+
+  const handlePrintDebtors = () => {
+    const printContent = debtorsPrintRef.current;
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Não foi possível abrir a janela de impressão');
+      return;
+    }
+
+    const periodText = debtorPeriodFilter === 'all' 
+      ? 'Todos os períodos' 
+      : debtorPeriodFilter === 'last7' 
+        ? 'Últimos 7 dias'
+        : debtorPeriodFilter === 'last30'
+          ? 'Últimos 30 dias'
+          : debtorPeriodFilter === 'last90'
+            ? 'Últimos 90 dias'
+            : debtorPeriodFilter === 'currentMonth'
+              ? format(new Date(), 'MMMM yyyy', { locale: ptBR })
+              : `${debtorStartDate} a ${debtorEndDate}`;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Relatório de Devedores</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h1 { font-size: 24px; margin-bottom: 5px; }
+            h2 { font-size: 18px; color: #666; margin-bottom: 20px; }
+            .summary { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+            .summary p { margin: 5px 0; }
+            .debtor { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+            .debtor-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+            .debtor-name { font-weight: bold; font-size: 16px; }
+            .debtor-total { color: #dc2626; font-weight: bold; font-size: 18px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; }
+            th { background: #f9f9f9; font-weight: 600; }
+            .text-right { text-align: right; }
+            .badge { background: #fecaca; color: #dc2626; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+            @media print {
+              body { padding: 0; }
+              .debtor { break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Relatório de Devedores</h1>
+          <h2>Período: ${periodText}</h2>
+          <div class="summary">
+            <p><strong>Total de responsáveis:</strong> ${debtorsByGuardian.length}</p>
+            <p><strong>Total de parcelas em atraso:</strong> ${filteredOverdue.length}</p>
+            <p><strong>Valor total em atraso:</strong> ${formatCurrency(filteredOverdueTotal)}</p>
+            <p><strong>Data do relatório:</strong> ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+          </div>
+          ${debtorsByGuardian.map(debtor => `
+            <div class="debtor">
+              <div class="debtor-header">
+                <div>
+                  <div class="debtor-name">${debtor.guardian_name}</div>
+                  <div style="color: #666; font-size: 14px;">${debtor.guardian_phone} | ${debtor.guardian_email}</div>
+                </div>
+                <div>
+                  <div class="debtor-total">${formatCurrency(debtor.totalDebt)}</div>
+                  <div style="color: #666; font-size: 12px;">${debtor.payments.length} parcelas</div>
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Descrição</th>
+                    <th>Vencimento</th>
+                    <th>Dias Atraso</th>
+                    <th class="text-right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${debtor.payments.map(payment => {
+                    const dueDate = parseISO(payment.due_date);
+                    const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                    return `
+                      <tr>
+                        <td>${payment.description}</td>
+                        <td>${formatDate(payment.due_date)}</td>
+                        <td><span class="badge">${daysOverdue} dias</span></td>
+                        <td class="text-right">${formatCurrency(payment.value)}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          `).join('')}
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 250);
+  };
 
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { label: string; className: string }> = {
@@ -624,84 +785,142 @@ export default function Financial() {
 
         {/* Debtors Month Tab */}
         <TabsContent value="debtors-month" className="space-y-4">
+          {/* Filters */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-col sm:flex-row gap-4 items-end">
+                <div className="flex-1 space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Período
+                  </Label>
+                  <Select value={debtorPeriodFilter} onValueChange={setDebtorPeriodFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o período" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os vencidos</SelectItem>
+                      <SelectItem value="last7">Últimos 7 dias</SelectItem>
+                      <SelectItem value="last30">Últimos 30 dias</SelectItem>
+                      <SelectItem value="last90">Últimos 90 dias</SelectItem>
+                      <SelectItem value="currentMonth">Mês atual</SelectItem>
+                      <SelectItem value="custom">Período personalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {debtorPeriodFilter === 'custom' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Data Inicial</Label>
+                      <Input
+                        type="date"
+                        value={debtorStartDate}
+                        onChange={(e) => setDebtorStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Data Final</Label>
+                      <Input
+                        type="date"
+                        value={debtorEndDate}
+                        onChange={(e) => setDebtorEndDate(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+                
+                <Button onClick={handlePrintDebtors} className="gap-2">
+                  <Printer className="w-4 h-4" />
+                  Imprimir Relatório
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-destructive" />
-                Devedores - Total em Atraso: {formatCurrency(metrics.overdueTotal)}
+                Devedores - Total em Atraso: {formatCurrency(filteredOverdueTotal)}
               </CardTitle>
               <CardDescription>
-                {debtorsByGuardian.length} responsáveis com {metrics.allOverdue.length} mensalidades em atraso
+                {debtorsByGuardian.length} responsáveis com {filteredOverdue.length} mensalidades em atraso
+                {debtorPeriodFilter !== 'all' && (
+                  <Badge variant="outline" className="ml-2">Filtro aplicado</Badge>
+                )}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {debtorsByGuardian.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nenhuma mensalidade em atraso! 🎉
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {debtorsByGuardian.map((debtor) => (
-                    <div key={debtor.guardian_id} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-semibold">{debtor.guardian_name}</h4>
-                          <div className="text-sm text-muted-foreground space-y-1">
-                            <p>{debtor.guardian_phone}</p>
-                            <p>{debtor.guardian_email}</p>
+              <div ref={debtorsPrintRef}>
+                {debtorsByGuardian.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nenhuma mensalidade em atraso para o período selecionado! 🎉
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {debtorsByGuardian.map((debtor) => (
+                      <div key={debtor.guardian_id} className="border rounded-lg p-4 space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-semibold">{debtor.guardian_name}</h4>
+                            <div className="text-sm text-muted-foreground space-y-1">
+                              <p>{debtor.guardian_phone}</p>
+                              <p>{debtor.guardian_email}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-lg font-bold text-destructive">{formatCurrency(debtor.totalDebt)}</p>
+                            <p className="text-sm text-muted-foreground">{debtor.payments.length} parcelas em atraso</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-destructive">{formatCurrency(debtor.totalDebt)}</p>
-                          <p className="text-sm text-muted-foreground">{debtor.payments.length} parcelas em atraso</p>
+                        
+                        <div className="border-t pt-3">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Descrição</TableHead>
+                                <TableHead>Vencimento</TableHead>
+                                <TableHead>Dias Atraso</TableHead>
+                                <TableHead className="text-right">Valor</TableHead>
+                                <TableHead className="text-right">Ações</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {debtor.payments.map((payment) => {
+                                const dueDate = parseISO(payment.due_date);
+                                const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+                                
+                                return (
+                                  <TableRow key={payment.id}>
+                                    <TableCell className="font-medium">{payment.description}</TableCell>
+                                    <TableCell>{formatDate(payment.due_date)}</TableCell>
+                                    <TableCell>
+                                      <Badge variant="destructive">{daysOverdue} dias</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">{formatCurrency(payment.value)}</TableCell>
+                                    <TableCell className="text-right">
+                                      <div className="flex items-center justify-end gap-2">
+                                        {payment.invoice_url && (
+                                          <Button variant="ghost" size="sm" asChild>
+                                            <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
+                                              <ExternalLink className="w-4 h-4" />
+                                            </a>
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
                         </div>
                       </div>
-                      
-                      <div className="border-t pt-3">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Descrição</TableHead>
-                              <TableHead>Vencimento</TableHead>
-                              <TableHead>Dias Atraso</TableHead>
-                              <TableHead className="text-right">Valor</TableHead>
-                              <TableHead className="text-right">Ações</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {debtor.payments.map((payment) => {
-                              const dueDate = parseISO(payment.due_date);
-                              const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-                              
-                              return (
-                                <TableRow key={payment.id}>
-                                  <TableCell className="font-medium">{payment.description}</TableCell>
-                                  <TableCell>{formatDate(payment.due_date)}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="destructive">{daysOverdue} dias</Badge>
-                                  </TableCell>
-                                  <TableCell className="text-right font-medium">{formatCurrency(payment.value)}</TableCell>
-                                  <TableCell className="text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                      {payment.invoice_url && (
-                                        <Button variant="ghost" size="sm" asChild>
-                                          <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
-                                            <ExternalLink className="w-4 h-4" />
-                                          </a>
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
