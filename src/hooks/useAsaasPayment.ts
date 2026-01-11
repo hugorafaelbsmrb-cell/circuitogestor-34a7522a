@@ -242,11 +242,11 @@ export function useAsaasPayment() {
     }
   };
 
-  const getInstallmentBooklet = async (installmentId: string): Promise<{ url: string } | null> => {
+  const getInstallmentBooklet = async (installmentId: string): Promise<{ pdfBase64: string; contentType: string } | null> => {
     setIsLoading(true);
     try {
       const result = await callAsaasFunction('getInstallmentBooklet', { installmentId });
-      return result as { url: string };
+      return result as { pdfBase64: string; contentType: string };
     } catch (error) {
       toast({
         title: 'Erro ao obter carnê PDF',
