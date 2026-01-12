@@ -7,9 +7,10 @@ import {
   Eye,
   EyeOff,
   AlertTriangle,
-  CheckCircle,
   Plus,
-  Trash2
+  Trash2,
+  Percent,
+  CreditCard
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuthContext } from '@/contexts/AuthContext';
 
 interface AppSetting {
   id: string;
@@ -41,6 +43,7 @@ interface AppSetting {
 
 export default function Settings() {
   const { toast } = useToast();
+  const { profile } = useAuthContext();
   
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -192,7 +195,25 @@ export default function Settings() {
 
   // Group settings
   const apiSettings = settings.filter(s => s.key.includes('API') || s.key.includes('KEY'));
-  const otherSettings = settings.filter(s => !s.key.includes('API') && !s.key.includes('KEY'));
+  const asaasDiscountSettings = settings.filter(s => s.key.startsWith('asaas_discount'));
+  const otherSettings = settings.filter(s => 
+    !s.key.includes('API') && 
+    !s.key.includes('KEY') && 
+    !s.key.startsWith('asaas_discount') &&
+    !s.key.startsWith('login_')
+  );
+
+  // Check if current user is admin
+  if (profile?.role !== 'admin') {
+    return (
+      <div className="animate-fade-in">
+        <div className="page-header">
+          <h1 className="page-title">Acesso Negado</h1>
+          <p className="page-subtitle">Você não tem permissão para acessar esta página.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -304,6 +325,117 @@ export default function Settings() {
                     )}
                   </div>
                 ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Asaas Discount Card */}
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Percent className="w-5 h-5" />
+                Desconto por Antecipação (Asaas)
+              </CardTitle>
+              <CardDescription>
+                Configure o desconto que será aplicado automaticamente para pagamentos antecipados. 
+                Este desconto é gerenciado diretamente pela API Asaas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {asaasDiscountSettings.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  Configurações de desconto não encontradas
+                </p>
+              ) : (
+                <>
+                  {/* Enabled toggle */}
+                  {asaasDiscountSettings.find(s => s.key === 'asaas_discount_enabled') && (
+                    <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                      <div>
+                        <Label className="font-medium">Habilitar Desconto por Antecipação</Label>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Quando habilitado, os boletos terão desconto se pagos antes do vencimento
+                        </p>
+                      </div>
+                      <Switch
+                        checked={editedSettings['asaas_discount_enabled'] === 'true'}
+                        onCheckedChange={(checked) => 
+                          setEditedSettings(prev => ({ ...prev, 'asaas_discount_enabled': checked ? 'true' : 'false' }))
+                        }
+                      />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Discount value */}
+                    {asaasDiscountSettings.find(s => s.key === 'asaas_discount_value') && (
+                      <div className="space-y-2">
+                        <Label htmlFor="asaas_discount_value" className="font-medium">
+                          Valor do Desconto (%)
+                        </Label>
+                        <div className="relative">
+                          <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="asaas_discount_value"
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.5"
+                            className="pl-10"
+                            value={editedSettings['asaas_discount_value'] || '0'}
+                            onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_discount_value': e.target.value }))}
+                            placeholder="0"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Percentual de desconto aplicado ao boleto
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Days before */}
+                    {asaasDiscountSettings.find(s => s.key === 'asaas_discount_days_before') && (
+                      <div className="space-y-2">
+                        <Label htmlFor="asaas_discount_days_before" className="font-medium">
+                          Dias de Antecedência
+                        </Label>
+                        <div className="relative">
+                          <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="asaas_discount_days_before"
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="1"
+                            className="pl-10"
+                            value={editedSettings['asaas_discount_days_before'] || '0'}
+                            onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_discount_days_before': e.target.value }))}
+                            placeholder="0"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Até quantos dias antes do vencimento o desconto é válido
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {editedSettings['asaas_discount_enabled'] === 'true' && (
+                    <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                      <p className="text-sm">
+                        <strong>Resumo:</strong> Desconto de{' '}
+                        <span className="font-bold text-primary">
+                          {editedSettings['asaas_discount_value'] || '0'}%
+                        </span>{' '}
+                        para pagamentos realizados até{' '}
+                        <span className="font-bold text-primary">
+                          {editedSettings['asaas_discount_days_before'] || '0'} dias
+                        </span>{' '}
+                        antes do vencimento.
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

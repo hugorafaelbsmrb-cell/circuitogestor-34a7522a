@@ -16,7 +16,6 @@ interface CreateCustomerRequest {
   postalCode: string;
 }
 
-
 // Default to sandbox for safety - set ASAAS_PRODUCTION=true to use production
 const ASAAS_API_URL = Deno.env.get("ASAAS_PRODUCTION") === "true" 
   ? "https://api.asaas.com/api/v3"
@@ -86,6 +85,11 @@ async function createCustomer(data: CreateCustomerRequest) {
   return result;
 }
 
+interface DiscountConfig {
+  value: number;
+  dueDateLimitDays: number;
+  type: "PERCENTAGE" | "FIXED";
+}
 
 async function createCarne(data: {
   customerId: string;
@@ -96,27 +100,41 @@ async function createCarne(data: {
   externalReference?: string;
   interest?: { value: number };
   fine?: { value: number };
+  discount?: DiscountConfig;
 }) {
   console.log("Criando carnê no Asaas:", data.installmentCount, "parcelas");
   
   const installmentValue = Math.ceil((data.value / data.installmentCount) * 100) / 100;
   
+  // Build payment body
+  const paymentBody: Record<string, unknown> = {
+    customer: data.customerId,
+    billingType: "BOLETO",
+    value: installmentValue,
+    dueDate: data.dueDate,
+    description: data.description,
+    externalReference: data.externalReference,
+    installmentCount: data.installmentCount,
+    installmentValue: installmentValue,
+    interest: data.interest || { value: 1 }, // 1% de juros ao mês por padrão
+    fine: data.fine || { value: 2 }, // 2% de multa por padrão
+  };
+  
+  // Add discount if configured
+  if (data.discount && data.discount.value > 0 && data.discount.dueDateLimitDays > 0) {
+    paymentBody.discount = {
+      value: data.discount.value,
+      dueDateLimitDays: data.discount.dueDateLimitDays,
+      type: data.discount.type || "PERCENTAGE",
+    };
+    console.log("Desconto por antecipação configurado:", paymentBody.discount);
+  }
+  
   // Asaas uses the /payments endpoint with installmentCount for carnê
   const response = await fetch(`${ASAAS_API_URL}/payments`, {
     method: "POST",
     headers: getHeaders(),
-    body: JSON.stringify({
-      customer: data.customerId,
-      billingType: "BOLETO",
-      value: installmentValue,
-      dueDate: data.dueDate,
-      description: data.description,
-      externalReference: data.externalReference,
-      installmentCount: data.installmentCount,
-      installmentValue: installmentValue,
-      interest: data.interest || { value: 1 }, // 1% de juros ao mês por padrão
-      fine: data.fine || { value: 2 }, // 2% de multa por padrão
-    }),
+    body: JSON.stringify(paymentBody),
   });
 
   const result = await handleAsaasResponse(response, "createCarne");

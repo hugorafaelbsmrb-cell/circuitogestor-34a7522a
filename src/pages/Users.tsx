@@ -11,12 +11,14 @@ import {
   Plus,
   Mail,
   Lock,
-  Image
+  Image,
+  Settings
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -60,15 +62,66 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+interface UserPermissions {
+  dashboard?: boolean;
+  enrollment?: boolean;
+  students?: boolean;
+  leads?: boolean;
+  classes?: boolean;
+  courses?: boolean;
+  schedules?: boolean;
+  financial?: boolean;
+  carnes?: boolean;
+  contracts?: boolean;
+  discounts?: boolean;
+  contract_config?: boolean;
+  users?: boolean;
+  settings?: boolean;
+  [key: string]: boolean | undefined;
+}
+
 interface Profile {
   id: string;
   email: string;
   full_name: string | null;
   role: string;
   avatar_url: string | null;
+  permissions: UserPermissions | null;
   created_at: string;
   updated_at: string;
 }
+
+const moduleLabels: Record<string, string> = {
+  dashboard: 'Dashboard',
+  enrollment: 'Nova Matrícula',
+  students: 'Alunos',
+  leads: 'Leads',
+  classes: 'Turmas',
+  courses: 'Cursos',
+  schedules: 'Horários',
+  financial: 'Financeiro',
+  carnes: 'Carnês',
+  contracts: 'Contratos',
+  discounts: 'Descontos',
+  contract_config: 'Config. Contrato',
+  users: 'Usuários (Admin)',
+  settings: 'Configurações (Admin)',
+};
+
+const defaultPermissions: UserPermissions = {
+  dashboard: true,
+  enrollment: true,
+  students: true,
+  leads: true,
+  classes: true,
+  courses: true,
+  schedules: true,
+  financial: true,
+  carnes: true,
+  contracts: true,
+  discounts: true,
+  contract_config: true,
+};
 
 export default function Users() {
   const { toast } = useToast();
@@ -82,7 +135,9 @@ export default function Users() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showBackgroundModal, setShowBackgroundModal] = useState(false);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
   const [newRole, setNewRole] = useState<string>('user');
+  const [editingPermissions, setEditingPermissions] = useState<UserPermissions>(defaultPermissions);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginBackground, setLoginBackground] = useState('');
   
@@ -112,7 +167,8 @@ export default function Users() {
         variant: 'destructive',
       });
     } else {
-      setProfiles(data || []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setProfiles((data || []) as any as Profile[]);
     }
     setIsLoading(false);
   };
@@ -133,6 +189,12 @@ export default function Users() {
     setEditingUser(user);
     setNewRole(user.role);
     setShowEditModal(true);
+  };
+
+  const handleEditPermissions = (user: Profile) => {
+    setEditingUser(user);
+    setEditingPermissions(user.permissions || defaultPermissions);
+    setShowPermissionsModal(true);
   };
 
   const handleSaveRole = async () => {
@@ -158,6 +220,35 @@ export default function Users() {
       });
       fetchProfiles();
       setShowEditModal(false);
+      setEditingUser(null);
+    }
+    
+    setIsSubmitting(false);
+  };
+
+  const handleSavePermissions = async () => {
+    if (!editingUser) return;
+    
+    setIsSubmitting(true);
+    
+    const { error } = await supabase
+      .from('profiles')
+      .update({ permissions: editingPermissions })
+      .eq('id', editingUser.id);
+
+    if (error) {
+      toast({
+        title: 'Erro ao atualizar permissões',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Permissões atualizadas',
+        description: 'As permissões do usuário foram atualizadas.',
+      });
+      fetchProfiles();
+      setShowPermissionsModal(false);
       setEditingUser(null);
     }
     
@@ -230,7 +321,6 @@ export default function Users() {
     } else {
       // Update the role if it's admin
       if (createForm.role === 'admin') {
-        // Wait a bit for the profile to be created by the trigger
         setTimeout(async () => {
           await supabase
             .from('profiles')
@@ -256,7 +346,6 @@ export default function Users() {
   const handleSaveBackground = async () => {
     setIsSubmitting(true);
     
-    // Check if setting exists
     const { data: existing } = await supabase
       .from('app_settings')
       .select('id')
@@ -426,6 +515,10 @@ export default function Users() {
                           <Edit className="w-4 h-4 mr-2" />
                           Alterar Perfil
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEditPermissions(profile)}>
+                          <Settings className="w-4 h-4 mr-2" />
+                          Gerenciar Módulos
+                        </DropdownMenuItem>
                         {profile.id !== currentProfile?.id && (
                           <DropdownMenuItem 
                             onClick={() => handleDeleteUser(profile.id)}
@@ -575,6 +668,61 @@ export default function Users() {
                   Salvando...
                 </>
               ) : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Permissions Modal */}
+      <Dialog open={showPermissionsModal} onOpenChange={setShowPermissionsModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Gerenciar Módulos</DialogTitle>
+            <DialogDescription>
+              Defina quais módulos {editingUser?.full_name || editingUser?.email} pode acessar
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 max-h-[400px] overflow-y-auto">
+            <div className="grid grid-cols-1 gap-3">
+              {Object.entries(moduleLabels).map(([key, label]) => {
+                // Hide admin-only modules for non-admin users
+                if ((key === 'users' || key === 'settings') && editingUser?.role !== 'admin') {
+                  return null;
+                }
+                
+                return (
+                  <div key={key} className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-secondary/30 transition-colors">
+                    <Label htmlFor={`perm-${key}`} className="cursor-pointer flex-1">
+                      {label}
+                    </Label>
+                    <Checkbox
+                      id={`perm-${key}`}
+                      checked={editingPermissions[key as keyof UserPermissions] ?? true}
+                      onCheckedChange={(checked) => {
+                        setEditingPermissions(prev => ({
+                          ...prev,
+                          [key]: !!checked
+                        }));
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowPermissionsModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSavePermissions} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : 'Salvar Permissões'}
             </Button>
           </DialogFooter>
         </DialogContent>
