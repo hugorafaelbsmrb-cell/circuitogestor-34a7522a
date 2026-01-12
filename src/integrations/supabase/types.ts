@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_secret: boolean | null
+          key: string
+          updated_at: string
+          value: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_secret?: boolean | null
+          key: string
+          updated_at?: string
+          value?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_secret?: boolean | null
+          key?: string
+          updated_at?: string
+          value?: string | null
+        }
+        Relationships: []
+      }
       carnes: {
         Row: {
           asaas_installment_id: string
@@ -432,6 +462,82 @@ export type Database = {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          assigned_to: string | null
+          converted_at: string | null
+          created_at: string
+          email: string | null
+          enrollment_id: string | null
+          id: string
+          interested_course_id: string | null
+          name: string
+          notes: string | null
+          phone: string
+          source: string | null
+          status: string
+          student_birth_date: string | null
+          student_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          converted_at?: string | null
+          created_at?: string
+          email?: string | null
+          enrollment_id?: string | null
+          id?: string
+          interested_course_id?: string | null
+          name: string
+          notes?: string | null
+          phone: string
+          source?: string | null
+          status?: string
+          student_birth_date?: string | null
+          student_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          converted_at?: string | null
+          created_at?: string
+          email?: string | null
+          enrollment_id?: string | null
+          id?: string
+          interested_course_id?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string
+          source?: string | null
+          status?: string
+          student_birth_date?: string | null
+          student_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_interested_course_id_fkey"
+            columns: ["interested_course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           asaas_installment_id: string | null
@@ -516,6 +622,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       schedules: {
         Row: {
