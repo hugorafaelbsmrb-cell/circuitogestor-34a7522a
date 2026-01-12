@@ -96,9 +96,10 @@ export default function Enrollment() {
     }
   });
 
-  // Effect to load existing student/guardian data when available
+  // Effect to load existing student/guardian data when available (runs only once)
   useEffect(() => {
-    if (existingStudentId && !isDataLoading && students.length > 0) {
+    // Only run if we haven't already initialized the second course flow
+    if (existingStudentId && !isDataLoading && students.length > 0 && !isSecondCourseFlow) {
       const existingStudent = getStudentById(existingStudentId);
       if (existingStudent) {
         const existingGuardian = getGuardianById(existingStudent.guardian_id);
@@ -125,7 +126,8 @@ export default function Enrollment() {
         setCurrentStep('course');
       }
     }
-  }, [existingStudentId, isDataLoading, students, getStudentById, getGuardianById]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingStudentId, isDataLoading, students.length > 0]);
 
   // Selected course and class group
   const selectedCourse = getCourseById(formData.courseId);
