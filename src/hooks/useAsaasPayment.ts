@@ -209,6 +209,31 @@ export function useAsaasPayment() {
     }
   };
 
+  const receiveInCash = async (paymentId: string, paymentDate?: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      await callAsaasFunction('receiveInCash', { 
+        paymentId, 
+        paymentDate: paymentDate || new Date().toISOString().split('T')[0],
+        notifyCustomer: false,
+      });
+      toast({
+        title: 'Baixa realizada',
+        description: 'O pagamento foi registrado como recebido em dinheiro.',
+      });
+      return true;
+    } catch (error) {
+      toast({
+        title: 'Erro ao dar baixa',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     isLoading,
     createCustomer,
@@ -219,5 +244,6 @@ export function useAsaasPayment() {
     deleteInstallment,
     refundInstallment,
     getInstallmentBooklet,
+    receiveInCash,
   };
 }
