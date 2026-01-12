@@ -427,6 +427,19 @@ export default function Leads() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="icon"
+                        onClick={() => {
+                          const formattedPhone = lead.phone.replace(/\D/g, '');
+                          const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
+                          window.open(`https://wa.me/${phoneWithCode}`, '_blank');
+                        }}
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        title="Enviar WhatsApp"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                      </Button>
                       {lead.status !== 'converted' && lead.status !== 'lost' && (
                         <Button 
                           variant="ghost" 

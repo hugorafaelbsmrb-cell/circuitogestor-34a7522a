@@ -7,7 +7,8 @@ import {
   Download,
   Loader2,
   Calendar,
-  Filter
+  Filter,
+  FileDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,12 @@ import { useSchool } from '@/contexts/SchoolContext';
 import { supabase } from '@/integrations/supabase/client';
 import { format, getMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  generateStudentsReportPDF, 
+  generateBirthdaysReportPDF, 
+  generateLeadsReportPDF 
+} from '@/utils/pdfGenerator';
 
 type ReportType = 'students' | 'birthdays' | 'leads' | null;
 
@@ -60,6 +67,7 @@ const leadStatusLabels: Record<string, string> = {
 };
 
 export default function Reports() {
+  const { toast } = useToast();
   const { students, guardians, courses, classGroups, enrollments } = useSchool();
   
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -67,6 +75,7 @@ export default function Reports() {
   const [birthdayMonth, setBirthdayMonth] = useState<string>(String(new Date().getMonth()));
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>('all');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   useEffect(() => {
     fetchLeads();
@@ -186,6 +195,46 @@ export default function Reports() {
     setTimeout(() => setIsGenerating(false), 500);
   };
 
+  const handleExportPDF = () => {
+    setIsGeneratingPDF(true);
+    
+    try {
+      let doc;
+      let filename = '';
+      
+      if (selectedReport === 'students') {
+        const data = getStudentsReport();
+        doc = generateStudentsReportPDF(data);
+        filename = `relatorio_alunos_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      } else if (selectedReport === 'birthdays') {
+        const data = getBirthdayReport();
+        const monthName = months[parseInt(birthdayMonth)].label;
+        doc = generateBirthdaysReportPDF(data, monthName);
+        filename = `aniversariantes_${monthName.toLowerCase()}_${format(new Date(), 'yyyy')}.pdf`;
+      } else if (selectedReport === 'leads') {
+        const data = getLeadsReport();
+        doc = generateLeadsReportPDF(data);
+        filename = `relatorio_leads_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      }
+      
+      if (doc) {
+        doc.save(filename);
+        toast({
+          title: 'PDF gerado',
+          description: 'O relatório foi baixado com sucesso.',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Erro ao gerar PDF',
+        description: 'Não foi possível gerar o relatório em PDF.',
+        variant: 'destructive',
+      });
+    }
+    
+    setTimeout(() => setIsGeneratingPDF(false), 500);
+  };
+
   const renderReportContent = () => {
     if (!selectedReport) return null;
 
@@ -193,12 +242,18 @@ export default function Reports() {
       const data = getStudentsReport();
       return (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <h3 className="font-semibold">Alunos Matriculados ({data.length})</h3>
-            <Button onClick={handleExportCSV} disabled={isGenerating} size="sm" className="gap-2">
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Exportar CSV
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleExportCSV} disabled={isGenerating} size="sm" variant="outline" className="gap-2">
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                CSV
+              </Button>
+              <Button onClick={handleExportPDF} disabled={isGeneratingPDF} size="sm" className="gap-2">
+                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                PDF
+              </Button>
+            </div>
           </div>
           <div className="border rounded-lg overflow-hidden">
             <Table>
@@ -251,10 +306,16 @@ export default function Reports() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleExportCSV} disabled={isGenerating || data.length === 0} size="sm" className="gap-2">
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Exportar CSV
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleExportCSV} disabled={isGenerating || data.length === 0} size="sm" variant="outline" className="gap-2">
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                CSV
+              </Button>
+              <Button onClick={handleExportPDF} disabled={isGeneratingPDF || data.length === 0} size="sm" className="gap-2">
+                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                PDF
+              </Button>
+            </div>
           </div>
           {data.length > 0 ? (
             <div className="border rounded-lg overflow-hidden">
@@ -320,10 +381,16 @@ export default function Reports() {
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleExportCSV} disabled={isGenerating || data.length === 0} size="sm" className="gap-2">
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Exportar CSV
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={handleExportCSV} disabled={isGenerating || data.length === 0} size="sm" variant="outline" className="gap-2">
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                CSV
+              </Button>
+              <Button onClick={handleExportPDF} disabled={isGeneratingPDF || data.length === 0} size="sm" className="gap-2">
+                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                PDF
+              </Button>
+            </div>
           </div>
           {data.length > 0 ? (
             <div className="border rounded-lg overflow-hidden">

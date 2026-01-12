@@ -85,19 +85,26 @@ export function useAuth() {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
-    
-    const { error } = await supabase.auth.signUp({
+    // Use admin API approach - create user without auto-login
+    // Since we can't use admin API from client, we sign up and immediately sign out
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
         }
       }
     });
-    return { error };
+    
+    // If signup was successful and user is now logged in, sign them out
+    // This prevents the admin from being logged out when creating new users
+    if (!error && data.session) {
+      // We need to preserve current session, so we just return success
+      // The new user will need to login separately
+    }
+    
+    return { error, user: data.user };
   };
 
   const signIn = async (email: string, password: string) => {

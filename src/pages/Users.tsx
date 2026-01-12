@@ -313,26 +313,30 @@ export default function Users() {
 
     setIsSubmitting(true);
     
-    const { error } = await signUp(createForm.email, createForm.password, createForm.fullName);
-
-    if (error) {
-      toast({
-        title: 'Erro ao criar usuário',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } else {
-      // Update the role if it's admin
-      if (createForm.role === 'admin') {
-        setTimeout(async () => {
-          await supabase
-            .from('profiles')
-            .update({ role: 'admin' })
-            .eq('email', createForm.email);
-          fetchProfiles();
-        }, 1000);
-      }
+    try {
+      // Use edge function to create user without affecting current session
+      const { data: { session } } = await supabase.auth.getSession();
       
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          email: createForm.email,
+          password: createForm.password,
+          fullName: createForm.fullName,
+          role: createForm.role,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao criar usuário');
+      }
+
       toast({
         title: 'Usuário criado',
         description: 'O novo usuário foi cadastrado com sucesso.',
@@ -341,6 +345,12 @@ export default function Users() {
       setShowCreateModal(false);
       setCreateForm({ email: '', password: '', fullName: '', role: 'user' });
       fetchProfiles();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao criar usuário',
+        description: error.message,
+        variant: 'destructive',
+      });
     }
     
     setIsSubmitting(false);

@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Enrollment from "./pages/Enrollment";
 import Students from "./pages/Students";
+import Guardians from "./pages/Guardians";
 import Classes from "./pages/Classes";
 import Courses from "./pages/Courses";
 import Schedules from "./pages/Schedules";
@@ -58,6 +59,7 @@ function AppRoutes() {
                 <Route path="/" element={<Index />} />
                 <Route path="/matricula" element={<Enrollment />} />
                 <Route path="/alunos" element={<Students />} />
+                <Route path="/responsaveis" element={<Guardians />} />
                 <Route path="/turmas" element={<Classes />} />
                 <Route path="/cursos" element={<Courses />} />
                 <Route path="/horarios" element={<Schedules />} />
