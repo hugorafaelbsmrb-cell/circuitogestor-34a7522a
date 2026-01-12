@@ -19,21 +19,25 @@ import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 
+interface UserPermissions {
+  [key: string]: boolean | undefined;
+}
+
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/', adminOnly: false },
-  { icon: UserPlus, label: 'Nova Matrícula', path: '/matricula', adminOnly: false },
-  { icon: Users, label: 'Alunos', path: '/alunos', adminOnly: false },
-  { icon: UserCheck, label: 'Leads', path: '/leads', adminOnly: false },
-  { icon: GraduationCap, label: 'Turmas', path: '/turmas', adminOnly: false },
-  { icon: BookOpen, label: 'Cursos', path: '/cursos', adminOnly: false },
-  { icon: Calendar, label: 'Horários', path: '/horarios', adminOnly: false },
-  { icon: Wallet, label: 'Financeiro', path: '/financeiro', adminOnly: false },
-  { icon: CreditCard, label: 'Carnês', path: '/carnes', adminOnly: false },
-  { icon: FileText, label: 'Contratos', path: '/contratos', adminOnly: false },
-  { icon: Percent, label: 'Descontos', path: '/descontos', adminOnly: false },
-  { icon: FileText, label: 'Config. Contrato', path: '/contrato-config', adminOnly: false },
-  { icon: Shield, label: 'Usuários', path: '/usuarios', adminOnly: true },
-  { icon: Settings, label: 'Configurações', path: '/configuracoes', adminOnly: true },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/', permissionKey: 'dashboard', adminOnly: false },
+  { icon: UserPlus, label: 'Nova Matrícula', path: '/matricula', permissionKey: 'enrollment', adminOnly: false },
+  { icon: Users, label: 'Alunos', path: '/alunos', permissionKey: 'students', adminOnly: false },
+  { icon: UserCheck, label: 'Leads', path: '/leads', permissionKey: 'leads', adminOnly: false },
+  { icon: GraduationCap, label: 'Turmas', path: '/turmas', permissionKey: 'classes', adminOnly: false },
+  { icon: BookOpen, label: 'Cursos', path: '/cursos', permissionKey: 'courses', adminOnly: false },
+  { icon: Calendar, label: 'Horários', path: '/horarios', permissionKey: 'schedules', adminOnly: false },
+  { icon: Wallet, label: 'Financeiro', path: '/financeiro', permissionKey: 'financial', adminOnly: false },
+  { icon: CreditCard, label: 'Carnês', path: '/carnes', permissionKey: 'carnes', adminOnly: false },
+  { icon: FileText, label: 'Contratos', path: '/contratos', permissionKey: 'contracts', adminOnly: false },
+  { icon: Percent, label: 'Descontos', path: '/descontos', permissionKey: 'discounts', adminOnly: false },
+  { icon: FileText, label: 'Config. Contrato', path: '/contrato-config', permissionKey: 'contract_config', adminOnly: false },
+  { icon: Shield, label: 'Usuários', path: '/usuarios', permissionKey: 'users', adminOnly: true },
+  { icon: Settings, label: 'Configurações', path: '/configuracoes', permissionKey: 'settings', adminOnly: true },
 ];
 
 export function Sidebar() {
@@ -41,7 +45,19 @@ export function Sidebar() {
   const { profile } = useAuthContext();
   
   const isAdmin = profile?.role === 'admin';
-  const visibleMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
+  const permissions = (profile as { permissions?: UserPermissions })?.permissions || {};
+  
+  const visibleMenuItems = menuItems.filter(item => {
+    // Admin-only items
+    if (item.adminOnly && !isAdmin) return false;
+    
+    // Check module permissions (admins have all permissions)
+    if (isAdmin) return true;
+    
+    // For non-admins, check if they have permission for this module
+    const hasPermission = permissions[item.permissionKey];
+    return hasPermission !== false; // Default to true if not set
+  });
 
   return (
     <aside className="w-64 bg-card border-r border-border h-screen fixed left-0 top-0 flex flex-col">
