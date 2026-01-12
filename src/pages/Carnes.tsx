@@ -13,7 +13,8 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  XCircle
+  XCircle,
+  Banknote
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -65,7 +66,7 @@ interface CarnePayment {
 
 export default function Carnes() {
   const { carnes, guardians, payments, getGuardianById, deleteCarne, refetchCarnes } = useSchool();
-  const { getInstallmentBooklet, listInstallmentPayments, deleteInstallment, refundInstallment, isLoading: isAsaasLoading } = useAsaasPayment();
+  const { getInstallmentBooklet, listInstallmentPayments, deleteInstallment, refundInstallment, receiveInCash, isLoading: isAsaasLoading } = useAsaasPayment();
   const { toast } = useToast();
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -78,6 +79,7 @@ export default function Carnes() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [carneToDelete, setCarneToDelete] = useState<typeof carnes[0] | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState<string | null>(null);
 
   // Calculate real status based on payments for each carnê
   const getCarneRealStatus = (carne: typeof carnes[0]) => {
@@ -323,6 +325,28 @@ export default function Carnes() {
       setIsDeleting(false);
       setShowDeleteDialog(false);
       setCarneToDelete(null);
+    }
+  };
+
+  const handleReceiveInCash = async (payment: CarnePayment) => {
+    if (!selectedCarne) return;
+    
+    setIsProcessingPayment(payment.id);
+    try {
+      const success = await receiveInCash(payment.id);
+      
+      if (success) {
+        // Refresh payments list
+        await handleViewDetails(selectedCarne);
+      }
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível dar baixa no boleto',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessingPayment(null);
     }
   };
 
@@ -672,6 +696,23 @@ export default function Carnes() {
                             <TableCell>{getPaymentStatusBadge(payment.status)}</TableCell>
                             <TableCell className="text-right">
                               <div className="flex items-center justify-end gap-1">
+                                {/* Baixa manual - only for pending/overdue */}
+                                {['PENDING', 'OVERDUE'].includes(payment.status) && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handleReceiveInCash(payment)}
+                                    disabled={isProcessingPayment === payment.id}
+                                    title="Dar baixa manual"
+                                    className="text-success hover:text-success"
+                                  >
+                                    {isProcessingPayment === payment.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <Banknote className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                )}
                                 {payment.invoiceUrl && (
                                   <Button 
                                     variant="ghost" 

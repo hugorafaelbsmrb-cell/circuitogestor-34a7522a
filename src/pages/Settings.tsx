@@ -10,7 +10,10 @@ import {
   Plus,
   Trash2,
   Percent,
-  CreditCard
+  CreditCard,
+  Webhook,
+  Copy,
+  CheckCircle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -326,6 +329,60 @@ export default function Settings() {
                   </div>
                 ))
               )}
+            </CardContent>
+          </Card>
+
+          {/* Webhook URL Card */}
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Webhook className="w-5 h-5" />
+                Webhook de Pagamentos
+              </CardTitle>
+              <CardDescription>
+                Configure esta URL no painel do seu gateway de pagamento (Asaas) para receber notificações automáticas sobre o status dos pagamentos
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label className="font-medium">URL do Webhook</Label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-webhook`}
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/asaas-webhook`);
+                      toast({
+                        title: 'URL copiada',
+                        description: 'A URL do webhook foi copiada para a área de transferência.',
+                      });
+                    }}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Copie esta URL e configure no painel do Asaas em: Configurações → Integrações → Webhooks
+                </p>
+              </div>
+              
+              <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-success" />
+                  Eventos suportados
+                </h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
+                  <li>• <code className="text-xs bg-muted px-1 rounded">PAYMENT_CONFIRMED</code> - Pagamento confirmado</li>
+                  <li>• <code className="text-xs bg-muted px-1 rounded">PAYMENT_RECEIVED</code> - Pagamento recebido</li>
+                  <li>• <code className="text-xs bg-muted px-1 rounded">PAYMENT_OVERDUE</code> - Pagamento em atraso</li>
+                  <li>• <code className="text-xs bg-muted px-1 rounded">PAYMENT_REFUNDED</code> - Pagamento estornado</li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
 

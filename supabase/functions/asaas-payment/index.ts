@@ -233,6 +233,27 @@ async function listPayments(customerId: string) {
   return await handleAsaasResponse(response, "listPayments");
 }
 
+async function receiveInCash(paymentId: string, paymentDate: string, value?: number, notifyCustomer?: boolean) {
+  console.log("Registrando pagamento em dinheiro:", paymentId);
+  
+  const body: Record<string, unknown> = {
+    paymentDate,
+    notifyCustomer: notifyCustomer ?? false,
+  };
+  
+  if (value) {
+    body.value = value;
+  }
+  
+  const response = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/receiveInCash`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  return await handleAsaasResponse(response, "receiveInCash");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -269,6 +290,9 @@ serve(async (req) => {
         break;
       case "getInstallmentBooklet":
         result = await getInstallmentBooklet(data.installmentId);
+        break;
+      case "receiveInCash":
+        result = await receiveInCash(data.paymentId, data.paymentDate, data.value, data.notifyCustomer);
         break;
       default:
         throw new Error("Ação não reconhecida");
