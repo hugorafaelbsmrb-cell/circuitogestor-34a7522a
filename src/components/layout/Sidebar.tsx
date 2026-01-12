@@ -19,9 +19,6 @@ import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 
-interface UserPermissions {
-  [key: string]: boolean | undefined;
-}
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/', permissionKey: 'dashboard', adminOnly: false },
@@ -45,7 +42,7 @@ export function Sidebar() {
   const { profile } = useAuthContext();
   
   const isAdmin = profile?.role === 'admin';
-  const permissions = (profile as { permissions?: UserPermissions })?.permissions || {};
+  const permissions = profile?.permissions || {};
   
   const visibleMenuItems = menuItems.filter(item => {
     // Admin-only items
