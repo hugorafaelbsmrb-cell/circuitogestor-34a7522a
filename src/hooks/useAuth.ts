@@ -2,12 +2,31 @@ import { useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+export interface UserPermissions {
+  dashboard?: boolean;
+  enrollment?: boolean;
+  students?: boolean;
+  leads?: boolean;
+  classes?: boolean;
+  courses?: boolean;
+  schedules?: boolean;
+  financial?: boolean;
+  carnes?: boolean;
+  contracts?: boolean;
+  discounts?: boolean;
+  contract_config?: boolean;
+  users?: boolean;
+  settings?: boolean;
+  [key: string]: boolean | undefined;
+}
+
 export interface Profile {
   id: string;
   email: string;
   full_name: string | null;
   role: string;
   avatar_url: string | null;
+  permissions: UserPermissions | null;
   created_at: string;
   updated_at: string;
 }
@@ -57,7 +76,10 @@ export function useAuth() {
       .single();
     
     if (!error && data) {
-      setProfile(data);
+      setProfile({
+        ...data,
+        permissions: data.permissions as UserPermissions | null,
+      });
     }
   };
 
