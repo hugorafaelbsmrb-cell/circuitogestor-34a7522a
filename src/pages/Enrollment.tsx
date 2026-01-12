@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag } from 'lucide-react';
+import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -67,6 +67,8 @@ export default function Enrollment() {
   const [showContractModal, setShowContractModal] = useState(false);
   const [selectedDiscountIds, setSelectedDiscountIds] = useState<string[]>([]);
   const [isSecondCourseFlow, setIsSecondCourseFlow] = useState(false);
+  const [foundGuardianId, setFoundGuardianId] = useState<string | null>(null);
+  const [guardianSearched, setGuardianSearched] = useState(false);
   const [enrollmentResult, setEnrollmentResult] = useState<{
     contract: { id: string; content: any } | null;
     carne: { id: string; asaasInstallmentId: string } | null;
@@ -177,6 +179,71 @@ export default function Enrollment() {
     setFormData(prev => ({
       ...prev,
       guardian: { ...prev.guardian, [field]: value }
+    }));
+    // If CPF is being changed, reset guardian search state
+    if (field === 'cpf') {
+      setGuardianSearched(false);
+      setFoundGuardianId(null);
+    }
+  };
+
+  const handleSearchGuardianByCpf = () => {
+    const cleanCpf = formData.guardian.cpf.replace(/\D/g, '');
+    if (cleanCpf.length < 11) {
+      toast({
+        title: "CPF inválido",
+        description: "Digite um CPF válido com 11 dígitos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const existingGuardian = getGuardianByCpf(cleanCpf);
+    setGuardianSearched(true);
+    
+    if (existingGuardian) {
+      setFoundGuardianId(existingGuardian.id);
+      setFormData(prev => ({
+        ...prev,
+        guardian: {
+          name: existingGuardian.name,
+          cpf: existingGuardian.cpf,
+          email: existingGuardian.email,
+          phone: existingGuardian.phone,
+          address: existingGuardian.address,
+          addressNumber: existingGuardian.address_number || '',
+          province: existingGuardian.province || '',
+          postalCode: existingGuardian.postal_code || '',
+        }
+      }));
+      toast({
+        title: "Responsável encontrado!",
+        description: `${existingGuardian.name} já está cadastrado no sistema.`,
+      });
+    } else {
+      setFoundGuardianId(null);
+      toast({
+        title: "Responsável não encontrado",
+        description: "Preencha os dados para cadastrar um novo responsável.",
+      });
+    }
+  };
+
+  const handleClearGuardian = () => {
+    setFoundGuardianId(null);
+    setGuardianSearched(false);
+    setFormData(prev => ({
+      ...prev,
+      guardian: {
+        name: '',
+        cpf: '',
+        email: '',
+        phone: '',
+        address: '',
+        addressNumber: '',
+        province: '',
+        postalCode: '',
+      }
     }));
   };
 
@@ -681,6 +748,65 @@ export default function Enrollment() {
             <p className="text-sm text-muted-foreground mb-6">
               O contrato e cobranças serão emitidos no nome do responsável.
             </p>
+            
+            {/* CPF Search Section */}
+            <div className="bg-secondary/30 rounded-lg p-4 mb-6 border border-border/50">
+              <Label className="text-sm font-medium mb-2 block">Buscar responsável existente</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Digite o CPF para buscar..."
+                  value={formData.guardian.cpf}
+                  onChange={(e) => handleGuardianChange('cpf', e.target.value)}
+                  className="flex-1"
+                />
+                <Button 
+                  type="button" 
+                  variant="secondary" 
+                  onClick={handleSearchGuardianByCpf}
+                  className="shrink-0"
+                >
+                  <Search className="w-4 h-4 mr-2" />
+                  Buscar
+                </Button>
+              </div>
+              {guardianSearched && (
+                <p className={cn(
+                  "text-sm mt-2",
+                  foundGuardianId ? "text-success" : "text-muted-foreground"
+                )}>
+                  {foundGuardianId 
+                    ? "✓ Responsável encontrado! Os dados foram preenchidos automaticamente." 
+                    : "Nenhum responsável encontrado com este CPF. Preencha os dados abaixo."
+                  }
+                </p>
+              )}
+            </div>
+
+            {/* Found Guardian Card */}
+            {foundGuardianId && (
+              <div className="bg-success/10 border border-success/20 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center">
+                      <CheckCircle className="w-5 h-5 text-success" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{formData.guardian.name}</p>
+                      <p className="text-sm text-muted-foreground">CPF: {formData.guardian.cpf}</p>
+                    </div>
+                  </div>
+                  <Button 
+                    type="button" 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={handleClearGuardian}
+                  >
+                    Limpar
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="guardianName">Nome Completo</Label>
@@ -689,6 +815,7 @@ export default function Enrollment() {
                   placeholder="Nome do responsável"
                   value={formData.guardian.name}
                   onChange={(e) => handleGuardianChange('name', e.target.value)}
+                  disabled={!!foundGuardianId}
                 />
               </div>
               <div className="space-y-2">
@@ -698,6 +825,7 @@ export default function Enrollment() {
                   placeholder="000.000.000-00"
                   value={formData.guardian.cpf}
                   onChange={(e) => handleGuardianChange('cpf', e.target.value)}
+                  disabled={!!foundGuardianId}
                 />
               </div>
               <div className="space-y-2">
