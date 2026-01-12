@@ -14,6 +14,7 @@ export interface UserPermissions {
   carnes?: boolean;
   contracts?: boolean;
   discounts?: boolean;
+  reports?: boolean;
   contract_config?: boolean;
   users?: boolean;
   settings?: boolean;

@@ -13,7 +13,8 @@ import {
   UserCheck,
   Percent,
   LogOut,
-  Shield
+  Shield,
+  ClipboardList
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -32,6 +33,7 @@ const menuItems = [
   { icon: CreditCard, label: 'Carnês', path: '/carnes', permissionKey: 'carnes', adminOnly: false },
   { icon: FileText, label: 'Contratos', path: '/contratos', permissionKey: 'contracts', adminOnly: false },
   { icon: Percent, label: 'Descontos', path: '/descontos', permissionKey: 'discounts', adminOnly: false },
+  { icon: ClipboardList, label: 'Relatórios', path: '/relatorios', permissionKey: 'reports', adminOnly: false },
   { icon: FileText, label: 'Config. Contrato', path: '/contrato-config', permissionKey: 'contract_config', adminOnly: false },
   { icon: Shield, label: 'Usuários', path: '/usuarios', permissionKey: 'users', adminOnly: true },
   { icon: Settings, label: 'Configurações', path: '/configuracoes', permissionKey: 'settings', adminOnly: true },
