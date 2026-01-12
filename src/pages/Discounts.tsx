@@ -6,7 +6,11 @@ import {
   Trash2, 
   Loader2,
   DollarSign,
-  Tag
+  Tag,
+  CreditCard,
+  Calendar,
+  Save,
+  AlertTriangle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -15,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -45,6 +50,12 @@ interface Discount {
   updated_at: string;
 }
 
+interface AsaasDiscountSettings {
+  enabled: boolean;
+  value: string;
+  daysBefore: string;
+}
+
 export default function Discounts() {
   const { toast } = useToast();
   
@@ -53,6 +64,19 @@ export default function Discounts() {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingDiscount, setEditingDiscount] = useState<Discount | null>(null);
+  
+  // Asaas discount settings
+  const [asaasDiscount, setAsaasDiscount] = useState<AsaasDiscountSettings>({
+    enabled: false,
+    value: '0',
+    daysBefore: '0',
+  });
+  const [asaasDiscountOriginal, setAsaasDiscountOriginal] = useState<AsaasDiscountSettings>({
+    enabled: false,
+    value: '0',
+    daysBefore: '0',
+  });
+  const [isSavingAsaas, setIsSavingAsaas] = useState(false);
   
   const [form, setForm] = useState({
     name: '',
@@ -64,6 +88,7 @@ export default function Discounts() {
 
   useEffect(() => {
     fetchDiscounts();
+    fetchAsaasSettings();
   }, []);
 
   const fetchDiscounts = async () => {
@@ -83,6 +108,65 @@ export default function Discounts() {
       setDiscounts((data || []) as Discount[]);
     }
     setIsLoading(false);
+  };
+
+  const fetchAsaasSettings = async () => {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('*')
+      .in('key', ['asaas_discount_enabled', 'asaas_discount_value', 'asaas_discount_days_before']);
+    
+    if (!error && data) {
+      const settings: AsaasDiscountSettings = {
+        enabled: data.find(s => s.key === 'asaas_discount_enabled')?.value === 'true',
+        value: data.find(s => s.key === 'asaas_discount_value')?.value || '0',
+        daysBefore: data.find(s => s.key === 'asaas_discount_days_before')?.value || '0',
+      };
+      setAsaasDiscount(settings);
+      setAsaasDiscountOriginal(settings);
+    }
+  };
+
+  const hasAsaasChanges = 
+    asaasDiscount.enabled !== asaasDiscountOriginal.enabled ||
+    asaasDiscount.value !== asaasDiscountOriginal.value ||
+    asaasDiscount.daysBefore !== asaasDiscountOriginal.daysBefore;
+
+  const handleSaveAsaasDiscount = async () => {
+    setIsSavingAsaas(true);
+    
+    try {
+      // Update all three settings
+      const updates = [
+        { key: 'asaas_discount_enabled', value: asaasDiscount.enabled ? 'true' : 'false' },
+        { key: 'asaas_discount_value', value: asaasDiscount.value },
+        { key: 'asaas_discount_days_before', value: asaasDiscount.daysBefore },
+      ];
+
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('app_settings')
+          .update({ value: update.value })
+          .eq('key', update.key);
+        
+        if (error) throw error;
+      }
+
+      toast({
+        title: 'Desconto atualizado',
+        description: 'As configurações de desconto por antecipação foram salvas.',
+      });
+      
+      setAsaasDiscountOriginal({ ...asaasDiscount });
+    } catch (error) {
+      toast({
+        title: 'Erro ao salvar',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    }
+    
+    setIsSavingAsaas(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -242,7 +326,7 @@ export default function Discounts() {
   };
 
   return (
-    <div className="animate-fade-in">
+    <div className="animate-fade-in space-y-6">
       <div className="page-header flex items-center justify-between">
         <div>
           <h1 className="page-title">Descontos</h1>
@@ -254,7 +338,137 @@ export default function Discounts() {
         </Button>
       </div>
 
-      <div className="bg-card rounded-xl border border-border/50 shadow-sm">
+      {/* Asaas Early Payment Discount Card */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5" />
+            Desconto por Antecipação (Gateway de Pagamento)
+          </CardTitle>
+          <CardDescription>
+            Configure o desconto aplicado automaticamente nos boletos para pagamentos realizados antes do vencimento.
+            Esta configuração é sincronizada com as Configurações da API.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Enabled toggle */}
+          <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+            <div>
+              <Label className="font-medium">Habilitar Desconto por Antecipação</Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Quando habilitado, os boletos terão desconto se pagos antes do vencimento
+              </p>
+            </div>
+            <Switch
+              checked={asaasDiscount.enabled}
+              onCheckedChange={(checked) => 
+                setAsaasDiscount(prev => ({ ...prev, enabled: checked }))
+              }
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Discount value */}
+            <div className="space-y-2">
+              <Label htmlFor="asaas_discount_value" className="font-medium">
+                Valor do Desconto (%)
+              </Label>
+              <div className="relative">
+                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="asaas_discount_value"
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  className="pl-10"
+                  value={asaasDiscount.value}
+                  onChange={(e) => setAsaasDiscount(prev => ({ ...prev, value: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Percentual de desconto aplicado ao boleto
+              </p>
+            </div>
+
+            {/* Days before */}
+            <div className="space-y-2">
+              <Label htmlFor="asaas_discount_days_before" className="font-medium">
+                Dias de Antecedência
+              </Label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="asaas_discount_days_before"
+                  type="number"
+                  min="0"
+                  max="30"
+                  step="1"
+                  className="pl-10"
+                  value={asaasDiscount.daysBefore}
+                  onChange={(e) => setAsaasDiscount(prev => ({ ...prev, daysBefore: e.target.value }))}
+                  placeholder="0"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Até quantos dias antes do vencimento o desconto é válido
+              </p>
+            </div>
+          </div>
+
+          {asaasDiscount.enabled && (
+            <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+              <p className="text-sm">
+                <strong>Resumo:</strong> Desconto de{' '}
+                <span className="font-bold text-primary">
+                  {asaasDiscount.value || '0'}%
+                </span>{' '}
+                para pagamentos realizados até{' '}
+                <span className="font-bold text-primary">
+                  {asaasDiscount.daysBefore || '0'} dias
+                </span>{' '}
+                antes do vencimento.
+              </p>
+            </div>
+          )}
+
+          {hasAsaasChanges && (
+            <div className="flex items-center justify-between pt-4 border-t border-border">
+              <p className="text-sm text-amber-500 flex items-center gap-1">
+                <AlertTriangle className="w-4 h-4" />
+                Alterações não salvas
+              </p>
+              <Button onClick={handleSaveAsaasDiscount} disabled={isSavingAsaas}>
+                {isSavingAsaas ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar Alterações
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Regular Discounts Table */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Tag className="w-5 h-5" />
+            Descontos de Matrícula
+          </CardTitle>
+          <CardDescription>
+            Descontos aplicados manualmente durante o processo de matrícula
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
         {isLoading ? (
           <div className="p-12 text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
@@ -332,7 +546,8 @@ export default function Discounts() {
             <Button onClick={() => setShowModal(true)}>Criar Desconto</Button>
           </div>
         )}
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Modal */}
       <Dialog open={showModal} onOpenChange={handleCloseModal}>
