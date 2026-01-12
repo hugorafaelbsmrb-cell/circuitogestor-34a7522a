@@ -6,13 +6,12 @@ import {
   Mail, 
   MapPin,
   Loader2,
-  MessageCircle,
   User
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSchool } from '@/contexts/SchoolContext';
+import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
 
 export default function Guardians() {
   const { guardians, students, isLoading } = useSchool();
@@ -30,18 +29,6 @@ export default function Guardians() {
     return students.filter(s => s.guardian_id === guardianId);
   };
 
-  const formatPhone = (phone: string) => {
-    // Remove non-digits
-    return phone.replace(/\D/g, '');
-  };
-
-  const openWhatsApp = (phone: string, name: string) => {
-    const formattedPhone = formatPhone(phone);
-    // Add Brazil country code if not present
-    const phoneWithCode = formattedPhone.startsWith('55') ? formattedPhone : `55${formattedPhone}`;
-    const message = encodeURIComponent(`Olá ${name}, tudo bem?`);
-    window.open(`https://wa.me/${phoneWithCode}?text=${message}`, '_blank');
-  };
 
   if (isLoading) {
     return (
@@ -125,15 +112,17 @@ export default function Guardians() {
                       )}
 
                       <div className="mt-3 pt-3 border-t border-border">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="w-full gap-2 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
-                          onClick={() => openWhatsApp(guardian.phone, guardian.name)}
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          Enviar WhatsApp
-                        </Button>
+                        <WhatsAppTemplateSelector
+                          phone={guardian.phone}
+                          guardianId={guardian.id}
+                          variables={{
+                            nome_responsavel: guardian.name,
+                            nome_aluno: guardianStudents[0]?.name || '',
+                          }}
+                          buttonVariant="outline"
+                          buttonSize="sm"
+                          className="w-full"
+                        />
                       </div>
                     </div>
                   </div>

@@ -62,6 +62,7 @@ const availableVariables = [
   { key: '{vencimento}', description: 'Data de vencimento' },
   { key: '{nome_escola}', description: 'Nome da escola' },
   { key: '{parcela}', description: 'Número da parcela' },
+  { key: '{link_boleto}', description: 'Link do boleto em atraso (automático)' },
 ];
 
 export default function WhatsAppConfig() {
