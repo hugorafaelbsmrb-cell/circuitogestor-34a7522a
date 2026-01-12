@@ -7,11 +7,16 @@ import {
   User,
   Trash2,
   Edit,
-  MoreHorizontal
+  MoreHorizontal,
+  Plus,
+  Mail,
+  Lock,
+  Image
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
   TableBody,
@@ -41,6 +46,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -60,7 +72,7 @@ interface Profile {
 
 export default function Users() {
   const { toast } = useToast();
-  const { profile: currentProfile } = useAuthContext();
+  const { profile: currentProfile, signUp } = useAuthContext();
   
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,11 +80,22 @@ export default function Users() {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBackgroundModal, setShowBackgroundModal] = useState(false);
   const [newRole, setNewRole] = useState<string>('user');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginBackground, setLoginBackground] = useState('');
+  
+  const [createForm, setCreateForm] = useState({
+    email: '',
+    password: '',
+    fullName: '',
+    role: 'user',
+  });
 
   useEffect(() => {
     fetchProfiles();
+    fetchLoginBackground();
   }, []);
 
   const fetchProfiles = async () => {
@@ -92,6 +115,18 @@ export default function Users() {
       setProfiles(data || []);
     }
     setIsLoading(false);
+  };
+
+  const fetchLoginBackground = async () => {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'login_background')
+      .maybeSingle();
+    
+    if (data?.value) {
+      setLoginBackground(data.value);
+    }
   };
 
   const handleEditRole = (user: Profile) => {
@@ -161,6 +196,98 @@ export default function Users() {
     }
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!createForm.email || !createForm.password || !createForm.fullName) {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Preencha todos os campos.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (createForm.password.length < 6) {
+      toast({
+        title: 'Senha muito curta',
+        description: 'A senha deve ter pelo menos 6 caracteres.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    const { error } = await signUp(createForm.email, createForm.password, createForm.fullName);
+
+    if (error) {
+      toast({
+        title: 'Erro ao criar usuário',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      // Update the role if it's admin
+      if (createForm.role === 'admin') {
+        // Wait a bit for the profile to be created by the trigger
+        setTimeout(async () => {
+          await supabase
+            .from('profiles')
+            .update({ role: 'admin' })
+            .eq('email', createForm.email);
+          fetchProfiles();
+        }, 1000);
+      }
+      
+      toast({
+        title: 'Usuário criado',
+        description: 'O novo usuário foi cadastrado com sucesso.',
+      });
+      
+      setShowCreateModal(false);
+      setCreateForm({ email: '', password: '', fullName: '', role: 'user' });
+      fetchProfiles();
+    }
+    
+    setIsSubmitting(false);
+  };
+
+  const handleSaveBackground = async () => {
+    setIsSubmitting(true);
+    
+    // Check if setting exists
+    const { data: existing } = await supabase
+      .from('app_settings')
+      .select('id')
+      .eq('key', 'login_background')
+      .maybeSingle();
+    
+    if (existing) {
+      await supabase
+        .from('app_settings')
+        .update({ value: loginBackground })
+        .eq('key', 'login_background');
+    } else {
+      await supabase
+        .from('app_settings')
+        .insert({
+          key: 'login_background',
+          value: loginBackground,
+          description: 'URL da imagem de fundo da tela de login',
+          is_secret: false,
+        });
+    }
+    
+    toast({
+      title: 'Configuração salva',
+      description: 'O background do login foi atualizado.',
+    });
+    
+    setShowBackgroundModal(false);
+    setIsSubmitting(false);
+  };
+
   const filteredProfiles = profiles.filter(profile => {
     const matchesSearch = 
       profile.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -204,10 +331,20 @@ export default function Users() {
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header">
+      <div className="page-header flex items-center justify-between">
         <div>
           <h1 className="page-title">Gerenciamento de Usuários</h1>
           <p className="page-subtitle">Gerencie os usuários e suas permissões</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowBackgroundModal(true)} className="gap-2">
+            <Image className="w-4 h-4" />
+            Background Login
+          </Button>
+          <Button onClick={() => setShowCreateModal(true)} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Novo Usuário
+          </Button>
         </div>
       </div>
 
@@ -314,6 +451,94 @@ export default function Users() {
         )}
       </div>
 
+      {/* Create User Modal */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Novo Usuário</DialogTitle>
+            <DialogDescription>
+              Cadastre um novo usuário no sistema
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleCreateUser} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Nome Completo</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="fullName"
+                  placeholder="Nome do usuário"
+                  className="pl-10"
+                  value={createForm.fullName}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, fullName: e.target.value }))}
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="email@exemplo.com"
+                  className="pl-10"
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="password">Senha</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  className="pl-10"
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, password: e.target.value }))}
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="role">Perfil</Label>
+              <Select 
+                value={createForm.role} 
+                onValueChange={(value) => setCreateForm(prev => ({ ...prev, role: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Usuário</SelectItem>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Criando...
+                  </>
+                ) : 'Criar Usuário'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Role Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
         <DialogContent>
@@ -344,6 +569,72 @@ export default function Users() {
               Cancelar
             </Button>
             <Button onClick={handleSaveRole} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Background Config Modal */}
+      <Dialog open={showBackgroundModal} onOpenChange={setShowBackgroundModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Configurar Background do Login</DialogTitle>
+            <DialogDescription>
+              Defina uma imagem de fundo para a tela de login
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="bgUrl">URL da Imagem</Label>
+              <Textarea
+                id="bgUrl"
+                placeholder="https://exemplo.com/imagem.jpg"
+                value={loginBackground}
+                onChange={(e) => setLoginBackground(e.target.value)}
+                rows={2}
+              />
+              <p className="text-xs text-muted-foreground">
+                Cole a URL de uma imagem. Recomendado: imagens de alta resolução (1920x1080 ou maior).
+              </p>
+            </div>
+            
+            {loginBackground && (
+              <div className="space-y-2">
+                <Label>Pré-visualização</Label>
+                <div className="relative rounded-lg overflow-hidden h-48 bg-secondary">
+                  <img 
+                    src={loginBackground} 
+                    alt="Preview" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-br from-background/90 via-background/70 to-background/90 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                        <Shield className="w-6 h-6 text-primary" />
+                      </div>
+                      <p className="text-sm font-medium">EduGestor</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShowBackgroundModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveBackground} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
