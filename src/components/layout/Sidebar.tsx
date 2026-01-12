@@ -12,30 +12,36 @@ import {
   CreditCard,
   UserCheck,
   Percent,
-  LogOut
+  LogOut,
+  Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: UserPlus, label: 'Nova Matrícula', path: '/matricula' },
-  { icon: Users, label: 'Alunos', path: '/alunos' },
-  { icon: UserCheck, label: 'Leads', path: '/leads' },
-  { icon: GraduationCap, label: 'Turmas', path: '/turmas' },
-  { icon: BookOpen, label: 'Cursos', path: '/cursos' },
-  { icon: Calendar, label: 'Horários', path: '/horarios' },
-  { icon: Wallet, label: 'Financeiro', path: '/financeiro' },
-  { icon: CreditCard, label: 'Carnês', path: '/carnes' },
-  { icon: FileText, label: 'Contratos', path: '/contratos' },
-  { icon: Percent, label: 'Descontos', path: '/descontos' },
-  { icon: FileText, label: 'Config. Contrato', path: '/contrato-config' },
-  { icon: Settings, label: 'Configurações', path: '/configuracoes' },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/', adminOnly: false },
+  { icon: UserPlus, label: 'Nova Matrícula', path: '/matricula', adminOnly: false },
+  { icon: Users, label: 'Alunos', path: '/alunos', adminOnly: false },
+  { icon: UserCheck, label: 'Leads', path: '/leads', adminOnly: false },
+  { icon: GraduationCap, label: 'Turmas', path: '/turmas', adminOnly: false },
+  { icon: BookOpen, label: 'Cursos', path: '/cursos', adminOnly: false },
+  { icon: Calendar, label: 'Horários', path: '/horarios', adminOnly: false },
+  { icon: Wallet, label: 'Financeiro', path: '/financeiro', adminOnly: false },
+  { icon: CreditCard, label: 'Carnês', path: '/carnes', adminOnly: false },
+  { icon: FileText, label: 'Contratos', path: '/contratos', adminOnly: false },
+  { icon: Percent, label: 'Descontos', path: '/descontos', adminOnly: false },
+  { icon: FileText, label: 'Config. Contrato', path: '/contrato-config', adminOnly: false },
+  { icon: Shield, label: 'Usuários', path: '/usuarios', adminOnly: true },
+  { icon: Settings, label: 'Configurações', path: '/configuracoes', adminOnly: true },
 ];
 
 export function Sidebar() {
   const location = useLocation();
+  const { profile } = useAuthContext();
+  
+  const isAdmin = profile?.role === 'admin';
+  const visibleMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
 
   return (
     <aside className="w-64 bg-card border-r border-border h-screen fixed left-0 top-0 flex flex-col">
@@ -51,8 +57,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
-        {menuItems.map((item) => {
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {visibleMenuItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
             <Link
@@ -71,12 +77,12 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-border space-y-3">
-        <div className="bg-secondary/50 rounded-lg p-4">
-          <p className="text-sm font-medium text-foreground">Precisa de ajuda?</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Acesse nossa central de suporte
-          </p>
-        </div>
+        {profile && (
+          <div className="bg-secondary/50 rounded-lg p-3">
+            <p className="text-sm font-medium text-foreground truncate">{profile.full_name || profile.email}</p>
+            <p className="text-xs text-muted-foreground capitalize">{profile.role === 'admin' ? 'Administrador' : 'Usuário'}</p>
+          </div>
+        )}
         <LogoutButton />
       </div>
     </aside>
