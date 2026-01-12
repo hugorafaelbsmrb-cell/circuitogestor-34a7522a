@@ -14,7 +14,8 @@ import {
   Percent,
   LogOut,
   Shield,
-  ClipboardList
+  ClipboardList,
+  UsersRound
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -25,6 +26,7 @@ const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/', permissionKey: 'dashboard', adminOnly: false },
   { icon: UserPlus, label: 'Nova Matrícula', path: '/matricula', permissionKey: 'enrollment', adminOnly: false },
   { icon: Users, label: 'Alunos', path: '/alunos', permissionKey: 'students', adminOnly: false },
+  { icon: UsersRound, label: 'Responsáveis', path: '/responsaveis', permissionKey: 'guardians', adminOnly: false },
   { icon: UserCheck, label: 'Leads', path: '/leads', permissionKey: 'leads', adminOnly: false },
   { icon: GraduationCap, label: 'Turmas', path: '/turmas', permissionKey: 'classes', adminOnly: false },
   { icon: BookOpen, label: 'Cursos', path: '/cursos', permissionKey: 'courses', adminOnly: false },
