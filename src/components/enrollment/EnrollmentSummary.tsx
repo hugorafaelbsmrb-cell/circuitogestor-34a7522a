@@ -18,7 +18,14 @@ interface EnrollmentData {
   course: { name: string; duration: string; price: number } | null;
   classGroup: { name: string } | null;
   schedule: { day_of_week: string; start_time: string; end_time: string } | null;
-  payment: { installments: string; dueDate: string };
+  payment: { 
+    installments: string; 
+    dueDayOfMonth: string;
+    firstDueDate: string;
+    proRataValue: number;
+    regularValue: number;
+    total: number;
+  };
   contract: {
     id: string;
     content: any;
@@ -50,9 +57,7 @@ export function EnrollmentSummary({
   onGoToContracts,
   isLoadingCarne = false,
 }: EnrollmentSummaryProps) {
-  const totalValue = data.course 
-    ? data.course.price * parseInt(data.payment.installments) 
-    : 0;
+  const totalValue = data.payment.total;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -171,20 +176,26 @@ export function EnrollmentSummary({
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex justify-between">
-              <span className="text-muted-foreground text-sm">Mensalidade:</span>
+              <span className="text-muted-foreground text-sm">1ª Parcela (pro-rata):</span>
               <span className="font-medium text-sm">
-                R$ {data.course ? data.course.price.toFixed(2).replace('.', ',') : '0,00'}
+                R$ {data.payment.proRataValue.toFixed(2).replace('.', ',')}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground text-sm">Parcelas:</span>
-              <span className="font-medium text-sm">{data.payment.installments}x</span>
+              <span className="text-muted-foreground text-sm">Demais Parcelas:</span>
+              <span className="font-medium text-sm">
+                {parseInt(data.payment.installments) - 1}x de R$ {data.payment.regularValue.toFixed(2).replace('.', ',')}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground text-sm">Primeiro Vencimento:</span>
               <span className="font-medium text-sm">
-                {new Date(data.payment.dueDate).toLocaleDateString('pt-BR')}
+                {new Date(data.payment.firstDueDate).toLocaleDateString('pt-BR')}
               </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground text-sm">Dia de Vencimento:</span>
+              <span className="font-medium text-sm">Dia {data.payment.dueDayOfMonth}</span>
             </div>
             <Separator className="my-2" />
             <div className="flex justify-between">

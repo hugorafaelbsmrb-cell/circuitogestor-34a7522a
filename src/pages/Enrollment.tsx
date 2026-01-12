@@ -94,9 +94,12 @@ export default function Enrollment() {
     classGroupId: '',
     payment: {
       installments: '6',
-      dueDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0],
+      dueDayOfMonth: '10', // Standard due date options: 5, 10, 15, 20, 25
     }
   });
+
+  // Standard due date options
+  const dueDateOptions = [5, 10, 15, 20, 25];
 
   // Effect to load existing student/guardian data when available (runs only once)
   useEffect(() => {
@@ -165,6 +168,57 @@ export default function Enrollment() {
     
     return { originalPrice, discountedPrice, totalDiscount };
   }, [selectedCourse, activeDiscounts]);
+
+  // Calculate the first due date based on selected day of month
+  const calculateFirstDueDate = () => {
+    const today = new Date();
+    const selectedDay = parseInt(formData.payment.dueDayOfMonth);
+    
+    // Start with current month
+    let dueDate = new Date(today.getFullYear(), today.getMonth(), selectedDay);
+    
+    // If today is past the selected day, move to next month
+    if (today.getDate() >= selectedDay) {
+      dueDate = new Date(today.getFullYear(), today.getMonth() + 1, selectedDay);
+    }
+    
+    return dueDate;
+  };
+
+  // Calculate pro-rata value for first installment
+  const calculateProRataValue = useMemo(() => {
+    if (!selectedCourse) return { proRataValue: 0, regularValue: 0, proRataDays: 0, totalDays: 30 };
+    
+    const regularValue = calculateDiscountedPrice.discountedPrice;
+    const today = new Date();
+    const firstDueDate = calculateFirstDueDate();
+    
+    // Calculate days from today to first due date
+    const timeDiff = firstDueDate.getTime() - today.getTime();
+    const proRataDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+    
+    // Standard month is 30 days
+    const totalDays = 30;
+    
+    // Pro-rata calculation: (value / 30) * days until first due date
+    // Minimum of 1 day, maximum of 30 days
+    const effectiveDays = Math.max(1, Math.min(proRataDays, totalDays));
+    const proRataValue = Number(((regularValue / totalDays) * effectiveDays).toFixed(2));
+    
+    return { proRataValue, regularValue, proRataDays: effectiveDays, totalDays };
+  }, [selectedCourse, formData.payment.dueDayOfMonth, calculateDiscountedPrice.discountedPrice]);
+
+  // Calculate total with pro-rata
+  const calculateTotalWithProRata = useMemo(() => {
+    const installmentCount = parseInt(formData.payment.installments);
+    const { proRataValue, regularValue } = calculateProRataValue;
+    
+    // First installment is pro-rata, rest are regular
+    const regularInstallments = installmentCount - 1;
+    const total = proRataValue + (regularValue * regularInstallments);
+    
+    return { proRataValue, regularValue, regularInstallments, total };
+  }, [formData.payment.installments, calculateProRataValue]);
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
@@ -420,10 +474,12 @@ export default function Enrollment() {
         : '';
       const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student.name}${discountInfo}`;
       
+      const firstDueDate = calculateFirstDueDate().toISOString().split('T')[0];
+      
       const asaasPayment = await createAsaasCarne({
         customerId: asaasCustomer.id,
-        value: finalPrice * installmentCount, // Use discounted total
-        dueDate: formData.payment.dueDate,
+        value: calculateTotalWithProRata.total, // Use total with pro-rata
+        dueDate: firstDueDate,
         description,
         installmentCount,
         externalReference: enrollment.id,
@@ -439,9 +495,9 @@ export default function Enrollment() {
           contract_id: contract.id,
           asaas_installment_id: asaasPayment.installment || asaasPayment.id,
           description,
-          total_value: finalPrice * installmentCount, // Use discounted total
+          total_value: calculateTotalWithProRata.total, // Use total with pro-rata
           installment_count: installmentCount,
-          first_due_date: formData.payment.dueDate,
+          first_due_date: firstDueDate,
         });
 
         carneData = {
@@ -655,7 +711,7 @@ export default function Enrollment() {
       classGroupId: '',
       payment: {
         installments: '6',
-        dueDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0],
+        dueDayOfMonth: '10',
       }
     });
     setEnrollmentResult(null);
@@ -1069,12 +1125,25 @@ export default function Enrollment() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Primeiro Vencimento</Label>
-                <Input
-                  type="date"
-                  value={formData.payment.dueDate}
-                  onChange={(e) => handlePaymentChange('dueDate', e.target.value)}
-                />
+                <Label>Dia de Vencimento</Label>
+                <Select
+                  value={formData.payment.dueDayOfMonth}
+                  onValueChange={(value) => handlePaymentChange('dueDayOfMonth', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dueDateOptions.map((day) => (
+                      <SelectItem key={day} value={day.toString()}>
+                        Dia {day}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  1º vencimento: {calculateFirstDueDate().toLocaleDateString('pt-BR')}
+                </p>
               </div>
             </div>
 
@@ -1091,15 +1160,25 @@ export default function Enrollment() {
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between items-center">
+                
+                <div className="space-y-2 mb-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">1ª Parcela (pro-rata - {calculateProRataValue.proRataDays} dias):</span>
+                    <span className="font-medium">R$ {calculateTotalWithProRata.proRataValue.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Demais Parcelas ({calculateTotalWithProRata.regularInstallments}x):</span>
+                    <span className="font-medium">R$ {calculateTotalWithProRata.regularValue.toFixed(2).replace('.', ',')}</span>
+                  </div>
+                </div>
+                
+                <div className="flex justify-between items-center pt-2 border-t border-primary/20">
                   <span className="font-medium">Valor Total do Carnê</span>
                   <span className="text-xl font-bold text-primary">
-                    R$ {(calculateDiscountedPrice.discountedPrice * parseInt(formData.payment.installments)).toFixed(2).replace('.', ',')}
+                    R$ {calculateTotalWithProRata.total.toFixed(2).replace('.', ',')}
                   </span>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  {formData.payment.installments}x de R$ {calculateDiscountedPrice.discountedPrice.toFixed(2).replace('.', ',')}
-                </p>
+                
                 {activeDiscounts.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-primary/20">
                     <p className="text-xs text-muted-foreground">
@@ -1178,7 +1257,8 @@ export default function Enrollment() {
                 <div>
                   <p className="font-medium text-foreground">Carnê de pagamento</p>
                   <p className="text-sm text-muted-foreground">
-                    Serão gerados {formData.payment.installments} boletos com vencimento mensal a partir de {new Date(formData.payment.dueDate).toLocaleDateString('pt-BR')}.
+                    Serão gerados {formData.payment.installments} boletos. 1ª parcela (pro-rata): R$ {calculateTotalWithProRata.proRataValue.toFixed(2).replace('.', ',')} | Demais: R$ {calculateTotalWithProRata.regularValue.toFixed(2).replace('.', ',')}. 
+                    Primeiro vencimento: {calculateFirstDueDate().toLocaleDateString('pt-BR')}.
                   </p>
                 </div>
               </div>
@@ -1202,7 +1282,14 @@ export default function Enrollment() {
                 start_time: selectedSchedule.start_time,
                 end_time: selectedSchedule.end_time,
               } : null,
-              payment: formData.payment,
+              payment: {
+                installments: formData.payment.installments,
+                dueDayOfMonth: formData.payment.dueDayOfMonth,
+                firstDueDate: calculateFirstDueDate().toISOString().split('T')[0],
+                proRataValue: calculateTotalWithProRata.proRataValue,
+                regularValue: calculateTotalWithProRata.regularValue,
+                total: calculateTotalWithProRata.total,
+              },
               contract: enrollmentResult.contract,
               carne: enrollmentResult.carne,
             }}
