@@ -34,7 +34,6 @@ export default function Contracts() {
     clauses: { title: string; content: string }[];
     createdAt: string;
   }
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   const contractEnrollments = enrollments.filter(e => e.contract_generated);
 
