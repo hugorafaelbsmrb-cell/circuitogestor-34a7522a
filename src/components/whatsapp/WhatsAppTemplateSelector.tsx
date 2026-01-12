@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageCircle, ChevronDown, AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
+import { MessageCircle, ChevronDown, AlertCircle, ExternalLink, Loader2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,6 +21,16 @@ interface WhatsAppTemplate {
 }
 
 interface OverduePayment {
+  id: string;
+  value: number;
+  due_date: string;
+  bank_slip_url: string | null;
+  invoice_url: string | null;
+  description: string;
+  installment_number: number | null;
+}
+
+interface PaymentDue48h {
   id: string;
   value: number;
   due_date: string;
@@ -63,6 +73,7 @@ export default function WhatsAppTemplateSelector({
 }: WhatsAppTemplateSelectorProps) {
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [overduePayments, setOverduePayments] = useState<OverduePayment[]>([]);
+  const [paymentsDue48h, setPaymentsDue48h] = useState<PaymentDue48h[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -71,6 +82,7 @@ export default function WhatsAppTemplateSelector({
       fetchTemplates();
       if (guardianId) {
         fetchOverduePayments(guardianId);
+        fetchPaymentsDue48h(guardianId);
       }
     }
   }, [isOpen, guardianId]);
@@ -118,7 +130,7 @@ export default function WhatsAppTemplateSelector({
       .from('payments')
       .select('id, value, due_date, bank_slip_url, invoice_url, description, installment_number')
       .eq('guardian_id', guardianId)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'PENDING', 'overdue', 'OVERDUE'])
       .lt('due_date', today)
       .order('due_date', { ascending: true });
 
@@ -127,17 +139,53 @@ export default function WhatsAppTemplateSelector({
     }
   };
 
+  const fetchPaymentsDue48h = async (guardianId: string) => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const { data, error } = await supabase
+      .from('payments')
+      .select('id, value, due_date, bank_slip_url, invoice_url, description, installment_number')
+      .eq('guardian_id', guardianId)
+      .in('status', ['pending', 'PENDING'])
+      .gte('due_date', today)
+      .lte('due_date', in48Hours)
+      .order('due_date', { ascending: true });
+
+    if (!error && data) {
+      setPaymentsDue48h(data);
+    }
+  };
+
   const formatPhone = (phone: string) => {
     const cleaned = phone.replace(/\D/g, '');
     return cleaned.startsWith('55') ? cleaned : `55${cleaned}`;
   };
 
-  const applyVariables = (message: string, payment?: OverduePayment) => {
+  const applyVariables = (message: string, payment?: OverduePayment | PaymentDue48h) => {
     let result = message
       .replace(/{nome_responsavel}/g, variables.nome_responsavel || '')
       .replace(/{nome_aluno}/g, variables.nome_aluno || '')
       .replace(/{nome_curso}/g, variables.nome_curso || '')
       .replace(/{nome_escola}/g, variables.nome_escola || 'Nossa Escola');
+
+    // Handle {link_boleto_48h} variable - get first payment due in 48h
+    const payment48h = paymentsDue48h[0];
+    if (payment48h) {
+      const link48h = payment48h.invoice_url || payment48h.bank_slip_url || '';
+      const valor48h = payment48h.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+      const vencimento48h = new Date(payment48h.due_date).toLocaleDateString('pt-BR');
+      result = result
+        .replace(/{link_boleto_48h}/g, link48h)
+        .replace(/{valor_48h}/g, valor48h)
+        .replace(/{vencimento_48h}/g, vencimento48h);
+    } else {
+      result = result
+        .replace(/{link_boleto_48h}/g, '')
+        .replace(/{valor_48h}/g, '')
+        .replace(/{vencimento_48h}/g, '');
+    }
 
     if (payment) {
       const valorFormatado = payment.value.toLocaleString('pt-BR', {
@@ -163,7 +211,7 @@ export default function WhatsAppTemplateSelector({
     return result;
   };
 
-  const openWhatsApp = (template: WhatsAppTemplate, payment?: OverduePayment) => {
+  const openWhatsApp = (template: WhatsAppTemplate, payment?: OverduePayment | PaymentDue48h) => {
     const formattedPhone = formatPhone(phone);
     const message = encodeURIComponent(applyVariables(template.message, payment));
     window.open(`https://wa.me/${formattedPhone}?text=${message}`, '_blank');
@@ -184,6 +232,7 @@ export default function WhatsAppTemplateSelector({
       enrollment: 'Matrícula',
       payment_reminder: 'Lembrete',
       payment_overdue: 'Atraso',
+      payment_due_48h: 'Vence em 48h',
       payment_confirmed: 'Confirmado',
       general: 'Geral',
     };
@@ -240,6 +289,38 @@ export default function WhatsAppTemplateSelector({
               </>
             )}
 
+            {paymentsDue48h.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-warning flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  Vence em 48h ({paymentsDue48h.length})
+                </DropdownMenuLabel>
+                {paymentsDue48h.map((payment) => {
+                  const reminderTemplate = templates.find(t => t.category === 'payment_due_48h' || t.category === 'payment_reminder');
+                  if (!reminderTemplate) return null;
+                  
+                  return (
+                    <DropdownMenuItem
+                      key={payment.id}
+                      onClick={() => openWhatsApp(reminderTemplate, payment)}
+                      className="text-warning hover:text-warning"
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        <span className="flex-1 truncate">
+                          {new Date(payment.due_date).toLocaleDateString('pt-BR')} - {' '}
+                          {payment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                        {(payment.invoice_url || payment.bank_slip_url) && (
+                          <ExternalLink className="w-3 h-3 shrink-0" />
+                        )}
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </>
+            )}
+
             {overduePayments.length > 0 && (
               <>
                 <DropdownMenuSeparator />
@@ -270,6 +351,17 @@ export default function WhatsAppTemplateSelector({
                   );
                 })}
               </>
+            )}
+
+            {templates.length === 0 && (
+              <div className="px-2 py-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Nenhum template configurado
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Configure em WhatsApp Config
+                </p>
+              </div>
             )}
 
             {templates.length === 0 && (
