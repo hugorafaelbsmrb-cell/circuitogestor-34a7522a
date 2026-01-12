@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -60,14 +60,13 @@ export default function Enrollment() {
   
   // Check if this is an enrollment for an existing student (second course flow)
   const existingStudentId = searchParams.get('studentId');
-  const existingStudent = existingStudentId ? getStudentById(existingStudentId) : null;
-  const existingGuardian = existingStudent ? getGuardianById(existingStudent.guardian_id) : null;
   
-  const [currentStep, setCurrentStep] = useState<Step>(existingStudent ? 'course' : 'student');
+  const [currentStep, setCurrentStep] = useState<Step>('student');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCarne, setIsLoadingCarne] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
   const [selectedDiscountIds, setSelectedDiscountIds] = useState<string[]>([]);
+  const [isSecondCourseFlow, setIsSecondCourseFlow] = useState(false);
   const [enrollmentResult, setEnrollmentResult] = useState<{
     contract: { id: string; content: any } | null;
     carne: { id: string; asaasInstallmentId: string } | null;
@@ -76,18 +75,18 @@ export default function Enrollment() {
   const contractPrintRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     student: { 
-      name: existingStudent?.name || '', 
-      birthDate: existingStudent?.birth_date || '' 
+      name: '', 
+      birthDate: '' 
     },
     guardian: { 
-      name: existingGuardian?.name || '', 
-      cpf: existingGuardian?.cpf || '', 
-      email: existingGuardian?.email || '', 
-      phone: existingGuardian?.phone || '', 
-      address: existingGuardian?.address || '',
-      addressNumber: existingGuardian?.address_number || '',
-      province: existingGuardian?.province || '',
-      postalCode: existingGuardian?.postal_code || ''
+      name: '', 
+      cpf: '', 
+      email: '', 
+      phone: '', 
+      address: '',
+      addressNumber: '',
+      province: '',
+      postalCode: ''
     },
     courseId: '',
     classGroupId: '',
@@ -96,6 +95,37 @@ export default function Enrollment() {
       dueDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split('T')[0],
     }
   });
+
+  // Effect to load existing student/guardian data when available
+  useEffect(() => {
+    if (existingStudentId && !isDataLoading && students.length > 0) {
+      const existingStudent = getStudentById(existingStudentId);
+      if (existingStudent) {
+        const existingGuardian = getGuardianById(existingStudent.guardian_id);
+        
+        setFormData(prev => ({
+          ...prev,
+          student: {
+            name: existingStudent.name,
+            birthDate: existingStudent.birth_date,
+          },
+          guardian: existingGuardian ? {
+            name: existingGuardian.name,
+            cpf: existingGuardian.cpf,
+            email: existingGuardian.email,
+            phone: existingGuardian.phone,
+            address: existingGuardian.address,
+            addressNumber: existingGuardian.address_number || '',
+            province: existingGuardian.province || '',
+            postalCode: existingGuardian.postal_code || '',
+          } : prev.guardian,
+        }));
+        
+        setIsSecondCourseFlow(true);
+        setCurrentStep('course');
+      }
+    }
+  }, [existingStudentId, isDataLoading, students, getStudentById, getGuardianById]);
 
   // Selected course and class group
   const selectedCourse = getCourseById(formData.courseId);
@@ -191,13 +221,17 @@ export default function Enrollment() {
       type: d.type,
       value: d.value,
     }));
+
+    // Get existing student/guardian for second course flow
+    const existingStudent = existingStudentId ? getStudentById(existingStudentId) : null;
+    const existingGuardian = existingStudent ? getGuardianById(existingStudent.guardian_id) : null;
     
     try {
       // 1. Check if Guardian already exists by CPF or use existing one for second course
       const cleanCpf = formData.guardian.cpf.replace(/\D/g, '');
       let guardian = existingGuardian || getGuardianByCpf(cleanCpf);
       
-      if (guardian && !existingStudent) {
+      if (guardian && !isSecondCourseFlow) {
         // Update existing guardian with new data (only if not second course flow)
         await updateGuardian(guardian.id, {
           name: formData.guardian.name,
