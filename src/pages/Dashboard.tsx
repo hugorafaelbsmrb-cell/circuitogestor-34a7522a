@@ -1,16 +1,38 @@
-import { Users, GraduationCap, BookOpen, FileText, TrendingUp, Calendar } from 'lucide-react';
+import { Users, GraduationCap, BookOpen, FileText, TrendingUp, Calendar, AlertTriangle, Clock } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { useSchool } from '@/contexts/SchoolContext';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
 
 export default function Dashboard() {
-  const { students, courses, classGroups, enrollments } = useSchool();
+  const { students, courses, classGroups, enrollments, payments, guardians } = useSchool();
 
   const activeEnrollments = enrollments.filter(e => e.status === 'active').length;
   const totalSlots = classGroups.reduce((acc, cg) => acc + cg.max_students, 0);
   const usedSlots = classGroups.reduce((acc, cg) => acc + cg.current_students, 0);
   const occupancyRate = totalSlots > 0 ? Math.round((usedSlots / totalSlots) * 100) : 0;
+
+  // Get payments due in next 48 hours
+  const now = new Date();
+  const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+  
+  const paymentsDueIn48h = payments.filter(payment => {
+    if (payment.status !== 'PENDING' && payment.status !== 'pending') return false;
+    const dueDate = new Date(payment.due_date);
+    return dueDate >= now && dueDate <= in48Hours;
+  });
+
+  // Get overdue payments
+  const overduePayments = payments.filter(payment => {
+    const pendingStatuses = ['PENDING', 'pending', 'OVERDUE', 'overdue'];
+    if (!pendingStatuses.includes(payment.status)) return false;
+    const dueDate = new Date(payment.due_date);
+    return dueDate < now;
+  });
+
+  const getGuardian = (guardianId: string) => guardians.find(g => g.id === guardianId);
 
   return (
     <div className="animate-fade-in">
@@ -52,6 +74,106 @@ export default function Dashboard() {
           trend={{ value: 8, isPositive: true }}
         />
       </div>
+
+      {/* Alerts Section */}
+      {(paymentsDueIn48h.length > 0 || overduePayments.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          {/* Payments due in 48h */}
+          {paymentsDueIn48h.length > 0 && (
+            <div className="bg-warning/10 rounded-xl border border-warning/20 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-warning" />
+                  <h2 className="text-lg font-semibold text-foreground">Vence em 48h</h2>
+                </div>
+                <Badge className="bg-warning/20 text-warning border-warning/30">
+                  {paymentsDueIn48h.length} boletos
+                </Badge>
+              </div>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {paymentsDueIn48h.slice(0, 5).map((payment) => {
+                  const guardian = getGuardian(payment.guardian_id);
+                  return (
+                    <div key={payment.id} className="flex items-center justify-between p-3 bg-background rounded-lg">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground truncate">{guardian?.name || 'N/A'}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Vence: {new Date(payment.due_date).toLocaleDateString('pt-BR')} - {payment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </p>
+                      </div>
+                      {guardian && (
+                        <WhatsAppTemplateSelector
+                          phone={guardian.phone}
+                          guardianId={guardian.id}
+                          variables={{
+                            nome_responsavel: guardian.name,
+                          }}
+                          buttonVariant="ghost"
+                          buttonSize="icon"
+                          showLabel={false}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+                {paymentsDueIn48h.length > 5 && (
+                  <Link to="/carnes" className="block text-center text-sm text-warning hover:underline mt-2">
+                    Ver todos ({paymentsDueIn48h.length})
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Overdue payments */}
+          {overduePayments.length > 0 && (
+            <div className="bg-destructive/10 rounded-xl border border-destructive/20 shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-destructive" />
+                  <h2 className="text-lg font-semibold text-foreground">Boletos em Atraso</h2>
+                </div>
+                <Badge variant="destructive">
+                  {overduePayments.length} boletos
+                </Badge>
+              </div>
+              <div className="space-y-3 max-h-64 overflow-y-auto">
+                {overduePayments.slice(0, 5).map((payment) => {
+                  const guardian = getGuardian(payment.guardian_id);
+                  const daysOverdue = Math.floor((now.getTime() - new Date(payment.due_date).getTime()) / (1000 * 60 * 60 * 24));
+                  return (
+                    <div key={payment.id} className="flex items-center justify-between p-3 bg-background rounded-lg">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground truncate">{guardian?.name || 'N/A'}</p>
+                        <p className="text-sm text-destructive">
+                          {daysOverdue} dias de atraso - {payment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </p>
+                      </div>
+                      {guardian && (
+                        <WhatsAppTemplateSelector
+                          phone={guardian.phone}
+                          guardianId={guardian.id}
+                          variables={{
+                            nome_responsavel: guardian.name,
+                          }}
+                          buttonVariant="ghost"
+                          buttonSize="icon"
+                          showLabel={false}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+                {overduePayments.length > 5 && (
+                  <Link to="/financeiro" className="block text-center text-sm text-destructive hover:underline mt-2">
+                    Ver todos ({overduePayments.length})
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-card rounded-xl border border-border/50 shadow-sm p-6">

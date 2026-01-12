@@ -49,6 +49,7 @@ const categoryOptions = [
   { value: 'lead_followup', label: 'Lead - Acompanhamento' },
   { value: 'enrollment', label: 'Matrícula' },
   { value: 'payment_reminder', label: 'Lembrete de Pagamento' },
+  { value: 'payment_due_48h', label: 'Pagamento Vence em 48h' },
   { value: 'payment_overdue', label: 'Pagamento Atrasado' },
   { value: 'payment_confirmed', label: 'Pagamento Confirmado' },
   { value: 'general', label: 'Geral' },
@@ -63,6 +64,9 @@ const availableVariables = [
   { key: '{nome_escola}', description: 'Nome da escola' },
   { key: '{parcela}', description: 'Número da parcela' },
   { key: '{link_boleto}', description: 'Link do boleto em atraso (automático)' },
+  { key: '{link_boleto_48h}', description: 'Link do boleto que vence em 48h' },
+  { key: '{valor_48h}', description: 'Valor do boleto que vence em 48h' },
+  { key: '{vencimento_48h}', description: 'Data de vencimento do boleto em 48h' },
 ];
 
 export default function WhatsAppConfig() {

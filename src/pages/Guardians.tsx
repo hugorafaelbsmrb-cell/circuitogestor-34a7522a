@@ -6,16 +6,22 @@ import {
   Mail, 
   MapPin,
   Loader2,
-  User
+  User,
+  Pencil
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSchool } from '@/contexts/SchoolContext';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
+import EditGuardianModal from '@/components/guardians/EditGuardianModal';
+import { DbGuardian } from '@/hooks/useSchoolData';
 
 export default function Guardians() {
-  const { guardians, students, isLoading } = useSchool();
+  const { guardians, students, isLoading, updateGuardian } = useSchool();
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingGuardian, setEditingGuardian] = useState<DbGuardian | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const filteredGuardians = guardians.filter(guardian => {
     const matchesSearch = guardian.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -29,6 +35,14 @@ export default function Guardians() {
     return students.filter(s => s.guardian_id === guardianId);
   };
 
+  const handleEdit = (guardian: DbGuardian) => {
+    setEditingGuardian(guardian);
+    setShowEditModal(true);
+  };
+
+  const handleSaveGuardian = async (id: string, data: Partial<DbGuardian>) => {
+    await updateGuardian(id, data);
+  };
 
   if (isLoading) {
     return (
@@ -77,7 +91,17 @@ export default function Guardians() {
                       <User className="w-6 h-6 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground truncate">{guardian.name}</h3>
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-semibold text-foreground truncate">{guardian.name}</h3>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => handleEdit(guardian as DbGuardian)}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                       <p className="text-sm text-muted-foreground">CPF: {guardian.cpf}</p>
                       
                       <div className="mt-3 space-y-1 text-sm">
@@ -144,6 +168,13 @@ export default function Guardians() {
           </CardContent>
         </Card>
       )}
+
+      <EditGuardianModal
+        guardian={editingGuardian}
+        open={showEditModal}
+        onOpenChange={setShowEditModal}
+        onSave={handleSaveGuardian}
+      />
     </div>
   );
 }

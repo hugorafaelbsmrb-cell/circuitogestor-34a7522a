@@ -350,6 +350,16 @@ export default function Carnes() {
     }
   };
 
+  // Get payments due in next 48 hours
+  const now = new Date();
+  const in48Hours = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+  
+  const paymentsDueIn48h = payments.filter(payment => {
+    if (payment.status !== 'PENDING' && payment.status !== 'pending') return false;
+    const dueDate = new Date(payment.due_date);
+    return dueDate >= now && dueDate <= in48Hours;
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -358,8 +368,74 @@ export default function Carnes() {
         <p className="text-muted-foreground">Gerencie os carnês gerados e acompanhe os pagamentos</p>
       </div>
 
+      {/* Payments due in 48h Alert */}
+      {paymentsDueIn48h.length > 0 && (
+        <Card className="border-warning/30 bg-warning/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-warning">
+              <Clock className="w-5 h-5" />
+              Boletos Vencendo em 48 Horas ({paymentsDueIn48h.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Responsável</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paymentsDueIn48h.map((payment) => {
+                    const guardian = getGuardianById(payment.guardian_id);
+                    return (
+                      <TableRow key={payment.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium">{guardian?.name || 'N/A'}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>{payment.description}</TableCell>
+                        <TableCell className="font-medium">
+                          R$ {payment.value.toFixed(2).replace('.', ',')}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1 text-warning">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(payment.due_date).toLocaleDateString('pt-BR')}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {(payment.invoice_url || payment.bank_slip_url) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => window.open(payment.invoice_url || payment.bank_slip_url || '', '_blank')}
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                Ver Boleto
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
@@ -391,6 +467,20 @@ export default function Carnes() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
+                <Clock className="w-6 h-6 text-warning" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Vence em 48h</p>
+                <p className="text-2xl font-bold">{paymentsDueIn48h.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl bg-destructive/10 flex items-center justify-center">
                 <AlertCircle className="w-6 h-6 text-destructive" />
               </div>
@@ -411,20 +501,6 @@ export default function Carnes() {
               <div>
                 <p className="text-sm text-muted-foreground">Finalizados</p>
                 <p className="text-2xl font-bold">{stats.ended}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Valor Total</p>
-                <p className="text-2xl font-bold">R$ {stats.totalValue.toFixed(2).replace('.', ',')}</p>
               </div>
             </div>
           </CardContent>
