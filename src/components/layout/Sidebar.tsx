@@ -9,21 +9,29 @@ import {
   UserPlus,
   Settings,
   Wallet,
-  CreditCard
+  CreditCard,
+  UserCheck,
+  Percent,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: UserPlus, label: 'Nova Matrícula', path: '/matricula' },
   { icon: Users, label: 'Alunos', path: '/alunos' },
+  { icon: UserCheck, label: 'Leads', path: '/leads' },
   { icon: GraduationCap, label: 'Turmas', path: '/turmas' },
   { icon: BookOpen, label: 'Cursos', path: '/cursos' },
   { icon: Calendar, label: 'Horários', path: '/horarios' },
   { icon: Wallet, label: 'Financeiro', path: '/financeiro' },
   { icon: CreditCard, label: 'Carnês', path: '/carnes' },
   { icon: FileText, label: 'Contratos', path: '/contratos' },
-  { icon: Settings, label: 'Config. Contrato', path: '/contrato-config' },
+  { icon: Percent, label: 'Descontos', path: '/descontos' },
+  { icon: FileText, label: 'Config. Contrato', path: '/contrato-config' },
+  { icon: Settings, label: 'Configurações', path: '/configuracoes' },
 ];
 
 export function Sidebar() {
@@ -62,14 +70,32 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-3">
         <div className="bg-secondary/50 rounded-lg p-4">
           <p className="text-sm font-medium text-foreground">Precisa de ajuda?</p>
           <p className="text-xs text-muted-foreground mt-1">
             Acesse nossa central de suporte
           </p>
         </div>
+        <LogoutButton />
       </div>
     </aside>
+  );
+}
+
+function LogoutButton() {
+  const { signOut, user } = useAuthContext();
+
+  if (!user) return null;
+
+  return (
+    <Button 
+      variant="outline" 
+      className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+      onClick={() => signOut()}
+    >
+      <LogOut className="h-4 w-4" />
+      Sair
+    </Button>
   );
 }
