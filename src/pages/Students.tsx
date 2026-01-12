@@ -111,9 +111,8 @@ export default function Students() {
   };
 
   const handleNewEnrollmentClick = (student: typeof students[0]) => {
-    setSelectedStudent(student);
-    setNewEnrollmentForm({ classGroupId: '' });
-    setShowNewEnrollmentModal(true);
+    // Redirect to enrollment page with studentId for second course flow
+    navigate(`/matricula?studentId=${student.id}`);
   };
 
   const handleSaveEdit = async () => {
