@@ -571,14 +571,14 @@ export default function Leads() {
             <div className="space-y-2">
               <Label htmlFor="interested_course_id">Curso de Interesse</Label>
               <Select 
-                value={form.interested_course_id} 
-                onValueChange={(value) => setForm(prev => ({ ...prev, interested_course_id: value }))}
+                value={form.interested_course_id || "none"} 
+                onValueChange={(value) => setForm(prev => ({ ...prev, interested_course_id: value === "none" ? "" : value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um curso" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {courses.filter(c => c.is_active).map(course => (
                     <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
                   ))}
