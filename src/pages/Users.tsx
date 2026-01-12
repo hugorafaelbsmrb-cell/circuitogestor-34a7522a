@@ -74,6 +74,7 @@ interface UserPermissions {
   carnes?: boolean;
   contracts?: boolean;
   discounts?: boolean;
+  reports?: boolean;
   contract_config?: boolean;
   users?: boolean;
   settings?: boolean;
@@ -103,6 +104,7 @@ const moduleLabels: Record<string, string> = {
   carnes: 'Carnês',
   contracts: 'Contratos',
   discounts: 'Descontos',
+  reports: 'Relatórios',
   contract_config: 'Config. Contrato',
   users: 'Usuários (Admin)',
   settings: 'Configurações (Admin)',
@@ -120,6 +122,7 @@ const defaultPermissions: UserPermissions = {
   carnes: true,
   contracts: true,
   discounts: true,
+  reports: true,
   contract_config: true,
 };
 

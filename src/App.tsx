@@ -21,6 +21,7 @@ import Leads from "./pages/Leads";
 import Discounts from "./pages/Discounts";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
+import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -66,6 +67,7 @@ function AppRoutes() {
                 <Route path="/contrato-config" element={<ContractConfig />} />
                 <Route path="/leads" element={<Leads />} />
                 <Route path="/descontos" element={<Discounts />} />
+                <Route path="/relatorios" element={<Reports />} />
                 <Route path="/usuarios" element={<Users />} />
                 <Route path="/configuracoes" element={<Settings />} />
                 <Route path="*" element={<NotFound />} />
