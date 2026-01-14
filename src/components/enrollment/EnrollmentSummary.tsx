@@ -18,6 +18,7 @@ interface EnrollmentData {
   course: { name: string; duration: string; price: number } | null;
   classGroup?: { name: string } | null;
   schedule: string | { day_of_week: string; start_time: string; end_time: string } | null;
+  gradeLevel?: { id: string; label: string; description: string } | null;
   payment: { 
     installments: number; 
     dueDayOfMonth: number;
@@ -149,6 +150,12 @@ export function EnrollmentSummary({
               <span className="text-muted-foreground text-sm">Turma:</span>
               <span className="font-medium text-sm">{data.classGroup?.name || '-'}</span>
             </div>
+            {data.gradeLevel && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground text-sm">Série:</span>
+                <span className="font-medium text-sm">{data.gradeLevel.label}</span>
+              </div>
+            )}
             {data.schedule && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">Horário:</span>

@@ -16,6 +16,7 @@ interface ContractContent {
   coursePrice: number;
   classGroupName: string;
   schedule: string;
+  gradeLevel?: { id: string; label: string; description: string } | null;
   installments: number;
   installmentValue: number;
   totalValue: number;
@@ -71,6 +72,9 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
           <p><strong>Curso:</strong> {content.courseName}</p>
           <p><strong>Duração:</strong> {content.courseDuration}</p>
           <p><strong>Turma:</strong> {content.classGroupName}</p>
+          {content.gradeLevel && (
+            <p><strong>Série:</strong> {content.gradeLevel.label} ({content.gradeLevel.description})</p>
+          )}
           <p><strong>Horário:</strong> {content.schedule}</p>
         </div>
 

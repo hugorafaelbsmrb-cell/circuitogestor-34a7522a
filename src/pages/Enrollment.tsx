@@ -36,6 +36,13 @@ const TIME_SLOTS = [
   { id: 'afternoon_2', label: 'Tarde 2', start: '16:00', end: '17:30', period: 'Tarde' },
 ];
 
+// Grade levels for "Reforço Escolar" course
+const GRADE_LEVELS = [
+  { id: 'alfabetizacao_1ano', label: 'Alfabetização e 1° Ano', description: 'Sala 1' },
+  { id: '2_3_ano', label: '2° e 3° Ano', description: 'Sala 2' },
+  { id: '4_5_ano', label: '4° e 5° Ano', description: 'Sala 3' },
+];
+
 interface SelectedSchedule {
   dayOfWeek: string;
   timeSlot: typeof TIME_SLOTS[0];
@@ -85,6 +92,7 @@ export default function Enrollment() {
   const [guardianSearched, setGuardianSearched] = useState(false);
   const [selectedSchedules, setSelectedSchedules] = useState<SelectedSchedule[]>([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
+  const [selectedGradeLevel, setSelectedGradeLevel] = useState<string>('');
   const [enrollmentResult, setEnrollmentResult] = useState<{
     contract: { id: string; content: any } | null;
     carne: { id: string; asaasInstallmentId: string } | null;
@@ -378,6 +386,11 @@ export default function Enrollment() {
   };
 
   const validateSchedule = () => {
+    // For "Reforço Escolar" course, also require grade level selection
+    const isReforcoEscolar = selectedCourse?.name.toLowerCase().includes('reforço escolar');
+    if (isReforcoEscolar && !selectedGradeLevel) {
+      return false;
+    }
     return selectedSchedules.length > 0;
   };
 
@@ -494,6 +507,7 @@ export default function Enrollment() {
       const scheduleDescription = getScheduleDescription();
 
       // 5. Generate Contract
+      const gradeLevelInfo = GRADE_LEVELS.find(g => g.id === selectedGradeLevel);
       const contractContent = {
         schoolName: contractConfig?.school_name || 'EduGestor',
         schoolCnpj: contractConfig?.school_cnpj || '',
@@ -513,6 +527,11 @@ export default function Enrollment() {
           day: s.dayOfWeek,
           time: `${s.timeSlot.start} às ${s.timeSlot.end}`
         })),
+        gradeLevel: selectedCourse.name.toLowerCase().includes('reforço escolar') && gradeLevelInfo ? {
+          id: gradeLevelInfo.id,
+          label: gradeLevelInfo.label,
+          description: gradeLevelInfo.description,
+        } : null,
         installments: parseInt(formData.payment.installments),
         installmentValue: finalPrice,
         totalValue: finalPrice * parseInt(formData.payment.installments),
@@ -805,6 +824,7 @@ export default function Enrollment() {
     });
     setSelectedSchedules([]);
     setSelectedTimeSlot('');
+    setSelectedGradeLevel('');
     setEnrollmentResult(null);
     setCurrentStep('student');
   };
@@ -1075,6 +1095,46 @@ export default function Enrollment() {
               </p>
             )}
 
+            {/* Grade Level Selection for Reforço Escolar */}
+            {selectedCourse?.name.toLowerCase().includes('reforço escolar') && (
+              <div className="mb-6">
+                <Label className="flex items-center gap-2 mb-3">
+                  <BookOpen className="w-4 h-4" />
+                  Série/Turma do Aluno
+                </Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Selecione a série do aluno para alocação na sala correta:
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {GRADE_LEVELS.map((grade) => (
+                    <button
+                      key={grade.id}
+                      onClick={() => setSelectedGradeLevel(grade.id)}
+                      className={cn(
+                        'p-4 rounded-xl border-2 text-center transition-all duration-200',
+                        selectedGradeLevel === grade.id
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border hover:border-primary/50'
+                      )}
+                    >
+                      <p className="font-semibold">{grade.label}</p>
+                      <p className={cn(
+                        "text-xs mt-1",
+                        selectedGradeLevel === grade.id ? "text-primary-foreground/80" : "text-muted-foreground"
+                      )}>
+                        {grade.description}
+                      </p>
+                      {selectedGradeLevel === grade.id && (
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-success rounded-full flex items-center justify-center">
+                          <Check className="w-4 h-4 text-success-foreground" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Time Slot Selection */}
             <div className="mb-6">
               <Label className="flex items-center gap-2 mb-3">
@@ -1174,6 +1234,11 @@ export default function Enrollment() {
                 <p className="text-sm text-muted-foreground mt-3">
                   Total: {selectedSchedules.length} {selectedSchedules.length === 1 ? 'dia' : 'dias'} por semana
                 </p>
+                {selectedGradeLevel && selectedCourse?.name.toLowerCase().includes('reforço escolar') && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Turma: {GRADE_LEVELS.find(g => g.id === selectedGradeLevel)?.label}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -1451,6 +1516,9 @@ export default function Enrollment() {
                 price: Number(selectedCourse.price),
               } : { name: '', duration: '', price: 0 },
               schedule: getScheduleDescription(),
+              gradeLevel: selectedCourse?.name.toLowerCase().includes('reforço escolar') && selectedGradeLevel
+                ? GRADE_LEVELS.find(g => g.id === selectedGradeLevel) || null
+                : null,
               payment: {
                 installments: parseInt(formData.payment.installments),
                 dueDayOfMonth: parseInt(formData.payment.dueDayOfMonth),
