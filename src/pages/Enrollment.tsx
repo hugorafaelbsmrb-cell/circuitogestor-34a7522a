@@ -91,6 +91,7 @@ export default function Enrollment() {
   } | null>(null);
   
   const contractPrintRef = useRef<HTMLDivElement>(null);
+  const [useProRata, setUseProRata] = useState(true);
   const [formData, setFormData] = useState({
     student: { 
       name: '', 
@@ -228,16 +229,21 @@ export default function Enrollment() {
     return { proRataValue, regularValue, proRataDays: effectiveDays, totalDays };
   }, [selectedCourse, formData.payment.dueDayOfMonth, calculateDiscountedPrice.discountedPrice]);
 
-  // Calculate total with pro-rata
+  // Calculate total with pro-rata (or without if disabled)
   const calculateTotalWithProRata = useMemo(() => {
     const installmentCount = parseInt(formData.payment.installments);
     const { proRataValue, regularValue } = calculateProRataValue;
+    
+    if (!useProRata) {
+      // All installments equal
+      return { proRataValue: regularValue, regularValue, regularInstallments: installmentCount - 1, total: regularValue * installmentCount };
+    }
     
     const regularInstallments = installmentCount - 1;
     const total = proRataValue + (regularValue * regularInstallments);
     
     return { proRataValue, regularValue, regularInstallments, total };
-  }, [formData.payment.installments, calculateProRataValue]);
+  }, [formData.payment.installments, calculateProRataValue, useProRata]);
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
@@ -559,6 +565,9 @@ export default function Enrollment() {
       
       const firstDueDate = calculateFirstDueDate().toISOString().split('T')[0];
       
+      // Calculate first installment value (pro-rata or regular)
+      const firstInstallmentValue = useProRata ? calculateTotalWithProRata.proRataValue : calculateTotalWithProRata.regularValue;
+      
       const asaasPayment = await createAsaasCarne({
         customerId: asaasCustomer.id,
         value: calculateTotalWithProRata.total,
@@ -566,6 +575,12 @@ export default function Enrollment() {
         description,
         installmentCount,
         externalReference: enrollment.id,
+        firstInstallmentValue: useProRata ? firstInstallmentValue : undefined,
+        discount: {
+          value: 5, // 5% de desconto por antecipação
+          dueDateLimitDays: 5, // até 5 dias antes do vencimento
+          type: 'PERCENTAGE',
+        },
       });
 
       let carneData = null;
@@ -1263,7 +1278,26 @@ export default function Enrollment() {
                     ))}
                   </SelectContent>
                 </Select>
+            </div>
+
+            {/* Pro-Rata Toggle */}
+            <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-6">
+              <div>
+                <Label className="font-medium">Cálculo Pro-Rata</Label>
+                <p className="text-sm text-muted-foreground">
+                  A primeira parcela é calculada proporcionalmente aos dias até o vencimento
+                </p>
               </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useProRata}
+                  onChange={(e) => setUseProRata(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+              </label>
+            </div>
               <div className="space-y-2">
                 <Label>Dia de Vencimento</Label>
                 <Select
