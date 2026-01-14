@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag, Search } from 'lucide-react';
+import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag, Search, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +26,20 @@ const steps: { id: Step; title: string; icon: React.ElementType }[] = [
   { id: 'contract', title: 'Contrato', icon: FileText },
   { id: 'summary', title: 'Conclusão', icon: CheckCircle },
 ];
+
+// Fixed schedule configuration
+const WEEKDAYS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+const TIME_SLOTS = [
+  { id: 'morning_1', label: 'Manhã 1', start: '08:30', end: '10:00', period: 'Manhã' },
+  { id: 'morning_2', label: 'Manhã 2', start: '10:00', end: '11:30', period: 'Manhã' },
+  { id: 'afternoon_1', label: 'Tarde 1', start: '14:00', end: '15:30', period: 'Tarde' },
+  { id: 'afternoon_2', label: 'Tarde 2', start: '16:00', end: '17:30', period: 'Tarde' },
+];
+
+interface SelectedSchedule {
+  dayOfWeek: string;
+  timeSlot: typeof TIME_SLOTS[0];
+}
 
 export default function Enrollment() {
   const navigate = useNavigate();
@@ -69,6 +83,8 @@ export default function Enrollment() {
   const [isSecondCourseFlow, setIsSecondCourseFlow] = useState(false);
   const [foundGuardianId, setFoundGuardianId] = useState<string | null>(null);
   const [guardianSearched, setGuardianSearched] = useState(false);
+  const [selectedSchedules, setSelectedSchedules] = useState<SelectedSchedule[]>([]);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('');
   const [enrollmentResult, setEnrollmentResult] = useState<{
     contract: { id: string; content: any } | null;
     carne: { id: string; asaasInstallmentId: string } | null;
@@ -94,7 +110,7 @@ export default function Enrollment() {
     classGroupId: '',
     payment: {
       installments: '6',
-      dueDayOfMonth: '10', // Standard due date options: 5, 10, 15, 20, 25
+      dueDayOfMonth: '10',
     }
   });
 
@@ -103,7 +119,6 @@ export default function Enrollment() {
 
   // Effect to load existing student/guardian data when available (runs only once)
   useEffect(() => {
-    // Only run if we haven't already initialized the second course flow
     if (existingStudentId && !isDataLoading && students.length > 0 && !isSecondCourseFlow) {
       const existingStudent = getStudentById(existingStudentId);
       if (existingStudent) {
@@ -134,13 +149,26 @@ export default function Enrollment() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingStudentId, isDataLoading, students.length > 0]);
 
-  // Selected course and class group
+  // Selected course
   const selectedCourse = getCourseById(formData.courseId);
-  const availableClassGroups = classGroups.filter(cg => 
-    cg.course_id === formData.courseId && cg.current_students < cg.max_students
-  );
-  const selectedClassGroup = classGroups.find(cg => cg.id === formData.classGroupId);
-  const selectedSchedule = selectedClassGroup ? getScheduleById(selectedClassGroup.schedule_id) : undefined;
+
+  // Get available schedules for selected course
+  const availableSchedulesForCourse = useMemo(() => {
+    if (!formData.courseId) return [];
+    return schedules.filter(s => s.course_id === formData.courseId);
+  }, [formData.courseId, schedules]);
+
+  // Find class group for selected schedule
+  const findClassGroupForSchedule = (dayOfWeek: string, startTime: string) => {
+    const schedule = availableSchedulesForCourse.find(
+      s => s.day_of_week === dayOfWeek && s.start_time === startTime
+    );
+    if (!schedule) return null;
+    
+    return classGroups.find(
+      cg => cg.schedule_id === schedule.id && cg.current_students < cg.max_students
+    );
+  };
 
   // Calculate discount values
   const activeDiscounts = discounts.filter(d => d.is_active && selectedDiscountIds.includes(d.id));
@@ -163,7 +191,6 @@ export default function Enrollment() {
       }
     });
     
-    // Ensure price doesn't go negative
     discountedPrice = Math.max(0, discountedPrice);
     
     return { originalPrice, discountedPrice, totalDiscount };
@@ -174,10 +201,8 @@ export default function Enrollment() {
     const today = new Date();
     const selectedDay = parseInt(formData.payment.dueDayOfMonth);
     
-    // Start with current month
     let dueDate = new Date(today.getFullYear(), today.getMonth(), selectedDay);
     
-    // If today is past the selected day, move to next month
     if (today.getDate() >= selectedDay) {
       dueDate = new Date(today.getFullYear(), today.getMonth() + 1, selectedDay);
     }
@@ -193,15 +218,10 @@ export default function Enrollment() {
     const today = new Date();
     const firstDueDate = calculateFirstDueDate();
     
-    // Calculate days from today to first due date
     const timeDiff = firstDueDate.getTime() - today.getTime();
     const proRataDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
     
-    // Standard month is 30 days
     const totalDays = 30;
-    
-    // Pro-rata calculation: (value / 30) * days until first due date
-    // Minimum of 1 day, maximum of 30 days
     const effectiveDays = Math.max(1, Math.min(proRataDays, totalDays));
     const proRataValue = Number(((regularValue / totalDays) * effectiveDays).toFixed(2));
     
@@ -213,7 +233,6 @@ export default function Enrollment() {
     const installmentCount = parseInt(formData.payment.installments);
     const { proRataValue, regularValue } = calculateProRataValue;
     
-    // First installment is pro-rata, rest are regular
     const regularInstallments = installmentCount - 1;
     const total = proRataValue + (regularValue * regularInstallments);
     
@@ -234,7 +253,6 @@ export default function Enrollment() {
       ...prev,
       guardian: { ...prev.guardian, [field]: value }
     }));
-    // If CPF is being changed, reset guardian search state
     if (field === 'cpf') {
       setGuardianSearched(false);
       setFoundGuardianId(null);
@@ -308,6 +326,42 @@ export default function Enrollment() {
     }));
   };
 
+  const handleToggleDay = (dayOfWeek: string) => {
+    const timeSlot = TIME_SLOTS.find(ts => ts.id === selectedTimeSlot);
+    if (!timeSlot) {
+      toast({
+        title: "Selecione um horário",
+        description: "Primeiro selecione o horário desejado.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const existingIndex = selectedSchedules.findIndex(
+      s => s.dayOfWeek === dayOfWeek && s.timeSlot.id === timeSlot.id
+    );
+
+    if (existingIndex >= 0) {
+      setSelectedSchedules(prev => prev.filter((_, i) => i !== existingIndex));
+    } else {
+      // Check if there's a class group available for this schedule
+      const classGroup = findClassGroupForSchedule(dayOfWeek, timeSlot.start);
+      if (!classGroup) {
+        toast({
+          title: "Turma indisponível",
+          description: `Não há vagas disponíveis para ${dayOfWeek} às ${timeSlot.start}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      setSelectedSchedules(prev => [...prev, { dayOfWeek, timeSlot }]);
+    }
+  };
+
+  const isDaySelected = (dayOfWeek: string) => {
+    return selectedSchedules.some(s => s.dayOfWeek === dayOfWeek);
+  };
+
   const validateStudent = () => {
     return formData.student.name.trim() !== '' && formData.student.birthDate !== '';
   };
@@ -315,6 +369,10 @@ export default function Enrollment() {
   const validateGuardian = () => {
     const { name, cpf, email, phone, address, postalCode } = formData.guardian;
     return name.trim() !== '' && cpf.trim() !== '' && email.trim() !== '' && phone.trim() !== '' && address.trim() !== '' && postalCode.trim() !== '';
+  };
+
+  const validateSchedule = () => {
+    return selectedSchedules.length > 0;
   };
 
   const goToNextStep = () => {
@@ -331,12 +389,27 @@ export default function Enrollment() {
     }
   };
 
+  // Get schedule description for display
+  const getScheduleDescription = () => {
+    if (selectedSchedules.length === 0) return '';
+    
+    const groupedByTime = selectedSchedules.reduce((acc, s) => {
+      const key = `${s.timeSlot.start} às ${s.timeSlot.end}`;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(s.dayOfWeek);
+      return acc;
+    }, {} as Record<string, string[]>);
+
+    return Object.entries(groupedByTime).map(([time, days]) => 
+      `${days.join(', ')} • ${time}`
+    ).join(' | ');
+  };
+
   const handleSubmit = async () => {
-    if (!selectedCourse || !selectedClassGroup) return;
+    if (!selectedCourse || selectedSchedules.length === 0) return;
     
     setIsSubmitting(true);
     
-    // Use discounted price for calculations
     const finalPrice = calculateDiscountedPrice.discountedPrice;
     const appliedDiscounts = activeDiscounts.map(d => ({
       id: d.id,
@@ -345,7 +418,6 @@ export default function Enrollment() {
       value: d.value,
     }));
 
-    // Get existing student/guardian for second course flow
     const existingStudent = existingStudentId ? getStudentById(existingStudentId) : null;
     const existingGuardian = existingStudent ? getGuardianById(existingStudent.guardian_id) : null;
     
@@ -355,7 +427,6 @@ export default function Enrollment() {
       let guardian = existingGuardian || getGuardianByCpf(cleanCpf);
       
       if (guardian && !isSecondCourseFlow) {
-        // Update existing guardian with new data (only if not second course flow)
         await updateGuardian(guardian.id, {
           name: formData.guardian.name,
           email: formData.guardian.email,
@@ -365,7 +436,6 @@ export default function Enrollment() {
           province: formData.guardian.province || 'Centro',
           postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
         });
-        // Refresh guardian data
         guardian = { ...guardian, ...{
           name: formData.guardian.name,
           email: formData.guardian.email,
@@ -376,7 +446,6 @@ export default function Enrollment() {
           postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
         }};
       } else if (!guardian) {
-        // Create new Guardian in database
         guardian = await createGuardian({
           name: formData.guardian.name,
           cpf: cleanCpf,
@@ -400,15 +469,25 @@ export default function Enrollment() {
         });
       }
 
-      // 3. Create Enrollment in database
+      // 3. Find the first available class group for selected schedules
+      const firstSchedule = selectedSchedules[0];
+      const classGroup = findClassGroupForSchedule(firstSchedule.dayOfWeek, firstSchedule.timeSlot.start);
+      
+      if (!classGroup) {
+        throw new Error('Não há vagas disponíveis para o horário selecionado.');
+      }
+
+      // 4. Create Enrollment in database
       const enrollment = await createEnrollment({
         student_id: student.id,
-        class_group_id: formData.classGroupId,
+        class_group_id: classGroup.id,
         guardian_id: guardian.id,
         status: 'active',
       });
 
-      // 4. Generate Contract
+      const scheduleDescription = getScheduleDescription();
+
+      // 5. Generate Contract
       const contractContent = {
         schoolName: contractConfig?.school_name || 'EduGestor',
         schoolCnpj: contractConfig?.school_cnpj || '',
@@ -420,12 +499,16 @@ export default function Enrollment() {
         studentBirthDate: student.birth_date,
         courseName: selectedCourse.name,
         courseDuration: selectedCourse.duration,
-        coursePrice: finalPrice, // Use discounted price
+        coursePrice: finalPrice,
         originalPrice: selectedCourse.price,
-        classGroupName: selectedClassGroup.name,
-        schedule: selectedSchedule ? `${selectedSchedule.day_of_week} - ${selectedSchedule.start_time} às ${selectedSchedule.end_time}` : '',
+        classGroupName: classGroup.name,
+        schedule: scheduleDescription,
+        selectedDays: selectedSchedules.map(s => ({
+          day: s.dayOfWeek,
+          time: `${s.timeSlot.start} às ${s.timeSlot.end}`
+        })),
         installments: parseInt(formData.payment.installments),
-        installmentValue: finalPrice, // Use discounted price
+        installmentValue: finalPrice,
         totalValue: finalPrice * parseInt(formData.payment.installments),
         discounts: appliedDiscounts,
         totalDiscount: calculateDiscountedPrice.totalDiscount * parseInt(formData.payment.installments),
@@ -446,7 +529,7 @@ export default function Enrollment() {
         installment_count: contractContent.installments,
       });
 
-      // 5. Create Customer in Asaas (or use existing)
+      // 6. Create Customer in Asaas (or use existing)
       let asaasCustomer;
       if (guardian.asaas_customer_id) {
         asaasCustomer = { id: guardian.asaas_customer_id };
@@ -467,7 +550,7 @@ export default function Enrollment() {
         throw new Error('Erro ao criar cliente no sistema de pagamentos');
       }
 
-      // 6. Generate Carnê in Asaas with discounted price
+      // 7. Generate Carnê in Asaas with discounted price
       const installmentCount = parseInt(formData.payment.installments);
       const discountInfo = appliedDiscounts.length > 0 
         ? ` (${appliedDiscounts.map(d => d.name).join(', ')})` 
@@ -478,7 +561,7 @@ export default function Enrollment() {
       
       const asaasPayment = await createAsaasCarne({
         customerId: asaasCustomer.id,
-        value: calculateTotalWithProRata.total, // Use total with pro-rata
+        value: calculateTotalWithProRata.total,
         dueDate: firstDueDate,
         description,
         installmentCount,
@@ -488,14 +571,13 @@ export default function Enrollment() {
       let carneData = null;
       
       if (asaasPayment) {
-        // Save carnê to database
         const savedCarne = await createCarne({
           enrollment_id: enrollment.id,
           guardian_id: guardian.id,
           contract_id: contract.id,
           asaas_installment_id: asaasPayment.installment || asaasPayment.id,
           description,
-          total_value: calculateTotalWithProRata.total, // Use total with pro-rata
+          total_value: calculateTotalWithProRata.total,
           installment_count: installmentCount,
           first_due_date: firstDueDate,
         });
@@ -505,7 +587,6 @@ export default function Enrollment() {
           asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
         };
 
-        // Save the first payment record
         await createPayment({
           enrollment_id: enrollment.id,
           guardian_id: guardian.id,
@@ -523,10 +604,9 @@ export default function Enrollment() {
         });
       }
 
-      // 7. Update enrollment with contract flag
+      // 8. Update enrollment with contract flag
       await updateEnrollment(enrollment.id, { contract_generated: true });
 
-      // Set enrollment result for summary
       setEnrollmentResult({
         contract: {
           id: contract.id,
@@ -540,7 +620,6 @@ export default function Enrollment() {
         description: "O contrato e o carnê foram gerados automaticamente.",
       });
 
-      // Go to summary step instead of navigating away
       setCurrentStep('summary');
     } catch (error) {
       console.error('Enrollment error:', error);
@@ -605,7 +684,6 @@ export default function Enrollment() {
         printWindow.print();
       }
     } else {
-      // If modal not open, open it first
       setShowContractModal(true);
       setTimeout(() => {
         handlePrintContract();
@@ -627,7 +705,6 @@ export default function Enrollment() {
     try {
       const booklet = await getInstallmentBooklet(enrollmentResult.carne.asaasInstallmentId);
       if (booklet?.pdfBase64) {
-        // Convert base64 to blob and open in new tab
         const byteCharacters = atob(booklet.pdfBase64);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -663,7 +740,6 @@ export default function Enrollment() {
     try {
       const booklet = await getInstallmentBooklet(enrollmentResult.carne.asaasInstallmentId);
       if (booklet?.pdfBase64) {
-        // Convert base64 to blob and download
         const byteCharacters = atob(booklet.pdfBase64);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -673,7 +749,6 @@ export default function Enrollment() {
         const blob = new Blob([byteArray], { type: 'application/pdf' });
         const blobUrl = URL.createObjectURL(blob);
         
-        // Create a link and trigger download
         const link = document.createElement('a');
         link.href = blobUrl;
         link.download = `carne_${enrollmentResult.carne.asaasInstallmentId}.pdf`;
@@ -694,7 +769,6 @@ export default function Enrollment() {
   };
 
   const handleNewEnrollment = () => {
-    // Reset form
     setFormData({
       student: { name: '', birthDate: '' },
       guardian: { 
@@ -714,10 +788,11 @@ export default function Enrollment() {
         dueDayOfMonth: '10',
       }
     });
+    setSelectedSchedules([]);
+    setSelectedTimeSlot('');
     setEnrollmentResult(null);
     setCurrentStep('student');
   };
-
 
   if (isDataLoading) {
     return (
@@ -950,7 +1025,11 @@ export default function Enrollment() {
               {courses.filter(c => c.is_active).map((course) => (
                 <button
                   key={course.id}
-                  onClick={() => setFormData(prev => ({ ...prev, courseId: course.id, classGroupId: '' }))}
+                  onClick={() => {
+                    setFormData(prev => ({ ...prev, courseId: course.id, classGroupId: '' }));
+                    setSelectedSchedules([]);
+                    setSelectedTimeSlot('');
+                  }}
                   className={cn(
                     'p-4 rounded-xl border-2 text-left transition-all duration-200',
                     formData.courseId === course.id
@@ -974,53 +1053,114 @@ export default function Enrollment() {
 
         {currentStep === 'schedule' && (
           <div>
-            <h2 className="form-section-title">Selecione a Turma e Horário</h2>
+            <h2 className="form-section-title">Selecione os Dias e Horário</h2>
             {selectedCourse && (
               <p className="text-sm text-muted-foreground mb-6">
-                Turmas disponíveis para <strong>{selectedCourse.name}</strong>
+                Escolha os dias da semana para <strong>{selectedCourse.name}</strong>. Você pode selecionar quantos dias quiser.
               </p>
             )}
-            <div className="space-y-4">
-              {availableClassGroups.length > 0 ? (
-                availableClassGroups.map((classGroup) => {
-                  const schedule = getScheduleById(classGroup.schedule_id);
-                  const availableSlots = classGroup.max_students - classGroup.current_students;
-                  return (
-                    <button
-                      key={classGroup.id}
-                      onClick={() => setFormData(prev => ({ ...prev, classGroupId: classGroup.id }))}
-                      className={cn(
-                        'w-full p-4 rounded-xl border-2 text-left transition-all duration-200',
-                        formData.classGroupId === classGroup.id
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:border-primary/50'
-                      )}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-semibold text-foreground">{classGroup.name}</h3>
-                          {schedule && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {schedule.day_of_week} • {schedule.start_time} às {schedule.end_time}
-                            </p>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <span className="text-sm font-medium text-success">{availableSlots} vagas</span>
-                          <p className="text-xs text-muted-foreground">
-                            {classGroup.current_students}/{classGroup.max_students} alunos
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  Não há turmas disponíveis para este curso no momento.
-                </div>
-              )}
+
+            {/* Time Slot Selection */}
+            <div className="mb-6">
+              <Label className="flex items-center gap-2 mb-3">
+                <Clock className="w-4 h-4" />
+                Horário
+              </Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {TIME_SLOTS.map((slot) => (
+                  <button
+                    key={slot.id}
+                    onClick={() => {
+                      setSelectedTimeSlot(slot.id);
+                      // Clear schedules when changing time slot
+                      setSelectedSchedules([]);
+                    }}
+                    className={cn(
+                      'p-4 rounded-xl border-2 text-center transition-all duration-200',
+                      selectedTimeSlot === slot.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    )}
+                  >
+                    <p className="text-xs text-muted-foreground mb-1">{slot.period}</p>
+                    <p className="font-semibold text-foreground">{slot.start}</p>
+                    <p className="text-sm text-muted-foreground">às {slot.end}</p>
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Day Selection */}
+            {selectedTimeSlot && (
+              <div className="mb-6">
+                <Label className="flex items-center gap-2 mb-3">
+                  <Calendar className="w-4 h-4" />
+                  Dias da Semana
+                </Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Clique nos dias que o aluno frequentará as aulas:
+                </p>
+                <div className="grid grid-cols-5 gap-3">
+                  {WEEKDAYS.map((day) => {
+                    const timeSlot = TIME_SLOTS.find(ts => ts.id === selectedTimeSlot);
+                    const classGroup = timeSlot ? findClassGroupForSchedule(day, timeSlot.start) : null;
+                    const hasVacancy = !!classGroup;
+                    const isSelected = isDaySelected(day);
+                    const vacancies = classGroup ? classGroup.max_students - classGroup.current_students : 0;
+
+                    return (
+                      <button
+                        key={day}
+                        onClick={() => handleToggleDay(day)}
+                        disabled={!hasVacancy && !isSelected}
+                        className={cn(
+                          'p-4 rounded-xl border-2 text-center transition-all duration-200 relative',
+                          isSelected
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : hasVacancy
+                            ? 'border-border hover:border-primary/50'
+                            : 'border-border/50 bg-muted/50 cursor-not-allowed opacity-50'
+                        )}
+                      >
+                        <p className="font-semibold text-sm">
+                          {day.replace('-feira', '')}
+                        </p>
+                        {hasVacancy && (
+                          <p className={cn(
+                            "text-xs mt-1",
+                            isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                          )}>
+                            {vacancies} vagas
+                          </p>
+                        )}
+                        {isSelected && (
+                          <div className="absolute -top-2 -right-2 w-6 h-6 bg-success rounded-full flex items-center justify-center">
+                            <Check className="w-4 h-4 text-success-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Selected Schedule Summary */}
+            {selectedSchedules.length > 0 && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4">
+                <h4 className="font-medium text-foreground mb-2">Dias Selecionados</h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedSchedules.map((s, index) => (
+                    <Badge key={index} variant="secondary" className="text-sm">
+                      {s.dayOfWeek.replace('-feira', '')} • {s.timeSlot.start} às {s.timeSlot.end}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="text-sm text-muted-foreground mt-3">
+                  Total: {selectedSchedules.length} {selectedSchedules.length === 1 ? 'dia' : 'dias'} por semana
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -1214,13 +1354,14 @@ export default function Enrollment() {
                   <p className="text-sm text-muted-foreground">{selectedCourse?.duration}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Turma e Horário</h4>
-                  <p className="text-foreground font-medium">{selectedClassGroup?.name}</p>
-                  {selectedSchedule && (
-                    <p className="text-sm text-muted-foreground">
-                      {selectedSchedule.day_of_week} • {selectedSchedule.start_time} às {selectedSchedule.end_time}
-                    </p>
-                  )}
+                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Dias e Horários</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedSchedules.map((s, index) => (
+                      <Badge key={index} variant="outline" className="text-xs">
+                        {s.dayOfWeek.replace('-feira', '')} {s.timeSlot.start}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               </div>
               <div className="mt-6 pt-6 border-t border-border">
@@ -1257,8 +1398,7 @@ export default function Enrollment() {
                 <div>
                   <p className="font-medium text-foreground">Carnê de pagamento</p>
                   <p className="text-sm text-muted-foreground">
-                    Serão gerados {formData.payment.installments} boletos. 1ª parcela (pro-rata): R$ {calculateTotalWithProRata.proRataValue.toFixed(2).replace('.', ',')} | Demais: R$ {calculateTotalWithProRata.regularValue.toFixed(2).replace('.', ',')}. 
-                    Primeiro vencimento: {calculateFirstDueDate().toLocaleDateString('pt-BR')}.
+                    Serão gerados {formData.payment.installments} boletos para pagamento.
                   </p>
                 </div>
               </div>
@@ -1274,17 +1414,12 @@ export default function Enrollment() {
               course: selectedCourse ? {
                 name: selectedCourse.name,
                 duration: selectedCourse.duration,
-                price: selectedCourse.price,
-              } : null,
-              classGroup: selectedClassGroup ? { name: selectedClassGroup.name } : null,
-              schedule: selectedSchedule ? {
-                day_of_week: selectedSchedule.day_of_week,
-                start_time: selectedSchedule.start_time,
-                end_time: selectedSchedule.end_time,
-              } : null,
+                price: Number(selectedCourse.price),
+              } : { name: '', duration: '', price: 0 },
+              schedule: getScheduleDescription(),
               payment: {
-                installments: formData.payment.installments,
-                dueDayOfMonth: formData.payment.dueDayOfMonth,
+                installments: parseInt(formData.payment.installments),
+                dueDayOfMonth: parseInt(formData.payment.dueDayOfMonth),
                 firstDueDate: calculateFirstDueDate().toISOString().split('T')[0],
                 proRataValue: calculateTotalWithProRata.proRataValue,
                 regularValue: calculateTotalWithProRata.regularValue,
@@ -1294,81 +1429,70 @@ export default function Enrollment() {
               carne: enrollmentResult.carne,
             }}
             onPrintContract={handlePrintContract}
-            onViewContract={() => setShowContractModal(true)}
-            onPrintCarne={handleDownloadCarne}
             onViewCarne={handleViewCarne}
+            onDownloadCarne={handleDownloadCarne}
             onNewEnrollment={handleNewEnrollment}
-            onGoToContracts={() => navigate('/contratos')}
             isLoadingCarne={isLoadingCarne}
           />
         )}
 
-        {/* Navigation Buttons - Hide on summary step */}
+        {/* Navigation Buttons */}
         {currentStep !== 'summary' && (
-          <div className="flex items-center justify-between mt-8 pt-6 border-t border-border">
+          <div className="flex justify-between mt-8">
             <Button
               variant="outline"
               onClick={goToPreviousStep}
-              disabled={currentStepIndex === 0 || isSubmitting}
+              disabled={currentStepIndex === 0 || (isSecondCourseFlow && currentStep === 'course')}
             >
               Voltar
             </Button>
-            
             {currentStep === 'contract' ? (
-              <Button 
-                onClick={handleSubmit} 
-                className="gap-2"
+              <Button
+                onClick={handleSubmit}
                 disabled={isSubmitting || isAsaasLoading}
+                className="min-w-[200px]"
               >
-                {(isSubmitting || isAsaasLoading) ? (
+                {isSubmitting || isAsaasLoading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Processando...
                   </>
                 ) : (
                   <>
-                    <FileText className="w-4 h-4" />
                     Finalizar Matrícula
+                    <ChevronRight className="w-4 h-4 ml-2" />
                   </>
                 )}
               </Button>
             ) : (
-              <Button 
+              <Button
                 onClick={goToNextStep}
                 disabled={
                   (currentStep === 'student' && !validateStudent()) ||
                   (currentStep === 'guardian' && !validateGuardian()) ||
                   (currentStep === 'course' && !formData.courseId) ||
-                  (currentStep === 'schedule' && !formData.classGroupId)
+                  (currentStep === 'schedule' && !validateSchedule())
                 }
-                className="gap-2"
               >
-                Continuar
-                <ChevronRight className="w-4 h-4" />
+                Próximo
+                <ChevronRight className="w-4 h-4 ml-2" />
               </Button>
             )}
           </div>
         )}
       </div>
 
-      {/* Contract Print Modal */}
+      {/* Contract Modal */}
       <Dialog open={showContractModal} onOpenChange={setShowContractModal}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Contrato de Matrícula</DialogTitle>
           </DialogHeader>
-          {enrollmentResult?.contract?.content && (
-            <>
-              <ContractPrintView ref={contractPrintRef} content={enrollmentResult.contract.content} />
-              <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
-                <Button variant="outline" onClick={() => setShowContractModal(false)}>
-                  Fechar
-                </Button>
-                <Button onClick={handlePrintContract}>
-                  Imprimir
-                </Button>
-              </div>
-            </>
+          {enrollmentResult?.contract && (
+            <ContractPrintView
+              ref={contractPrintRef}
+              content={enrollmentResult.contract.content}
+            />
           )}
         </DialogContent>
       </Dialog>
