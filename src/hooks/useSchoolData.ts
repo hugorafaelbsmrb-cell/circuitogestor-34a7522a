@@ -23,6 +23,7 @@ export interface DbStudent {
   name: string;
   birth_date: string;
   guardian_id: string;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
   guardian?: DbGuardian;

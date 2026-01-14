@@ -23,6 +23,7 @@ import Discounts from "./pages/Discounts";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
 import Reports from "./pages/Reports";
+import StudentAllocation from "./pages/StudentAllocation";
 import WhatsAppConfig from "./pages/WhatsAppConfig";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
@@ -71,6 +72,7 @@ function AppRoutes() {
                 <Route path="/leads" element={<Leads />} />
                 <Route path="/descontos" element={<Discounts />} />
                 <Route path="/relatorios" element={<Reports />} />
+                <Route path="/alocacao-alunos" element={<StudentAllocation />} />
                 <Route path="/usuarios" element={<Users />} />
                 <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
                 <Route path="/configuracoes" element={<Settings />} />

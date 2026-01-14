@@ -24,6 +24,12 @@ interface CreateCarneData {
   installmentCount: number;
   interest?: { value: number };
   fine?: { value: number };
+  firstInstallmentValue?: number;
+  discount?: {
+    value: number;
+    dueDateLimitDays: number;
+    type: 'PERCENTAGE' | 'FIXED';
+  };
 }
 
 export function useAsaasPayment() {
@@ -80,6 +86,8 @@ export function useAsaasPayment() {
         externalReference: data.externalReference,
         interest: data.interest,
         fine: data.fine,
+        firstInstallmentValue: data.firstInstallmentValue,
+        discount: data.discount,
       });
       toast({
         title: 'Carnê criado',

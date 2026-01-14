@@ -101,16 +101,34 @@ async function createCarne(data: {
   interest?: { value: number };
   fine?: { value: number };
   discount?: DiscountConfig;
+  firstInstallmentValue?: number;
 }) {
   console.log("Criando carnê no Asaas:", data.installmentCount, "parcelas");
   
-  const installmentValue = Math.ceil((data.value / data.installmentCount) * 100) / 100;
+  // Calculate installment value - if firstInstallmentValue is provided, it's pro-rata
+  let installmentValue: number;
+  let totalValue = data.value;
   
-  // Build payment body
+  if (data.firstInstallmentValue && data.firstInstallmentValue !== (data.value / data.installmentCount)) {
+    // Pro-rata: first installment has different value
+    // Recalculate regular installment value for remaining payments
+    const remainingValue = totalValue - data.firstInstallmentValue;
+    const remainingInstallments = data.installmentCount - 1;
+    installmentValue = remainingInstallments > 0 
+      ? Math.ceil((remainingValue / remainingInstallments) * 100) / 100
+      : data.firstInstallmentValue;
+    
+    console.log("Pro-rata configurado - 1ª parcela:", data.firstInstallmentValue, "Demais:", installmentValue);
+  } else {
+    // Standard: all installments equal
+    installmentValue = Math.ceil((data.value / data.installmentCount) * 100) / 100;
+  }
+  
+  // Build payment body - use firstInstallmentValue as the value for first payment
   const paymentBody: Record<string, unknown> = {
     customer: data.customerId,
     billingType: "BOLETO",
-    value: installmentValue,
+    value: data.firstInstallmentValue || installmentValue,
     dueDate: data.dueDate,
     description: data.description,
     externalReference: data.externalReference,
@@ -120,7 +138,7 @@ async function createCarne(data: {
     fine: data.fine || { value: 2 }, // 2% de multa por padrão
   };
   
-  // Add discount if configured
+  // Add discount if configured - this adds discount text to the boleto
   if (data.discount && data.discount.value > 0 && data.discount.dueDateLimitDays > 0) {
     paymentBody.discount = {
       value: data.discount.value,

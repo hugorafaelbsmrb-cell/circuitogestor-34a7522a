@@ -14,7 +14,10 @@ import {
   Loader2,
   GraduationCap,
   CheckCircle,
-  XCircle
+  XCircle,
+  UserX,
+  UserCheck,
+  Filter
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -61,10 +64,12 @@ export default function Students() {
   } = useSchool();
   
   const [searchTerm, setSearchTerm] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<typeof students[0] | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showNewEnrollmentModal, setShowNewEnrollmentModal] = useState(false);
+  const [showInactivateModal, setShowInactivateModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [editForm, setEditForm] = useState({
@@ -76,9 +81,12 @@ export default function Students() {
     classGroupId: '',
   });
 
-  const filteredStudents = students.filter(student =>
-    student.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Filter students by search term and active status
+  const filteredStudents = students.filter(student => {
+    const matchesSearch = student.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const isActive = (student as any).is_active !== false; // Default to true if not set
+    return matchesSearch && (showInactive || isActive);
+  });
 
   // Get student enrollments
   const getStudentEnrollments = (studentId: string) => {
@@ -113,6 +121,42 @@ export default function Students() {
   const handleNewEnrollmentClick = (student: typeof students[0]) => {
     // Redirect to enrollment page with studentId for second course flow
     navigate(`/matricula?studentId=${student.id}`);
+  };
+
+  const handleInactivateClick = (student: typeof students[0]) => {
+    setSelectedStudent(student);
+    setShowInactivateModal(true);
+  };
+
+  const handleToggleActive = async () => {
+    if (!selectedStudent) return;
+    
+    const currentStatus = (selectedStudent as any).is_active !== false;
+    const newStatus = !currentStatus;
+    
+    setIsSubmitting(true);
+    try {
+      await updateStudent(selectedStudent.id, {
+        is_active: newStatus,
+      } as any);
+      
+      toast({
+        title: newStatus ? 'Aluno ativado' : 'Aluno inativado',
+        description: newStatus 
+          ? 'O aluno foi reativado e aparecerá nos relatórios.' 
+          : 'O aluno foi inativado e não aparecerá mais nos relatórios e financeiro.',
+      });
+      
+      setShowInactivateModal(false);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível alterar o status do aluno.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -221,7 +265,7 @@ export default function Students() {
       </div>
 
       <div className="bg-card rounded-xl border border-border/50 shadow-sm">
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border flex flex-col md:flex-row gap-4 justify-between">
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -231,6 +275,17 @@ export default function Students() {
               className="pl-10"
             />
           </div>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+                className="rounded border-border"
+              />
+              <span className="text-muted-foreground">Mostrar inativos</span>
+            </label>
+          </div>
         </div>
 
         {filteredStudents.length > 0 ? (
@@ -239,16 +294,25 @@ export default function Students() {
               const guardian = getGuardianById(student.guardian_id);
               const studentEnrollments = getStudentEnrollments(student.id);
               const activeEnrollments = studentEnrollments.filter(e => e.status === 'active');
+              const isActive = (student as any).is_active !== false;
               
               return (
-                <div key={student.id} className="p-4 hover:bg-secondary/30 transition-colors">
+                <div key={student.id} className={`p-4 hover:bg-secondary/30 transition-colors ${!isActive ? 'opacity-60 bg-muted/30' : ''}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Users className="w-6 h-6 text-primary" />
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isActive ? 'bg-primary/10' : 'bg-muted'}`}>
+                        <Users className={`w-6 h-6 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
                       </div>
                       <div>
-                        <p className="font-medium text-foreground">{student.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-foreground">{student.name}</p>
+                          {!isActive && (
+                            <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/20">
+                              <XCircle className="w-3 h-3 mr-1" />
+                              Inativo
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground">
                           Nascimento: {new Date(student.birth_date).toLocaleDateString('pt-BR')}
                         </p>
@@ -289,6 +353,15 @@ export default function Students() {
                           title="Adicionar curso"
                         >
                           <BookOpen className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleInactivateClick(student)}
+                          title={isActive ? "Inativar aluno" : "Reativar aluno"}
+                          className={isActive ? "text-destructive hover:text-destructive" : "text-success hover:text-success"}
+                        >
+                          {isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                         </Button>
                       </div>
                     </div>
@@ -630,6 +703,71 @@ export default function Students() {
                 <>
                   <Plus className="w-4 h-4 mr-2" />
                   Matricular
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Inactivate Modal */}
+      <Dialog open={showInactivateModal} onOpenChange={setShowInactivateModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {(selectedStudent as any)?.is_active !== false ? (
+                <>
+                  <UserX className="w-5 h-5 text-destructive" />
+                  Inativar Aluno
+                </>
+              ) : (
+                <>
+                  <UserCheck className="w-5 h-5 text-success" />
+                  Reativar Aluno
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {(selectedStudent as any)?.is_active !== false 
+                ? 'Ao inativar, o aluno não aparecerá mais nos relatórios e no financeiro.'
+                : 'Ao reativar, o aluno voltará a aparecer nos relatórios e no financeiro.'
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedStudent && (
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <p className="text-sm text-muted-foreground">Aluno</p>
+              <p className="font-medium">{selectedStudent.name}</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Status atual: {(selectedStudent as any).is_active !== false ? 'Ativo' : 'Inativo'}
+              </p>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInactivateModal(false)} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleToggleActive}
+              disabled={isSubmitting}
+              variant={(selectedStudent as any)?.is_active !== false ? 'destructive' : 'default'}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processando...
+                </>
+              ) : (selectedStudent as any)?.is_active !== false ? (
+                <>
+                  <UserX className="w-4 h-4 mr-2" />
+                  Inativar
+                </>
+              ) : (
+                <>
+                  <UserCheck className="w-4 h-4 mr-2" />
+                  Reativar
                 </>
               )}
             </Button>
