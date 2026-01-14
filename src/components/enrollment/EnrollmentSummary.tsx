@@ -16,11 +16,11 @@ interface EnrollmentData {
     postalCode: string;
   };
   course: { name: string; duration: string; price: number } | null;
-  classGroup: { name: string } | null;
-  schedule: { day_of_week: string; start_time: string; end_time: string } | null;
+  classGroup?: { name: string } | null;
+  schedule: string | { day_of_week: string; start_time: string; end_time: string } | null;
   payment: { 
-    installments: string; 
-    dueDayOfMonth: string;
+    installments: number; 
+    dueDayOfMonth: number;
     firstDueDate: string;
     proRataValue: number;
     regularValue: number;
@@ -39,22 +39,18 @@ interface EnrollmentData {
 interface EnrollmentSummaryProps {
   data: EnrollmentData;
   onPrintContract: () => void;
-  onViewContract: () => void;
-  onPrintCarne: () => void;
   onViewCarne: () => void;
+  onDownloadCarne: () => void;
   onNewEnrollment: () => void;
-  onGoToContracts: () => void;
   isLoadingCarne?: boolean;
 }
 
 export function EnrollmentSummary({
   data,
   onPrintContract,
-  onViewContract,
-  onPrintCarne,
   onViewCarne,
+  onDownloadCarne,
   onNewEnrollment,
-  onGoToContracts,
   isLoadingCarne = false,
 }: EnrollmentSummaryProps) {
   const totalValue = data.payment.total;
@@ -157,7 +153,9 @@ export function EnrollmentSummary({
               <div className="flex justify-between">
                 <span className="text-muted-foreground text-sm">Horário:</span>
                 <span className="font-medium text-sm">
-                  {data.schedule.day_of_week} • {data.schedule.start_time} às {data.schedule.end_time}
+                  {typeof data.schedule === 'string' 
+                    ? data.schedule 
+                    : `${data.schedule.day_of_week} • ${data.schedule.start_time} às ${data.schedule.end_time}`}
                 </span>
               </div>
             )}
@@ -184,7 +182,7 @@ export function EnrollmentSummary({
             <div className="flex justify-between">
               <span className="text-muted-foreground text-sm">Demais Parcelas:</span>
               <span className="font-medium text-sm">
-                {parseInt(data.payment.installments) - 1}x de R$ {data.payment.regularValue.toFixed(2).replace('.', ',')}
+                {data.payment.installments - 1}x de R$ {data.payment.regularValue.toFixed(2).replace('.', ',')}
               </span>
             </div>
             <div className="flex justify-between">
@@ -223,10 +221,6 @@ export function EnrollmentSummary({
               Contrato gerado em nome de {data.guardian.name}
             </p>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1 gap-2" onClick={onViewContract}>
-                <Eye className="w-4 h-4" />
-                Visualizar
-              </Button>
               <Button className="flex-1 gap-2" onClick={onPrintContract}>
                 <Printer className="w-4 h-4" />
                 Imprimir
@@ -263,7 +257,7 @@ export function EnrollmentSummary({
               </Button>
               <Button 
                 className="flex-1 gap-2" 
-                onClick={onPrintCarne}
+                onClick={onDownloadCarne}
                 disabled={isLoadingCarne}
               >
                 {isLoadingCarne ? (
@@ -280,11 +274,8 @@ export function EnrollmentSummary({
 
       {/* Navigation Actions */}
       <div className="flex flex-col sm:flex-row gap-4 pt-4">
-        <Button variant="outline" className="flex-1" onClick={onNewEnrollment}>
+        <Button className="flex-1" onClick={onNewEnrollment}>
           Nova Matrícula
-        </Button>
-        <Button className="flex-1" onClick={onGoToContracts}>
-          Ver Contratos
         </Button>
       </div>
     </div>
