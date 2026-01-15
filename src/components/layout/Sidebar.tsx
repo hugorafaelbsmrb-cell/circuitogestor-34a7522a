@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
 
 
 const menuItems = [
@@ -48,6 +49,7 @@ const menuItems = [
 export function Sidebar() {
   const location = useLocation();
   const { profile } = useAuthContext();
+  const { branding } = useSystemBranding();
   
   const isAdmin = profile?.role === 'admin';
   const permissions = profile?.permissions || {};
@@ -68,11 +70,19 @@ export function Sidebar() {
     <aside className="w-64 bg-card border-r border-border h-screen fixed left-0 top-0 flex flex-col">
       <div className="p-6 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <GraduationCap className="w-6 h-6 text-primary-foreground" />
-          </div>
+          {branding.logo ? (
+            <img 
+              src={branding.logo} 
+              alt={branding.name} 
+              className="w-10 h-10 rounded-xl object-contain"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+              <GraduationCap className="w-6 h-6 text-primary-foreground" />
+            </div>
+          )}
           <div>
-            <h1 className="font-semibold text-foreground">EduGestor</h1>
+            <h1 className="font-semibold text-foreground">{branding.name}</h1>
             <p className="text-xs text-muted-foreground">Sistema Escolar</p>
           </div>
         </div>

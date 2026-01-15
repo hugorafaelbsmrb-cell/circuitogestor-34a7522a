@@ -13,7 +13,9 @@ import {
   CreditCard,
   Webhook,
   Copy,
-  CheckCircle
+  CheckCircle,
+  Upload,
+  Building2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -33,6 +35,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
 
 interface AppSetting {
   id: string;
@@ -47,6 +50,7 @@ interface AppSetting {
 export default function Settings() {
   const { toast } = useToast();
   const { profile } = useAuthContext();
+  const { branding, updateBranding, refetch: refetchBranding } = useSystemBranding();
   
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,6 +64,17 @@ export default function Settings() {
     description: '',
     is_secret: false,
   });
+  
+  // Branding state
+  const [systemName, setSystemName] = useState('');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
+
+  useEffect(() => {
+    if (branding.name) {
+      setSystemName(branding.name);
+    }
+  }, [branding.name]);
 
   useEffect(() => {
     fetchSettings();
@@ -194,6 +209,101 @@ export default function Settings() {
     setShowSecrets(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Arquivo inválido',
+        description: 'Por favor, selecione uma imagem.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: 'Arquivo muito grande',
+        description: 'A imagem deve ter no máximo 2MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploadingLogo(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `system-logo-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('system-branding')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('system-branding')
+        .getPublicUrl(fileName);
+
+      await updateBranding({ logo: publicUrl });
+
+      toast({
+        title: 'Logo atualizado',
+        description: 'O logo do sistema foi atualizado com sucesso.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao enviar logo',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+
+    setIsUploadingLogo(false);
+  };
+
+  const handleSaveBranding = async () => {
+    setIsSavingBranding(true);
+    
+    try {
+      await updateBranding({ name: systemName });
+      toast({
+        title: 'Nome atualizado',
+        description: 'O nome do sistema foi atualizado com sucesso.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+    
+    setIsSavingBranding(false);
+  };
+
+  const handleRemoveLogo = async () => {
+    setIsUploadingLogo(true);
+    
+    try {
+      await updateBranding({ logo: null });
+      toast({
+        title: 'Logo removido',
+        description: 'O logo do sistema foi removido.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao remover',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+    
+    setIsUploadingLogo(false);
+  };
+
   const hasChanges = settings.some(s => editedSettings[s.key] !== (s.value || ''));
 
   // Group settings
@@ -255,6 +365,108 @@ export default function Settings() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* System Branding Card */}
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="w-5 h-5" />
+                Identidade do Sistema
+              </CardTitle>
+              <CardDescription>
+                Personalize o nome e logo do sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* System Name */}
+                <div className="space-y-2">
+                  <Label htmlFor="system-name" className="font-medium">
+                    Nome do Sistema
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="system-name"
+                      value={systemName}
+                      onChange={(e) => setSystemName(e.target.value)}
+                      placeholder="EduGestor"
+                    />
+                    <Button 
+                      onClick={handleSaveBranding} 
+                      disabled={isSavingBranding || systemName === branding.name}
+                    >
+                      {isSavingBranding ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Este nome será exibido na barra lateral e tela de login
+                  </p>
+                </div>
+
+                {/* System Logo */}
+                <div className="space-y-2">
+                  <Label className="font-medium">Logo do Sistema</Label>
+                  <div className="flex items-center gap-4">
+                    {branding.logo ? (
+                      <div className="relative">
+                        <img 
+                          src={branding.logo} 
+                          alt="Logo do sistema" 
+                          className="w-16 h-16 object-contain rounded-lg border border-border bg-background"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 w-6 h-6"
+                          onClick={handleRemoveLogo}
+                          disabled={isUploadingLogo}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/30">
+                        <Building2 className="w-6 h-6 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div>
+                      <input
+                        type="file"
+                        id="logo-upload"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleLogoUpload}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => document.getElementById('logo-upload')?.click()}
+                        disabled={isUploadingLogo}
+                      >
+                        {isUploadingLogo ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Enviando...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Enviar Logo
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PNG ou JPG, máximo 2MB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* API Keys Card */}
           <Card className="border-border/50">
             <CardHeader>
