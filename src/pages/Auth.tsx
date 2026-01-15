@@ -8,11 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
 
 export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signIn, isAuthenticated, isLoading: authLoading } = useAuthContext();
+  const { branding } = useSystemBranding();
   
   const [isLoading, setIsLoading] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -95,10 +97,18 @@ export default function Auth() {
       
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 backdrop-blur-sm mb-4">
-            <GraduationCap className="w-8 h-8 text-primary" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground">EduGestor</h1>
+          {branding.logo ? (
+            <img 
+              src={branding.logo} 
+              alt={branding.name} 
+              className="w-16 h-16 rounded-2xl mx-auto mb-4 object-contain"
+            />
+          ) : (
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 backdrop-blur-sm mb-4">
+              <GraduationCap className="w-8 h-8 text-primary" />
+            </div>
+          )}
+          <h1 className="text-3xl font-bold text-foreground">{branding.name}</h1>
           <p className="text-muted-foreground mt-2">Sistema de Gestão Escolar</p>
         </div>
 
