@@ -519,22 +519,26 @@ export default function Financial() {
 
       {/* Tabs for different views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview" className="gap-2">
             <TrendingUp className="w-4 h-4" />
-            Visão Geral
+            <span className="hidden sm:inline">Visão Geral</span>
+          </TabsTrigger>
+          <TabsTrigger value="all-payments" className="gap-2">
+            <FileText className="w-4 h-4" />
+            <span className="hidden sm:inline">Pagamentos</span>
           </TabsTrigger>
           <TabsTrigger value="paid" className="gap-2">
             <CheckCircle2 className="w-4 h-4" />
-            Pagos do Mês
+            <span className="hidden sm:inline">Pagos</span>
           </TabsTrigger>
           <TabsTrigger value="debtors-today" className="gap-2">
             <CalendarDays className="w-4 h-4" />
-            Vencendo Hoje
+            <span className="hidden sm:inline">Hoje</span>
           </TabsTrigger>
           <TabsTrigger value="debtors-month" className="gap-2">
             <Users className="w-4 h-4" />
-            Devedores
+            <span className="hidden sm:inline">Devedores</span>
           </TabsTrigger>
         </TabsList>
 
@@ -714,6 +718,101 @@ export default function Financial() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* All Payments Tab */}
+        <TabsContent value="all-payments" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                Todos os Pagamentos
+              </CardTitle>
+              <CardDescription>
+                {payments.length} pagamentos cadastrados - clique no ícone para visualizar/reimprimir boleto
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {payments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum pagamento cadastrado ainda.
+                </div>
+              ) : (
+                <div className="max-h-[600px] overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Responsável</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payments.map((payment) => {
+                        const isProRata = payment.description.toLowerCase().includes('pro-rata');
+                        
+                        return (
+                          <TableRow key={payment.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                {payment.description}
+                                {isProRata && (
+                                  <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
+                                    Pro-Rata
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>{payment.guardian_name}</TableCell>
+                            <TableCell>{formatDate(payment.due_date)}</TableCell>
+                            <TableCell className="text-right font-medium">{formatCurrency(payment.value)}</TableCell>
+                            <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {(payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="gap-1"
+                                    onClick={() => handleReceiveInCash(payment)}
+                                    disabled={processingPaymentId === payment.id || isAsaasLoading}
+                                  >
+                                    {processingPaymentId === payment.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <HandCoins className="w-4 h-4" />
+                                    )}
+                                    Baixa
+                                  </Button>
+                                )}
+                                {payment.invoice_url && (
+                                  <Button variant="outline" size="sm" asChild title="Ver Boleto">
+                                    <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
+                                      <ExternalLink className="w-4 h-4" />
+                                    </a>
+                                  </Button>
+                                )}
+                                {payment.bank_slip_url && (
+                                  <Button variant="outline" size="sm" asChild title="Baixar PDF">
+                                    <a href={payment.bank_slip_url} target="_blank" rel="noopener noreferrer">
+                                      <Printer className="w-4 h-4" />
+                                    </a>
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Paid This Month Tab */}
