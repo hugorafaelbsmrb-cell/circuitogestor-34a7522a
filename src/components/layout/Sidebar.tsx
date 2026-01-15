@@ -91,6 +91,25 @@ export function Sidebar() {
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {visibleMenuItems.map((item) => {
           const isActive = location.pathname === item.path;
+          const isEnrollment = item.path === '/matricula';
+          
+          if (isEnrollment) {
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all',
+                  'bg-primary text-primary-foreground shadow-md hover:bg-primary/90 hover:shadow-lg',
+                  isActive && 'ring-2 ring-primary/50 ring-offset-2 ring-offset-background'
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          }
+          
           return (
             <Link
               key={item.path}
