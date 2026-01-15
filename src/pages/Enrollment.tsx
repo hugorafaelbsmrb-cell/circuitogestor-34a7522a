@@ -105,6 +105,7 @@ export default function Enrollment() {
   const [enrollmentResult, setEnrollmentResult] = useState<{
     contract: { id: string; content: any } | null;
     carne: { id: string; asaasInstallmentId: string } | null;
+    proRataBoleto: { id: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null;
   } | null>(null);
   
   const contractPrintRef = useRef<HTMLDivElement>(null);
@@ -627,7 +628,7 @@ export default function Enrollment() {
       };
 
       let carneData = null;
-      let proRataBoletoId: string | null = null;
+      let proRataBoletoData: { id: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null = null;
       
       // If pro-rata is enabled and values are different, create separate boleto for first payment
       if (useProRata && proRataValue !== regularValue && installmentCount > 1) {
@@ -642,7 +643,11 @@ export default function Enrollment() {
         });
         
         if (proRataBoleto) {
-          proRataBoletoId = proRataBoleto.id;
+          proRataBoletoData = {
+            id: proRataBoleto.id,
+            invoiceUrl: proRataBoleto.invoiceUrl || null,
+            bankSlipUrl: proRataBoleto.bankSlipUrl || null,
+          };
           
           // Save pro-rata payment to database
           await createPayment({
@@ -756,6 +761,7 @@ export default function Enrollment() {
           content: contractContent,
         },
         carne: carneData,
+        proRataBoleto: proRataBoletoData,
       });
 
       toast({
@@ -910,6 +916,28 @@ export default function Enrollment() {
       }
     } finally {
       setIsLoadingCarne(false);
+    }
+  };
+
+  const handleViewProRataBoleto = () => {
+    if (!enrollmentResult?.proRataBoleto) {
+      toast({
+        title: "Erro",
+        description: "Boleto pro-rata não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const url = enrollmentResult.proRataBoleto.invoiceUrl || enrollmentResult.proRataBoleto.bankSlipUrl;
+    if (url) {
+      window.open(url, '_blank');
+    } else {
+      toast({
+        title: "Erro",
+        description: "URL do boleto não disponível",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1666,10 +1694,12 @@ export default function Enrollment() {
               },
               contract: enrollmentResult.contract,
               carne: enrollmentResult.carne,
+              proRataBoleto: enrollmentResult.proRataBoleto,
             }}
             onPrintContract={handlePrintContract}
             onViewCarne={handleViewCarne}
             onDownloadCarne={handleDownloadCarne}
+            onViewProRataBoleto={handleViewProRataBoleto}
             onNewEnrollment={handleNewEnrollment}
             isLoadingCarne={isLoadingCarne}
           />
