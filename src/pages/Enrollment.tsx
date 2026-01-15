@@ -43,6 +43,15 @@ const GRADE_LEVELS = [
   { id: '4_5_ano', label: '4° e 5° Ano', description: 'Sala 3' },
 ];
 
+// Variable pricing for "Reforço Escolar" based on days per week
+const REFORCO_ESCOLAR_PRICES: Record<number, number> = {
+  1: 120,
+  2: 200,
+  3: 300,
+  4: 320,
+  5: 350,
+};
+
 interface SelectedSchedule {
   dayOfWeek: string;
   timeSlot: typeof TIME_SLOTS[0];
@@ -77,7 +86,7 @@ export default function Enrollment() {
     isLoading: isDataLoading
   } = useSchool();
   
-  const { isLoading: isAsaasLoading, createCustomer, createCarne: createAsaasCarne, getInstallmentBooklet } = useAsaasPayment();
+  const { isLoading: isAsaasLoading, createCustomer, createBoleto: createAsaasBoleto, createCarne: createAsaasCarne, getInstallmentBooklet } = useAsaasPayment();
   
   // Check if this is an enrollment for an existing student (second course flow)
   const existingStudentId = searchParams.get('studentId');
@@ -182,10 +191,26 @@ export default function Enrollment() {
   // Calculate discount values
   const activeDiscounts = discounts.filter(d => d.is_active && selectedDiscountIds.includes(d.id));
   
+  // Check if course is "Reforço Escolar" for variable pricing
+  const isReforcoEscolar = selectedCourse?.name.toLowerCase().includes('reforço escolar');
+  
+  // Get the effective price based on course type and selected days
+  const effectiveCoursePrice = useMemo(() => {
+    if (!selectedCourse) return 0;
+    
+    if (isReforcoEscolar && selectedSchedules.length > 0) {
+      // Use variable pricing based on days per week
+      const daysCount = selectedSchedules.length;
+      return REFORCO_ESCOLAR_PRICES[daysCount] || REFORCO_ESCOLAR_PRICES[5];
+    }
+    
+    return Number(selectedCourse.price);
+  }, [selectedCourse, isReforcoEscolar, selectedSchedules.length]);
+  
   const calculateDiscountedPrice = useMemo(() => {
     if (!selectedCourse) return { originalPrice: 0, discountedPrice: 0, totalDiscount: 0 };
     
-    const originalPrice = Number(selectedCourse.price);
+    const originalPrice = effectiveCoursePrice;
     let discountedPrice = originalPrice;
     let totalDiscount = 0;
     
@@ -203,7 +228,7 @@ export default function Enrollment() {
     discountedPrice = Math.max(0, discountedPrice);
     
     return { originalPrice, discountedPrice, totalDiscount };
-  }, [selectedCourse, activeDiscounts]);
+  }, [selectedCourse, effectiveCoursePrice, activeDiscounts]);
 
   // Calculate the first due date based on selected day of month
   const calculateFirstDueDate = () => {
@@ -575,67 +600,145 @@ export default function Enrollment() {
         throw new Error('Erro ao criar cliente no sistema de pagamentos');
       }
 
-      // 7. Generate Carnê in Asaas with discounted price
+      // 7. Generate payment in Asaas
       const installmentCount = parseInt(formData.payment.installments);
       const discountInfo = appliedDiscounts.length > 0 
         ? ` (${appliedDiscounts.map(d => d.name).join(', ')})` 
         : '';
       const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student.name}${discountInfo}`;
       
-      const firstDueDate = calculateFirstDueDate().toISOString().split('T')[0];
+      const firstDueDate = calculateFirstDueDate();
+      const firstDueDateStr = firstDueDate.toISOString().split('T')[0];
       
-      // Calculate first installment value (pro-rata or regular)
-      const firstInstallmentValue = useProRata ? calculateTotalWithProRata.proRataValue : calculateTotalWithProRata.regularValue;
+      // Calculate pro-rata value
+      const proRataValue = calculateTotalWithProRata.proRataValue;
+      const regularValue = calculateTotalWithProRata.regularValue;
       
-      const asaasPayment = await createAsaasCarne({
-        customerId: asaasCustomer.id,
-        value: calculateTotalWithProRata.total,
-        dueDate: firstDueDate,
-        description,
-        installmentCount,
-        externalReference: enrollment.id,
-        firstInstallmentValue: useProRata ? firstInstallmentValue : undefined,
-        discount: {
-          value: 5, // 5% de desconto por antecipação
-          dueDateLimitDays: 5, // até 5 dias antes do vencimento
-          type: 'PERCENTAGE',
-        },
-      });
+      const discountConfig = {
+        value: 5, // 5% de desconto por antecipação
+        dueDateLimitDays: 5, // até 5 dias antes do vencimento
+        type: 'PERCENTAGE' as const,
+      };
 
       let carneData = null;
+      let proRataBoletoId: string | null = null;
       
-      if (asaasPayment) {
-        const savedCarne = await createCarne({
-          enrollment_id: enrollment.id,
-          guardian_id: guardian.id,
-          contract_id: contract.id,
-          asaas_installment_id: asaasPayment.installment || asaasPayment.id,
+      // If pro-rata is enabled and values are different, create separate boleto for first payment
+      if (useProRata && proRataValue !== regularValue && installmentCount > 1) {
+        // Create separate boleto for pro-rata first installment
+        const proRataBoleto = await createAsaasBoleto({
+          customerId: asaasCustomer.id,
+          value: proRataValue,
+          dueDate: firstDueDateStr,
+          description: `${description} - Pro-Rata (1ª Parcela)`,
+          externalReference: enrollment.id,
+          discount: discountConfig,
+        });
+        
+        if (proRataBoleto) {
+          proRataBoletoId = proRataBoleto.id;
+          
+          // Save pro-rata payment to database
+          await createPayment({
+            enrollment_id: enrollment.id,
+            guardian_id: guardian.id,
+            contract_id: contract.id,
+            asaas_payment_id: proRataBoleto.id,
+            asaas_installment_id: null,
+            description: `${description} - Pro-Rata`,
+            value: proRataBoleto.value,
+            due_date: proRataBoleto.dueDate,
+            status: proRataBoleto.status,
+            invoice_url: proRataBoleto.invoiceUrl,
+            bank_slip_url: proRataBoleto.bankSlipUrl,
+            installment_number: 1,
+            external_reference: enrollment.id,
+          });
+        }
+        
+        // Calculate second due date (next month)
+        const secondDueDate = new Date(firstDueDate);
+        secondDueDate.setMonth(secondDueDate.getMonth() + 1);
+        const secondDueDateStr = secondDueDate.toISOString().split('T')[0];
+        
+        // Create carnê for remaining installments (installmentCount - 1)
+        const remainingInstallments = installmentCount - 1;
+        const totalRemainingValue = regularValue * remainingInstallments;
+        
+        const asaasPayment = await createAsaasCarne({
+          customerId: asaasCustomer.id,
+          value: totalRemainingValue,
+          dueDate: secondDueDateStr,
+          description: `${description} - Parcelas 2 a ${installmentCount}`,
+          installmentCount: remainingInstallments,
+          externalReference: enrollment.id,
+          discount: discountConfig,
+        });
+        
+        if (asaasPayment) {
+          const savedCarne = await createCarne({
+            enrollment_id: enrollment.id,
+            guardian_id: guardian.id,
+            contract_id: contract.id,
+            asaas_installment_id: asaasPayment.installment || asaasPayment.id,
+            description,
+            total_value: proRataValue + totalRemainingValue,
+            installment_count: installmentCount,
+            first_due_date: firstDueDateStr,
+          });
+
+          carneData = {
+            id: savedCarne.id,
+            asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
+          };
+        }
+      } else {
+        // Standard flow: all installments equal (no pro-rata or single installment)
+        const totalValue = regularValue * installmentCount;
+        
+        const asaasPayment = await createAsaasCarne({
+          customerId: asaasCustomer.id,
+          value: totalValue,
+          dueDate: firstDueDateStr,
           description,
-          total_value: calculateTotalWithProRata.total,
-          installment_count: installmentCount,
-          first_due_date: firstDueDate,
+          installmentCount,
+          externalReference: enrollment.id,
+          discount: discountConfig,
         });
 
-        carneData = {
-          id: savedCarne.id,
-          asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
-        };
+        if (asaasPayment) {
+          const savedCarne = await createCarne({
+            enrollment_id: enrollment.id,
+            guardian_id: guardian.id,
+            contract_id: contract.id,
+            asaas_installment_id: asaasPayment.installment || asaasPayment.id,
+            description,
+            total_value: totalValue,
+            installment_count: installmentCount,
+            first_due_date: firstDueDateStr,
+          });
 
-        await createPayment({
-          enrollment_id: enrollment.id,
-          guardian_id: guardian.id,
-          contract_id: contract.id,
-          asaas_payment_id: asaasPayment.id,
-          asaas_installment_id: asaasPayment.installment || null,
-          description,
-          value: asaasPayment.value,
-          due_date: asaasPayment.dueDate,
-          status: asaasPayment.status,
-          invoice_url: asaasPayment.invoiceUrl,
-          bank_slip_url: asaasPayment.bankSlipUrl,
-          installment_number: 1,
-          external_reference: enrollment.id,
-        });
+          carneData = {
+            id: savedCarne.id,
+            asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
+          };
+
+          await createPayment({
+            enrollment_id: enrollment.id,
+            guardian_id: guardian.id,
+            contract_id: contract.id,
+            asaas_payment_id: asaasPayment.id,
+            asaas_installment_id: asaasPayment.installment || null,
+            description,
+            value: asaasPayment.value,
+            due_date: asaasPayment.dueDate,
+            status: asaasPayment.status,
+            invoice_url: asaasPayment.invoiceUrl,
+            bank_slip_url: asaasPayment.bankSlipUrl,
+            installment_number: 1,
+            external_reference: enrollment.id,
+          });
+        }
       }
 
       // 8. Update enrollment with contract flag
@@ -651,7 +754,9 @@ export default function Enrollment() {
 
       toast({
         title: "Matrícula realizada com sucesso!",
-        description: "O contrato e o carnê foram gerados automaticamente.",
+        description: useProRata && proRataValue !== regularValue 
+          ? "O contrato, boleto pro-rata e carnê foram gerados automaticamente."
+          : "O contrato e o carnê foram gerados automaticamente.",
       });
 
       setCurrentStep('summary');
@@ -1057,31 +1162,46 @@ export default function Enrollment() {
           <div>
             <h2 className="form-section-title">Selecione o Curso</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {courses.filter(c => c.is_active).map((course) => (
-                <button
-                  key={course.id}
-                  onClick={() => {
-                    setFormData(prev => ({ ...prev, courseId: course.id, classGroupId: '' }));
-                    setSelectedSchedules([]);
-                    setSelectedTimeSlot('');
-                  }}
-                  className={cn(
-                    'p-4 rounded-xl border-2 text-left transition-all duration-200',
-                    formData.courseId === course.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
-                  )}
-                >
-                  <h3 className="font-semibold text-foreground">{course.name}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{course.description}</p>
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-sm text-muted-foreground">{course.duration}</span>
-                    <span className="text-lg font-semibold text-primary">
-                      R$ {Number(course.price).toFixed(2).replace('.', ',')}
-                    </span>
-                  </div>
-                </button>
-              ))}
+              {courses.filter(c => c.is_active).map((course) => {
+                const isCourseReforcoEscolar = course.name.toLowerCase().includes('reforço escolar');
+                
+                return (
+                  <button
+                    key={course.id}
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, courseId: course.id, classGroupId: '' }));
+                      setSelectedSchedules([]);
+                      setSelectedTimeSlot('');
+                    }}
+                    className={cn(
+                      'p-4 rounded-xl border-2 text-left transition-all duration-200',
+                      formData.courseId === course.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-primary/50'
+                    )}
+                  >
+                    <h3 className="font-semibold text-foreground">{course.name}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{course.description}</p>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-sm text-muted-foreground">{course.duration}</span>
+                      {isCourseReforcoEscolar ? (
+                        <div className="text-right">
+                          <span className="text-sm text-primary font-medium">
+                            A partir de R$ 200,00
+                          </span>
+                          <p className="text-xs text-muted-foreground">
+                            2x R$200 | 3x R$300 | 5x R$350
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-lg font-semibold text-primary">
+                          R$ {Number(course.price).toFixed(2).replace('.', ',')}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -1234,7 +1354,12 @@ export default function Enrollment() {
                 <p className="text-sm text-muted-foreground mt-3">
                   Total: {selectedSchedules.length} {selectedSchedules.length === 1 ? 'dia' : 'dias'} por semana
                 </p>
-                {selectedGradeLevel && selectedCourse?.name.toLowerCase().includes('reforço escolar') && (
+                {isReforcoEscolar && selectedSchedules.length > 0 && (
+                  <p className="text-sm font-medium text-primary mt-1">
+                    Valor: R$ {effectiveCoursePrice.toFixed(2).replace('.', ',')} /mês
+                  </p>
+                )}
+                {selectedGradeLevel && isReforcoEscolar && (
                   <p className="text-sm text-muted-foreground mt-1">
                     Turma: {GRADE_LEVELS.find(g => g.id === selectedGradeLevel)?.label}
                   </p>
@@ -1257,13 +1382,19 @@ export default function Enrollment() {
                   <span className="text-sm text-muted-foreground">Curso selecionado</span>
                   <span className="font-semibold">{selectedCourse.name}</span>
                 </div>
+                {isReforcoEscolar && (
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-muted-foreground">Dias por semana</span>
+                    <span className="font-semibold">{selectedSchedules.length}x por semana</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Valor original por mensalidade</span>
+                  <span className="text-sm text-muted-foreground">Valor {isReforcoEscolar ? `(${selectedSchedules.length}x semana)` : 'por mensalidade'}</span>
                   <span className={cn(
                     "font-semibold",
                     selectedDiscountIds.length > 0 ? "line-through text-muted-foreground" : "text-primary"
                   )}>
-                    R$ {Number(selectedCourse.price).toFixed(2).replace('.', ',')}
+                    R$ {effectiveCoursePrice.toFixed(2).replace('.', ',')}
                   </span>
                 </div>
                 {selectedDiscountIds.length > 0 && (

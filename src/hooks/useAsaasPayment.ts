@@ -15,6 +15,21 @@ interface CreateCustomerData {
 }
 
 
+interface CreateBoletoData {
+  customerId: string;
+  value: number;
+  dueDate: string;
+  description: string;
+  externalReference?: string;
+  interest?: { value: number };
+  fine?: { value: number };
+  discount?: {
+    value: number;
+    dueDateLimitDays: number;
+    type: 'PERCENTAGE' | 'FIXED';
+  };
+}
+
 interface CreateCarneData {
   customerId: string;
   value: number;
@@ -24,7 +39,6 @@ interface CreateCarneData {
   installmentCount: number;
   interest?: { value: number };
   fine?: { value: number };
-  firstInstallmentValue?: number;
   discount?: {
     value: number;
     dueDateLimitDays: number;
@@ -73,6 +87,35 @@ export function useAsaasPayment() {
     }
   };
 
+  const createBoleto = async (data: CreateBoletoData): Promise<AsaasPayment | null> => {
+    setIsLoading(true);
+    try {
+      const result = await callAsaasFunction('createBoleto', {
+        customerId: data.customerId,
+        value: data.value,
+        dueDate: data.dueDate,
+        description: data.description,
+        externalReference: data.externalReference,
+        interest: data.interest,
+        fine: data.fine,
+        discount: data.discount,
+      });
+      toast({
+        title: 'Boleto criado',
+        description: 'Boleto criado com sucesso.',
+      });
+      return result as AsaasPayment;
+    } catch (error) {
+      toast({
+        title: 'Erro ao criar boleto',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const createCarne = async (data: CreateCarneData): Promise<AsaasPayment | null> => {
     setIsLoading(true);
@@ -86,7 +129,6 @@ export function useAsaasPayment() {
         externalReference: data.externalReference,
         interest: data.interest,
         fine: data.fine,
-        firstInstallmentValue: data.firstInstallmentValue,
         discount: data.discount,
       });
       toast({
@@ -245,6 +287,7 @@ export function useAsaasPayment() {
   return {
     isLoading,
     createCustomer,
+    createBoleto,
     createCarne,
     listPayments,
     listInstallmentPayments,
