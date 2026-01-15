@@ -21,6 +21,11 @@ interface AsaasConfig {
   apiKey: string;
   baseUrl: string;
   isProduction: boolean;
+  interestValue: number;
+  fineValue: number;
+  discountEnabled: boolean;
+  discountValue: number;
+  discountDays: number;
 }
 
 // Create Supabase client to read settings from database
@@ -30,11 +35,11 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 async function getAsaasConfig(): Promise<AsaasConfig> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   
-  // Get API key and environment from database
+  // Get API key, environment, and penalty settings from database
   const { data: settings, error } = await supabase
     .from("app_settings")
     .select("key, value")
-    .in("key", ["ASAAS_API_KEY", "ASAAS_ENVIRONMENT"]);
+    .in("key", ["ASAAS_API_KEY", "ASAAS_ENVIRONMENT", "asaas_interest_value", "asaas_fine_value", "asaas_discount_enabled", "asaas_discount_value", "asaas_discount_days_before"]);
   
   if (error) {
     console.error("Erro ao buscar configurações:", error);
@@ -43,6 +48,11 @@ async function getAsaasConfig(): Promise<AsaasConfig> {
   
   const apiKey = settings?.find(s => s.key === "ASAAS_API_KEY")?.value;
   const environment = settings?.find(s => s.key === "ASAAS_ENVIRONMENT")?.value || "sandbox";
+  const interestValue = parseFloat(settings?.find(s => s.key === "asaas_interest_value")?.value || "1");
+  const fineValue = parseFloat(settings?.find(s => s.key === "asaas_fine_value")?.value || "2");
+  const discountEnabled = settings?.find(s => s.key === "asaas_discount_enabled")?.value === "true";
+  const discountValue = parseFloat(settings?.find(s => s.key === "asaas_discount_value")?.value || "0");
+  const discountDays = parseInt(settings?.find(s => s.key === "asaas_discount_days_before")?.value || "0");
   
   if (!apiKey) {
     throw new Error("ASAAS_API_KEY não configurada no banco de dados");
@@ -57,9 +67,20 @@ async function getAsaasConfig(): Promise<AsaasConfig> {
   console.log("Ambiente:", isProduction ? "PRODUÇÃO" : "SANDBOX");
   console.log("URL Base:", baseUrl);
   console.log("API Key (primeiros 20 chars):", apiKey.substring(0, 20) + "...");
+  console.log("Juros:", interestValue + "% | Multa:", fineValue + "%");
+  console.log("Desconto:", discountEnabled ? `${discountValue}% até ${discountDays} dias antes` : "Desabilitado");
   console.log("==========================");
   
-  return { apiKey, baseUrl, isProduction };
+  return { 
+    apiKey, 
+    baseUrl, 
+    isProduction,
+    interestValue,
+    fineValue,
+    discountEnabled,
+    discountValue,
+    discountDays
+  };
 }
 
 const getHeaders = (apiKey: string) => ({
@@ -144,15 +165,19 @@ async function createBoleto(config: AsaasConfig, data: {
     dueDate: data.dueDate,
     description: data.description,
     externalReference: data.externalReference,
-    interest: data.interest || { value: 1 },
-    fine: data.fine || { value: 2 },
+    interest: data.interest || { value: config.interestValue },
+    fine: data.fine || { value: config.fineValue },
   };
   
-  if (data.discount && data.discount.value > 0 && data.discount.dueDateLimitDays > 0) {
+  // Use discount from config if not provided in data
+  const discountValue = data.discount?.value ?? (config.discountEnabled ? config.discountValue : 0);
+  const discountDays = data.discount?.dueDateLimitDays ?? config.discountDays;
+  
+  if (discountValue > 0 && discountDays > 0) {
     paymentBody.discount = {
-      value: data.discount.value,
-      dueDateLimitDays: data.discount.dueDateLimitDays,
-      type: data.discount.type || "PERCENTAGE",
+      value: discountValue,
+      dueDateLimitDays: discountDays,
+      type: data.discount?.type || "PERCENTAGE",
     };
     console.log("Desconto por antecipação configurado:", paymentBody.discount);
   }
@@ -211,16 +236,19 @@ async function createCarne(config: AsaasConfig, data: {
     externalReference: data.externalReference,
     installmentCount: data.installmentCount,
     installmentValue: installmentValue,
-    interest: data.interest || { value: 1 }, // 1% de juros ao mês por padrão
-    fine: data.fine || { value: 2 }, // 2% de multa por padrão
+    interest: data.interest || { value: config.interestValue },
+    fine: data.fine || { value: config.fineValue },
   };
   
-  // Add discount if configured - this adds discount text to the boleto
-  if (data.discount && data.discount.value > 0 && data.discount.dueDateLimitDays > 0) {
+  // Use discount from config if not provided in data
+  const discountValue = data.discount?.value ?? (config.discountEnabled ? config.discountValue : 0);
+  const discountDays = data.discount?.dueDateLimitDays ?? config.discountDays;
+  
+  if (discountValue > 0 && discountDays > 0) {
     paymentBody.discount = {
-      value: data.discount.value,
-      dueDateLimitDays: data.discount.dueDateLimitDays,
-      type: data.discount.type || "PERCENTAGE",
+      value: discountValue,
+      dueDateLimitDays: discountDays,
+      type: data.discount?.type || "PERCENTAGE",
     };
     console.log("Desconto por antecipação configurado:", paymentBody.discount);
   }
