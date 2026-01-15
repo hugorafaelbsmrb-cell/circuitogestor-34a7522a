@@ -247,18 +247,24 @@ export default function Enrollment() {
   // Calculate pro-rata value for first installment
   const calculateProRataValue = useMemo(() => {
     if (!selectedCourse) return { proRataValue: 0, regularValue: 0, proRataDays: 0, totalDays: 30 };
-    
+
     const regularValue = calculateDiscountedPrice.discountedPrice;
     const today = new Date();
     const firstDueDate = calculateFirstDueDate();
-    
-    const timeDiff = firstDueDate.getTime() - today.getTime();
-    const proRataDays = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-    
-    const totalDays = 30;
-    const effectiveDays = Math.max(1, Math.min(proRataDays, totalDays));
+
+    // Billing cycle length = days between last due date and the next due date
+    const lastDueDate = new Date(firstDueDate);
+    lastDueDate.setMonth(lastDueDate.getMonth() - 1);
+
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const totalDays = Math.max(1, Math.round((firstDueDate.getTime() - lastDueDate.getTime()) / msPerDay));
+
+    // Days to charge in the current cycle = days from today until next due date
+    const rawDays = Math.ceil((firstDueDate.getTime() - today.getTime()) / msPerDay);
+    const effectiveDays = Math.max(1, Math.min(rawDays, totalDays));
+
     const proRataValue = Number(((regularValue / totalDays) * effectiveDays).toFixed(2));
-    
+
     return { proRataValue, regularValue, proRataDays: effectiveDays, totalDays };
   }, [selectedCourse, formData.payment.dueDayOfMonth, calculateDiscountedPrice.discountedPrice]);
 
