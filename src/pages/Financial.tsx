@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText, Printer, Filter } from 'lucide-react';
+import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText, Printer, Filter, HandCoins, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAsaasPayment } from '@/hooks/useAsaasPayment';
 
 interface Payment {
   id: string;
@@ -37,9 +38,11 @@ interface PaymentWithGuardian extends Payment {
 
 export default function Financial() {
   const { guardians, carnes } = useSchool();
+  const { receiveInCash, isLoading: isAsaasLoading } = useAsaasPayment();
   const [payments, setPayments] = useState<PaymentWithGuardian[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
   
   // Debtors filter state
   const [debtorPeriodFilter, setDebtorPeriodFilter] = useState('all');
@@ -75,6 +78,45 @@ export default function Financial() {
       toast.error('Erro ao carregar pagamentos');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handle manual payment receipt (baixa manual)
+  const handleReceiveInCash = async (payment: PaymentWithGuardian) => {
+    if (!payment.asaas_payment_id) {
+      toast.error('Este pagamento não possui ID do Asaas');
+      return;
+    }
+    
+    setProcessingPaymentId(payment.id);
+    
+    try {
+      const success = await receiveInCash(payment.asaas_payment_id);
+      
+      if (success) {
+        // Update local state
+        setPayments(prev => prev.map(p => 
+          p.id === payment.id 
+            ? { ...p, status: 'RECEIVED', payment_date: new Date().toISOString().split('T')[0] }
+            : p
+        ));
+        
+        // Update in database
+        await supabase
+          .from('payments')
+          .update({ 
+            status: 'RECEIVED', 
+            payment_date: new Date().toISOString().split('T')[0] 
+          })
+          .eq('id', payment.id);
+        
+        toast.success('Baixa realizada com sucesso!');
+      }
+    } catch (error) {
+      console.error('Error receiving in cash:', error);
+      toast.error('Erro ao dar baixa no pagamento');
+    } finally {
+      setProcessingPaymentId(null);
     }
   };
 
@@ -765,6 +807,20 @@ export default function Financial() {
                         <TableCell>{getStatusBadge(payment.status)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="gap-1"
+                              onClick={() => handleReceiveInCash(payment)}
+                              disabled={processingPaymentId === payment.id || isAsaasLoading}
+                            >
+                              {processingPaymentId === payment.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <HandCoins className="w-4 h-4" />
+                              )}
+                              Baixa
+                            </Button>
                             {payment.invoice_url && (
                               <Button variant="ghost" size="sm" asChild>
                                 <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
@@ -901,6 +957,20 @@ export default function Financial() {
                                     <TableCell className="text-right font-medium">{formatCurrency(payment.value)}</TableCell>
                                     <TableCell className="text-right">
                                       <div className="flex items-center justify-end gap-2">
+                                        <Button 
+                                          variant="outline" 
+                                          size="sm" 
+                                          className="gap-1"
+                                          onClick={() => handleReceiveInCash(payment)}
+                                          disabled={processingPaymentId === payment.id || isAsaasLoading}
+                                        >
+                                          {processingPaymentId === payment.id ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                          ) : (
+                                            <HandCoins className="w-4 h-4" />
+                                          )}
+                                          Baixa
+                                        </Button>
                                         {payment.invoice_url && (
                                           <Button variant="ghost" size="sm" asChild>
                                             <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">

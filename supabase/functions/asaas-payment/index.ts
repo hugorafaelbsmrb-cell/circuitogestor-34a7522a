@@ -123,6 +123,50 @@ interface DiscountConfig {
   type: "PERCENTAGE" | "FIXED";
 }
 
+// Create a single boleto (for pro-rata first payment)
+async function createBoleto(config: AsaasConfig, data: {
+  customerId: string;
+  value: number;
+  dueDate: string;
+  description: string;
+  externalReference?: string;
+  interest?: { value: number };
+  fine?: { value: number };
+  discount?: DiscountConfig;
+}) {
+  console.log("Criando boleto avulso no Asaas:", data.value);
+  
+  const paymentBody: Record<string, unknown> = {
+    customer: data.customerId,
+    billingType: "BOLETO",
+    value: data.value,
+    dueDate: data.dueDate,
+    description: data.description,
+    externalReference: data.externalReference,
+    interest: data.interest || { value: 1 },
+    fine: data.fine || { value: 2 },
+  };
+  
+  if (data.discount && data.discount.value > 0 && data.discount.dueDateLimitDays > 0) {
+    paymentBody.discount = {
+      value: data.discount.value,
+      dueDateLimitDays: data.discount.dueDateLimitDays,
+      type: data.discount.type || "PERCENTAGE",
+    };
+    console.log("Desconto por antecipação configurado:", paymentBody.discount);
+  }
+  
+  const response = await fetch(`${config.baseUrl}/payments`, {
+    method: "POST",
+    headers: getHeaders(config.apiKey),
+    body: JSON.stringify(paymentBody),
+  });
+
+  const result = await handleAsaasResponse(response, "createBoleto");
+  console.log("Boleto avulso criado com sucesso:", result.id);
+  return result;
+}
+
 async function createCarne(config: AsaasConfig, data: {
   customerId: string;
   value: number;
@@ -321,6 +365,9 @@ serve(async (req) => {
     switch (action) {
       case "createCustomer":
         result = await createCustomer(config, data);
+        break;
+      case "createBoleto":
+        result = await createBoleto(config, data);
         break;
       case "createCarne":
         result = await createCarne(config, data);
