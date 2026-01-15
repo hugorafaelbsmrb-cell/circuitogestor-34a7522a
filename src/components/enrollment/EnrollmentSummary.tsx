@@ -35,6 +35,11 @@ interface EnrollmentData {
     id: string;
     asaasInstallmentId: string;
   } | null;
+  proRataBoleto: {
+    id: string;
+    invoiceUrl: string | null;
+    bankSlipUrl: string | null;
+  } | null;
 }
 
 interface EnrollmentSummaryProps {
@@ -42,6 +47,7 @@ interface EnrollmentSummaryProps {
   onPrintContract: () => void;
   onViewCarne: () => void;
   onDownloadCarne: () => void;
+  onViewProRataBoleto: () => void;
   onNewEnrollment: () => void;
   isLoadingCarne?: boolean;
 }
@@ -51,10 +57,12 @@ export function EnrollmentSummary({
   onPrintContract,
   onViewCarne,
   onDownloadCarne,
+  onViewProRataBoleto,
   onNewEnrollment,
   isLoadingCarne = false,
 }: EnrollmentSummaryProps) {
   const totalValue = data.payment.total;
+  const hasProRataBoleto = data.proRataBoleto && (data.proRataBoleto.invoiceUrl || data.proRataBoleto.bankSlipUrl);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -236,6 +244,32 @@ export function EnrollmentSummary({
           </CardContent>
         </Card>
 
+        {/* Pro-Rata Boleto Actions */}
+        {hasProRataBoleto && (
+          <Card className="border-amber-500/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <FileText className="w-5 h-5 text-amber-600" />
+                Boleto Pro-Rata (1ª Parcela)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                Boleto avulso de R$ {data.payment.proRataValue.toFixed(2).replace('.', ',')} para o primeiro vencimento
+              </p>
+              <div className="flex gap-3">
+                <Button 
+                  className="flex-1 gap-2" 
+                  onClick={onViewProRataBoleto}
+                >
+                  <Eye className="w-4 h-4" />
+                  Ver Boleto
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Carne Actions */}
         <Card className="border-primary/20">
           <CardHeader className="pb-3">
@@ -246,14 +280,16 @@ export function EnrollmentSummary({
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">
-              {data.payment.installments} boletos gerados para pagamento
+              {hasProRataBoleto 
+                ? `${data.payment.installments - 1} boletos (parcelas 2 a ${data.payment.installments})`
+                : `${data.payment.installments} boletos gerados para pagamento`}
             </p>
             <div className="flex gap-3">
               <Button 
                 variant="outline" 
                 className="flex-1 gap-2" 
                 onClick={onViewCarne}
-                disabled={isLoadingCarne}
+                disabled={isLoadingCarne || !data.carne}
               >
                 {isLoadingCarne ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -265,7 +301,7 @@ export function EnrollmentSummary({
               <Button 
                 className="flex-1 gap-2" 
                 onClick={onDownloadCarne}
-                disabled={isLoadingCarne}
+                disabled={isLoadingCarne || !data.carne}
               >
                 {isLoadingCarne ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
