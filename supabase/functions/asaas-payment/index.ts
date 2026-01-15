@@ -66,6 +66,7 @@ const getHeaders = (apiKey: string) => ({
   "Content-Type": "application/json",
   "accept": "application/json",
   "access_token": apiKey,
+  "user-agent": "Lovable/1.0",
 });
 
 async function handleAsaasResponse(response: Response, operation: string) {
