@@ -199,10 +199,13 @@ export default function Settings() {
   // Group settings
   const apiSettings = settings.filter(s => s.key.includes('API') || s.key.includes('KEY'));
   const asaasDiscountSettings = settings.filter(s => s.key.startsWith('asaas_discount'));
+  const asaasPenaltySettings = settings.filter(s => s.key.startsWith('asaas_interest') || s.key.startsWith('asaas_fine'));
   const otherSettings = settings.filter(s => 
     !s.key.includes('API') && 
     !s.key.includes('KEY') && 
     !s.key.startsWith('asaas_discount') &&
+    !s.key.startsWith('asaas_interest') &&
+    !s.key.startsWith('asaas_fine') &&
     !s.key.startsWith('login_')
   );
 
@@ -494,6 +497,84 @@ export default function Settings() {
                   )}
                 </>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Asaas Interest/Fine Card */}
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" />
+                Juros e Multa por Atraso (Asaas)
+              </CardTitle>
+              <CardDescription>
+                Configure os juros e multa que serão aplicados automaticamente em pagamentos atrasados. 
+                Estes valores são gerenciados diretamente pela API Asaas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Interest value */}
+                <div className="space-y-2">
+                  <Label htmlFor="asaas_interest_value" className="font-medium">
+                    Juros ao Mês (%)
+                  </Label>
+                  <div className="relative">
+                    <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="asaas_interest_value"
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      className="pl-10"
+                      value={editedSettings['asaas_interest_value'] || '1'}
+                      onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_interest_value': e.target.value }))}
+                      placeholder="1"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Percentual de juros cobrado ao mês após o vencimento
+                  </p>
+                </div>
+
+                {/* Fine value */}
+                <div className="space-y-2">
+                  <Label htmlFor="asaas_fine_value" className="font-medium">
+                    Multa por Atraso (%)
+                  </Label>
+                  <div className="relative">
+                    <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      id="asaas_fine_value"
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      className="pl-10"
+                      value={editedSettings['asaas_fine_value'] || '2'}
+                      onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_fine_value': e.target.value }))}
+                      placeholder="2"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Percentual de multa aplicado após o vencimento (máximo legal: 2%)
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
+                <p className="text-sm">
+                  <strong>Resumo:</strong> Pagamentos em atraso terão{' '}
+                  <span className="font-bold text-destructive">
+                    {editedSettings['asaas_fine_value'] || '2'}% de multa
+                  </span>{' '}
+                  mais{' '}
+                  <span className="font-bold text-destructive">
+                    {editedSettings['asaas_interest_value'] || '1'}% de juros ao mês
+                  </span>.
+                </p>
+              </div>
             </CardContent>
           </Card>
 

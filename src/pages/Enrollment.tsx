@@ -231,16 +231,22 @@ export default function Enrollment() {
     return { originalPrice, discountedPrice, totalDiscount };
   }, [selectedCourse, effectiveCoursePrice, activeDiscounts]);
 
-  // Calculate the first due date based on selected day of month
+  // Calculate the pro-rata due date (enrollment date + a few days for processing)
+  const calculateProRataDueDate = () => {
+    const today = new Date();
+    // Pro-rata vence 5 dias após a matrícula para dar tempo de processar
+    const proRataDate = new Date(today);
+    proRataDate.setDate(proRataDate.getDate() + 5);
+    return proRataDate;
+  };
+
+  // Calculate the first regular installment due date (next month on selected day)
   const calculateFirstDueDate = () => {
     const today = new Date();
     const selectedDay = parseInt(formData.payment.dueDayOfMonth);
     
-    let dueDate = new Date(today.getFullYear(), today.getMonth(), selectedDay);
-    
-    if (today.getDate() >= selectedDay) {
-      dueDate = new Date(today.getFullYear(), today.getMonth() + 1, selectedDay);
-    }
+    // First installment is always next month from today
+    let dueDate = new Date(today.getFullYear(), today.getMonth() + 1, selectedDay);
     
     return dueDate;
   };
@@ -614,6 +620,9 @@ export default function Enrollment() {
         : '';
       const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student.name}${discountInfo}`;
       
+      // Calculate dates
+      const proRataDueDate = calculateProRataDueDate();
+      const proRataDueDateStr = proRataDueDate.toISOString().split('T')[0];
       const firstDueDate = calculateFirstDueDate();
       const firstDueDateStr = firstDueDate.toISOString().split('T')[0];
       
@@ -632,11 +641,11 @@ export default function Enrollment() {
       
       // If pro-rata is enabled and values are different, create separate boleto for first payment
       if (useProRata && proRataValue !== regularValue && installmentCount > 1) {
-        // Create separate boleto for pro-rata first installment
+        // Create separate boleto for pro-rata first installment (due in 5 days from enrollment)
         const proRataBoleto = await createAsaasBoleto({
           customerId: asaasCustomer.id,
           value: proRataValue,
-          dueDate: firstDueDateStr,
+          dueDate: proRataDueDateStr,
           description: `${description} - Pro-Rata (1ª Parcela)`,
           externalReference: enrollment.id,
           discount: discountConfig,
@@ -667,10 +676,7 @@ export default function Enrollment() {
           });
         }
         
-        // Calculate second due date (next month)
-        const secondDueDate = new Date(firstDueDate);
-        secondDueDate.setMonth(secondDueDate.getMonth() + 1);
-        const secondDueDateStr = secondDueDate.toISOString().split('T')[0];
+        // Create carnê for remaining installments - starts on firstDueDate (next month)
         
         // Create carnê for remaining installments (installmentCount - 1)
         const remainingInstallments = installmentCount - 1;
@@ -679,7 +685,7 @@ export default function Enrollment() {
         const asaasPayment = await createAsaasCarne({
           customerId: asaasCustomer.id,
           value: totalRemainingValue,
-          dueDate: secondDueDateStr,
+          dueDate: firstDueDateStr,
           description: `${description} - Parcelas 2 a ${installmentCount}`,
           installmentCount: remainingInstallments,
           externalReference: enrollment.id,
@@ -695,7 +701,7 @@ export default function Enrollment() {
             description,
             total_value: proRataValue + totalRemainingValue,
             installment_count: installmentCount,
-            first_due_date: firstDueDateStr,
+            first_due_date: proRataDueDateStr,
           });
 
           carneData = {
