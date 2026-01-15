@@ -50,7 +50,7 @@ async function getAsaasConfig(): Promise<AsaasConfig> {
   
   const isProduction = environment === "production";
   const baseUrl = isProduction 
-    ? "https://api.asaas.com/api/v3"
+    ? "https://www.asaas.com/api/v3"
     : "https://sandbox.asaas.com/api/v3";
   
   console.log("=== CONFIGURAÇÃO ASAAS ===");
