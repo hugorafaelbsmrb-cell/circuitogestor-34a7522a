@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,23 +17,55 @@ interface CreateCustomerRequest {
   postalCode: string;
 }
 
-// Default to sandbox for safety - set ASAAS_PRODUCTION=true to use production
-const ASAAS_API_URL = Deno.env.get("ASAAS_PRODUCTION") === "true" 
-  ? "https://api.asaas.com/api/v3"
-  : "https://sandbox.asaas.com/api/v3";
+interface AsaasConfig {
+  apiKey: string;
+  baseUrl: string;
+  isProduction: boolean;
+}
 
-const getApiKey = () => {
-  const apiKey = Deno.env.get("ASAAS_API_KEY");
-  if (!apiKey) {
-    throw new Error("ASAAS_API_KEY não configurada");
+// Create Supabase client to read settings from database
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+async function getAsaasConfig(): Promise<AsaasConfig> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  
+  // Get API key and environment from database
+  const { data: settings, error } = await supabase
+    .from("app_settings")
+    .select("key, value")
+    .in("key", ["ASAAS_API_KEY", "ASAAS_ENVIRONMENT"]);
+  
+  if (error) {
+    console.error("Erro ao buscar configurações:", error);
+    throw new Error("Erro ao buscar configurações do Asaas");
   }
-  return apiKey;
-};
+  
+  const apiKey = settings?.find(s => s.key === "ASAAS_API_KEY")?.value;
+  const environment = settings?.find(s => s.key === "ASAAS_ENVIRONMENT")?.value || "sandbox";
+  
+  if (!apiKey) {
+    throw new Error("ASAAS_API_KEY não configurada no banco de dados");
+  }
+  
+  const isProduction = environment === "production";
+  const baseUrl = isProduction 
+    ? "https://api.asaas.com/api/v3"
+    : "https://sandbox.asaas.com/api/v3";
+  
+  console.log("=== CONFIGURAÇÃO ASAAS ===");
+  console.log("Ambiente:", isProduction ? "PRODUÇÃO" : "SANDBOX");
+  console.log("URL Base:", baseUrl);
+  console.log("API Key (primeiros 20 chars):", apiKey.substring(0, 20) + "...");
+  console.log("==========================");
+  
+  return { apiKey, baseUrl, isProduction };
+}
 
-const getHeaders = () => ({
+const getHeaders = (apiKey: string) => ({
   "Content-Type": "application/json",
   "accept": "application/json",
-  "access_token": getApiKey(),
+  "access_token": apiKey,
 });
 
 async function handleAsaasResponse(response: Response, operation: string) {
@@ -61,13 +94,12 @@ async function handleAsaasResponse(response: Response, operation: string) {
   return result;
 }
 
-async function createCustomer(data: CreateCustomerRequest) {
+async function createCustomer(config: AsaasConfig, data: CreateCustomerRequest) {
   console.log("Criando cliente no Asaas:", data.name);
-  console.log("API URL:", ASAAS_API_URL);
   
-  const response = await fetch(`${ASAAS_API_URL}/customers`, {
+  const response = await fetch(`${config.baseUrl}/customers`, {
     method: "POST",
-    headers: getHeaders(),
+    headers: getHeaders(config.apiKey),
     body: JSON.stringify({
       name: data.name,
       cpfCnpj: data.cpfCnpj.replace(/\D/g, ""),
@@ -91,7 +123,7 @@ interface DiscountConfig {
   type: "PERCENTAGE" | "FIXED";
 }
 
-async function createCarne(data: {
+async function createCarne(config: AsaasConfig, data: {
   customerId: string;
   value: number;
   installmentCount: number;
@@ -107,7 +139,7 @@ async function createCarne(data: {
   
   // Calculate installment value - if firstInstallmentValue is provided, it's pro-rata
   let installmentValue: number;
-  let totalValue = data.value;
+  const totalValue = data.value;
   
   if (data.firstInstallmentValue && data.firstInstallmentValue !== (data.value / data.installmentCount)) {
     // Pro-rata: first installment has different value
@@ -149,9 +181,9 @@ async function createCarne(data: {
   }
   
   // Asaas uses the /payments endpoint with installmentCount for carnê
-  const response = await fetch(`${ASAAS_API_URL}/payments`, {
+  const response = await fetch(`${config.baseUrl}/payments`, {
     method: "POST",
-    headers: getHeaders(),
+    headers: getHeaders(config.apiKey),
     body: JSON.stringify(paymentBody),
   });
 
@@ -160,56 +192,56 @@ async function createCarne(data: {
   return result;
 }
 
-async function listInstallmentPayments(installmentId: string) {
+async function listInstallmentPayments(config: AsaasConfig, installmentId: string) {
   console.log("Listando parcelas do carnê:", installmentId);
   
-  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}/payments`, {
+  const response = await fetch(`${config.baseUrl}/installments/${installmentId}/payments`, {
     method: "GET",
-    headers: getHeaders(),
+    headers: getHeaders(config.apiKey),
   });
 
   return await handleAsaasResponse(response, "listInstallmentPayments");
 }
 
-async function getInstallment(installmentId: string) {
+async function getInstallment(config: AsaasConfig, installmentId: string) {
   console.log("Obtendo dados do carnê:", installmentId);
   
-  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}`, {
+  const response = await fetch(`${config.baseUrl}/installments/${installmentId}`, {
     method: "GET",
-    headers: getHeaders(),
+    headers: getHeaders(config.apiKey),
   });
 
   return await handleAsaasResponse(response, "getInstallment");
 }
 
-async function deleteInstallment(installmentId: string) {
+async function deleteInstallment(config: AsaasConfig, installmentId: string) {
   console.log("Excluindo carnê:", installmentId);
   
-  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}`, {
+  const response = await fetch(`${config.baseUrl}/installments/${installmentId}`, {
     method: "DELETE",
-    headers: getHeaders(),
+    headers: getHeaders(config.apiKey),
   });
 
   return await handleAsaasResponse(response, "deleteInstallment");
 }
 
-async function refundInstallment(installmentId: string) {
+async function refundInstallment(config: AsaasConfig, installmentId: string) {
   console.log("Estornando carnê:", installmentId);
   
-  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}/refund`, {
+  const response = await fetch(`${config.baseUrl}/installments/${installmentId}/refund`, {
     method: "POST",
-    headers: getHeaders(),
+    headers: getHeaders(config.apiKey),
   });
 
   return await handleAsaasResponse(response, "refundInstallment");
 }
 
-async function getInstallmentBooklet(installmentId: string) {
+async function getInstallmentBooklet(config: AsaasConfig, installmentId: string) {
   console.log("Obtendo carnê em PDF:", installmentId);
   
-  const response = await fetch(`${ASAAS_API_URL}/installments/${installmentId}/paymentBook`, {
+  const response = await fetch(`${config.baseUrl}/installments/${installmentId}/paymentBook`, {
     method: "GET",
-    headers: getHeaders(),
+    headers: getHeaders(config.apiKey),
   });
 
   // This endpoint returns PDF directly, not JSON
@@ -240,18 +272,18 @@ async function getInstallmentBooklet(installmentId: string) {
   };
 }
 
-async function listPayments(customerId: string) {
+async function listPayments(config: AsaasConfig, customerId: string) {
   console.log("Listando cobranças do cliente:", customerId);
   
-  const response = await fetch(`${ASAAS_API_URL}/payments?customer=${customerId}`, {
+  const response = await fetch(`${config.baseUrl}/payments?customer=${customerId}`, {
     method: "GET",
-    headers: getHeaders(),
+    headers: getHeaders(config.apiKey),
   });
 
   return await handleAsaasResponse(response, "listPayments");
 }
 
-async function receiveInCash(paymentId: string, paymentDate: string, value?: number, notifyCustomer?: boolean) {
+async function receiveInCash(config: AsaasConfig, paymentId: string, paymentDate: string, value?: number, notifyCustomer?: boolean) {
   console.log("Registrando pagamento em dinheiro:", paymentId);
   
   const body: Record<string, unknown> = {
@@ -263,9 +295,9 @@ async function receiveInCash(paymentId: string, paymentDate: string, value?: num
     body.value = value;
   }
   
-  const response = await fetch(`${ASAAS_API_URL}/payments/${paymentId}/receiveInCash`, {
+  const response = await fetch(`${config.baseUrl}/payments/${paymentId}/receiveInCash`, {
     method: "POST",
-    headers: getHeaders(),
+    headers: getHeaders(config.apiKey),
     body: JSON.stringify(body),
   });
 
@@ -278,39 +310,41 @@ serve(async (req) => {
   }
 
   try {
+    // Get Asaas config from database for each request
+    const config = await getAsaasConfig();
+    
     const { action, data } = await req.json();
     console.log("Ação recebida:", action);
-    console.log("Ambiente Asaas:", Deno.env.get("ASAAS_PRODUCTION") === "true" ? "Produção" : "Sandbox");
 
     let result;
 
     switch (action) {
       case "createCustomer":
-        result = await createCustomer(data);
+        result = await createCustomer(config, data);
         break;
       case "createCarne":
-        result = await createCarne(data);
+        result = await createCarne(config, data);
         break;
       case "listPayments":
-        result = await listPayments(data.customerId);
+        result = await listPayments(config, data.customerId);
         break;
       case "listInstallmentPayments":
-        result = await listInstallmentPayments(data.installmentId);
+        result = await listInstallmentPayments(config, data.installmentId);
         break;
       case "getInstallment":
-        result = await getInstallment(data.installmentId);
+        result = await getInstallment(config, data.installmentId);
         break;
       case "deleteInstallment":
-        result = await deleteInstallment(data.installmentId);
+        result = await deleteInstallment(config, data.installmentId);
         break;
       case "refundInstallment":
-        result = await refundInstallment(data.installmentId);
+        result = await refundInstallment(config, data.installmentId);
         break;
       case "getInstallmentBooklet":
-        result = await getInstallmentBooklet(data.installmentId);
+        result = await getInstallmentBooklet(config, data.installmentId);
         break;
       case "receiveInCash":
-        result = await receiveInCash(data.paymentId, data.paymentDate, data.value, data.notifyCustomer);
+        result = await receiveInCash(config, data.paymentId, data.paymentDate, data.value, data.notifyCustomer);
         break;
       default:
         throw new Error("Ação não reconhecida");
