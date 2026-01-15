@@ -12,7 +12,8 @@ import {
   Mail,
   Lock,
   Image,
-  Settings
+  Settings,
+  Upload
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -143,6 +144,7 @@ export default function Users() {
   const [editingPermissions, setEditingPermissions] = useState<UserPermissions>(defaultPermissions);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginBackground, setLoginBackground] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   
   const [createForm, setCreateForm] = useState({
     email: '',
@@ -354,6 +356,66 @@ export default function Users() {
     }
     
     setIsSubmitting(false);
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Arquivo inválido',
+        description: 'Por favor, selecione uma imagem.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'Arquivo muito grande',
+        description: 'A imagem deve ter no máximo 5MB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploadingImage(true);
+
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `login-bg-${Date.now()}.${fileExt}`;
+
+      // Upload to storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('login-backgrounds')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('login-backgrounds')
+        .getPublicUrl(fileName);
+
+      setLoginBackground(publicUrl);
+
+      toast({
+        title: 'Imagem carregada',
+        description: 'A imagem foi enviada com sucesso.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao enviar imagem',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+
+    setIsUploadingImage(false);
   };
 
   const handleSaveBackground = async () => {
@@ -747,22 +809,44 @@ export default function Users() {
           <DialogHeader>
             <DialogTitle>Configurar Background do Login</DialogTitle>
             <DialogDescription>
-              Defina uma imagem de fundo para a tela de login
+              Faça upload de uma imagem local para a tela de login
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
+            {/* Upload Section */}
             <div className="space-y-2">
-              <Label htmlFor="bgUrl">URL da Imagem</Label>
-              <Textarea
-                id="bgUrl"
-                placeholder="https://exemplo.com/imagem.jpg"
-                value={loginBackground}
-                onChange={(e) => setLoginBackground(e.target.value)}
-                rows={2}
-              />
+              <Label>Enviar Imagem</Label>
+              <div className="flex gap-2">
+                <input
+                  type="file"
+                  id="bg-upload"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => document.getElementById('bg-upload')?.click()}
+                  disabled={isUploadingImage}
+                >
+                  {isUploadingImage ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Selecionar Imagem
+                    </>
+                  )}
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                Cole a URL de uma imagem. Recomendado: imagens de alta resolução (1920x1080 ou maior).
+                Recomendado: imagens de alta resolução (1920x1080 ou maior). Máximo 5MB.
               </p>
             </div>
             
@@ -787,6 +871,9 @@ export default function Users() {
                     </div>
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground break-all">
+                  URL: {loginBackground}
+                </p>
               </div>
             )}
           </div>
@@ -795,7 +882,7 @@ export default function Users() {
             <Button type="button" variant="outline" onClick={() => setShowBackgroundModal(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveBackground} disabled={isSubmitting}>
+            <Button onClick={handleSaveBackground} disabled={isSubmitting || !loginBackground}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
