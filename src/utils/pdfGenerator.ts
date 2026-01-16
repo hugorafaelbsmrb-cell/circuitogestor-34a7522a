@@ -49,21 +49,47 @@ export function generateContractPDF(content: ContractContent): jsPDF {
 
   // School Info (CONTRATADA)
   doc.setFont('helvetica', 'bold');
-  doc.text('CONTRATADA: ', margin, yPos);
+  const contratadaLabel = 'CONTRATADA: ';
+  doc.text(contratadaLabel, margin, yPos);
+  const contratadaLabelWidth = doc.getTextWidth(contratadaLabel);
+  
   doc.setFont('helvetica', 'normal');
   const contratadaText = `${content.schoolName || 'CIRCUITO KIDS'}, pessoa jurídica de direito privado, inscrita no CNPJ nº ${content.schoolCnpj || '___________________'}, com sede à ${content.schoolAddress || '_________________________________________________'}.`;
-  const contratadaLines = doc.splitTextToSize(contratadaText, pageWidth - 2 * margin);
-  doc.text(contratadaLines, margin, yPos);
-  yPos += contratadaLines.length * 5 + 5;
+  const contratadaLines = doc.splitTextToSize(contratadaText, pageWidth - 2 * margin - contratadaLabelWidth);
+  
+  // First line after label
+  if (contratadaLines.length > 0) {
+    doc.text(contratadaLines[0], margin + contratadaLabelWidth, yPos);
+    yPos += 5;
+  }
+  // Remaining lines at margin
+  for (let i = 1; i < contratadaLines.length; i++) {
+    doc.text(contratadaLines[i], margin, yPos);
+    yPos += 5;
+  }
+  yPos += 5;
 
   // Guardian Info (CONTRATANTE)
   doc.setFont('helvetica', 'bold');
-  doc.text('CONTRATANTE: ', margin, yPos);
+  const contratanteLabel = 'CONTRATANTE: ';
+  doc.text(contratanteLabel, margin, yPos);
+  const contratanteLabelWidth = doc.getTextWidth(contratanteLabel);
+  
   doc.setFont('helvetica', 'normal');
   const contratanteText = `${content.guardianName || '___________________________________________'}, responsável legal pelo(a) aluno(a) ${content.studentName || '___________________________________________'}, CPF nº ${content.guardianCpf || '____________________'}${content.guardianRg ? `, RG nº ${content.guardianRg}` : ''}.`;
-  const contratanteLines = doc.splitTextToSize(contratanteText, pageWidth - 2 * margin);
-  doc.text(contratanteLines, margin, yPos);
-  yPos += contratanteLines.length * 5 + 8;
+  const contratanteLines = doc.splitTextToSize(contratanteText, pageWidth - 2 * margin - contratanteLabelWidth);
+  
+  // First line after label
+  if (contratanteLines.length > 0) {
+    doc.text(contratanteLines[0], margin + contratanteLabelWidth, yPos);
+    yPos += 5;
+  }
+  // Remaining lines at margin
+  for (let i = 1; i < contratanteLines.length; i++) {
+    doc.text(contratanteLines[i], margin, yPos);
+    yPos += 5;
+  }
+  yPos += 8;
 
   // Legal reference
   doc.setFont('helvetica', 'normal');
