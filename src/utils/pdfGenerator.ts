@@ -151,9 +151,9 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     startY: yPos,
     head: [['Frequência', 'Valor Mensal']],
     body: [
-      ['1x na semana', 'R$ 180,00'],
-      ['2x na semana', 'R$ 250,00'],
-      ['3x na semana', 'R$ 350,00'],
+      ['2x na semana', 'R$ 200,00'],
+      ['3x na semana', 'R$ 250,00'],
+      ['5x na semana', 'R$ 300,00'],
     ],
     styles: { fontSize: 9 },
     headStyles: { fillColor: [59, 130, 246] },

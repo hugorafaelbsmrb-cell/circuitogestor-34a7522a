@@ -118,16 +118,16 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
               </thead>
               <tbody>
                 <tr>
-                  <td className="border border-gray-300 px-4 py-1">1x na semana</td>
-                  <td className="border border-gray-300 px-4 py-1">R$ 180,00</td>
-                </tr>
-                <tr>
                   <td className="border border-gray-300 px-4 py-1">2x na semana</td>
-                  <td className="border border-gray-300 px-4 py-1">R$ 250,00</td>
+                  <td className="border border-gray-300 px-4 py-1">R$ 200,00</td>
                 </tr>
                 <tr>
                   <td className="border border-gray-300 px-4 py-1">3x na semana</td>
-                  <td className="border border-gray-300 px-4 py-1">R$ 350,00</td>
+                  <td className="border border-gray-300 px-4 py-1">R$ 250,00</td>
+                </tr>
+                <tr>
+                  <td className="border border-gray-300 px-4 py-1">5x na semana</td>
+                  <td className="border border-gray-300 px-4 py-1">R$ 300,00</td>
                 </tr>
               </tbody>
             </table>
