@@ -7,7 +7,8 @@ import {
   MapPin,
   Loader2,
   User,
-  Pencil
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,12 +17,26 @@ import { useSchool } from '@/contexts/SchoolContext';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
 import EditGuardianModal from '@/components/guardians/EditGuardianModal';
 import { DbGuardian } from '@/hooks/useSchoolData';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function Guardians() {
-  const { guardians, students, isLoading, updateGuardian } = useSchool();
+  const { guardians, students, isLoading, updateGuardian, deleteStudent } = useSchool();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingGuardian, setEditingGuardian] = useState<DbGuardian | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredGuardians = guardians.filter(guardian => {
     const matchesSearch = guardian.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -42,6 +57,28 @@ export default function Guardians() {
 
   const handleSaveGuardian = async (id: string, data: Partial<DbGuardian>) => {
     await updateGuardian(id, data);
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteStudent(studentToDelete.id);
+      toast({
+        title: 'Aluno excluído',
+        description: `${studentToDelete.name} foi excluído com sucesso. Você pode refazer a matrícula.`,
+      });
+      setStudentToDelete(null);
+    } catch (error) {
+      toast({
+        title: 'Erro ao excluir',
+        description: 'Não foi possível excluir o aluno. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (isLoading) {
@@ -122,14 +159,26 @@ export default function Guardians() {
                       {guardianStudents.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-border">
                           <p className="text-xs text-muted-foreground mb-1">Alunos vinculados:</p>
-                          <div className="flex flex-wrap gap-1">
+                          <div className="flex flex-wrap gap-2">
                             {guardianStudents.map(student => (
-                              <span 
+                              <div 
                                 key={student.id} 
-                                className="text-xs bg-secondary px-2 py-0.5 rounded-full"
+                                className="flex items-center gap-1 text-xs bg-secondary px-2 py-1 rounded-full group"
                               >
-                                {student.name}
-                              </span>
+                                <span>{student.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-4 w-4 p-0 hover:bg-destructive/20 hover:text-destructive opacity-60 group-hover:opacity-100 transition-opacity"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setStudentToDelete({ id: student.id, name: student.name });
+                                  }}
+                                  title="Excluir aluno"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              </div>
                             ))}
                           </div>
                         </div>
@@ -175,6 +224,43 @@ export default function Guardians() {
         onOpenChange={setShowEditModal}
         onSave={handleSaveGuardian}
       />
+
+      <AlertDialog open={!!studentToDelete} onOpenChange={(open) => !open && setStudentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir aluno</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o aluno <strong>{studentToDelete?.name}</strong>?
+              <br /><br />
+              Esta ação irá remover:
+              <ul className="list-disc list-inside mt-2 text-muted-foreground">
+                <li>Dados do aluno</li>
+                <li>Matrículas vinculadas</li>
+                <li>Contratos associados</li>
+              </ul>
+              <br />
+              <span className="text-destructive font-medium">Esta ação não pode ser desfeita.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteStudent}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                'Excluir aluno'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

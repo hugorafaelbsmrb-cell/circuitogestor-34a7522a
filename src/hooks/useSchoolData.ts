@@ -285,6 +285,39 @@ export function useSchoolData() {
     setStudents(prev => prev.map(s => s.id === id ? { ...s, ...data } : s));
   };
 
+  const deleteStudent = async (id: string) => {
+    // First delete related enrollments
+    const { error: enrollmentError } = await supabase
+      .from('enrollments')
+      .delete()
+      .eq('student_id', id);
+    
+    if (enrollmentError) throw enrollmentError;
+
+    // Delete related contracts
+    const { error: contractError } = await supabase
+      .from('contracts')
+      .delete()
+      .eq('student_id', id);
+    
+    if (contractError) throw contractError;
+
+    // Delete the student
+    const { error } = await supabase
+      .from('students')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    setStudents(prev => prev.filter(s => s.id !== id));
+    setEnrollments(prev => prev.filter(e => e.student_id !== id));
+    setContracts(prev => prev.filter(c => c.student_id !== id));
+    
+    // Refresh data to update counts
+    await fetchData();
+  };
+
   // Enrollment CRUD
   const createEnrollment = async (data: {
     student_id: string;
@@ -630,6 +663,7 @@ export function useSchoolData() {
     // Student
     createStudent,
     updateStudent,
+    deleteStudent,
     
     // Enrollment
     createEnrollment,
