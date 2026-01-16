@@ -232,14 +232,16 @@ export default function Guardians() {
             <AlertDialogDescription>
               Tem certeza que deseja excluir o aluno <strong>{studentToDelete?.name}</strong>?
               <br /><br />
-              Esta ação irá remover:
+              Esta ação irá remover e cancelar:
               <ul className="list-disc list-inside mt-2 text-muted-foreground">
                 <li>Dados do aluno</li>
                 <li>Matrículas vinculadas</li>
                 <li>Contratos associados</li>
+                <li>Carnês e boletos (cancelados na API de pagamentos)</li>
+                <li>Pagamentos registrados</li>
               </ul>
               <br />
-              <span className="text-destructive font-medium">Esta ação não pode ser desfeita.</span>
+              <span className="text-destructive font-medium">Esta ação não pode ser desfeita. Você poderá refazer a matrícula e gerar novos boletos.</span>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

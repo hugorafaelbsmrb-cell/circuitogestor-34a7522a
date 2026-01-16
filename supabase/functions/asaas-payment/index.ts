@@ -378,6 +378,17 @@ async function getInstallmentBooklet(config: AsaasConfig, installmentId: string)
   };
 }
 
+async function deletePayment(config: AsaasConfig, paymentId: string) {
+  console.log("Cancelando/excluindo cobrança:", paymentId);
+  
+  const response = await fetch(`${config.baseUrl}/payments/${paymentId}`, {
+    method: "DELETE",
+    headers: getHeaders(config.apiKey),
+  });
+
+  return await handleAsaasResponse(response, "deletePayment");
+}
+
 async function listPayments(config: AsaasConfig, customerId: string) {
   console.log("Listando cobranças do cliente:", customerId);
   
@@ -454,6 +465,9 @@ serve(async (req) => {
         break;
       case "receiveInCash":
         result = await receiveInCash(config, data.paymentId, data.paymentDate, data.value, data.notifyCustomer);
+        break;
+      case "deletePayment":
+        result = await deletePayment(config, data.paymentId);
         break;
       default:
         throw new Error("Ação não reconhecida");
