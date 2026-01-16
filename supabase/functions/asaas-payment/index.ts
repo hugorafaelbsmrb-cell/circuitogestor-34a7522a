@@ -268,12 +268,45 @@ async function createCarne(config: AsaasConfig, data: {
 async function listInstallmentPayments(config: AsaasConfig, installmentId: string) {
   console.log("Listando parcelas do carnê:", installmentId);
   
-  const response = await fetch(`${config.baseUrl}/installments/${installmentId}/payments`, {
-    method: "GET",
-    headers: getHeaders(config.apiKey),
-  });
+  // Fetch all payments with pagination
+  let allPayments: unknown[] = [];
+  let offset = 0;
+  const limit = 100; // Max limit per request
+  let hasMore = true;
+  
+  while (hasMore) {
+    const response = await fetch(
+      `${config.baseUrl}/installments/${installmentId}/payments?offset=${offset}&limit=${limit}`, 
+      {
+        method: "GET",
+        headers: getHeaders(config.apiKey),
+      }
+    );
 
-  return await handleAsaasResponse(response, "listInstallmentPayments");
+    const result = await handleAsaasResponse(response, "listInstallmentPayments");
+    
+    if (result.data && Array.isArray(result.data)) {
+      allPayments = [...allPayments, ...result.data];
+    }
+    
+    hasMore = result.hasMore === true;
+    offset += limit;
+    
+    // Safety limit to prevent infinite loops
+    if (offset > 1000) {
+      console.warn("Limite de paginação atingido");
+      break;
+    }
+  }
+  
+  console.log("Total de parcelas encontradas:", allPayments.length);
+  
+  return { 
+    object: "list",
+    hasMore: false,
+    totalCount: allPayments.length,
+    data: allPayments
+  };
 }
 
 async function getInstallment(config: AsaasConfig, installmentId: string) {
