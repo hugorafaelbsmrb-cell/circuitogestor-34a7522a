@@ -290,6 +290,11 @@ export function useSchoolData() {
     const studentEnrollments = enrollments.filter(e => e.student_id === id);
     const enrollmentIds = studentEnrollments.map(e => e.id);
     
+    // Get class group IDs to decrement student count
+    const classGroupIds = studentEnrollments
+      .filter(e => e.status === 'active' || e.status === 'pending')
+      .map(e => e.class_group_id);
+    
     // Get related carnês and payments from state
     const studentCarnes = carnes.filter(c => c.enrollment_id && enrollmentIds.includes(c.enrollment_id));
     const studentPayments = payments.filter(p => 
@@ -314,7 +319,6 @@ export function useSchoolData() {
           }
         } catch (err) {
           console.warn('Erro ao cancelar carnê no Asaas:', err);
-          // Continue even if Asaas fails - we'll delete locally anyway
         }
       }
     }
@@ -404,6 +408,17 @@ export function useSchoolData() {
       .eq('student_id', id);
     
     if (enrollmentError) throw enrollmentError;
+    
+    // Decrement class group student count for each affected class
+    for (const classGroupId of classGroupIds) {
+      const classGroup = classGroups.find(cg => cg.id === classGroupId);
+      if (classGroup && classGroup.current_students > 0) {
+        await supabase
+          .from('class_groups')
+          .update({ current_students: classGroup.current_students - 1 })
+          .eq('id', classGroupId);
+      }
+    }
 
     // Delete the student
     const { error } = await supabase
@@ -418,6 +433,49 @@ export function useSchoolData() {
     setContracts(prev => prev.filter(c => c.student_id !== id));
     setCarnes(prev => prev.filter(c => !enrollmentIds.includes(c.enrollment_id || '') && !contractIds.includes(c.contract_id || '')));
     setPayments(prev => prev.filter(p => !enrollmentIds.includes(p.enrollment_id || '') && !contractIds.includes(p.contract_id || '')));
+    
+    // Refresh data to update counts
+    await fetchData();
+  };
+
+  const deactivateStudent = async (id: string) => {
+    // Get student's active enrollments to decrement class group counts
+    const studentEnrollments = enrollments.filter(e => e.student_id === id && (e.status === 'active' || e.status === 'pending'));
+    const classGroupIds = studentEnrollments.map(e => e.class_group_id);
+    
+    // Update student to inactive
+    const { error } = await supabase
+      .from('students')
+      .update({ is_active: false })
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    // Cancel all active enrollments
+    for (const enrollment of studentEnrollments) {
+      await supabase
+        .from('enrollments')
+        .update({ status: 'cancelled' })
+        .eq('id', enrollment.id);
+    }
+    
+    // Decrement class group student count for each affected class
+    for (const classGroupId of classGroupIds) {
+      const classGroup = classGroups.find(cg => cg.id === classGroupId);
+      if (classGroup && classGroup.current_students > 0) {
+        await supabase
+          .from('class_groups')
+          .update({ current_students: classGroup.current_students - 1 })
+          .eq('id', classGroupId);
+      }
+    }
+    
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, is_active: false } : s));
+    setEnrollments(prev => prev.map(e => 
+      e.student_id === id && (e.status === 'active' || e.status === 'pending') 
+        ? { ...e, status: 'cancelled' } 
+        : e
+    ));
     
     // Refresh data to update counts
     await fetchData();
@@ -769,6 +827,7 @@ export function useSchoolData() {
     createStudent,
     updateStudent,
     deleteStudent,
+    deactivateStudent,
     
     // Enrollment
     createEnrollment,
