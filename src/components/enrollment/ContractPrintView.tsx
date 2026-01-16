@@ -84,15 +84,17 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
             Local e data: {content.city || '___________________________________________'}
           </p>
 
-          <div className="flex justify-between mt-12">
+          <div className="flex justify-between mt-16">
             <div className="text-center w-2/5">
               <div className="border-t border-black pt-2">
-                <p className="font-bold">{content.schoolName || 'CIRCUITO KIDS'} (CONTRATADA)</p>
+                <p className="font-bold">{content.schoolName || 'CIRCUITO KIDS'}</p>
+                <p className="text-xs">(CONTRATADA)</p>
               </div>
             </div>
             <div className="text-center w-2/5">
               <div className="border-t border-black pt-2">
-                <p className="font-bold">RESPONSÁVEL LEGAL (CONTRATANTE)</p>
+                <p className="font-bold">{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                <p className="text-xs">(CONTRATANTE)</p>
               </div>
             </div>
           </div>
@@ -171,15 +173,17 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
           )}
 
           {/* Signature on Annex */}
-          <div className="flex justify-between mt-12">
+          <div className="flex justify-between mt-16">
             <div className="text-center w-2/5">
               <div className="border-t border-black pt-2">
-                <p className="font-bold text-sm">{content.schoolName || 'CIRCUITO KIDS'} (CONTRATADA)</p>
+                <p className="font-bold text-sm">{content.schoolName || 'CIRCUITO KIDS'}</p>
+                <p className="text-xs">(CONTRATADA)</p>
               </div>
             </div>
             <div className="text-center w-2/5">
               <div className="border-t border-black pt-2">
-                <p className="font-bold text-sm">RESPONSÁVEL LEGAL (CONTRATANTE)</p>
+                <p className="font-bold text-sm">{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                <p className="text-xs">(CONTRATANTE)</p>
               </div>
             </div>
           </div>

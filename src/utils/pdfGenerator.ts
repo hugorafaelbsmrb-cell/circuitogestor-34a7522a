@@ -117,11 +117,18 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   // Signature lines
   doc.line(margin, yPos, margin + 70, yPos);
   doc.line(pageWidth - margin - 70, yPos, pageWidth - margin, yPos);
-  yPos += 5;
+  yPos += 6;
   
   doc.setFontSize(9);
-  doc.text(`${content.schoolName || 'CIRCUITO KIDS'} (CONTRATADA)`, margin, yPos);
-  doc.text('RESPONSÁVEL LEGAL (CONTRATANTE)', pageWidth - margin - 70, yPos);
+  doc.setFont('helvetica', 'bold');
+  doc.text(content.schoolName || 'CIRCUITO KIDS', margin, yPos);
+  doc.text(content.guardianName || 'RESPONSÁVEL LEGAL', pageWidth - margin - 70, yPos);
+  yPos += 4;
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('(CONTRATADA)', margin, yPos);
+  doc.text('(CONTRATANTE)', pageWidth - margin - 70, yPos);
 
   // Add Annexes page
   doc.addPage();
@@ -223,11 +230,18 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   yPos += 25;
   doc.line(margin, yPos, margin + 70, yPos);
   doc.line(pageWidth - margin - 70, yPos, pageWidth - margin, yPos);
-  yPos += 5;
+  yPos += 6;
   
   doc.setFontSize(9);
-  doc.text(`${content.schoolName || 'CIRCUITO KIDS'} (CONTRATADA)`, margin, yPos);
-  doc.text('RESPONSÁVEL LEGAL (CONTRATANTE)', pageWidth - margin - 70, yPos);
+  doc.setFont('helvetica', 'bold');
+  doc.text(content.schoolName || 'CIRCUITO KIDS', margin, yPos);
+  doc.text(content.guardianName || 'RESPONSÁVEL LEGAL', pageWidth - margin - 70, yPos);
+  yPos += 4;
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text('(CONTRATADA)', margin, yPos);
+  doc.text('(CONTRATANTE)', pageWidth - margin - 70, yPos);
 
   return doc;
 }
