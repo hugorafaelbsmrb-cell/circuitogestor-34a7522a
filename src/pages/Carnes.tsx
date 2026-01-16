@@ -648,7 +648,7 @@ export default function Carnes() {
 
       {/* Details Modal */}
       <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CreditCard className="w-5 h-5" />
@@ -660,40 +660,40 @@ export default function Carnes() {
           </DialogHeader>
           
           {selectedCarne && (
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
               {/* Carne Info */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
                 <div>
-                  <p className="text-sm text-muted-foreground">Responsável</p>
-                  <p className="font-medium">{getGuardianById(selectedCarne.guardian_id)?.name}</p>
+                  <p className="text-xs text-muted-foreground">Responsável</p>
+                  <p className="font-medium text-sm">{getGuardianById(selectedCarne.guardian_id)?.name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">CPF</p>
-                  <p className="font-medium">{getGuardianById(selectedCarne.guardian_id)?.cpf || '-'}</p>
+                  <p className="text-xs text-muted-foreground">CPF</p>
+                  <p className="font-medium text-sm">{getGuardianById(selectedCarne.guardian_id)?.cpf || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Status do Carnê</p>
-                  {getStatusBadge(selectedCarne.status)}
+                  <p className="text-xs text-muted-foreground">Status do Carnê</p>
+                  {getStatusBadge(getCarneRealStatus(selectedCarne))}
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">ID Asaas</p>
-                  <p className="font-medium text-xs">{selectedCarne.asaas_installment_id}</p>
+                  <p className="text-xs text-muted-foreground">ID Asaas</p>
+                  <p className="font-medium text-xs break-all">{selectedCarne.asaas_installment_id}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Valor Total</p>
-                  <p className="font-medium text-primary">R$ {selectedCarne.total_value.toFixed(2).replace('.', ',')}</p>
+                  <p className="text-xs text-muted-foreground">Valor Total</p>
+                  <p className="font-medium text-sm text-primary">R$ {selectedCarne.total_value.toFixed(2).replace('.', ',')}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Parcelas</p>
-                  <p className="font-medium">{selectedCarne.installment_count}x de R$ {(selectedCarne.total_value / selectedCarne.installment_count).toFixed(2).replace('.', ',')}</p>
+                  <p className="text-xs text-muted-foreground">Parcelas</p>
+                  <p className="font-medium text-sm">{selectedCarne.installment_count}x de R$ {(selectedCarne.total_value / selectedCarne.installment_count).toFixed(2).replace('.', ',')}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">1º Vencimento</p>
-                  <p className="font-medium">{new Date(selectedCarne.first_due_date).toLocaleDateString('pt-BR')}</p>
+                  <p className="text-xs text-muted-foreground">1º Vencimento</p>
+                  <p className="font-medium text-sm">{new Date(selectedCarne.first_due_date).toLocaleDateString('pt-BR')}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Descrição</p>
-                  <p className="font-medium text-xs truncate">{selectedCarne.description}</p>
+                <div className="col-span-2 md:col-span-1">
+                  <p className="text-xs text-muted-foreground">Descrição</p>
+                  <p className="font-medium text-xs">{selectedCarne.description}</p>
                 </div>
               </div>
 
@@ -736,7 +736,7 @@ export default function Carnes() {
                     Nenhum boleto encontrado.
                   </p>
                 ) : (
-                  <div className="max-h-[300px] overflow-y-auto border rounded-lg">
+                  <div className="max-h-[350px] overflow-y-auto border rounded-lg">
                     <Table>
                       <TableHeader>
                         <TableRow>

@@ -110,6 +110,7 @@ export default function Enrollment() {
   
   const contractPrintRef = useRef<HTMLDivElement>(null);
   const [useProRata, setUseProRata] = useState(true);
+  const [useEntryBoleto, setUseEntryBoleto] = useState(true); // Boleto de entrada com valor cheio
   const [formData, setFormData] = useState({
     student: { 
       name: '', 
@@ -275,21 +276,48 @@ export default function Enrollment() {
     return { proRataValue, regularValue, proRataDays: effectiveDays, totalDays };
   }, [selectedCourse, formData.payment.dueDayOfMonth, calculateDiscountedPrice.discountedPrice]);
 
-  // Calculate total with pro-rata (or without if disabled)
+  // Calculate total with pro-rata or entry boleto
   const calculateTotalWithProRata = useMemo(() => {
     const installmentCount = parseInt(formData.payment.installments);
     const { proRataValue, regularValue } = calculateProRataValue;
     
-    if (!useProRata) {
-      // All installments equal
-      return { proRataValue: regularValue, regularValue, regularInstallments: installmentCount - 1, total: regularValue * installmentCount };
+    if (!useProRata && !useEntryBoleto) {
+      // All installments equal, starting from next month - no entry boleto
+      return { 
+        proRataValue: regularValue, 
+        regularValue, 
+        regularInstallments: installmentCount - 1, 
+        total: regularValue * installmentCount,
+        hasEntryBoleto: false,
+        entryBoletoValue: 0,
+      };
     }
     
+    if (!useProRata && useEntryBoleto) {
+      // Entry boleto with full month value
+      return { 
+        proRataValue: regularValue, 
+        regularValue, 
+        regularInstallments: installmentCount - 1, 
+        total: regularValue * installmentCount,
+        hasEntryBoleto: true,
+        entryBoletoValue: regularValue,
+      };
+    }
+    
+    // Pro-rata calculation (useProRata = true)
     const regularInstallments = installmentCount - 1;
     const total = proRataValue + (regularValue * regularInstallments);
     
-    return { proRataValue, regularValue, regularInstallments, total };
-  }, [formData.payment.installments, calculateProRataValue, useProRata]);
+    return { 
+      proRataValue, 
+      regularValue, 
+      regularInstallments, 
+      total,
+      hasEntryBoleto: true,
+      entryBoletoValue: proRataValue,
+    };
+  }, [formData.payment.installments, calculateProRataValue, useProRata, useEntryBoleto]);
 
   const currentStepIndex = steps.findIndex(s => s.id === currentStep);
 
@@ -639,46 +667,53 @@ export default function Enrollment() {
       let carneData = null;
       let proRataBoletoData: { id: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null = null;
       
-      // If pro-rata is enabled and values are different, create separate boleto for first payment
-      if (useProRata && proRataValue !== regularValue && installmentCount > 1) {
-        // Create separate boleto for pro-rata first installment (due in 5 days from enrollment)
-        const proRataBoleto = await createAsaasBoleto({
+      // Determine if we need an entry boleto (pro-rata OR entry boleto with full value)
+      const needsEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
+                               (!useProRata && useEntryBoleto && installmentCount > 1);
+      
+      if (needsEntryBoleto) {
+        // Calculate entry boleto value
+        const entryBoletoValue = useProRata ? proRataValue : regularValue;
+        const entryBoletoDescription = useProRata 
+          ? `${description} - Pro-Rata (1ª Parcela)` 
+          : `${description} - Entrada (1ª Parcela)`;
+        
+        // Create entry boleto (due in 5 days from enrollment)
+        const entryBoleto = await createAsaasBoleto({
           customerId: asaasCustomer.id,
-          value: proRataValue,
+          value: entryBoletoValue,
           dueDate: proRataDueDateStr,
-          description: `${description} - Pro-Rata (1ª Parcela)`,
+          description: entryBoletoDescription,
           externalReference: enrollment.id,
           discount: discountConfig,
         });
         
-        if (proRataBoleto) {
+        if (entryBoleto) {
           proRataBoletoData = {
-            id: proRataBoleto.id,
-            invoiceUrl: proRataBoleto.invoiceUrl || null,
-            bankSlipUrl: proRataBoleto.bankSlipUrl || null,
+            id: entryBoleto.id,
+            invoiceUrl: entryBoleto.invoiceUrl || null,
+            bankSlipUrl: entryBoleto.bankSlipUrl || null,
           };
           
-          // Save pro-rata payment to database
+          // Save entry payment to database
           await createPayment({
             enrollment_id: enrollment.id,
             guardian_id: guardian.id,
             contract_id: contract.id,
-            asaas_payment_id: proRataBoleto.id,
+            asaas_payment_id: entryBoleto.id,
             asaas_installment_id: null,
-            description: `${description} - Pro-Rata`,
-            value: proRataBoleto.value,
-            due_date: proRataBoleto.dueDate,
-            status: proRataBoleto.status,
-            invoice_url: proRataBoleto.invoiceUrl,
-            bank_slip_url: proRataBoleto.bankSlipUrl,
+            description: useProRata ? `${description} - Pro-Rata` : `${description} - Entrada`,
+            value: entryBoleto.value,
+            due_date: entryBoleto.dueDate,
+            status: entryBoleto.status,
+            invoice_url: entryBoleto.invoiceUrl,
+            bank_slip_url: entryBoleto.bankSlipUrl,
             installment_number: 1,
             external_reference: enrollment.id,
           });
         }
         
         // Create carnê for remaining installments - starts on firstDueDate (next month)
-        
-        // Create carnê for remaining installments (installmentCount - 1)
         const remainingInstallments = installmentCount - 1;
         const totalRemainingValue = regularValue * remainingInstallments;
         
@@ -699,7 +734,7 @@ export default function Enrollment() {
             contract_id: contract.id,
             asaas_installment_id: asaasPayment.installment || asaasPayment.id,
             description,
-            total_value: proRataValue + totalRemainingValue,
+            total_value: entryBoletoValue + totalRemainingValue,
             installment_count: installmentCount,
             first_due_date: proRataDueDateStr,
           });
@@ -710,7 +745,7 @@ export default function Enrollment() {
           };
         }
       } else {
-        // Standard flow: all installments equal (no pro-rata or single installment)
+        // Standard flow: all installments equal, no entry boleto
         const totalValue = regularValue * installmentCount;
         
         const asaasPayment = await createAsaasCarne({
@@ -770,10 +805,15 @@ export default function Enrollment() {
         proRataBoleto: proRataBoletoData,
       });
 
+      const hasEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
+                             (!useProRata && useEntryBoleto && installmentCount > 1);
+      
       toast({
         title: "Matrícula realizada com sucesso!",
-        description: useProRata && proRataValue !== regularValue 
-          ? "O contrato, boleto pro-rata e carnê foram gerados automaticamente."
+        description: hasEntryBoleto 
+          ? useProRata 
+            ? "O contrato, boleto pro-rata e carnê foram gerados automaticamente."
+            : "O contrato, boleto de entrada e carnê foram gerados automaticamente."
           : "O contrato e o carnê foram gerados automaticamente.",
       });
 
@@ -1517,7 +1557,7 @@ export default function Enrollment() {
             </div>
 
             {/* Pro-Rata Toggle */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-6">
+            <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-4">
               <div>
                 <Label className="font-medium">Cálculo Pro-Rata</Label>
                 <p className="text-sm text-muted-foreground">
@@ -1528,12 +1568,40 @@ export default function Enrollment() {
                 <input
                   type="checkbox"
                   checked={useProRata}
-                  onChange={(e) => setUseProRata(e.target.checked)}
+                  onChange={(e) => {
+                    setUseProRata(e.target.checked);
+                    // Se ativar pro-rata, desativa boleto de entrada (são mutuamente exclusivos para o cálculo)
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
               </label>
             </div>
+
+            {/* Entry Boleto Toggle - only show if pro-rata is disabled */}
+            {!useProRata && parseInt(formData.payment.installments) > 1 && (
+              <div className="flex items-center justify-between p-4 bg-primary/10 rounded-xl mb-6 border border-primary/20">
+                <div>
+                  <Label className="font-medium">Boleto de Entrada</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Gera boleto avulso com valor cheio da mensalidade para pagamento imediato
+                  </p>
+                  <p className="text-xs text-primary mt-1">
+                    Vencimento: {calculateProRataDueDate().toLocaleDateString('pt-BR')} (5 dias após matrícula)
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useEntryBoleto}
+                    onChange={(e) => setUseEntryBoleto(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                </label>
+              </div>
+            )}
+
               <div className="space-y-2">
                 <Label>Dia de Vencimento</Label>
                 <Select
@@ -1552,7 +1620,7 @@ export default function Enrollment() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  1º vencimento: {calculateFirstDueDate().toLocaleDateString('pt-BR')}
+                  1º vencimento do carnê: {calculateFirstDueDate().toLocaleDateString('pt-BR')}
                 </p>
               </div>
             </div>
@@ -1572,18 +1640,31 @@ export default function Enrollment() {
                 )}
                 
                 <div className="space-y-2 mb-3">
+                  {/* Show entry boleto info */}
+                  {calculateTotalWithProRata.hasEntryBoleto && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">
+                        {useProRata 
+                          ? `1ª Parcela (pro-rata - ${calculateProRataValue.proRataDays} dias):` 
+                          : `Boleto de Entrada (valor cheio):`}
+                      </span>
+                      <span className="font-medium text-primary">
+                        R$ {calculateTotalWithProRata.entryBoletoValue.toFixed(2).replace('.', ',')}
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">1ª Parcela (pro-rata - {calculateProRataValue.proRataDays} dias):</span>
-                    <span className="font-medium">R$ {calculateTotalWithProRata.proRataValue.toFixed(2).replace('.', ',')}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground">Demais Parcelas ({calculateTotalWithProRata.regularInstallments}x):</span>
+                    <span className="text-muted-foreground">
+                      {calculateTotalWithProRata.hasEntryBoleto 
+                        ? `Demais Parcelas (${calculateTotalWithProRata.regularInstallments}x):` 
+                        : `Parcelas (${parseInt(formData.payment.installments)}x):`}
+                    </span>
                     <span className="font-medium">R$ {calculateTotalWithProRata.regularValue.toFixed(2).replace('.', ',')}</span>
                   </div>
                 </div>
                 
                 <div className="flex justify-between items-center pt-2 border-t border-primary/20">
-                  <span className="font-medium">Valor Total do Carnê</span>
+                  <span className="font-medium">Valor Total</span>
                   <span className="text-xl font-bold text-primary">
                     R$ {calculateTotalWithProRata.total.toFixed(2).replace('.', ',')}
                   </span>
