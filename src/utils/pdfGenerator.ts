@@ -9,6 +9,7 @@ interface ContractContent {
   schoolAddress: string;
   guardianName: string;
   guardianCpf: string;
+  guardianRg?: string;
   guardianAddress: string;
   studentName: string;
   studentBirthDate: string;
@@ -22,6 +23,7 @@ interface ContractContent {
   totalValue: number;
   clauses: { title: string; content: string }[];
   createdAt: string;
+  city?: string;
 }
 
 export function generateContractPDF(content: ContractContent): jsPDF {
@@ -31,104 +33,47 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   let yPos = 20;
 
   // Title
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS', pageWidth / 2, yPos, { align: 'center' });
-  yPos += 15;
-
-  // Line separator
-  doc.setLineWidth(0.5);
-  doc.line(margin, yPos, pageWidth - margin, yPos);
-  yPos += 10;
-
-  // School Info (CONTRATADO)
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('CONTRATADO:', margin, yPos);
   yPos += 7;
-  
-  doc.setFont('helvetica', 'normal');
+  doc.text(content.schoolName?.toUpperCase() || 'CIRCUITO KIDS', pageWidth / 2, yPos, { align: 'center' });
+  yPos += 12;
+
+  // Introduction
   doc.setFontSize(10);
-  doc.text(content.schoolName || 'EduGestor', margin, yPos);
-  yPos += 5;
-  doc.text(`CNPJ: ${content.schoolCnpj || '-'}`, margin, yPos);
-  yPos += 5;
-  doc.text(`Endereço: ${content.schoolAddress || '-'}`, margin, yPos);
+  doc.setFont('helvetica', 'normal');
+  const introText = 'Pelo presente instrumento particular, de um lado:';
+  doc.text(introText, margin, yPos);
   yPos += 10;
+
+  // School Info (CONTRATADA)
+  doc.setFont('helvetica', 'bold');
+  doc.text('CONTRATADA: ', margin, yPos);
+  doc.setFont('helvetica', 'normal');
+  const contratadaText = `${content.schoolName || 'CIRCUITO KIDS'}, pessoa jurídica de direito privado, inscrita no CNPJ nº ${content.schoolCnpj || '___________________'}, com sede à ${content.schoolAddress || '_________________________________________________'}.`;
+  const contratadaLines = doc.splitTextToSize(contratadaText, pageWidth - 2 * margin);
+  doc.text(contratadaLines, margin, yPos);
+  yPos += contratadaLines.length * 5 + 5;
 
   // Guardian Info (CONTRATANTE)
-  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('CONTRATANTE (Responsável Financeiro):', margin, yPos);
-  yPos += 7;
-  
+  doc.text('CONTRATANTE: ', margin, yPos);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Nome: ${content.guardianName}`, margin, yPos);
-  yPos += 5;
-  doc.text(`CPF: ${content.guardianCpf}`, margin, yPos);
-  yPos += 5;
-  doc.text(`Endereço: ${content.guardianAddress}`, margin, yPos);
-  yPos += 10;
+  const contratanteText = `${content.guardianName || '___________________________________________'}, responsável legal pelo(a) aluno(a) ${content.studentName || '___________________________________________'}, CPF nº ${content.guardianCpf || '____________________'}${content.guardianRg ? `, RG nº ${content.guardianRg}` : ''}.`;
+  const contratanteLines = doc.splitTextToSize(contratanteText, pageWidth - 2 * margin);
+  doc.text(contratanteLines, margin, yPos);
+  yPos += contratanteLines.length * 5 + 8;
 
-  // Student Info
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ALUNO:', margin, yPos);
-  yPos += 7;
-  
+  // Legal reference
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Nome: ${content.studentName}`, margin, yPos);
-  yPos += 5;
-  const birthDate = content.studentBirthDate ? format(parseISO(content.studentBirthDate), 'dd/MM/yyyy') : '-';
-  doc.text(`Data de Nascimento: ${birthDate}`, margin, yPos);
-  yPos += 10;
-
-  // Course Info
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('CURSO:', margin, yPos);
-  yPos += 7;
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Nome: ${content.courseName}`, margin, yPos);
-  yPos += 5;
-  doc.text(`Duração: ${content.courseDuration}`, margin, yPos);
-  yPos += 5;
-  doc.text(`Turma: ${content.classGroupName}`, margin, yPos);
-  yPos += 5;
-  doc.text(`Horário: ${content.schedule}`, margin, yPos);
-  yPos += 10;
-
-  // Financial Info
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.text('VALOR:', margin, yPos);
-  yPos += 7;
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
-  doc.text(`Mensalidade: R$ ${content.installmentValue.toFixed(2).replace('.', ',')}`, margin, yPos);
-  yPos += 5;
-  doc.text(`Número de Parcelas: ${content.installments}x`, margin, yPos);
-  yPos += 5;
-  doc.text(`Valor Total: R$ ${content.totalValue.toFixed(2).replace('.', ',')}`, margin, yPos);
-  yPos += 10;
-
-  // Contract Date
-  const contractDate = content.createdAt ? format(parseISO(content.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR });
-  doc.text(`Data do Contrato: ${contractDate}`, margin, yPos);
-  yPos += 15;
+  const legalText = 'As partes resolvem celebrar o presente contrato nos termos do ECA (Lei nº 8.069/90) e da LGPD (Lei nº 13.709/18), conforme as cláusulas abaixo:';
+  const legalLines = doc.splitTextToSize(legalText, pageWidth - 2 * margin);
+  doc.text(legalLines, margin, yPos);
+  yPos += legalLines.length * 5 + 10;
 
   // Clauses
   if (content.clauses && content.clauses.length > 0) {
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CLÁUSULAS CONTRATUAIS', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 10;
-
     content.clauses.forEach((clause, index) => {
       // Check if we need a new page
       if (yPos > 260) {
@@ -136,13 +81,12 @@ export function generateContractPDF(content: ContractContent): jsPDF {
         yPos = 20;
       }
 
-      doc.setFontSize(11);
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text(`Cláusula ${index + 1}ª - ${clause.title}`, margin, yPos);
+      doc.text(`CLÁUSULA ${index + 1}ª – ${clause.title.toUpperCase()}`, margin, yPos);
       yPos += 6;
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
       
       // Split long text into lines
       const lines = doc.splitTextToSize(clause.content, pageWidth - 2 * margin);
@@ -158,25 +102,132 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     });
   }
 
-  // Signature section
-  if (yPos > 240) {
+  // Foro clause if not included
+  if (yPos > 250) {
     doc.addPage();
     yPos = 20;
   }
-  yPos += 20;
 
+  // Signature section
+  yPos += 10;
   doc.setFontSize(10);
-  doc.text('Local e Data: _________________________________, ___/___/_______', margin, yPos);
-  yPos += 30;
+  doc.text(`Local e data: ${content.city || '___________________________________________'}`, margin, yPos);
+  yPos += 25;
 
   // Signature lines
-  doc.line(margin, yPos, margin + 60, yPos);
-  doc.line(pageWidth - margin - 60, yPos, pageWidth - margin, yPos);
+  doc.line(margin, yPos, margin + 70, yPos);
+  doc.line(pageWidth - margin - 70, yPos, pageWidth - margin, yPos);
   yPos += 5;
   
   doc.setFontSize(9);
-  doc.text('CONTRATANTE', margin + 20, yPos);
-  doc.text('CONTRATADO', pageWidth - margin - 40, yPos);
+  doc.text(`${content.schoolName || 'CIRCUITO KIDS'} (CONTRATADA)`, margin, yPos);
+  doc.text('RESPONSÁVEL LEGAL (CONTRATANTE)', pageWidth - margin - 70, yPos);
+
+  // Add Annexes page
+  doc.addPage();
+  yPos = 20;
+
+  // Annex Header
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ANEXOS DO CONTRATO', pageWidth / 2, yPos, { align: 'center' });
+  yPos += 15;
+
+  // Annex I - Reforço Escolar
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ANEXO I – REFORÇO ESCOLAR (1 A 5 ANOS)', margin, yPos);
+  yPos += 8;
+  
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('• Modalidade: Plano Semestral (06 meses)', margin, yPos);
+  yPos += 6;
+  doc.text('• Opções de Frequência e Valores:', margin, yPos);
+  yPos += 6;
+
+  // Table for Reforço
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Frequência', 'Valor Mensal']],
+    body: [
+      ['1x na semana', 'R$ 180,00'],
+      ['2x na semana', 'R$ 250,00'],
+      ['3x na semana', 'R$ 350,00'],
+    ],
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [59, 130, 246] },
+    margin: { left: margin },
+    tableWidth: 100,
+  });
+
+  yPos = (doc as any).lastAutoTable.finalY + 15;
+
+  // Annex II - Robótica Educacional
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ANEXO II – ROBÓTICA EDUCACIONAL', margin, yPos);
+  yPos += 8;
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('• Frequência: 02 vezes na semana', margin, yPos);
+  yPos += 6;
+  doc.text('• Plano: Anual (12 meses)', margin, yPos);
+  yPos += 6;
+  doc.text('• Valor Mensal: R$ 250,00', margin, yPos);
+  yPos += 15;
+
+  // Annex III - Soroban
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ANEXO III – SOROBAN (ÁBACO JAPONÊS)', margin, yPos);
+  yPos += 8;
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text('• Frequência: 02 vezes na semana', margin, yPos);
+  yPos += 6;
+  doc.text('• Duração: Estimada em 18 meses (10 níveis no total)', margin, yPos);
+  yPos += 6;
+  doc.text('• Valor Mensal: R$ 250,00', margin, yPos);
+  yPos += 6;
+  doc.text('• Material Didático (obrigatório): consultar valores', margin, yPos);
+  yPos += 20;
+
+  // Course selected highlight
+  if (content.courseName) {
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('MODALIDADE CONTRATADA:', margin, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`• Curso: ${content.courseName}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• Turma: ${content.classGroupName || '-'}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• Horário: ${content.schedule || '-'}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• Duração: ${content.courseDuration || '-'}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• Valor Mensal: R$ ${content.installmentValue?.toFixed(2).replace('.', ',') || '-'}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• Número de Parcelas: ${content.installments}x`, margin, yPos);
+    yPos += 6;
+    doc.text(`• Valor Total: R$ ${content.totalValue?.toFixed(2).replace('.', ',') || '-'}`, margin, yPos);
+  }
+
+  // Signature on annex
+  yPos += 25;
+  doc.line(margin, yPos, margin + 70, yPos);
+  doc.line(pageWidth - margin - 70, yPos, pageWidth - margin, yPos);
+  yPos += 5;
+  
+  doc.setFontSize(9);
+  doc.text(`${content.schoolName || 'CIRCUITO KIDS'} (CONTRATADA)`, margin, yPos);
+  doc.text('RESPONSÁVEL LEGAL (CONTRATANTE)', pageWidth - margin - 70, yPos);
 
   return doc;
 }
