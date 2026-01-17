@@ -628,6 +628,72 @@ export type Database = {
           },
         ]
       }
+      lms_credentials: {
+        Row: {
+          completion_percentage: number | null
+          created_at: string
+          current_lesson: string | null
+          current_level: string | null
+          current_module: string | null
+          email: string
+          enrollment_id: string | null
+          id: string
+          last_sync_at: string | null
+          lms_user_id: string | null
+          matricula: string
+          password: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          completion_percentage?: number | null
+          created_at?: string
+          current_lesson?: string | null
+          current_level?: string | null
+          current_module?: string | null
+          email: string
+          enrollment_id?: string | null
+          id?: string
+          last_sync_at?: string | null
+          lms_user_id?: string | null
+          matricula: string
+          password: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          completion_percentage?: number | null
+          created_at?: string
+          current_lesson?: string | null
+          current_level?: string | null
+          current_module?: string | null
+          email?: string
+          enrollment_id?: string | null
+          id?: string
+          last_sync_at?: string | null
+          lms_user_id?: string | null
+          matricula?: string
+          password?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lms_credentials_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lms_credentials_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           asaas_installment_id: string | null

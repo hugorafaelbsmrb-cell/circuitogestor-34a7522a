@@ -26,6 +26,7 @@ import Reports from "./pages/Reports";
 import StudentAllocation from "./pages/StudentAllocation";
 import WhatsAppConfig from "./pages/WhatsAppConfig";
 import Inventory from "./pages/Inventory";
+import LMSStudents from "./pages/LMSStudents";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -75,6 +76,7 @@ function AppRoutes() {
                 <Route path="/relatorios" element={<Reports />} />
                 <Route path="/alocacao-alunos" element={<StudentAllocation />} />
                 <Route path="/inventario" element={<Inventory />} />
+                <Route path="/lms-alunos" element={<LMSStudents />} />
                 <Route path="/usuarios" element={<Users />} />
                 <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
                 <Route path="/configuracoes" element={<Settings />} />

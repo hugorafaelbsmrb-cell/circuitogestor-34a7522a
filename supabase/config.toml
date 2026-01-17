@@ -1,4 +1,23 @@
 project_id = "akxpcfqcasuabxbwyrew"
 
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[functions.asaas-payment]
+verify_jwt = false
+
+[functions.asaas-webhook]
+verify_jwt = false
+
+[functions.create-user]
+verify_jwt = false
+
 [functions.lms-webhook]
+verify_jwt = false
+
+[functions.lms-sync]
 verify_jwt = false
