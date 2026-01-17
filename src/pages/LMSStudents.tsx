@@ -108,6 +108,9 @@ interface LMSCredential {
       };
     };
   } | null;
+  // All class days from all enrollments for this student
+  all_class_days?: string[];
+  earliest_enrollment_date?: string;
 }
 
 export default function LMSStudents() {
@@ -309,29 +312,30 @@ export default function LMSStudents() {
     'Sábado': 6,
   };
 
-  // Calculate expected lesson based on enrollment date and class day of week
-  const calculateExpectedLesson = (enrollmentDate: string | undefined, dayOfWeek: string | undefined): number => {
-    if (!enrollmentDate || !dayOfWeek) return 0;
+  // Calculate expected lesson based on enrollment date and ALL class days of the week
+  const calculateExpectedLesson = (enrollmentDate: string | undefined, classDays: string[] | undefined): number => {
+    if (!enrollmentDate || !classDays || classDays.length === 0) return 0;
     
     const startDate = new Date(enrollmentDate);
     const today = new Date();
-    const targetDayNumber = dayNameToNumber[dayOfWeek];
     
-    if (targetDayNumber === undefined) return 0;
+    // Convert day names to day numbers
+    const targetDayNumbers = classDays
+      .map(day => dayNameToNumber[day])
+      .filter(num => num !== undefined);
     
-    // Count how many times the target day has occurred since enrollment
+    if (targetDayNumbers.length === 0) return 0;
+    
+    // Count all occurrences of any target day from enrollment to today
     let lessonCount = 0;
     const currentDate = new Date(startDate);
     
-    // Move to the first occurrence of the target day on or after enrollment
-    while (currentDate.getDay() !== targetDayNumber) {
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    // Count all occurrences of that day up to today
+    // Iterate through each day from enrollment to today
     while (currentDate <= today) {
-      lessonCount++;
-      currentDate.setDate(currentDate.getDate() + 7); // Move to next week
+      if (targetDayNumbers.includes(currentDate.getDay())) {
+        lessonCount++;
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     
     return Math.max(1, lessonCount);
@@ -552,8 +556,9 @@ export default function LMSStudents() {
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const dayOfWeek = cred.enrollment?.class_group?.schedule?.day_of_week;
-                      const expectedLesson = calculateExpectedLesson(cred.enrollment?.enrollment_date, dayOfWeek);
+                      const classDays = cred.all_class_days || [];
+                      const enrollmentDate = cred.earliest_enrollment_date || cred.enrollment?.enrollment_date;
+                      const expectedLesson = calculateExpectedLesson(enrollmentDate, classDays);
                       const currentLesson = extractLessonNumber(cred.current_lesson);
                       const status = getProgressStatus(currentLesson, expectedLesson);
                       const diff = currentLesson - expectedLesson;
