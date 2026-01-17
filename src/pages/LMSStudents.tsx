@@ -13,7 +13,12 @@ import {
   Loader2,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Unlock,
+  RotateCcw,
+  Settings,
+  Coins,
+  Zap
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -35,8 +40,38 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+
+interface LMSProgressData {
+  status?: string;
+  current_module?: string;
+  current_level?: string;
+  current_lesson?: string;
+  completion_percentage?: number;
+  total_lessons?: number;
+  completed_lessons?: number;
+  total_xp?: number;
+  coins?: number;
+}
 
 interface LMSCredential {
   id: string;
@@ -52,6 +87,7 @@ interface LMSCredential {
   completion_percentage: number;
   last_sync_at: string | null;
   created_at: string;
+  progressData?: LMSProgressData;
   student: {
     id: string;
     name: string;
@@ -74,6 +110,8 @@ export default function LMSStudents() {
   const [selectedCredential, setSelectedCredential] = useState<LMSCredential | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState<LMSCredential | null>(null);
 
   useEffect(() => {
     fetchCredentials();
@@ -138,6 +176,18 @@ export default function LMSStudents() {
 
       if (error) throw error;
 
+      // Update the selected credential with new progress data
+      if (selectedCredential && data?.data) {
+        setSelectedCredential({
+          ...selectedCredential,
+          progressData: data.data,
+          current_module: data.data.current_module,
+          current_level: data.data.current_level,
+          current_lesson: data.data.current_lesson,
+          completion_percentage: data.data.completion_percentage,
+        });
+      }
+
       toast({
         title: 'Dados atualizados',
         description: data?.message || 'Progresso atualizado com sucesso.',
@@ -152,6 +202,65 @@ export default function LMSStudents() {
         variant: 'destructive',
       });
     }
+  };
+
+  // LMS Management Actions
+  const executeLMSAction = async (
+    actionName: string, 
+    credential: LMSCredential, 
+    extraParams: Record<string, string> = {}
+  ) => {
+    const lmsUserId = credential.lms_user_id || credential.matricula;
+    setActionLoading(actionName);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('lms-sync', {
+        body: { action: actionName, lmsUserId, ...extraParams }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: data?.success ? 'Ação executada' : 'Erro na ação',
+        description: data?.message || 'Operação concluída.',
+        variant: data?.success ? 'default' : 'destructive',
+      });
+
+      if (data?.success) {
+        await syncSingle(credential.id);
+      }
+    } catch (error) {
+      console.error(`Error executing ${actionName}:`, error);
+      toast({
+        title: 'Erro',
+        description: `Não foi possível executar a ação: ${actionName}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUnlockLevel = (credential: LMSCredential, levelId: string) => {
+    executeLMSAction('unlockLevel', credential, { levelId });
+  };
+
+  const handleSetModule = (credential: LMSCredential, moduleId: string) => {
+    executeLMSAction('setModule', credential, { moduleId });
+  };
+
+  const handleSetLevel = (credential: LMSCredential, levelId: string) => {
+    executeLMSAction('setLevel', credential, { levelId });
+  };
+
+  const handleResetProgress = (credential: LMSCredential) => {
+    setConfirmReset(credential);
+  };
+
+  const confirmResetProgress = async () => {
+    if (!confirmReset) return;
+    await executeLMSAction('resetProgress', confirmReset);
+    setConfirmReset(null);
   };
 
   const togglePasswordVisibility = (id: string) => {
@@ -398,6 +507,37 @@ export default function LMSStudents() {
                       >
                         <RefreshCw className="w-4 h-4" />
                       </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" title="Ações">
+                            <Settings className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Gerenciar Aluno</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => handleUnlockLevel(cred, 'current')}>
+                            <Unlock className="w-4 h-4 mr-2" />
+                            Desbloquear Nível
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleSetModule(cred, 'next')}>
+                            <BookOpen className="w-4 h-4 mr-2" />
+                            Mover para Módulo
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleSetLevel(cred, 'next')}>
+                            <Trophy className="w-4 h-4 mr-2" />
+                            Mover para Nível
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => handleResetProgress(cred)}
+                            className="text-destructive"
+                          >
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            Resetar Progresso
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -433,14 +573,14 @@ export default function LMSStudents() {
 
       {/* Details Modal */}
       <Dialog open={showDetailsModal} onOpenChange={setShowDetailsModal}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <GraduationCap className="w-5 h-5" />
               Detalhes do Aluno no LMS
             </DialogTitle>
             <DialogDescription>
-              Informações de acesso e progresso do aluno
+              Informações de acesso, progresso e ações de gerenciamento
             </DialogDescription>
           </DialogHeader>
           
@@ -536,24 +676,60 @@ export default function LMSStudents() {
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-muted-foreground">Conclusão Geral</span>
                       <span className="font-bold text-primary">
-                        {(selectedCredential.completion_percentage || 0).toFixed(0)}%
+                        {(selectedCredential.progressData?.completion_percentage || selectedCredential.completion_percentage || 0).toFixed(0)}%
                       </span>
                     </div>
-                    <Progress value={selectedCredential.completion_percentage || 0} className="h-3" />
+                    <Progress value={selectedCredential.progressData?.completion_percentage || selectedCredential.completion_percentage || 0} className="h-3" />
                   </div>
+                  
+                  {/* XP and Coins */}
+                  {(selectedCredential.progressData?.total_xp !== undefined || selectedCredential.progressData?.coins !== undefined) && (
+                    <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-yellow-500" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">XP Total</p>
+                          <p className="font-bold">{selectedCredential.progressData?.total_xp || 0}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Coins className="w-4 h-4 text-yellow-500" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Moedas</p>
+                          <p className="font-bold">{selectedCredential.progressData?.coins || 0}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Lessons Progress */}
+                  {selectedCredential.progressData?.total_lessons !== undefined && (
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <span className="text-sm text-muted-foreground">Aulas Concluídas</span>
+                      <span className="font-medium">
+                        {selectedCredential.progressData?.completed_lessons || 0} / {selectedCredential.progressData?.total_lessons || 0}
+                      </span>
+                    </div>
+                  )}
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Módulo Atual</p>
-                      <p className="font-medium">{selectedCredential.current_module || '-'}</p>
+                      <p className="font-medium">{selectedCredential.progressData?.current_module || selectedCredential.current_module || '-'}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Nível</p>
-                      <p className="font-medium">{selectedCredential.current_level || '-'}</p>
+                      <p className="font-medium">{selectedCredential.progressData?.current_level || selectedCredential.current_level || '-'}</p>
                     </div>
-                    <div className="col-span-2">
+                    <div>
                       <p className="text-sm text-muted-foreground">Aula Atual</p>
-                      <p className="font-medium">{selectedCredential.current_lesson || '-'}</p>
+                      <p className="font-medium">{selectedCredential.progressData?.current_lesson || selectedCredential.current_lesson || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Status</p>
+                      <Badge variant={selectedCredential.progressData?.status === 'active' ? 'default' : 'secondary'}>
+                        {selectedCredential.progressData?.status || 'N/A'}
+                      </Badge>
                     </div>
                   </div>
 
@@ -563,6 +739,76 @@ export default function LMSStudents() {
                       Última sincronização: {new Date(selectedCredential.last_sync_at).toLocaleString('pt-BR')}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* Management Actions */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    Ações de Gerenciamento
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleUnlockLevel(selectedCredential, 'current')}
+                      disabled={!!actionLoading}
+                      className="gap-2"
+                    >
+                      {actionLoading === 'unlockLevel' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Unlock className="w-4 h-4" />
+                      )}
+                      Desbloquear Nível
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSetModule(selectedCredential, 'next')}
+                      disabled={!!actionLoading}
+                      className="gap-2"
+                    >
+                      {actionLoading === 'setModule' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <BookOpen className="w-4 h-4" />
+                      )}
+                      Próximo Módulo
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSetLevel(selectedCredential, 'next')}
+                      disabled={!!actionLoading}
+                      className="gap-2"
+                    >
+                      {actionLoading === 'setLevel' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trophy className="w-4 h-4" />
+                      )}
+                      Próximo Nível
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleResetProgress(selectedCredential)}
+                      disabled={!!actionLoading}
+                      className="gap-2 text-destructive hover:text-destructive"
+                    >
+                      {actionLoading === 'resetProgress' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RotateCcw className="w-4 h-4" />
+                      )}
+                      Resetar
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -577,6 +823,25 @@ export default function LMSStudents() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Reset Confirmation Dialog */}
+      <AlertDialog open={!!confirmReset} onOpenChange={() => setConfirmReset(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resetar Progresso do Aluno?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá resetar todo o progresso do aluno {confirmReset?.student?.name} no LMS. 
+              Isso não pode ser desfeito. O aluno terá que recomeçar do início.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmResetProgress} className="bg-destructive hover:bg-destructive/90">
+              Sim, Resetar Progresso
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
