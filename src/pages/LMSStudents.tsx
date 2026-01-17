@@ -102,6 +102,11 @@ interface LMSCredential {
     status: string;
     class_group_id: string;
     enrollment_date: string;
+    class_group?: {
+      schedule?: {
+        day_of_week: string;
+      };
+    };
   } | null;
 }
 
@@ -293,14 +298,43 @@ export default function LMSStudents() {
     cred.matricula.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Calculate expected lesson based on enrollment date (2 lessons per week)
-  const calculateExpectedLesson = (enrollmentDate: string | undefined): number => {
-    if (!enrollmentDate) return 0;
+  // Map day names in Portuguese to JavaScript day numbers (0 = Sunday, 1 = Monday, etc.)
+  const dayNameToNumber: Record<string, number> = {
+    'Domingo': 0,
+    'Segunda-feira': 1,
+    'Terça-feira': 2,
+    'Quarta-feira': 3,
+    'Quinta-feira': 4,
+    'Sexta-feira': 5,
+    'Sábado': 6,
+  };
+
+  // Calculate expected lesson based on enrollment date and class day of week
+  const calculateExpectedLesson = (enrollmentDate: string | undefined, dayOfWeek: string | undefined): number => {
+    if (!enrollmentDate || !dayOfWeek) return 0;
+    
     const startDate = new Date(enrollmentDate);
     const today = new Date();
-    const diffTime = today.getTime() - startDate.getTime();
-    const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
-    return Math.max(1, diffWeeks * 2); // 2 lessons per week, minimum 1
+    const targetDayNumber = dayNameToNumber[dayOfWeek];
+    
+    if (targetDayNumber === undefined) return 0;
+    
+    // Count how many times the target day has occurred since enrollment
+    let lessonCount = 0;
+    const currentDate = new Date(startDate);
+    
+    // Move to the first occurrence of the target day on or after enrollment
+    while (currentDate.getDay() !== targetDayNumber) {
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    // Count all occurrences of that day up to today
+    while (currentDate <= today) {
+      lessonCount++;
+      currentDate.setDate(currentDate.getDate() + 7); // Move to next week
+    }
+    
+    return Math.max(1, lessonCount);
   };
 
   // Get the current lesson number from the lesson string (e.g., "Aula 5" -> 5)
@@ -518,7 +552,8 @@ export default function LMSStudents() {
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const expectedLesson = calculateExpectedLesson(cred.enrollment?.enrollment_date);
+                      const dayOfWeek = cred.enrollment?.class_group?.schedule?.day_of_week;
+                      const expectedLesson = calculateExpectedLesson(cred.enrollment?.enrollment_date, dayOfWeek);
                       const currentLesson = extractLessonNumber(cred.current_lesson);
                       const status = getProgressStatus(currentLesson, expectedLesson);
                       const diff = currentLesson - expectedLesson;
