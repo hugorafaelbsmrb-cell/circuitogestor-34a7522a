@@ -9,14 +9,20 @@ interface LMSProgressResponse {
   success: boolean;
   data?: {
     user_id: string;
+    status: string;
     current_module: string;
     current_level: string;
     current_lesson: string;
     completion_percentage: number;
-    status: string;
+    total_lessons: number;
+    completed_lessons: number;
+    total_xp: number;
+    coins: number;
   };
   error?: string;
 }
+
+const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1/lms-student-progress';
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -30,7 +36,8 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { action, studentId, credentialId, email, matricula } = await req.json();
+    const requestBody = await req.json();
+    const { action, studentId, credentialId } = requestBody;
 
     console.log('LMS Sync request:', { action, studentId, credentialId });
 
@@ -64,9 +71,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Sync progress from LMS
+    // Sync progress from LMS (GET endpoint)
     if (action === 'syncProgress') {
-      // Get the credential to sync
       const { data: credential, error: credError } = await supabase
         .from('lms_credentials')
         .select('*')
@@ -78,24 +84,21 @@ Deno.serve(async (req) => {
         throw new Error('Credential not found');
       }
 
-      // Call the external LMS API to get progress using GET with student_user_id
-      const lmsApiUrl = `https://icbudgpjptemjfymssvr.supabase.co/functions/v1/lms-student-progress?student_user_id=${credential.lms_user_id || credential.matricula}`;
+      const studentUserId = credential.lms_user_id || credential.matricula;
+      const lmsApiUrl = `${LMS_API_BASE}?student_user_id=${studentUserId}`;
       
       try {
-        console.log('Calling LMS API for student:', credential.lms_user_id || credential.matricula);
+        console.log('Calling LMS API for student:', studentUserId);
         
         const lmsResponse = await fetch(lmsApiUrl, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
 
         if (lmsResponse.ok) {
           const progressData: LMSProgressResponse = await lmsResponse.json();
           
           if (progressData.success && progressData.data) {
-            // Update local credential with progress data
             const { error: updateError } = await supabase
               .from('lms_credentials')
               .update({
@@ -126,7 +129,6 @@ Deno.serve(async (req) => {
           }
         }
 
-        // If LMS API fails or returns no data, return current data
         console.log('LMS API did not return progress data, using cached data');
         
         return new Response(
@@ -146,7 +148,6 @@ Deno.serve(async (req) => {
       } catch (lmsError) {
         console.error('Error calling LMS API:', lmsError);
         
-        // Return cached data if LMS is unavailable
         return new Response(
           JSON.stringify({ 
             success: true, 
@@ -163,11 +164,37 @@ Deno.serve(async (req) => {
       }
     }
 
+    // LMS Management Actions (POST to external LMS)
+    if (action === 'unlockLevel') {
+      const { lmsUserId, levelId } = requestBody;
+      return await callLMSAction('unlock_level', { student_user_id: lmsUserId, level_id: levelId });
+    }
+
+    if (action === 'updateLessonStatus') {
+      const { lmsUserId, lessonId, status } = requestBody;
+      return await callLMSAction('update_lesson_status', { student_user_id: lmsUserId, lesson_id: lessonId, status });
+    }
+
+    if (action === 'resetProgress') {
+      const { lmsUserId } = requestBody;
+      return await callLMSAction('reset_progress', { student_user_id: lmsUserId });
+    }
+
+    if (action === 'setModule') {
+      const { lmsUserId, moduleId } = requestBody;
+      return await callLMSAction('set_module', { student_user_id: lmsUserId, module_id: moduleId });
+    }
+
+    if (action === 'setLevel') {
+      const { lmsUserId, levelId } = requestBody;
+      return await callLMSAction('set_level', { student_user_id: lmsUserId, level_id: levelId });
+    }
+
     // Sync all credentials
     if (action === 'syncAll') {
       const { data: credentials, error } = await supabase
         .from('lms_credentials')
-        .select('id, matricula, email');
+        .select('id, matricula, lms_user_id');
 
       if (error) {
         throw error;
@@ -175,22 +202,47 @@ Deno.serve(async (req) => {
 
       console.log(`Syncing ${credentials?.length || 0} credentials`);
 
-      // For now, just update last_sync_at
-      // In production, you would call the LMS API for each credential
+      let syncedCount = 0;
       const now = new Date().toISOString();
       
       for (const cred of credentials || []) {
-        await supabase
-          .from('lms_credentials')
-          .update({ last_sync_at: now })
-          .eq('id', cred.id);
+        const studentUserId = cred.lms_user_id || cred.matricula;
+        try {
+          const lmsResponse = await fetch(`${LMS_API_BASE}?student_user_id=${studentUserId}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          if (lmsResponse.ok) {
+            const progressData: LMSProgressResponse = await lmsResponse.json();
+            
+            if (progressData.success && progressData.data) {
+              await supabase
+                .from('lms_credentials')
+                .update({
+                  current_module: progressData.data.current_module,
+                  current_level: progressData.data.current_level,
+                  current_lesson: progressData.data.current_lesson,
+                  completion_percentage: progressData.data.completion_percentage,
+                  lms_user_id: progressData.data.user_id,
+                  last_sync_at: now,
+                })
+                .eq('id', cred.id);
+              
+              syncedCount++;
+            }
+          }
+        } catch (err) {
+          console.error(`Error syncing credential ${cred.id}:`, err);
+        }
       }
 
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: `Synced ${credentials?.length || 0} credentials`,
-          syncedCount: credentials?.length || 0
+          message: `Synced ${syncedCount} of ${credentials?.length || 0} credentials`,
+          syncedCount,
+          totalCount: credentials?.length || 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -212,3 +264,39 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// Helper function to call LMS management actions
+async function callLMSAction(actionType: string, params: Record<string, string>) {
+  try {
+    console.log(`Calling LMS action: ${actionType}`, params);
+    
+    const response = await fetch(LMS_API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: actionType, ...params }),
+    });
+
+    const result = await response.json();
+    
+    return new Response(
+      JSON.stringify({ 
+        success: response.ok && result.success, 
+        message: result.message || (response.ok ? 'Action completed' : 'Action failed'),
+        data: result.data
+      }),
+      { 
+        status: response.ok ? 200 : 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  } catch (error) {
+    console.error(`Error calling LMS action ${actionType}:`, error);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'LMS API error' 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
