@@ -107,8 +107,11 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
           </div>
         </div>
 
-        {/* Page Break for Annex */}
-        <div className="page-break-before mt-12 pt-8 border-t-2 border-dashed border-gray-400">
+        {/* Page Break for Annex - Forces new page when printing */}
+        <div 
+          className="mt-12 pt-8"
+          style={{ pageBreakBefore: 'always', breakBefore: 'page' }}
+        >
           <h2 className="text-lg font-bold text-center mb-6">ANEXOS DO CONTRATO</h2>
 
           {/* Annex I */}
