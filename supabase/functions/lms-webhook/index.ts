@@ -214,6 +214,27 @@ Deno.serve(async (req) => {
     console.log('Generated email:', studentEmail);
     console.log('Generated password:', generatedPassword);
 
+    // Save credentials to lms_credentials table
+    const { error: credentialsError } = await supabase
+      .from('lms_credentials')
+      .upsert({
+        student_id: studentId,
+        enrollment_id: enrollmentId,
+        email: studentEmail,
+        password: generatedPassword,
+        matricula: matricula,
+        completion_percentage: 0,
+      }, {
+        onConflict: 'student_id,enrollment_id',
+      });
+
+    if (credentialsError) {
+      console.error('Error saving LMS credentials:', credentialsError);
+      // Don't fail the request, just log the error
+    } else {
+      console.log('LMS credentials saved successfully');
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
