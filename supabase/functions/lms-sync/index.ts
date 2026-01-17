@@ -78,22 +78,17 @@ Deno.serve(async (req) => {
         throw new Error('Credential not found');
       }
 
-      // Call the external LMS API to get progress
-      // Note: You'll need to provide the actual endpoint for getting student progress
-      const lmsApiUrl = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1/get-student-progress';
+      // Call the external LMS API to get progress using GET with student_user_id
+      const lmsApiUrl = `https://icbudgpjptemjfymssvr.supabase.co/functions/v1/lms-student-progress?student_user_id=${credential.lms_user_id || credential.matricula}`;
       
       try {
-        console.log('Calling LMS API for matricula:', credential.matricula);
+        console.log('Calling LMS API for student:', credential.lms_user_id || credential.matricula);
         
         const lmsResponse = await fetch(lmsApiUrl, {
-          method: 'POST',
+          method: 'GET',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            matricula: credential.matricula,
-            email: credential.email,
-          }),
         });
 
         if (lmsResponse.ok) {
