@@ -277,6 +277,18 @@ export default function Contracts() {
                 </div>
               )}
 
+              {previewContract.lmsCredentials && (
+                <div className="space-y-2 pt-4 border-t bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg">
+                  <h4 className="font-semibold text-blue-800 dark:text-blue-300">🖥️ ACESSO À PLATAFORMA DE ENSINO (LMS):</h4>
+                  <p><strong>Matrícula:</strong> {previewContract.lmsCredentials.matricula}</p>
+                  <p><strong>E-mail de acesso:</strong> {previewContract.lmsCredentials.email}</p>
+                  <p><strong>Senha inicial:</strong> {previewContract.lmsCredentials.password}</p>
+                  <p className="text-xs text-muted-foreground italic mt-2">
+                    * Recomendamos alterar a senha no primeiro acesso.
+                  </p>
+                </div>
+              )}
+
               <div className="pt-4 flex justify-end">
                 <Button onClick={() => {
                   handleDownloadPDF(contractEnrollments.find(e => 
