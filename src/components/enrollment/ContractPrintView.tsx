@@ -10,6 +10,7 @@ interface ContractContent {
   schoolName: string;
   schoolCnpj: string;
   schoolAddress: string;
+  schoolLogo?: string;
   guardianName: string;
   guardianCpf: string;
   guardianRg?: string;
@@ -58,8 +59,22 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
 
         {/* PÁGINA 1 - CONTRATO */}
         <div className="contract-page" style={{ fontFamily: 'Times New Roman, serif' }}>
-          {/* Cabeçalho */}
+          {/* Cabeçalho com Logo */}
           <div className="text-center mb-4">
+            {content.schoolLogo && (
+              <div style={{ marginBottom: '8px' }}>
+                <img 
+                  src={content.schoolLogo} 
+                  alt="Logo da escola" 
+                  style={{ 
+                    maxHeight: '60px', 
+                    maxWidth: '200px', 
+                    margin: '0 auto',
+                    display: 'block'
+                  }} 
+                />
+              </div>
+            )}
             <h1 style={{ fontSize: '14pt', fontWeight: 'bold', marginBottom: '8px' }}>
               CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS
             </h1>

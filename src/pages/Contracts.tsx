@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FileText, Download, Calendar, User, Settings, Eye, Loader2 } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 export default function Contracts() {
   const { toast } = useToast();
   const { enrollments, contracts, contractClauses, getStudentById, getGuardianById, getClassGroupById, getCourseById, getScheduleById, contractConfig } = useSchool();
+  const { branding } = useSystemBranding();
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewContract, setPreviewContract] = useState<any | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -41,7 +43,12 @@ export default function Contracts() {
     // First check if there's a saved contract in the database
     const savedContract = contracts.find(c => c.enrollment_id === enrollmentId);
     if (savedContract?.contract_content) {
-      return savedContract.contract_content;
+      // Add the school logo to saved contracts that don't have it
+      const content = savedContract.contract_content as any;
+      return {
+        ...content,
+        schoolLogo: content.schoolLogo || branding?.logo || '',
+      };
     }
 
     // Otherwise, generate from enrollment data
@@ -62,6 +69,7 @@ export default function Contracts() {
       schoolName: contractConfig?.school_name || 'EduGestor',
       schoolCnpj: contractConfig?.school_cnpj || '',
       schoolAddress: contractConfig?.school_address || '',
+      schoolLogo: branding?.logo || '',
       guardianName: guardian?.name || '',
       guardianCpf: guardian?.cpf || '',
       guardianAddress: guardian?.address || '',
