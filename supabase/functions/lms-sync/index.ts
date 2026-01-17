@@ -208,17 +208,35 @@ Deno.serve(async (req) => {
         console.log('LMS API response body:', responseText);
 
         if (lmsResponse.ok) {
-          const progressData: LMSProgressResponse = JSON.parse(responseText);
-          
-          if (progressData.success && progressData.data) {
+          const parsed = JSON.parse(responseText) as any;
+
+          // The LMS may return either { success, data } or a raw object
+          const lmsData = parsed?.success ? parsed.data : parsed;
+
+          if (lmsData) {
+            const currentModule = typeof lmsData.current_module === 'string'
+              ? lmsData.current_module
+              : lmsData.current_module?.name || lmsData.current_module?.id || null;
+
+            const currentLevel = typeof lmsData.current_level === 'string'
+              ? lmsData.current_level
+              : lmsData.current_level?.name || lmsData.current_level?.id || null;
+
+            const currentLesson = typeof lmsData.current_lesson === 'string'
+              ? lmsData.current_lesson
+              : lmsData.current_lesson?.title || lmsData.current_lesson?.id || null;
+
+            const completion = Number(lmsData.completion_percentage ?? 0);
+            const userId = String(lmsData.user_id ?? studentUserId);
+
             const { error: updateError } = await supabase
               .from('lms_credentials')
               .update({
-                current_module: progressData.data.current_module,
-                current_level: progressData.data.current_level,
-                current_lesson: progressData.data.current_lesson,
-                completion_percentage: progressData.data.completion_percentage,
-                lms_user_id: progressData.data.user_id,
+                current_module: currentModule,
+                current_level: currentLevel,
+                current_lesson: currentLesson,
+                completion_percentage: completion,
+                lms_user_id: userId,
                 last_sync_at: new Date().toISOString(),
               })
               .eq('id', credentialId);
@@ -231,16 +249,16 @@ Deno.serve(async (req) => {
             console.log('Progress synced successfully');
 
             return new Response(
-              JSON.stringify({ 
-                success: true, 
+              JSON.stringify({
+                success: true,
                 message: 'Progress synced successfully',
-                data: progressData.data 
+                data: lmsData,
               }),
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
-          } else {
-            console.log('LMS API response not successful or no data:', progressData);
           }
+
+          console.log('LMS API response not successful or no data:', parsed);
         }
 
         console.log('LMS API did not return progress data, using cached data');
@@ -321,10 +339,10 @@ Deno.serve(async (req) => {
       
       for (const cred of credentials || []) {
         let studentUserId = cred.lms_user_id;
-        
-        // If no UUID, look it up by email
-        if (!studentUserId && cred.email) {
-          studentUserId = await findStudentUUID(cred.email);
+
+        // If no UUID, look it up by matricula first (then email fallback)
+        if (!studentUserId) {
+          studentUserId = await findStudentUUIDWithFallback(cred.matricula, cred.email);
           if (studentUserId) {
             await supabase
               .from('lms_credentials')
@@ -332,7 +350,7 @@ Deno.serve(async (req) => {
               .eq('id', cred.id);
           }
         }
-        
+
         if (!studentUserId) {
           console.log(`Skipping credential ${cred.id}: no UUID found`);
           continue;
@@ -341,28 +359,45 @@ Deno.serve(async (req) => {
         try {
           const lmsResponse = await fetch(`${LMS_API_BASE}/lms-student-progress?student_user_id=${studentUserId}`, {
             method: 'GET',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
               'X-API-Key': getLmsApiKey(),
             },
           });
 
           if (lmsResponse.ok) {
-            const progressData: LMSProgressResponse = await lmsResponse.json();
-            
-            if (progressData.success && progressData.data) {
+            const responseText = await lmsResponse.text();
+            const parsed = JSON.parse(responseText) as any;
+            const lmsData = parsed?.success ? parsed.data : parsed;
+
+            if (lmsData) {
+              const currentModule = typeof lmsData.current_module === 'string'
+                ? lmsData.current_module
+                : lmsData.current_module?.name || lmsData.current_module?.id || null;
+
+              const currentLevel = typeof lmsData.current_level === 'string'
+                ? lmsData.current_level
+                : lmsData.current_level?.name || lmsData.current_level?.id || null;
+
+              const currentLesson = typeof lmsData.current_lesson === 'string'
+                ? lmsData.current_lesson
+                : lmsData.current_lesson?.title || lmsData.current_lesson?.id || null;
+
+              const completion = Number(lmsData.completion_percentage ?? 0);
+              const userId = String(lmsData.user_id ?? studentUserId);
+
               await supabase
                 .from('lms_credentials')
                 .update({
-                  current_module: progressData.data.current_module,
-                  current_level: progressData.data.current_level,
-                  current_lesson: progressData.data.current_lesson,
-                  completion_percentage: progressData.data.completion_percentage,
-                  lms_user_id: progressData.data.user_id,
+                  current_module: currentModule,
+                  current_level: currentLevel,
+                  current_lesson: currentLesson,
+                  completion_percentage: completion,
+                  lms_user_id: userId,
                   last_sync_at: now,
                 })
                 .eq('id', cred.id);
-              
+
               syncedCount++;
             }
           }
