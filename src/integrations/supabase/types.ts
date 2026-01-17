@@ -417,6 +417,63 @@ export type Database = {
           },
         ]
       }
+      fixed_assets: {
+        Row: {
+          acquisition_date: string
+          acquisition_value: number
+          category: string
+          code: string
+          condition: string
+          created_at: string
+          current_value: number | null
+          depreciation_rate: number | null
+          description: string | null
+          id: string
+          location: string | null
+          name: string
+          notes: string | null
+          status: string
+          updated_at: string
+          useful_life_years: number | null
+        }
+        Insert: {
+          acquisition_date: string
+          acquisition_value: number
+          category: string
+          code: string
+          condition?: string
+          created_at?: string
+          current_value?: number | null
+          depreciation_rate?: number | null
+          description?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          useful_life_years?: number | null
+        }
+        Update: {
+          acquisition_date?: string
+          acquisition_value?: number
+          category?: string
+          code?: string
+          condition?: string
+          created_at?: string
+          current_value?: number | null
+          depreciation_rate?: number | null
+          description?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          notes?: string | null
+          status?: string
+          updated_at?: string
+          useful_life_years?: number | null
+        }
+        Relationships: []
+      }
       guardians: {
         Row: {
           address: string
