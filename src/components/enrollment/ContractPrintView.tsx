@@ -38,6 +38,45 @@ interface ContractPrintViewProps {
 
 export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewProps>(
   ({ content }, ref) => {
+    // Extrair cidade do endereço da escola (último item antes do CEP ou último item)
+    const extractCity = (address: string) => {
+      if (!address) return 'Marabá - PA';
+      // Tenta encontrar padrão "Cidade - UF" ou pega a cidade do endereço
+      const parts = address.split('-').map(p => p.trim());
+      if (parts.length >= 2) {
+        // Pega os dois últimos elementos (cidade e estado)
+        const lastPart = parts[parts.length - 1];
+        const secondLastPart = parts[parts.length - 2];
+        // Se o último parece ser um estado (2 letras), usa cidade - estado
+        if (lastPart.length === 2 || lastPart.match(/^[A-Z]{2}$/i)) {
+          return `${secondLastPart} - ${lastPart.toUpperCase()}`;
+        }
+        return lastPart;
+      }
+      return 'Marabá - PA';
+    };
+
+    // Formatar data do contrato
+    const formatContractDate = (dateStr: string) => {
+      try {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('pt-BR', { 
+          day: '2-digit', 
+          month: 'long', 
+          year: 'numeric' 
+        });
+      } catch {
+        return new Date().toLocaleDateString('pt-BR', { 
+          day: '2-digit', 
+          month: 'long', 
+          year: 'numeric' 
+        });
+      }
+    };
+
+    const city = content.city || extractCity(content.schoolAddress);
+    const formattedDate = formatContractDate(content.createdAt);
+
     return (
       <div ref={ref} className="bg-white text-black">
         {/* Estilos de impressão inline */}
@@ -45,11 +84,10 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
           @media print {
             @page {
               size: A4;
-              margin: 15mm 15mm 15mm 15mm;
+              margin: 12mm 12mm 12mm 12mm;
             }
             .contract-page {
               page-break-after: always;
-              page-break-inside: avoid;
             }
             .annex-page {
               page-break-before: always;
@@ -60,81 +98,81 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
         {/* PÁGINA 1 - CONTRATO */}
         <div className="contract-page" style={{ fontFamily: 'Times New Roman, serif' }}>
           {/* Cabeçalho com Logo */}
-          <div className="text-center mb-4">
+          <div className="text-center" style={{ marginBottom: '6px' }}>
             {content.schoolLogo && (
-              <div style={{ marginBottom: '8px' }}>
+              <div style={{ marginBottom: '4px' }}>
                 <img 
                   src={content.schoolLogo} 
                   alt="Logo da escola" 
                   style={{ 
-                    maxHeight: '60px', 
-                    maxWidth: '200px', 
+                    maxHeight: '50px', 
+                    maxWidth: '180px', 
                     margin: '0 auto',
                     display: 'block'
                   }} 
                 />
               </div>
             )}
-            <h1 style={{ fontSize: '14pt', fontWeight: 'bold', marginBottom: '8px' }}>
+            <h1 style={{ fontSize: '12pt', fontWeight: 'bold', marginBottom: '4px' }}>
               CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS
             </h1>
-            <p style={{ fontSize: '12pt', fontWeight: 'bold' }}>
+            <p style={{ fontSize: '10pt', fontWeight: 'bold' }}>
               {content.schoolName?.toUpperCase() || 'CIRCUITO KIDS'}
             </p>
           </div>
 
           {/* Partes */}
-          <div style={{ fontSize: '11pt', lineHeight: '1.4', textAlign: 'justify', marginBottom: '12px' }}>
-            <p style={{ marginBottom: '8px' }}>Pelo presente instrumento particular, de um lado:</p>
+          <div style={{ fontSize: '9pt', lineHeight: '1.3', textAlign: 'justify', marginBottom: '6px' }}>
+            <p style={{ marginBottom: '4px' }}>Pelo presente instrumento particular, de um lado:</p>
             
-            <p style={{ marginBottom: '8px' }}>
+            <p style={{ marginBottom: '4px' }}>
               <strong>CONTRATADA:</strong> {content.schoolName || 'CIRCUITO KIDS'}, pessoa jurídica de direito privado, 
               inscrita no CNPJ nº {content.schoolCnpj || '____________________'}, 
               com sede à {content.schoolAddress || '__________________________________________________'}.
             </p>
             
-            <p style={{ marginBottom: '8px' }}>
+            <p style={{ marginBottom: '4px' }}>
               <strong>CONTRATANTE:</strong> {content.guardianName || '___________________________________________'}, 
               responsável legal pelo(a) aluno(a) <strong>{content.studentName || '___________________________________________'}</strong>, 
               CPF nº {content.guardianCpf || '____________________'}
               {content.guardianRg && `, RG nº ${content.guardianRg}`}.
             </p>
             
-            <p style={{ marginBottom: '8px' }}>
+            <p style={{ marginBottom: '4px' }}>
               As partes resolvem celebrar o presente contrato nos termos do ECA (Lei nº 8.069/90) e da LGPD 
               (Lei nº 13.709/18), conforme as cláusulas abaixo:
             </p>
           </div>
 
           {/* Cláusulas */}
-          <div style={{ fontSize: '10pt', lineHeight: '1.3' }}>
+          <div style={{ fontSize: '8pt', lineHeight: '1.2' }}>
             {content.clauses.map((clause, index) => (
-              <div key={index} style={{ marginBottom: '6px' }}>
-                <p style={{ fontWeight: 'bold', marginBottom: '2px' }}>
+              <div key={index} style={{ marginBottom: '3px' }}>
+                <p style={{ fontWeight: 'bold', marginBottom: '1px' }}>
                   CLÁUSULA {index + 1}ª – {clause.title.toUpperCase()}
                 </p>
-                <p style={{ textAlign: 'justify' }}>{clause.content}</p>
+                <p style={{ textAlign: 'justify', margin: 0 }}>{clause.content}</p>
               </div>
             ))}
           </div>
 
-          {/* Assinaturas */}
-          <div style={{ fontSize: '11pt', marginTop: '20px' }}>
-            <p style={{ marginBottom: '30px' }}>
-              Local e data: {content.city || '___________________________________________'}
+          {/* Local, Data e Assinaturas */}
+          <div style={{ fontSize: '9pt', marginTop: '12px' }}>
+            <p style={{ marginBottom: '20px' }}>
+              {city}, {formattedDate}.
             </p>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px' }}>
               <div style={{ textAlign: 'center', width: '45%' }}>
-                <div style={{ borderTop: '1px solid black', paddingTop: '4px' }}>
-                  <p style={{ fontWeight: 'bold', fontSize: '10pt' }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
-                  <p style={{ fontSize: '9pt' }}>(CONTRATADA)</p>
+                <div style={{ borderTop: '1px solid black', paddingTop: '3px' }}>
+                  <p style={{ fontWeight: 'bold', fontSize: '9pt', margin: 0 }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
+                  <p style={{ fontSize: '8pt', margin: 0 }}>(CONTRATADA)</p>
                 </div>
               </div>
               <div style={{ textAlign: 'center', width: '45%' }}>
-                <div style={{ borderTop: '1px solid black', paddingTop: '4px' }}>
-                  <p style={{ fontWeight: 'bold', fontSize: '10pt' }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
-                  <p style={{ fontSize: '9pt' }}>(CONTRATANTE)</p>
+                <div style={{ borderTop: '1px solid black', paddingTop: '3px' }}>
+                  <p style={{ fontWeight: 'bold', fontSize: '9pt', margin: 0 }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                  <p style={{ fontSize: '8pt', margin: 0 }}>(CONTRATANTE)</p>
                 </div>
               </div>
             </div>
