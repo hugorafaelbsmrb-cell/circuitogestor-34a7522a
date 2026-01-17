@@ -44,6 +44,39 @@ export type Database = {
         }
         Relationships: []
       }
+      asset_categories: {
+        Row: {
+          created_at: string
+          depreciation_rate: number | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          updated_at: string
+          useful_life_years: number | null
+        }
+        Insert: {
+          created_at?: string
+          depreciation_rate?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          updated_at?: string
+          useful_life_years?: number | null
+        }
+        Update: {
+          created_at?: string
+          depreciation_rate?: number | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          updated_at?: string
+          useful_life_years?: number | null
+        }
+        Relationships: []
+      }
       carnes: {
         Row: {
           asaas_installment_id: string

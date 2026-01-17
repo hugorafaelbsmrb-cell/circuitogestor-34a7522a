@@ -11,10 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Search, FileText, Edit, Trash2, Package, Download } from 'lucide-react';
+import { Plus, Search, FileText, Edit, Trash2, Package, Settings2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { InventoryReportModal } from '@/components/inventory/InventoryReportModal';
+import { CategoryConfigModal } from '@/components/inventory/CategoryConfigModal';
 import { useAuthContext } from '@/contexts/AuthContext';
 
 interface FixedAsset {
@@ -36,16 +37,14 @@ interface FixedAsset {
   updated_at: string;
 }
 
-const categories = [
-  'Móveis e Utensílios',
-  'Equipamentos de Informática',
-  'Equipamentos de Áudio/Vídeo',
-  'Veículos',
-  'Máquinas e Equipamentos',
-  'Instalações',
-  'Edificações',
-  'Outros'
-];
+interface AssetCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  depreciation_rate: number | null;
+  useful_life_years: number | null;
+  is_active: boolean | null;
+}
 
 const conditions = [
   { value: 'excellent', label: 'Excelente' },
@@ -68,6 +67,7 @@ export default function Inventory() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isCategoryConfigOpen, setIsCategoryConfigOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState<FixedAsset | null>(null);
   const queryClient = useQueryClient();
   const { profile } = useAuthContext();
@@ -87,6 +87,20 @@ export default function Inventory() {
     depreciation_rate: '',
     useful_life_years: '',
     notes: ''
+  });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['asset_categories'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('asset_categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('name');
+      
+      if (error) throw error;
+      return data as AssetCategory[];
+    }
   });
 
   const { data: assets = [], isLoading } = useQuery({
@@ -269,6 +283,10 @@ export default function Inventory() {
           <p className="text-muted-foreground">Gestão de ativos imobilizados</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setIsCategoryConfigOpen(true)}>
+            <Settings2 className="w-4 h-4 mr-2" />
+            Categorias
+          </Button>
           <Button variant="outline" onClick={() => setIsReportOpen(true)}>
             <FileText className="w-4 h-4 mr-2" />
             Gerar Relatório
@@ -333,7 +351,7 @@ export default function Inventory() {
                       </SelectTrigger>
                       <SelectContent>
                         {categories.map((cat) => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                          <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -531,7 +549,7 @@ export default function Inventory() {
               <SelectContent>
                 <SelectItem value="all">Todas Categorias</SelectItem>
                 {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -638,6 +656,11 @@ export default function Inventory() {
         open={isReportOpen}
         onOpenChange={setIsReportOpen}
         assets={filteredAssets}
+      />
+
+      <CategoryConfigModal
+        open={isCategoryConfigOpen}
+        onOpenChange={setIsCategoryConfigOpen}
       />
     </div>
   );
