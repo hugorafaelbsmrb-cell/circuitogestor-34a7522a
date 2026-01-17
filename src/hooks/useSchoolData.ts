@@ -345,8 +345,27 @@ export function useSchoolData() {
       (p.enrollment_id && enrollmentIds.includes(p.enrollment_id)) ||
       (p.contract_id && contracts.some(c => c.student_id === id && c.id === p.contract_id))
     );
+
+    // Delete student from LMS first
+    try {
+      console.log('Excluindo aluno do LMS:', id);
+      const lmsResponse = await supabase.functions.invoke('lms-sync', {
+        body: {
+          action: 'deleteStudent',
+          studentId: id
+        }
+      });
+      
+      if (lmsResponse.error) {
+        console.warn('Erro ao excluir aluno do LMS:', lmsResponse.error);
+      } else {
+        console.log('Aluno excluído do LMS:', lmsResponse.data);
+      }
+    } catch (err) {
+      console.warn('Erro ao excluir aluno do LMS:', err);
+    }
     
-    // Cancel carnês in Asaas API first
+    // Cancel carnês in Asaas API
     for (const carne of studentCarnes) {
       if (carne.asaas_installment_id && carne.status !== 'DELETED') {
         try {

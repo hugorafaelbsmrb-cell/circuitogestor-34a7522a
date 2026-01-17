@@ -239,6 +239,7 @@ export default function Guardians() {
                 <li>Contratos associados</li>
                 <li>Carnês e boletos (cancelados na API de pagamentos)</li>
                 <li>Pagamentos registrados</li>
+                <li>Credenciais e acesso ao LMS</li>
               </ul>
               <br />
               <span className="text-destructive font-medium">Esta ação não pode ser desfeita. Você poderá refazer a matrícula e gerar novos boletos.</span>
