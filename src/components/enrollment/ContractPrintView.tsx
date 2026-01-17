@@ -2,6 +2,12 @@ import { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+interface LMSCredentials {
+  email: string;
+  password: string;
+  matricula: string;
+}
+
 interface ContractContent {
   schoolName: string;
   schoolCnpj: string;
@@ -24,6 +30,7 @@ interface ContractContent {
   clauses: { title: string; content: string }[];
   createdAt: string;
   city?: string;
+  lmsCredentials?: LMSCredentials | null;
 }
 
 interface ContractPrintViewProps {
@@ -169,6 +176,26 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
                 <li>Número de Parcelas: {content.installments}x</li>
                 <li>Valor Total: R$ {content.totalValue?.toFixed(2).replace('.', ',') || '-'}</li>
               </ul>
+            </div>
+          )}
+
+          {/* LMS Credentials Section */}
+          {content.lmsCredentials && (
+            <div className="mb-6 p-4 border-2 border-blue-500 rounded bg-blue-50">
+              <h3 className="font-bold mb-2 text-blue-800">🖥️ ACESSO À PLATAFORMA DE ENSINO (LMS)</h3>
+              <p className="text-sm mb-3 text-gray-700">
+                O aluno terá acesso à plataforma online de ensino com os seguintes dados:
+              </p>
+              <div className="bg-white p-3 rounded border border-blue-200">
+                <ul className="text-sm space-y-2">
+                  <li><strong>Matrícula:</strong> {content.lmsCredentials.matricula}</li>
+                  <li><strong>E-mail de acesso:</strong> {content.lmsCredentials.email}</li>
+                  <li><strong>Senha inicial:</strong> {content.lmsCredentials.password}</li>
+                </ul>
+              </div>
+              <p className="text-xs mt-3 text-gray-600 italic">
+                * Recomendamos alterar a senha no primeiro acesso. Guarde estas informações em local seguro.
+              </p>
             </div>
           )}
 
