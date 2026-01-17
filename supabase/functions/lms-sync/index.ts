@@ -22,9 +22,50 @@ interface LMSProgressResponse {
   error?: string;
 }
 
-const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1/lms-student-progress';
+interface LMSStudentListResponse {
+  success: boolean;
+  data?: Array<{
+    student_user_id: string;
+    email: string;
+    name: string;
+  }>;
+  error?: string;
+}
 
+const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1';
 const getLmsApiKey = () => Deno.env.get('LMS_API_KEY') || '';
+
+// Helper function to find student UUID from LMS by email
+async function findStudentUUID(email: string): Promise<string | null> {
+  try {
+    console.log('Searching for student UUID by email:', email);
+    
+    const response = await fetch(`${LMS_API_BASE}/list-students?search=${encodeURIComponent(email)}&limit=1`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': getLmsApiKey(),
+      },
+    });
+
+    console.log('List-students response status:', response.status);
+    const responseText = await response.text();
+    console.log('List-students response body:', responseText);
+
+    if (response.ok) {
+      const result: LMSStudentListResponse = JSON.parse(responseText);
+      if (result.success && result.data && result.data.length > 0) {
+        console.log('Found student UUID:', result.data[0].student_user_id);
+        return result.data[0].student_user_id;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error finding student UUID:', error);
+    return null;
+  }
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -86,13 +127,45 @@ Deno.serve(async (req) => {
         throw new Error('Credential not found');
       }
 
-      const studentUserId = credential.lms_user_id || credential.matricula;
-      const lmsApiUrl = `${LMS_API_BASE}?student_user_id=${studentUserId}`;
+      // Get the student UUID - first check if we have it, otherwise look it up by email
+      let studentUserId = credential.lms_user_id;
+      
+      if (!studentUserId) {
+        console.log('No lms_user_id found, looking up by email:', credential.email);
+        studentUserId = await findStudentUUID(credential.email);
+        
+        if (studentUserId) {
+          // Save the UUID for future use
+          await supabase
+            .from('lms_credentials')
+            .update({ lms_user_id: studentUserId })
+            .eq('id', credentialId);
+          console.log('Saved lms_user_id:', studentUserId);
+        }
+      }
+
+      if (!studentUserId) {
+        console.log('Could not find student UUID in LMS');
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: 'Student not found in LMS. Please verify the email is correct.',
+            data: {
+              current_module: credential.current_module,
+              current_level: credential.current_level,
+              current_lesson: credential.current_lesson,
+              completion_percentage: credential.completion_percentage,
+            }
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const lmsApiUrl = `${LMS_API_BASE}/lms-student-progress?student_user_id=${studentUserId}`;
       
       try {
-        console.log('Calling LMS API for student:', studentUserId);
+        console.log('Calling LMS API for student UUID:', studentUserId);
         console.log('LMS API URL:', lmsApiUrl);
-        console.log('Using API Key:', getLmsApiKey() ? 'Key configured' : 'NO KEY');
         
         const lmsResponse = await fetch(lmsApiUrl, {
           method: 'GET',
@@ -207,7 +280,7 @@ Deno.serve(async (req) => {
     if (action === 'syncAll') {
       const { data: credentials, error } = await supabase
         .from('lms_credentials')
-        .select('id, matricula, lms_user_id');
+        .select('id, email, matricula, lms_user_id');
 
       if (error) {
         throw error;
@@ -219,9 +292,26 @@ Deno.serve(async (req) => {
       const now = new Date().toISOString();
       
       for (const cred of credentials || []) {
-        const studentUserId = cred.lms_user_id || cred.matricula;
+        let studentUserId = cred.lms_user_id;
+        
+        // If no UUID, look it up by email
+        if (!studentUserId && cred.email) {
+          studentUserId = await findStudentUUID(cred.email);
+          if (studentUserId) {
+            await supabase
+              .from('lms_credentials')
+              .update({ lms_user_id: studentUserId })
+              .eq('id', cred.id);
+          }
+        }
+        
+        if (!studentUserId) {
+          console.log(`Skipping credential ${cred.id}: no UUID found`);
+          continue;
+        }
+
         try {
-          const lmsResponse = await fetch(`${LMS_API_BASE}?student_user_id=${studentUserId}`, {
+          const lmsResponse = await fetch(`${LMS_API_BASE}/lms-student-progress?student_user_id=${studentUserId}`, {
             method: 'GET',
             headers: { 
               'Content-Type': 'application/json',
@@ -286,7 +376,7 @@ async function callLMSAction(actionType: string, params: Record<string, string>)
   try {
     console.log(`Calling LMS action: ${actionType}`, params);
     
-    const response = await fetch(LMS_API_BASE, {
+    const response = await fetch(`${LMS_API_BASE}/lms-student-progress`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
