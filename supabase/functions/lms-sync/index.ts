@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
         .select(`
           *,
           student:students(id, name, birth_date, is_active),
-          enrollment:enrollments(id, status, class_group_id)
+          enrollment:enrollments(id, status, class_group_id, enrollment_date)
         `)
         .order('created_at', { ascending: false });
 

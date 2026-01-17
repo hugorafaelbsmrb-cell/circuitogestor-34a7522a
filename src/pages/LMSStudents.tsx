@@ -18,7 +18,10 @@ import {
   RotateCcw,
   Settings,
   Coins,
-  Zap
+  Zap,
+  TrendingUp,
+  TrendingDown,
+  Minus
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -98,6 +101,7 @@ interface LMSCredential {
     id: string;
     status: string;
     class_group_id: string;
+    enrollment_date: string;
   } | null;
 }
 
@@ -289,6 +293,33 @@ export default function LMSStudents() {
     cred.matricula.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Calculate expected lesson based on enrollment date (2 lessons per week)
+  const calculateExpectedLesson = (enrollmentDate: string | undefined): number => {
+    if (!enrollmentDate) return 0;
+    const startDate = new Date(enrollmentDate);
+    const today = new Date();
+    const diffTime = today.getTime() - startDate.getTime();
+    const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+    return Math.max(1, diffWeeks * 2); // 2 lessons per week, minimum 1
+  };
+
+  // Get the current lesson number from the lesson string (e.g., "Aula 5" -> 5)
+  const extractLessonNumber = (lessonString: string | null): number => {
+    if (!lessonString) return 0;
+    // Try to find a number in the string
+    const match = lessonString.match(/(\d+)/);
+    return match ? parseInt(match[1], 10) : 0;
+  };
+
+  // Calculate progress status
+  const getProgressStatus = (currentLesson: number, expectedLesson: number) => {
+    if (currentLesson === 0 || expectedLesson === 0) return 'unknown';
+    const diff = currentLesson - expectedLesson;
+    if (diff >= 0) return 'ahead';
+    if (diff >= -2) return 'ontrack';
+    return 'behind';
+  };
+
   // Calculate stats
   const totalStudents = credentials.length;
   const activeStudents = credentials.filter(c => c.student?.is_active).length;
@@ -400,6 +431,7 @@ export default function LMSStudents() {
                 <TableHead>Credenciais</TableHead>
                 <TableHead>Progresso</TableHead>
                 <TableHead>Módulo Atual</TableHead>
+                <TableHead>Projeção</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -483,6 +515,55 @@ export default function LMSStudents() {
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      const expectedLesson = calculateExpectedLesson(cred.enrollment?.enrollment_date);
+                      const currentLesson = extractLessonNumber(cred.current_lesson);
+                      const status = getProgressStatus(currentLesson, expectedLesson);
+                      const diff = currentLesson - expectedLesson;
+                      
+                      return (
+                        <div className="text-sm">
+                          <div className="flex items-center gap-2 mb-1">
+                            {status === 'ahead' && (
+                              <Badge className="bg-success/10 text-success border-success/20">
+                                <TrendingUp className="w-3 h-3 mr-1" />
+                                Adiantado
+                              </Badge>
+                            )}
+                            {status === 'ontrack' && (
+                              <Badge className="bg-primary/10 text-primary border-primary/20">
+                                <Minus className="w-3 h-3 mr-1" />
+                                No prazo
+                              </Badge>
+                            )}
+                            {status === 'behind' && (
+                              <Badge className="bg-destructive/10 text-destructive border-destructive/20">
+                                <TrendingDown className="w-3 h-3 mr-1" />
+                                Atrasado
+                              </Badge>
+                            )}
+                            {status === 'unknown' && (
+                              <Badge variant="outline">
+                                <AlertCircle className="w-3 h-3 mr-1" />
+                                N/A
+                              </Badge>
+                            )}
+                          </div>
+                          {expectedLesson > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              Esperado: Aula {expectedLesson} | Atual: {currentLesson || '-'}
+                              {diff !== 0 && currentLesson > 0 && (
+                                <span className={diff > 0 ? 'text-success ml-1' : 'text-destructive ml-1'}>
+                                  ({diff > 0 ? '+' : ''}{diff})
+                                </span>
+                              )}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     {cred.student?.is_active ? (
