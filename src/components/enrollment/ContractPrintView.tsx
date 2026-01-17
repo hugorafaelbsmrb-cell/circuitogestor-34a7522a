@@ -42,66 +42,66 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
     return (
       <div 
         ref={ref} 
-        className="bg-white text-black p-8 max-w-4xl mx-auto print:p-4"
-        style={{ fontFamily: 'Times New Roman, serif' }}
+        className="bg-white text-black p-6 max-w-4xl mx-auto print:p-4"
+        style={{ fontFamily: 'Times New Roman, serif', fontSize: '10px' }}
       >
         {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-xl font-bold mb-2">
+        <div className="text-center mb-3">
+          <h1 className="text-base font-bold mb-1">
             CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS – {content.schoolName?.toUpperCase() || 'CIRCUITO KIDS'}
           </h1>
         </div>
 
         {/* Parties */}
-        <div className="mb-6 text-justify leading-relaxed text-sm">
-          <p className="mb-4">Pelo presente instrumento particular, de um lado:</p>
+        <div className="mb-3 text-justify leading-tight" style={{ fontSize: '9px' }}>
+          <p className="mb-2">Pelo presente instrumento particular, de um lado:</p>
           
-          <p className="mb-4">
+          <p className="mb-2">
             <strong>CONTRATADA:</strong> {content.schoolName || 'CIRCUITO KIDS'}, pessoa jurídica de direito privado, 
             inscrita no CNPJ nº {content.schoolCnpj || '____________________'}, 
             com sede à {content.schoolAddress || '__________________________________________________'}.
           </p>
           
-          <p className="mb-4">
+          <p className="mb-2">
             <strong>CONTRATANTE:</strong> {content.guardianName || '___________________________________________'}, 
             responsável legal pelo(a) aluno(a) {content.studentName || '___________________________________________'}, 
             CPF nº {content.guardianCpf || '____________________'}
             {content.guardianRg && `, RG nº ${content.guardianRg}`}.
           </p>
           
-          <p className="mb-4">
+          <p className="mb-2">
             As partes resolvem celebrar o presente contrato nos termos do ECA (Lei nº 8.069/90) e da LGPD 
             (Lei nº 13.709/18), conforme as cláusulas abaixo:
           </p>
         </div>
 
-        {/* Clauses */}
-        <div className="mb-6 text-sm">
+        {/* Clauses - Compact */}
+        <div className="mb-3" style={{ fontSize: '8px' }}>
           {content.clauses.map((clause, index) => (
-            <div key={index} className="mb-4">
-              <p className="font-bold">CLÁUSULA {index + 1}ª – {clause.title.toUpperCase()}</p>
-              <p className="text-justify leading-relaxed">{clause.content}</p>
+            <div key={index} className="mb-1">
+              <p className="font-bold" style={{ fontSize: '8px' }}>CLÁUSULA {index + 1}ª – {clause.title.toUpperCase()}</p>
+              <p className="text-justify leading-tight">{clause.content}</p>
             </div>
           ))}
         </div>
 
-        {/* Signature Section */}
-        <div className="mt-8 text-sm">
-          <p className="mb-8">
+        {/* Signature Section - Compact */}
+        <div className="mt-4" style={{ fontSize: '9px' }}>
+          <p className="mb-4">
             Local e data: {content.city || '___________________________________________'}
           </p>
 
-          <div className="flex justify-between mt-16">
+          <div className="flex justify-between mt-8">
             <div className="text-center w-2/5">
-              <div className="border-t border-black pt-2">
-                <p className="font-bold">{content.schoolName || 'CIRCUITO KIDS'}</p>
-                <p className="text-xs">(CONTRATADA)</p>
+              <div className="border-t border-black pt-1">
+                <p className="font-bold" style={{ fontSize: '9px' }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
+                <p style={{ fontSize: '7px' }}>(CONTRATADA)</p>
               </div>
             </div>
             <div className="text-center w-2/5">
-              <div className="border-t border-black pt-2">
-                <p className="font-bold">{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
-                <p className="text-xs">(CONTRATANTE)</p>
+              <div className="border-t border-black pt-1">
+                <p className="font-bold" style={{ fontSize: '9px' }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                <p style={{ fontSize: '7px' }}>(CONTRATANTE)</p>
               </div>
             </div>
           </div>
