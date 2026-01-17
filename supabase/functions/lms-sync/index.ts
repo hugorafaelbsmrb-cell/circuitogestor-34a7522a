@@ -91,6 +91,8 @@ Deno.serve(async (req) => {
       
       try {
         console.log('Calling LMS API for student:', studentUserId);
+        console.log('LMS API URL:', lmsApiUrl);
+        console.log('Using API Key:', getLmsApiKey() ? 'Key configured' : 'NO KEY');
         
         const lmsResponse = await fetch(lmsApiUrl, {
           method: 'GET',
@@ -100,8 +102,12 @@ Deno.serve(async (req) => {
           },
         });
 
+        console.log('LMS API response status:', lmsResponse.status);
+        const responseText = await lmsResponse.text();
+        console.log('LMS API response body:', responseText);
+
         if (lmsResponse.ok) {
-          const progressData: LMSProgressResponse = await lmsResponse.json();
+          const progressData: LMSProgressResponse = JSON.parse(responseText);
           
           if (progressData.success && progressData.data) {
             const { error: updateError } = await supabase
@@ -131,6 +137,8 @@ Deno.serve(async (req) => {
               }),
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
+          } else {
+            console.log('LMS API response not successful or no data:', progressData);
           }
         }
 
