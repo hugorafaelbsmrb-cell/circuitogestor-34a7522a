@@ -35,12 +35,12 @@ interface LMSStudentListResponse {
 const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1';
 const getLmsApiKey = () => Deno.env.get('LMS_API_KEY') || '';
 
-// Helper function to find student UUID from LMS by email
-async function findStudentUUID(email: string): Promise<string | null> {
+// Helper function to find student UUID from LMS by search term
+async function findStudentUUID(searchTerm: string): Promise<string | null> {
   try {
-    console.log('Searching for student UUID by email:', email);
+    console.log('Searching for student UUID by:', searchTerm);
     
-    const response = await fetch(`${LMS_API_BASE}/list-students?search=${encodeURIComponent(email)}&limit=1`, {
+    const response = await fetch(`${LMS_API_BASE}/list-students?search=${encodeURIComponent(searchTerm)}&limit=10`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -65,6 +65,30 @@ async function findStudentUUID(email: string): Promise<string | null> {
     console.error('Error finding student UUID:', error);
     return null;
   }
+}
+
+// Try multiple search strategies to find student UUID
+async function findStudentUUIDWithFallback(email: string, studentName?: string): Promise<string | null> {
+  // First try by email
+  let uuid = await findStudentUUID(email);
+  if (uuid) return uuid;
+  
+  // Try by student name if available
+  if (studentName) {
+    console.log('Email search failed, trying by name:', studentName);
+    uuid = await findStudentUUID(studentName);
+    if (uuid) return uuid;
+    
+    // Try first name only
+    const firstName = studentName.split(' ')[0];
+    if (firstName && firstName.length > 2) {
+      console.log('Full name search failed, trying first name:', firstName);
+      uuid = await findStudentUUID(firstName);
+      if (uuid) return uuid;
+    }
+  }
+  
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -118,7 +142,10 @@ Deno.serve(async (req) => {
     if (action === 'syncProgress') {
       const { data: credential, error: credError } = await supabase
         .from('lms_credentials')
-        .select('*')
+        .select(`
+          *,
+          student:students(id, name)
+        `)
         .eq('id', credentialId)
         .single();
 
@@ -127,12 +154,13 @@ Deno.serve(async (req) => {
         throw new Error('Credential not found');
       }
 
-      // Get the student UUID - first check if we have it, otherwise look it up by email
+      // Get the student UUID - first check if we have it, otherwise look it up
       let studentUserId = credential.lms_user_id;
       
       if (!studentUserId) {
-        console.log('No lms_user_id found, looking up by email:', credential.email);
-        studentUserId = await findStudentUUID(credential.email);
+        const studentName = credential.student?.name;
+        console.log('No lms_user_id found, looking up by email and name:', credential.email, studentName);
+        studentUserId = await findStudentUUIDWithFallback(credential.email, studentName);
         
         if (studentUserId) {
           // Save the UUID for future use
