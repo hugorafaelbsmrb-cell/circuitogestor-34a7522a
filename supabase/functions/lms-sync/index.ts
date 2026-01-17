@@ -24,6 +24,8 @@ interface LMSProgressResponse {
 
 const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1/lms-student-progress';
 
+const getLmsApiKey = () => Deno.env.get('LMS_API_KEY') || '';
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -92,7 +94,10 @@ Deno.serve(async (req) => {
         
         const lmsResponse = await fetch(lmsApiUrl, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-API-Key': getLmsApiKey(),
+          },
         });
 
         if (lmsResponse.ok) {
@@ -210,7 +215,10 @@ Deno.serve(async (req) => {
         try {
           const lmsResponse = await fetch(`${LMS_API_BASE}?student_user_id=${studentUserId}`, {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'X-API-Key': getLmsApiKey(),
+            },
           });
 
           if (lmsResponse.ok) {
@@ -272,7 +280,10 @@ async function callLMSAction(actionType: string, params: Record<string, string>)
     
     const response = await fetch(LMS_API_BASE, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-API-Key': getLmsApiKey(),
+      },
       body: JSON.stringify({ action: actionType, ...params }),
     });
 
