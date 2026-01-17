@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
 import { EnrollmentSummary } from '@/components/enrollment/EnrollmentSummary';
 import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
+import { supabase } from '@/integrations/supabase/client';
 
 type Step = 'student' | 'guardian' | 'course' | 'schedule' | 'payment' | 'contract' | 'summary';
 
@@ -795,6 +796,30 @@ export default function Enrollment() {
 
       // 8. Update enrollment with contract flag
       await updateEnrollment(enrollment.id, { contract_generated: true });
+
+      // 9. Call LMS webhook for eligible courses (Robótica, Programação, etc.)
+      try {
+        const lmsResponse = await supabase.functions.invoke('lms-webhook', {
+          body: {
+            enrollmentId: enrollment.id,
+            studentId: student.id,
+            guardianId: guardian.id,
+            courseId: selectedCourse.id,
+            classGroupId: classGroup.id,
+          },
+        });
+
+        if (lmsResponse.data?.lmsIntegration) {
+          console.log('LMS integration successful:', lmsResponse.data);
+          toast({
+            title: "Acesso LMS criado!",
+            description: `Credenciais: ${lmsResponse.data.credentials?.email} / ${lmsResponse.data.credentials?.password}`,
+          });
+        }
+      } catch (lmsError) {
+        console.error('LMS webhook error (non-blocking):', lmsError);
+        // Non-blocking: don't fail the enrollment if LMS integration fails
+      }
 
       setEnrollmentResult({
         contract: {

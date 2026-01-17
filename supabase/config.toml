@@ -1,1 +1,4 @@
 project_id = "akxpcfqcasuabxbwyrew"
+
+[functions.lms-webhook]
+verify_jwt = false
