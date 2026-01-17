@@ -573,7 +573,33 @@ export default function Enrollment() {
 
       const scheduleDescription = getScheduleDescription();
 
-      // 5. Generate Contract
+      // 5. Call LMS webhook for eligible courses BEFORE generating contract
+      let lmsCredentials: { email: string; password: string; matricula: string } | null = null;
+      try {
+        const lmsResponse = await supabase.functions.invoke('lms-webhook', {
+          body: {
+            enrollmentId: enrollment.id,
+            studentId: student.id,
+            guardianId: guardian.id,
+            courseId: selectedCourse.id,
+            classGroupId: classGroup.id,
+          },
+        });
+
+        if (lmsResponse.data?.lmsIntegration && lmsResponse.data?.credentials) {
+          lmsCredentials = lmsResponse.data.credentials;
+          console.log('LMS integration successful:', lmsCredentials);
+          toast({
+            title: "Acesso LMS criado!",
+            description: `Credenciais: ${lmsCredentials.email} / ${lmsCredentials.password}`,
+          });
+        }
+      } catch (lmsError) {
+        console.error('LMS webhook error (non-blocking):', lmsError);
+        // Non-blocking: don't fail the enrollment if LMS integration fails
+      }
+
+      // 6. Generate Contract (with LMS credentials if available)
       const gradeLevelInfo = GRADE_LEVELS.find(g => g.id === selectedGradeLevel);
       const contractContent = {
         schoolName: contractConfig?.school_name || 'EduGestor',
@@ -609,6 +635,7 @@ export default function Enrollment() {
           content: c.content,
         })),
         createdAt: new Date().toISOString(),
+        lmsCredentials: lmsCredentials,
       };
 
       const contract = await createContract({
@@ -796,30 +823,6 @@ export default function Enrollment() {
 
       // 8. Update enrollment with contract flag
       await updateEnrollment(enrollment.id, { contract_generated: true });
-
-      // 9. Call LMS webhook for eligible courses (Robótica, Programação, etc.)
-      try {
-        const lmsResponse = await supabase.functions.invoke('lms-webhook', {
-          body: {
-            enrollmentId: enrollment.id,
-            studentId: student.id,
-            guardianId: guardian.id,
-            courseId: selectedCourse.id,
-            classGroupId: classGroup.id,
-          },
-        });
-
-        if (lmsResponse.data?.lmsIntegration) {
-          console.log('LMS integration successful:', lmsResponse.data);
-          toast({
-            title: "Acesso LMS criado!",
-            description: `Credenciais: ${lmsResponse.data.credentials?.email} / ${lmsResponse.data.credentials?.password}`,
-          });
-        }
-      } catch (lmsError) {
-        console.error('LMS webhook error (non-blocking):', lmsError);
-        // Non-blocking: don't fail the enrollment if LMS integration fails
-      }
 
       setEnrollmentResult({
         contract: {
