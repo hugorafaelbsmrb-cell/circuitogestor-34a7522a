@@ -42,6 +42,31 @@ function generatePassword(name: string, birthDate: string): string {
   return `${firstThree}${year}`;
 }
 
+function generateStudentEmail(fullName: string): string {
+  // Normalize and remove accents
+  const normalized = fullName
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  
+  const nameParts = normalized.split(' ').filter(part => part.length > 0);
+  
+  if (nameParts.length === 0) {
+    return `aluno@circuitokids.com.br`;
+  }
+  
+  const firstName = nameParts[0];
+  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+  
+  // Generate email: firstname.lastname@circuitokids.com.br
+  const email = lastName 
+    ? `${firstName}.${lastName}@circuitokids.com.br`
+    : `${firstName}@circuitokids.com.br`;
+  
+  return email;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -133,10 +158,13 @@ Deno.serve(async (req) => {
     // Generate matricula number using enrollment ID (last 7 chars)
     const matricula = `${new Date().getFullYear()}${enrollmentId.slice(-7).toUpperCase()}`;
 
+    // Generate student email automatically
+    const studentEmail = generateStudentEmail(student.name);
+
     // Build LMS payload
     const lmsPayload: LMSStudentPayload = {
       nome: student.name,
-      email: guardian.email,
+      email: studentEmail,
       data_nascimento: student.birth_date,
       curso: course.name,
       turma: classGroup.name,
@@ -183,6 +211,7 @@ Deno.serve(async (req) => {
     const generatedPassword = generatePassword(student.name, student.birth_date);
 
     console.log('LMS integration successful!');
+    console.log('Generated email:', studentEmail);
     console.log('Generated password:', generatedPassword);
 
     return new Response(
@@ -192,7 +221,7 @@ Deno.serve(async (req) => {
         lmsIntegration: true,
         lmsResponse: lmsResult,
         credentials: {
-          email: guardian.email,
+          email: studentEmail,
           password: generatedPassword,
           matricula: matricula,
         }
