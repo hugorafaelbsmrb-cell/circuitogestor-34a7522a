@@ -132,8 +132,42 @@ Deno.serve(async (req) => {
 
       console.log(`Found ${credentials?.length || 0} credentials`);
 
+      // For each credential, fetch ALL enrollments for the student to get all class days
+      const enrichedCredentials = await Promise.all(
+        (credentials || []).map(async (cred) => {
+          // Get all enrollments for this student
+          const { data: allEnrollments } = await supabase
+            .from('enrollments')
+            .select(`
+              id,
+              enrollment_date,
+              class_group:class_groups(
+                schedule:schedules(day_of_week)
+              )
+            `)
+            .eq('student_id', cred.student_id);
+
+          // Extract all days of week from all enrollments
+          const classDays = (allEnrollments || [])
+            .map((e: any) => e.class_group?.schedule?.day_of_week)
+            .filter((day: string | undefined) => day);
+
+          // Get the earliest enrollment date
+          const enrollmentDates = (allEnrollments || [])
+            .map((e: any) => e.enrollment_date)
+            .filter((date: string | undefined) => date)
+            .sort();
+
+          return {
+            ...cred,
+            all_class_days: classDays,
+            earliest_enrollment_date: enrollmentDates[0] || cred.enrollment?.enrollment_date
+          };
+        })
+      );
+
       return new Response(
-        JSON.stringify({ success: true, data: credentials }),
+        JSON.stringify({ success: true, data: enrichedCredentials }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
