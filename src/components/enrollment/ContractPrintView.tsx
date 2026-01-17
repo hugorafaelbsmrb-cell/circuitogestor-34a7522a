@@ -1,6 +1,4 @@
 import { forwardRef } from 'react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 interface LMSCredentials {
   email: string;
@@ -40,125 +38,151 @@ interface ContractPrintViewProps {
 export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewProps>(
   ({ content }, ref) => {
     return (
-      <div 
-        ref={ref} 
-        className="bg-white text-black p-6 max-w-4xl mx-auto print:p-4"
-        style={{ fontFamily: 'Times New Roman, serif', fontSize: '10px' }}
-      >
-        {/* Header */}
-        <div className="text-center mb-3">
-          <h1 className="text-base font-bold mb-1">
-            CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS – {content.schoolName?.toUpperCase() || 'CIRCUITO KIDS'}
-          </h1>
-        </div>
+      <div ref={ref} className="bg-white text-black">
+        {/* Estilos de impressão inline */}
+        <style>{`
+          @media print {
+            @page {
+              size: A4;
+              margin: 15mm 15mm 15mm 15mm;
+            }
+            .contract-page {
+              page-break-after: always;
+              page-break-inside: avoid;
+            }
+            .annex-page {
+              page-break-before: always;
+            }
+          }
+        `}</style>
 
-        {/* Parties */}
-        <div className="mb-3 text-justify leading-tight" style={{ fontSize: '9px' }}>
-          <p className="mb-2">Pelo presente instrumento particular, de um lado:</p>
-          
-          <p className="mb-2">
-            <strong>CONTRATADA:</strong> {content.schoolName || 'CIRCUITO KIDS'}, pessoa jurídica de direito privado, 
-            inscrita no CNPJ nº {content.schoolCnpj || '____________________'}, 
-            com sede à {content.schoolAddress || '__________________________________________________'}.
-          </p>
-          
-          <p className="mb-2">
-            <strong>CONTRATANTE:</strong> {content.guardianName || '___________________________________________'}, 
-            responsável legal pelo(a) aluno(a) {content.studentName || '___________________________________________'}, 
-            CPF nº {content.guardianCpf || '____________________'}
-            {content.guardianRg && `, RG nº ${content.guardianRg}`}.
-          </p>
-          
-          <p className="mb-2">
-            As partes resolvem celebrar o presente contrato nos termos do ECA (Lei nº 8.069/90) e da LGPD 
-            (Lei nº 13.709/18), conforme as cláusulas abaixo:
-          </p>
-        </div>
+        {/* PÁGINA 1 - CONTRATO */}
+        <div className="contract-page" style={{ fontFamily: 'Times New Roman, serif' }}>
+          {/* Cabeçalho */}
+          <div className="text-center mb-4">
+            <h1 style={{ fontSize: '14pt', fontWeight: 'bold', marginBottom: '8px' }}>
+              CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS
+            </h1>
+            <p style={{ fontSize: '12pt', fontWeight: 'bold' }}>
+              {content.schoolName?.toUpperCase() || 'CIRCUITO KIDS'}
+            </p>
+          </div>
 
-        {/* Clauses - Compact */}
-        <div className="mb-3" style={{ fontSize: '8px' }}>
-          {content.clauses.map((clause, index) => (
-            <div key={index} className="mb-1">
-              <p className="font-bold" style={{ fontSize: '8px' }}>CLÁUSULA {index + 1}ª – {clause.title.toUpperCase()}</p>
-              <p className="text-justify leading-tight">{clause.content}</p>
-            </div>
-          ))}
-        </div>
+          {/* Partes */}
+          <div style={{ fontSize: '11pt', lineHeight: '1.4', textAlign: 'justify', marginBottom: '12px' }}>
+            <p style={{ marginBottom: '8px' }}>Pelo presente instrumento particular, de um lado:</p>
+            
+            <p style={{ marginBottom: '8px' }}>
+              <strong>CONTRATADA:</strong> {content.schoolName || 'CIRCUITO KIDS'}, pessoa jurídica de direito privado, 
+              inscrita no CNPJ nº {content.schoolCnpj || '____________________'}, 
+              com sede à {content.schoolAddress || '__________________________________________________'}.
+            </p>
+            
+            <p style={{ marginBottom: '8px' }}>
+              <strong>CONTRATANTE:</strong> {content.guardianName || '___________________________________________'}, 
+              responsável legal pelo(a) aluno(a) <strong>{content.studentName || '___________________________________________'}</strong>, 
+              CPF nº {content.guardianCpf || '____________________'}
+              {content.guardianRg && `, RG nº ${content.guardianRg}`}.
+            </p>
+            
+            <p style={{ marginBottom: '8px' }}>
+              As partes resolvem celebrar o presente contrato nos termos do ECA (Lei nº 8.069/90) e da LGPD 
+              (Lei nº 13.709/18), conforme as cláusulas abaixo:
+            </p>
+          </div>
 
-        {/* Signature Section - Compact */}
-        <div className="mt-4" style={{ fontSize: '9px' }}>
-          <p className="mb-4">
-            Local e data: {content.city || '___________________________________________'}
-          </p>
-
-          <div className="flex justify-between mt-8">
-            <div className="text-center w-2/5">
-              <div className="border-t border-black pt-1">
-                <p className="font-bold" style={{ fontSize: '9px' }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
-                <p style={{ fontSize: '7px' }}>(CONTRATADA)</p>
+          {/* Cláusulas */}
+          <div style={{ fontSize: '10pt', lineHeight: '1.3' }}>
+            {content.clauses.map((clause, index) => (
+              <div key={index} style={{ marginBottom: '6px' }}>
+                <p style={{ fontWeight: 'bold', marginBottom: '2px' }}>
+                  CLÁUSULA {index + 1}ª – {clause.title.toUpperCase()}
+                </p>
+                <p style={{ textAlign: 'justify' }}>{clause.content}</p>
               </div>
-            </div>
-            <div className="text-center w-2/5">
-              <div className="border-t border-black pt-1">
-                <p className="font-bold" style={{ fontSize: '9px' }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
-                <p style={{ fontSize: '7px' }}>(CONTRATANTE)</p>
+            ))}
+          </div>
+
+          {/* Assinaturas */}
+          <div style={{ fontSize: '11pt', marginTop: '20px' }}>
+            <p style={{ marginBottom: '30px' }}>
+              Local e data: {content.city || '___________________________________________'}
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px' }}>
+              <div style={{ textAlign: 'center', width: '45%' }}>
+                <div style={{ borderTop: '1px solid black', paddingTop: '4px' }}>
+                  <p style={{ fontWeight: 'bold', fontSize: '10pt' }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
+                  <p style={{ fontSize: '9pt' }}>(CONTRATADA)</p>
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', width: '45%' }}>
+                <div style={{ borderTop: '1px solid black', paddingTop: '4px' }}>
+                  <p style={{ fontWeight: 'bold', fontSize: '10pt' }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                  <p style={{ fontSize: '9pt' }}>(CONTRATANTE)</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Page Break for Annex - Forces new page when printing */}
-        <div 
-          className="mt-12 pt-8"
-          style={{ pageBreakBefore: 'always', breakBefore: 'page' }}
-        >
-          <h2 className="text-lg font-bold text-center mb-6">ANEXOS DO CONTRATO</h2>
+        {/* PÁGINA 2 - ANEXOS */}
+        <div className="annex-page" style={{ fontFamily: 'Times New Roman, serif' }}>
+          <h2 style={{ fontSize: '14pt', fontWeight: 'bold', textAlign: 'center', marginBottom: '16px' }}>
+            ANEXOS DO CONTRATO
+          </h2>
 
-          {/* Annex I */}
-          <div className="mb-6">
-            <h3 className="font-bold mb-2">ANEXO I – REFORÇO ESCOLAR (1 A 5 ANOS)</h3>
-            <ul className="list-disc ml-6 text-sm space-y-1">
+          {/* Anexo I */}
+          <div style={{ marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '4px' }}>
+              ANEXO I – REFORÇO ESCOLAR (1º A 5º ANO)
+            </h3>
+            <ul style={{ fontSize: '10pt', marginLeft: '20px', listStyleType: 'disc' }}>
               <li>Modalidade: Plano Semestral (06 meses)</li>
               <li>Opções de Frequência e Valores:</li>
             </ul>
-            <table className="mt-2 ml-6 text-sm border border-gray-300">
+            <table style={{ fontSize: '10pt', marginLeft: '20px', marginTop: '4px', borderCollapse: 'collapse' }}>
               <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-4 py-2">Frequência</th>
-                  <th className="border border-gray-300 px-4 py-2">Valor Mensal</th>
+                <tr style={{ backgroundColor: '#f3f4f6' }}>
+                  <th style={{ border: '1px solid #d1d5db', padding: '4px 12px' }}>Frequência</th>
+                  <th style={{ border: '1px solid #d1d5db', padding: '4px 12px' }}>Valor Mensal</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td className="border border-gray-300 px-4 py-1">2x na semana</td>
-                  <td className="border border-gray-300 px-4 py-1">R$ 200,00</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>2x na semana</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>R$ 200,00</td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-300 px-4 py-1">3x na semana</td>
-                  <td className="border border-gray-300 px-4 py-1">R$ 250,00</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>3x na semana</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>R$ 250,00</td>
                 </tr>
                 <tr>
-                  <td className="border border-gray-300 px-4 py-1">5x na semana</td>
-                  <td className="border border-gray-300 px-4 py-1">R$ 300,00</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>5x na semana</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>R$ 300,00</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* Annex II */}
-          <div className="mb-6">
-            <h3 className="font-bold mb-2">ANEXO II – ROBÓTICA EDUCACIONAL</h3>
-            <ul className="list-disc ml-6 text-sm space-y-1">
+          {/* Anexo II */}
+          <div style={{ marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '4px' }}>
+              ANEXO II – ROBÓTICA EDUCACIONAL
+            </h3>
+            <ul style={{ fontSize: '10pt', marginLeft: '20px', listStyleType: 'disc' }}>
               <li>Frequência: 02 vezes na semana</li>
               <li>Plano: Anual (12 meses)</li>
               <li>Valor Mensal: R$ 250,00</li>
             </ul>
           </div>
 
-          {/* Annex III */}
-          <div className="mb-6">
-            <h3 className="font-bold mb-2">ANEXO III – SOROBAN (ÁBACO JAPONÊS)</h3>
-            <ul className="list-disc ml-6 text-sm space-y-1">
+          {/* Anexo III */}
+          <div style={{ marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '4px' }}>
+              ANEXO III – SOROBAN (ÁBACO JAPONÊS)
+            </h3>
+            <ul style={{ fontSize: '10pt', marginLeft: '20px', listStyleType: 'disc' }}>
               <li>Frequência: 02 vezes na semana</li>
               <li>Duração: Estimada em 18 meses (10 níveis no total)</li>
               <li>Valor Mensal: R$ 250,00</li>
@@ -166,54 +190,70 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
             </ul>
           </div>
 
-          {/* Contracted Course */}
+          {/* Modalidade Contratada */}
           {content.courseName && (
-            <div className="mb-6 p-4 border border-gray-300 rounded bg-gray-50">
-              <h3 className="font-bold mb-2">MODALIDADE CONTRATADA:</h3>
-              <ul className="list-disc ml-6 text-sm space-y-1">
-                <li>Curso: {content.courseName}</li>
-                <li>Turma: {content.classGroupName || '-'}</li>
-                <li>Horário: {content.schedule || '-'}</li>
-                <li>Duração: {content.courseDuration || '-'}</li>
-                <li>Valor Mensal: R$ {content.installmentValue?.toFixed(2).replace('.', ',') || '-'}</li>
-                <li>Número de Parcelas: {content.installments}x</li>
-                <li>Valor Total: R$ {content.totalValue?.toFixed(2).replace('.', ',') || '-'}</li>
+            <div style={{ 
+              marginBottom: '12px', 
+              padding: '12px', 
+              border: '2px solid #374151', 
+              borderRadius: '4px',
+              backgroundColor: '#f9fafb'
+            }}>
+              <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '6px' }}>
+                ✓ MODALIDADE CONTRATADA:
+              </h3>
+              <ul style={{ fontSize: '10pt', marginLeft: '20px', listStyleType: 'disc' }}>
+                <li><strong>Curso:</strong> {content.courseName}</li>
+                <li><strong>Turma:</strong> {content.classGroupName || '-'}</li>
+                <li><strong>Horário:</strong> {content.schedule || '-'}</li>
+                <li><strong>Duração:</strong> {content.courseDuration || '-'}</li>
+                <li><strong>Valor Mensal:</strong> R$ {content.installmentValue?.toFixed(2).replace('.', ',') || '-'}</li>
+                <li><strong>Número de Parcelas:</strong> {content.installments}x</li>
+                <li><strong>Valor Total:</strong> R$ {content.totalValue?.toFixed(2).replace('.', ',') || '-'}</li>
               </ul>
             </div>
           )}
 
-          {/* LMS Credentials Section */}
+          {/* Credenciais LMS */}
           {content.lmsCredentials && (
-            <div className="mb-6 p-4 border-2 border-blue-500 rounded bg-blue-50">
-              <h3 className="font-bold mb-2 text-blue-800">🖥️ ACESSO À PLATAFORMA DE ENSINO (LMS)</h3>
-              <p className="text-sm mb-3 text-gray-700">
+            <div style={{ 
+              marginBottom: '12px', 
+              padding: '12px', 
+              border: '2px solid #2563eb', 
+              borderRadius: '4px',
+              backgroundColor: '#eff6ff'
+            }}>
+              <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '6px', color: '#1e40af' }}>
+                🖥️ ACESSO À PLATAFORMA DE ENSINO (LMS)
+              </h3>
+              <p style={{ fontSize: '10pt', marginBottom: '8px', color: '#374151' }}>
                 O aluno terá acesso à plataforma online de ensino com os seguintes dados:
               </p>
-              <div className="bg-white p-3 rounded border border-blue-200">
-                <ul className="text-sm space-y-2">
-                  <li><strong>Matrícula:</strong> {content.lmsCredentials.matricula}</li>
-                  <li><strong>E-mail de acesso:</strong> {content.lmsCredentials.email}</li>
+              <div style={{ backgroundColor: 'white', padding: '8px', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
+                <ul style={{ fontSize: '10pt', listStyleType: 'none', margin: 0, padding: 0 }}>
+                  <li style={{ marginBottom: '4px' }}><strong>Matrícula:</strong> {content.lmsCredentials.matricula}</li>
+                  <li style={{ marginBottom: '4px' }}><strong>E-mail de acesso:</strong> {content.lmsCredentials.email}</li>
                   <li><strong>Senha inicial:</strong> {content.lmsCredentials.password}</li>
                 </ul>
               </div>
-              <p className="text-xs mt-3 text-gray-600 italic">
+              <p style={{ fontSize: '9pt', marginTop: '8px', color: '#6b7280', fontStyle: 'italic' }}>
                 * Recomendamos alterar a senha no primeiro acesso. Guarde estas informações em local seguro.
               </p>
             </div>
           )}
 
-          {/* Signature on Annex */}
-          <div className="flex justify-between mt-16">
-            <div className="text-center w-2/5">
-              <div className="border-t border-black pt-2">
-                <p className="font-bold text-sm">{content.schoolName || 'CIRCUITO KIDS'}</p>
-                <p className="text-xs">(CONTRATADA)</p>
+          {/* Assinaturas do Anexo */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px' }}>
+            <div style={{ textAlign: 'center', width: '45%' }}>
+              <div style={{ borderTop: '1px solid black', paddingTop: '4px' }}>
+                <p style={{ fontWeight: 'bold', fontSize: '10pt' }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
+                <p style={{ fontSize: '9pt' }}>(CONTRATADA)</p>
               </div>
             </div>
-            <div className="text-center w-2/5">
-              <div className="border-t border-black pt-2">
-                <p className="font-bold text-sm">{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
-                <p className="text-xs">(CONTRATANTE)</p>
+            <div style={{ textAlign: 'center', width: '45%' }}>
+              <div style={{ borderTop: '1px solid black', paddingTop: '4px' }}>
+                <p style={{ fontWeight: 'bold', fontSize: '10pt' }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                <p style={{ fontSize: '9pt' }}>(CONTRATANTE)</p>
               </div>
             </div>
           </div>
