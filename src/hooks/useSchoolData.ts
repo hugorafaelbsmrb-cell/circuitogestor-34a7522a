@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { Session } from '@supabase/supabase-js';
 
 // Database types
 export interface DbGuardian {
@@ -165,6 +166,8 @@ export interface DbDiscount {
 export function useSchoolData() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const [sessionChecked, setSessionChecked] = useState(false);
   
   const [guardians, setGuardians] = useState<DbGuardian[]>([]);
   const [students, setStudents] = useState<DbStudent[]>([]);
@@ -179,8 +182,31 @@ export function useSchoolData() {
   const [contractClauses, setContractClauses] = useState<DbContractClause[]>([]);
   const [discounts, setDiscounts] = useState<DbDiscount[]>([]);
 
+  // Listen for auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setSessionChecked(true);
+      }
+    );
+
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setSessionChecked(true);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Fetch all data
   const fetchData = useCallback(async () => {
+    if (!session) {
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
     try {
       const [
@@ -206,7 +232,7 @@ export function useSchoolData() {
         supabase.from('contracts').select('*').order('created_at', { ascending: false }),
         supabase.from('payments').select('*').order('due_date', { ascending: false }),
         supabase.from('carnes').select('*').order('created_at', { ascending: false }),
-        supabase.from('contract_config').select('*').single(),
+        supabase.from('contract_config').select('*').maybeSingle(),
         supabase.from('contract_clauses').select('*').order('clause_order'),
         supabase.from('discounts').select('*').order('name'),
       ]);
@@ -233,11 +259,29 @@ export function useSchoolData() {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [session, toast]);
 
+  // Fetch data when session is available
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (sessionChecked && session) {
+      fetchData();
+    } else if (sessionChecked && !session) {
+      // Clear data when logged out
+      setGuardians([]);
+      setStudents([]);
+      setCourses([]);
+      setSchedules([]);
+      setClassGroups([]);
+      setEnrollments([]);
+      setContracts([]);
+      setPayments([]);
+      setCarnes([]);
+      setContractConfig(null);
+      setContractClauses([]);
+      setDiscounts([]);
+      setIsLoading(false);
+    }
+  }, [sessionChecked, session, fetchData]);
 
   // Guardian CRUD
   const createGuardian = async (data: Omit<DbGuardian, 'id' | 'created_at' | 'updated_at'>) => {
