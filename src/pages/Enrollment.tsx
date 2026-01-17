@@ -12,6 +12,7 @@ import { useSchool } from '@/contexts/SchoolContext';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { EnrollmentSummary } from '@/components/enrollment/EnrollmentSummary';
 import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
 import { supabase } from '@/integrations/supabase/client';
@@ -88,6 +89,7 @@ export default function Enrollment() {
   } = useSchool();
   
   const { isLoading: isAsaasLoading, createCustomer, createBoleto: createAsaasBoleto, createCarne: createAsaasCarne, getInstallmentBooklet } = useAsaasPayment();
+  const { branding } = useSystemBranding();
   
   // Check if this is an enrollment for an existing student (second course flow)
   const existingStudentId = searchParams.get('studentId');
@@ -605,6 +607,7 @@ export default function Enrollment() {
         schoolName: contractConfig?.school_name || 'EduGestor',
         schoolCnpj: contractConfig?.school_cnpj || '',
         schoolAddress: contractConfig?.school_address || '',
+        schoolLogo: branding?.logo || '',
         guardianName: guardian.name,
         guardianCpf: guardian.cpf,
         guardianAddress: guardian.address,
