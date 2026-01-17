@@ -68,24 +68,24 @@ async function findStudentUUID(searchTerm: string): Promise<string | null> {
 }
 
 // Try multiple search strategies to find student UUID
-async function findStudentUUIDWithFallback(email: string, studentName?: string): Promise<string | null> {
-  // First try by email
-  let uuid = await findStudentUUID(email);
+async function findStudentUUIDWithFallback(matricula: string, email?: string, studentName?: string): Promise<string | null> {
+  // First try by matricula
+  console.log('Trying search by matricula:', matricula);
+  let uuid = await findStudentUUID(matricula);
   if (uuid) return uuid;
+  
+  // Try by email if available
+  if (email) {
+    console.log('Matricula search failed, trying by email:', email);
+    uuid = await findStudentUUID(email);
+    if (uuid) return uuid;
+  }
   
   // Try by student name if available
   if (studentName) {
     console.log('Email search failed, trying by name:', studentName);
     uuid = await findStudentUUID(studentName);
     if (uuid) return uuid;
-    
-    // Try first name only
-    const firstName = studentName.split(' ')[0];
-    if (firstName && firstName.length > 2) {
-      console.log('Full name search failed, trying first name:', firstName);
-      uuid = await findStudentUUID(firstName);
-      if (uuid) return uuid;
-    }
   }
   
   return null;
@@ -159,8 +159,8 @@ Deno.serve(async (req) => {
       
       if (!studentUserId) {
         const studentName = credential.student?.name;
-        console.log('No lms_user_id found, looking up by email and name:', credential.email, studentName);
-        studentUserId = await findStudentUUIDWithFallback(credential.email, studentName);
+        console.log('No lms_user_id found, looking up by matricula:', credential.matricula);
+        studentUserId = await findStudentUUIDWithFallback(credential.matricula, credential.email, studentName);
         
         if (studentUserId) {
           // Save the UUID for future use
