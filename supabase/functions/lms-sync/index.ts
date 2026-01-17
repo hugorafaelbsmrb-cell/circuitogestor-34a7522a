@@ -451,6 +451,86 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Delete student from LMS
+    if (action === 'deleteStudent') {
+      const { studentId: localStudentId } = requestBody;
+      
+      // First, get the LMS credential for this student
+      const { data: credential, error: credError } = await supabase
+        .from('lms_credentials')
+        .select('id, lms_user_id, matricula, email, student:students(name)')
+        .eq('student_id', localStudentId)
+        .maybeSingle();
+
+      if (credError) {
+        console.error('Error fetching credential for deletion:', credError);
+        throw credError;
+      }
+
+      if (!credential) {
+        console.log('No LMS credential found for student, nothing to delete in LMS');
+        return new Response(
+          JSON.stringify({ success: true, message: 'No LMS credential found for this student' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      let lmsUserId = credential.lms_user_id;
+
+      // If we don't have the LMS user ID, try to find it
+      if (!lmsUserId) {
+        const studentName = (credential.student as any)?.name;
+        lmsUserId = await findStudentUUIDWithFallback(credential.matricula, credential.email, studentName);
+      }
+
+      if (lmsUserId) {
+        try {
+          console.log('Deleting student from LMS:', lmsUserId);
+          
+          const deleteResponse = await fetch(`${LMS_API_BASE}/delete-student`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': getLmsApiKey(),
+            },
+            body: JSON.stringify({ student_user_id: lmsUserId }),
+          });
+
+          const deleteResult = await deleteResponse.json();
+          console.log('LMS delete response:', deleteResult);
+
+          if (!deleteResponse.ok) {
+            console.warn('Failed to delete student from LMS:', deleteResult);
+          }
+        } catch (lmsError) {
+          console.error('Error deleting student from LMS:', lmsError);
+          // Don't throw - we still want to delete the local credential
+        }
+      }
+
+      // Delete the local LMS credential
+      const { error: deleteCredError } = await supabase
+        .from('lms_credentials')
+        .delete()
+        .eq('student_id', localStudentId);
+
+      if (deleteCredError) {
+        console.error('Error deleting local LMS credential:', deleteCredError);
+        throw deleteCredError;
+      }
+
+      console.log('Student deleted from LMS and local credential removed');
+
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Student deleted from LMS successfully',
+          lmsUserId 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ success: false, error: 'Invalid action' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
