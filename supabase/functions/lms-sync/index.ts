@@ -483,17 +483,34 @@ Deno.serve(async (req) => {
         lmsUserId = await findStudentUUIDWithFallback(credential.matricula, credential.email, studentName);
       }
 
-      if (lmsUserId) {
-        try {
-          console.log('Deleting student from LMS:', lmsUserId);
-          
-          const deleteResponse = await fetch(`${LMS_API_BASE}/delete-student`, {
+      // Delete from LMS using the new endpoint
+      const LMS_DELETE_ENDPOINT = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1/delete-student';
+      
+      try {
+        console.log('Deleting student from LMS:', { 
+          matricula: credential.matricula, 
+          email: credential.email,
+          lmsUserId 
+        });
+        
+        // Build delete payload - prefer matricula, fallback to email or user_id
+        const deletePayload: Record<string, string> = {};
+        if (credential.matricula) {
+          deletePayload.matricula = credential.matricula;
+        } else if (credential.email) {
+          deletePayload.email = credential.email;
+        } else if (lmsUserId) {
+          deletePayload.user_id = lmsUserId;
+        }
+
+        if (Object.keys(deletePayload).length > 0) {
+          const deleteResponse = await fetch(LMS_DELETE_ENDPOINT, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-API-Key': getLmsApiKey(),
+              'x-api-key': getLmsApiKey(),
             },
-            body: JSON.stringify({ student_user_id: lmsUserId }),
+            body: JSON.stringify(deletePayload),
           });
 
           const deleteResult = await deleteResponse.json();
@@ -501,11 +518,15 @@ Deno.serve(async (req) => {
 
           if (!deleteResponse.ok) {
             console.warn('Failed to delete student from LMS:', deleteResult);
+          } else {
+            console.log('Student successfully deleted from LMS');
           }
-        } catch (lmsError) {
-          console.error('Error deleting student from LMS:', lmsError);
-          // Don't throw - we still want to delete the local credential
+        } else {
+          console.warn('No identifier available to delete student from LMS');
         }
+      } catch (lmsError) {
+        console.error('Error deleting student from LMS:', lmsError);
+        // Don't throw - we still want to delete the local credential
       }
 
       // Delete the local LMS credential
