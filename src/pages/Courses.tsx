@@ -188,8 +188,7 @@ export default function Courses() {
                     <span className="text-sm">{course.duration}</span>
                   </div>
                   <div className="flex items-center gap-1 text-primary font-semibold">
-                    <DollarSign className="w-4 h-4" />
-                    <span>{course.price.toFixed(2).replace('.', ',')}</span>
+                    <span>R$ {course.price.toFixed(2).replace('.', ',')}</span>
                   </div>
                 </div>
               </div>
