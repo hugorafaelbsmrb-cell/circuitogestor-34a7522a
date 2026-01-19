@@ -306,6 +306,54 @@ export function useSchoolData() {
     setGuardians(prev => prev.map(g => g.id === id ? { ...g, ...data } : g));
   };
 
+  const deleteGuardian = async (id: string) => {
+    // Check if guardian has students
+    const guardianStudents = students.filter(s => s.guardian_id === id);
+    if (guardianStudents.length > 0) {
+      throw new Error('Não é possível excluir um responsável com alunos vinculados. Exclua os alunos primeiro.');
+    }
+
+    // Check if guardian has payments
+    const guardianPayments = payments.filter(p => p.guardian_id === id);
+    if (guardianPayments.length > 0) {
+      // Delete related payments
+      const { error: paymentsError } = await supabase
+        .from('payments')
+        .delete()
+        .eq('guardian_id', id);
+      
+      if (paymentsError) {
+        console.warn('Erro ao excluir payments do responsável:', paymentsError);
+      }
+    }
+
+    // Check if guardian has carnes
+    const guardianCarnes = carnes.filter(c => c.guardian_id === id);
+    if (guardianCarnes.length > 0) {
+      // Delete related carnes
+      const { error: carnesError } = await supabase
+        .from('carnes')
+        .delete()
+        .eq('guardian_id', id);
+      
+      if (carnesError) {
+        console.warn('Erro ao excluir carnês do responsável:', carnesError);
+      }
+    }
+
+    // Delete the guardian
+    const { error } = await supabase
+      .from('guardians')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
+    
+    setGuardians(prev => prev.filter(g => g.id !== id));
+    setPayments(prev => prev.filter(p => p.guardian_id !== id));
+    setCarnes(prev => prev.filter(c => c.guardian_id !== id));
+  };
+
   // Student CRUD
   const createStudent = async (data: { name: string; birth_date: string; guardian_id: string }) => {
     const { data: result, error } = await supabase
@@ -885,6 +933,7 @@ export function useSchoolData() {
     // Guardian
     createGuardian,
     updateGuardian,
+    deleteGuardian,
     
     // Student
     createStudent,

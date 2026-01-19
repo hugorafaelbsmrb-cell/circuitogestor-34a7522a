@@ -48,6 +48,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useSchool } from '@/contexts/SchoolContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
 import { useToast } from '@/hooks/use-toast';
 
@@ -66,8 +67,11 @@ interface CarnePayment {
 
 export default function Carnes() {
   const { carnes, guardians, payments, getGuardianById, deleteCarne, refetchCarnes } = useSchool();
+  const { profile } = useAuthContext();
   const { getInstallmentBooklet, listInstallmentPayments, deleteInstallment, refundInstallment, receiveInCash, isLoading: isAsaasLoading } = useAsaasPayment();
   const { toast } = useToast();
+
+  const isAdmin = profile?.role === 'admin';
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -623,7 +627,7 @@ export default function Carnes() {
                             >
                               <Download className="w-4 h-4" />
                             </Button>
-                            {carne.status === 'ACTIVE' && (
+                            {carne.status === 'ACTIVE' && isAdmin && (
                               <Button 
                                 variant="ghost" 
                                 size="icon"
