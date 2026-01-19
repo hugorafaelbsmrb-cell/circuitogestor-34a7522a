@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
-
+import { WelcomePopup } from '@/components/dashboard/WelcomePopup';
 export default function Dashboard() {
   const { students, courses, classGroups, enrollments, payments, guardians } = useSchool();
 
@@ -36,6 +36,7 @@ export default function Dashboard() {
 
   return (
     <div className="animate-fade-in">
+      <WelcomePopup />
       <div className="page-header flex items-center justify-between">
         <div>
           <h1 className="page-title">Dashboard</h1>
