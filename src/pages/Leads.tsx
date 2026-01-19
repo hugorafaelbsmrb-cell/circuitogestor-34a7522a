@@ -35,6 +35,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useSchool } from '@/contexts/SchoolContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
 
@@ -79,6 +80,9 @@ export default function Leads() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { courses, getCourseById } = useSchool();
+  const { profile } = useAuthContext();
+
+  const isAdmin = profile?.role === 'admin';
   
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -458,14 +462,16 @@ export default function Leads() {
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        onClick={() => handleDelete(lead.id)}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {isAdmin && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleDelete(lead.id)}
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

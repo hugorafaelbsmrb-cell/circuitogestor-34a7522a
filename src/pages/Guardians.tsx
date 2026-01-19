@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSchool } from '@/contexts/SchoolContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
 import EditGuardianModal from '@/components/guardians/EditGuardianModal';
 import { DbGuardian } from '@/hooks/useSchoolData';
@@ -30,13 +31,17 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function Guardians() {
-  const { guardians, students, isLoading, updateGuardian, deleteStudent } = useSchool();
+  const { guardians, students, isLoading, updateGuardian, deleteStudent, deleteGuardian } = useSchool();
+  const { profile } = useAuthContext();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingGuardian, setEditingGuardian] = useState<DbGuardian | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [guardianToDelete, setGuardianToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const isAdmin = profile?.role === 'admin';
 
   const filteredGuardians = guardians.filter(guardian => {
     const matchesSearch = guardian.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -74,6 +79,28 @@ export default function Guardians() {
       toast({
         title: 'Erro ao excluir',
         description: 'Não foi possível excluir o aluno. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteGuardian = async () => {
+    if (!guardianToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteGuardian(guardianToDelete.id);
+      toast({
+        title: 'Responsável excluído',
+        description: `${guardianToDelete.name} foi excluído com sucesso.`,
+      });
+      setGuardianToDelete(null);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir',
+        description: error.message || 'Não foi possível excluir o responsável. Tente novamente.',
         variant: 'destructive',
       });
     } finally {
@@ -130,14 +157,27 @@ export default function Guardians() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="font-semibold text-foreground truncate">{guardian.name}</h3>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 shrink-0"
-                          onClick={() => handleEdit(guardian as DbGuardian)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0"
+                            onClick={() => handleEdit(guardian as DbGuardian)}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          {isAdmin && guardianStudents.length === 0 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setGuardianToDelete({ id: guardian.id, name: guardian.name })}
+                              title="Excluir responsável"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       <p className="text-sm text-muted-foreground">CPF: {guardian.cpf}</p>
                       
@@ -166,18 +206,20 @@ export default function Guardians() {
                                 className="flex items-center gap-1 text-xs bg-secondary px-2 py-1 rounded-full group"
                               >
                                 <span>{student.name}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-4 w-4 p-0 hover:bg-destructive/20 hover:text-destructive opacity-60 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setStudentToDelete({ id: student.id, name: student.name });
-                                  }}
-                                  title="Excluir aluno"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
+                                {isAdmin && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 p-0 hover:bg-destructive/20 hover:text-destructive opacity-60 group-hover:opacity-100 transition-opacity"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setStudentToDelete({ id: student.id, name: student.name });
+                                    }}
+                                    title="Excluir aluno"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -259,6 +301,38 @@ export default function Guardians() {
                 </>
               ) : (
                 'Excluir aluno'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!guardianToDelete} onOpenChange={(open) => !open && setGuardianToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir responsável</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o responsável <strong>{guardianToDelete?.name}</strong>?
+              <br /><br />
+              Esta ação irá remover permanentemente o responsável do sistema.
+              <br />
+              <span className="text-destructive font-medium">Esta ação não pode ser desfeita.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteGuardian}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                'Excluir responsável'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
