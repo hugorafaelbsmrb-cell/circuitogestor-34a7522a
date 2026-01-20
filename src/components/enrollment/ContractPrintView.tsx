@@ -23,6 +23,8 @@ interface ContractContent {
   classGroupName: string;
   schedule: string;
   gradeLevel?: { id: string; label: string; description: string } | null;
+  contractDuration?: number;
+  contractDurationLabel?: string;
   installments: number;
   installmentValue: number;
   totalValue: number;
@@ -259,7 +261,7 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
                 <li><strong>Curso:</strong> {content.courseName}</li>
                 <li><strong>Turma:</strong> {content.classGroupName || '-'}</li>
                 <li><strong>Horário:</strong> {content.schedule || '-'}</li>
-                <li><strong>Duração:</strong> {content.courseDuration || '-'}</li>
+                <li><strong>Duração do Contrato:</strong> {content.contractDurationLabel || `${content.installments} meses`}</li>
                 <li><strong>Valor Mensal:</strong> R$ {content.installmentValue?.toFixed(2).replace('.', ',') || '-'}</li>
                 <li><strong>Número de Parcelas:</strong> {content.installments}x</li>
                 <li><strong>Valor Total:</strong> R$ {content.totalValue?.toFixed(2).replace('.', ',') || '-'}</li>

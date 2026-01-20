@@ -629,6 +629,8 @@ export default function Enrollment() {
           label: gradeLevelInfo.label,
           description: gradeLevelInfo.description,
         } : null,
+        contractDuration: parseInt(formData.payment.installments), // Duração do contrato em meses
+        contractDurationLabel: `${formData.payment.installments} meses`,
         installments: parseInt(formData.payment.installments),
         installmentValue: finalPrice,
         totalValue: finalPrice * parseInt(formData.payment.installments),
