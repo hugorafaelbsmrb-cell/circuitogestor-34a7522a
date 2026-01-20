@@ -23,6 +23,7 @@ interface EnrollmentData {
     installments: number; 
     dueDayOfMonth: number;
     firstDueDate: string;
+    entryBoletoDueDate?: string; // Data de vencimento do boleto de entrada
     proRataValue: number;
     regularValue: number;
     total: number;
@@ -48,6 +49,7 @@ interface EnrollmentSummaryProps {
   onViewCarne: () => void;
   onDownloadCarne: () => void;
   onViewProRataBoleto: () => void;
+  onDownloadProRataBoleto: () => void;
   onNewEnrollment: () => void;
   isLoadingCarne?: boolean;
 }
@@ -58,6 +60,7 @@ export function EnrollmentSummary({
   onViewCarne,
   onDownloadCarne,
   onViewProRataBoleto,
+  onDownloadProRataBoleto,
   onNewEnrollment,
   isLoadingCarne = false,
 }: EnrollmentSummaryProps) {
@@ -190,22 +193,41 @@ export function EnrollmentSummary({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
+            {hasProRataBoleto && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground text-sm">Boleto de Entrada:</span>
+                  <span className="font-medium text-sm">
+                    R$ {data.payment.proRataValue.toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground text-sm">Vencimento Entrada:</span>
+                  <span className="font-medium text-sm">
+                    {data.payment.entryBoletoDueDate 
+                      ? new Date(data.payment.entryBoletoDueDate + 'T12:00:00').toLocaleDateString('pt-BR')
+                      : '-'}
+                  </span>
+                </div>
+              </>
+            )}
             <div className="flex justify-between">
-              <span className="text-muted-foreground text-sm">1ª Parcela (pro-rata):</span>
+              <span className="text-muted-foreground text-sm">
+                {hasProRataBoleto ? 'Demais Parcelas:' : 'Parcelas:'}
+              </span>
               <span className="font-medium text-sm">
-                R$ {data.payment.proRataValue.toFixed(2).replace('.', ',')}
+                {hasProRataBoleto 
+                  ? `${data.payment.installments - 1}x de R$ ${data.payment.regularValue.toFixed(2).replace('.', ',')}`
+                  : `${data.payment.installments}x de R$ ${data.payment.regularValue.toFixed(2).replace('.', ',')}`
+                }
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground text-sm">Demais Parcelas:</span>
-              <span className="font-medium text-sm">
-                {data.payment.installments - 1}x de R$ {data.payment.regularValue.toFixed(2).replace('.', ',')}
+              <span className="text-muted-foreground text-sm">
+                {hasProRataBoleto ? 'Vencimento Carnê:' : 'Primeiro Vencimento:'}
               </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground text-sm">Primeiro Vencimento:</span>
               <span className="font-medium text-sm">
-                {new Date(data.payment.firstDueDate).toLocaleDateString('pt-BR')}
+                {new Date(data.payment.firstDueDate + 'T12:00:00').toLocaleDateString('pt-BR')}
               </span>
             </div>
             <div className="flex justify-between">
@@ -252,7 +274,7 @@ export function EnrollmentSummary({
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-medium flex items-center gap-2">
                 <FileText className="w-5 h-5 text-amber-600" />
-                Boleto Pro-Rata (1ª Parcela)
+                Boleto de Entrada (1ª Parcela)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -261,11 +283,19 @@ export function EnrollmentSummary({
               </p>
               <div className="flex gap-3">
                 <Button 
+                  variant="outline"
                   className="flex-1 gap-2" 
                   onClick={onViewProRataBoleto}
                 >
                   <Eye className="w-4 h-4" />
-                  Ver Boleto
+                  Visualizar
+                </Button>
+                <Button 
+                  className="flex-1 gap-2" 
+                  onClick={onDownloadProRataBoleto}
+                >
+                  <Download className="w-4 h-4" />
+                  Baixar PDF
                 </Button>
               </div>
             </CardContent>
