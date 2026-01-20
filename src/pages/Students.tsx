@@ -17,7 +17,8 @@ import {
   XCircle,
   UserX,
   UserCheck,
-  Filter
+  Filter,
+  Trash2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -42,12 +43,14 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useSchool } from '@/contexts/SchoolContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Students() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useAuthContext();
   const { 
     students, 
     guardians,
@@ -61,7 +64,10 @@ export default function Students() {
     getScheduleById,
     updateStudent,
     createEnrollment,
+    deleteEnrollment,
   } = useSchool();
+  
+  const isAdmin = profile?.role === 'admin';
   
   const [searchTerm, setSearchTerm] = useState('');
   const [showInactive, setShowInactive] = useState(false);
@@ -70,6 +76,8 @@ export default function Students() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showNewEnrollmentModal, setShowNewEnrollmentModal] = useState(false);
   const [showInactivateModal, setShowInactivateModal] = useState(false);
+  const [showDeleteEnrollmentModal, setShowDeleteEnrollmentModal] = useState(false);
+  const [enrollmentToDelete, setEnrollmentToDelete] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [editForm, setEditForm] = useState({
@@ -246,6 +254,36 @@ export default function Students() {
         return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Cancelado</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const handleDeleteEnrollmentClick = (enrollmentId: string) => {
+    setEnrollmentToDelete(enrollmentId);
+    setShowDeleteEnrollmentModal(true);
+  };
+
+  const handleConfirmDeleteEnrollment = async () => {
+    if (!enrollmentToDelete) return;
+    
+    setIsSubmitting(true);
+    try {
+      await deleteEnrollment(enrollmentToDelete);
+      
+      toast({
+        title: 'Matrícula excluída',
+        description: 'O curso, contrato e boletos foram excluídos com sucesso.',
+      });
+      
+      setShowDeleteEnrollmentModal(false);
+      setEnrollmentToDelete(null);
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: error instanceof Error ? error.message : 'Não foi possível excluir a matrícula.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -502,6 +540,7 @@ export default function Students() {
                           <TableHead>Turma</TableHead>
                           <TableHead>Horário</TableHead>
                           <TableHead>Status</TableHead>
+                          {isAdmin && <TableHead className="w-[50px]"></TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -524,6 +563,19 @@ export default function Students() {
                                 ) : '-'}
                               </TableCell>
                               <TableCell>{getEnrollmentStatusBadge(enrollment.status)}</TableCell>
+                              {isAdmin && (
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteEnrollmentClick(enrollment.id)}
+                                    title="Excluir matrícula"
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </TableCell>
+                              )}
                             </TableRow>
                           );
                         })}
@@ -768,6 +820,68 @@ export default function Students() {
                 <>
                   <UserCheck className="w-4 h-4 mr-2" />
                   Reativar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Enrollment Modal */}
+      <Dialog open={showDeleteEnrollmentModal} onOpenChange={setShowDeleteEnrollmentModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="w-5 h-5" />
+              Excluir Matrícula
+            </DialogTitle>
+            <DialogDescription>
+              Esta ação é irreversível. O curso será removido do aluno e todos os contratos e boletos associados serão excluídos.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {enrollmentToDelete && (() => {
+            const enrollment = enrollments.find(e => e.id === enrollmentToDelete);
+            const classGroup = enrollment ? getClassGroupById(enrollment.class_group_id) : null;
+            const course = classGroup ? getCourseById(classGroup.course_id) : null;
+            
+            return enrollment ? (
+              <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg space-y-2">
+                <div>
+                  <p className="text-sm text-muted-foreground">Curso</p>
+                  <p className="font-medium">{course?.name || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Turma</p>
+                  <p className="font-medium">{classGroup?.name || '-'}</p>
+                </div>
+                <div className="pt-2 border-t border-destructive/20">
+                  <p className="text-sm text-destructive font-medium">
+                    ⚠️ Contrato e boletos serão excluídos permanentemente
+                  </p>
+                </div>
+              </div>
+            ) : null;
+          })()}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteEnrollmentModal(false)} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleConfirmDeleteEnrollment}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Excluir Matrícula
                 </>
               )}
             </Button>
