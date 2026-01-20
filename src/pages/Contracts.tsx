@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Plus } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Plus, Printer } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { generateContractPDF } from '@/utils/pdfGenerator';
 import { useToast } from '@/hooks/use-toast';
+import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
 
 export default function Contracts() {
   const { toast } = useToast();
@@ -35,6 +36,7 @@ export default function Contracts() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewContract, setPreviewContract] = useState<any | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const contractPrintRef = useRef<HTMLDivElement>(null);
   
   // State for generating carnê later
   const [showCarneModal, setShowCarneModal] = useState(false);
@@ -418,78 +420,52 @@ export default function Contracts() {
         </div>
       )}
 
-      {/* Preview Modal */}
+      {/* Preview Modal - Same layout as Enrollment */}
       <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Visualização do Contrato</DialogTitle>
           </DialogHeader>
           {previewContract && (
-            <div className="space-y-4 text-sm">
-              <div className="border-b pb-4">
-                <h3 className="font-bold text-lg mb-2">CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS</h3>
-              </div>
-              
-              <div className="space-y-2">
-                <h4 className="font-semibold">CONTRATADO:</h4>
-                <p>{previewContract.schoolName}</p>
-                <p>CNPJ: {previewContract.schoolCnpj || '-'}</p>
-                <p>Endereço: {previewContract.schoolAddress || '-'}</p>
+            <div className="space-y-4">
+              {/* Print preview using the same component as Enrollment */}
+              <div className="border rounded-lg overflow-hidden">
+                <ContractPrintView ref={contractPrintRef} content={previewContract} />
               </div>
 
-              <div className="space-y-2">
-                <h4 className="font-semibold">CONTRATANTE:</h4>
-                <p>Nome: {previewContract.guardianName}</p>
-                <p>CPF: {previewContract.guardianCpf}</p>
-                <p>Endereço: {previewContract.guardianAddress}</p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-semibold">ALUNO:</h4>
-                <p>Nome: {previewContract.studentName}</p>
-                <p>Data de Nascimento: {previewContract.studentBirthDate ? new Date(previewContract.studentBirthDate).toLocaleDateString('pt-BR') : '-'}</p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-semibold">CURSO:</h4>
-                <p>Nome: {previewContract.courseName}</p>
-                <p>Duração: {previewContract.courseDuration}</p>
-                <p>Turma: {previewContract.classGroupName}</p>
-                <p>Horário: {previewContract.schedule}</p>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-semibold">VALOR:</h4>
-                <p>Mensalidade: R$ {Number(previewContract.installmentValue).toFixed(2).replace('.', ',')}</p>
-                <p>Parcelas: {previewContract.installments}x</p>
-                <p>Valor Total: R$ {Number(previewContract.totalValue).toFixed(2).replace('.', ',')}</p>
-              </div>
-
-              {previewContract.clauses && previewContract.clauses.length > 0 && (
-                <div className="space-y-3 pt-4 border-t">
-                  <h4 className="font-semibold">CLÁUSULAS:</h4>
-                  {previewContract.clauses.map((clause: any, index: number) => (
-                    <div key={index}>
-                      <p className="font-medium">Cláusula {index + 1}ª - {clause.title}</p>
-                      <p className="text-muted-foreground">{clause.content}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {previewContract.lmsCredentials && (
-                <div className="space-y-2 pt-4 border-t bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg">
-                  <h4 className="font-semibold text-blue-800 dark:text-blue-300">🖥️ ACESSO À PLATAFORMA DE ENSINO (LMS):</h4>
-                  <p><strong>Matrícula:</strong> {previewContract.lmsCredentials.matricula}</p>
-                  <p><strong>E-mail de acesso:</strong> {previewContract.lmsCredentials.email}</p>
-                  <p><strong>Senha inicial:</strong> {previewContract.lmsCredentials.password}</p>
-                  <p className="text-xs text-muted-foreground italic mt-2">
-                    * Recomendamos alterar a senha no primeiro acesso.
-                  </p>
-                </div>
-              )}
-
-              <div className="pt-4 flex justify-end">
+              <div className="flex justify-end gap-2">
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    const printContent = contractPrintRef.current;
+                    if (printContent) {
+                      const printWindow = window.open('', '', 'width=800,height=600');
+                      if (printWindow) {
+                        printWindow.document.write(`
+                          <html>
+                            <head>
+                              <title>Contrato - ${previewContract.studentName}</title>
+                              <style>
+                                @page { size: A4; margin: 12mm; }
+                                body { margin: 0; padding: 0; }
+                                .contract-page { page-break-after: always; }
+                                .annex-page { page-break-before: always; }
+                              </style>
+                            </head>
+                            <body>${printContent.innerHTML}</body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                        printWindow.focus();
+                        printWindow.print();
+                        printWindow.close();
+                      }
+                    }
+                  }}
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Imprimir
+                </Button>
                 <Button onClick={() => {
                   handleDownloadPDF(contractEnrollments.find(e => 
                     getStudentById(e.student_id)?.name === previewContract.studentName
