@@ -701,8 +701,10 @@ export default function Enrollment() {
       let carneData = null;
       let proRataBoletoData: { id: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null = null;
       
-      // Always generate entry boleto (pro-rata or full value)
-      const needsEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
+      // Always generate entry boleto (pro-rata or full value) when:
+      // 1. Pro-rata is enabled and there are multiple installments (always generates entry boleto with pro-rata value)
+      // 2. Entry boleto is enabled (without pro-rata) and there are multiple installments
+      const needsEntryBoleto = (useProRata && installmentCount > 1) || 
                                (!useProRata && useEntryBoleto && installmentCount > 1);
       
       if (needsEntryBoleto) {
@@ -864,7 +866,7 @@ export default function Enrollment() {
         proRataBoleto: proRataBoletoData,
       });
 
-      const hasEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
+      const hasEntryBoleto = (useProRata && installmentCount > 1) || 
                              (!useProRata && useEntryBoleto && installmentCount > 1);
       
       let toastDescription = "O contrato foi gerado.";
