@@ -114,6 +114,7 @@ export default function Enrollment() {
   const contractPrintRef = useRef<HTMLDivElement>(null);
   const [useProRata, setUseProRata] = useState(true);
   const [useEntryBoleto, setUseEntryBoleto] = useState(true); // Boleto de entrada com valor cheio
+  const [generateCarneNow, setGenerateCarneNow] = useState(true); // Gerar carnê no ato da matrícula
   const [formData, setFormData] = useState({
     student: { 
       name: '', 
@@ -698,129 +699,132 @@ export default function Enrollment() {
       let carneData = null;
       let proRataBoletoData: { id: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null = null;
       
-      // Determine if we need an entry boleto (pro-rata OR entry boleto with full value)
-      const needsEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
-                               (!useProRata && useEntryBoleto && installmentCount > 1);
-      
-      if (needsEntryBoleto) {
-        // Calculate entry boleto value
-        const entryBoletoValue = useProRata ? proRataValue : regularValue;
-        const entryBoletoDescription = useProRata 
-          ? `${description} - Pro-Rata (1ª Parcela)` 
-          : `${description} - Entrada (1ª Parcela)`;
+      // Only generate carnê if user chose to do so
+      if (generateCarneNow) {
+        // Determine if we need an entry boleto (pro-rata OR entry boleto with full value)
+        const needsEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
+                                 (!useProRata && useEntryBoleto && installmentCount > 1);
         
-        // Create entry boleto (due in 5 days from enrollment)
-        const entryBoleto = await createAsaasBoleto({
-          customerId: asaasCustomer.id,
-          value: entryBoletoValue,
-          dueDate: proRataDueDateStr,
-          description: entryBoletoDescription,
-          externalReference: enrollment.id,
-          discount: discountConfig,
-        });
-        
-        if (entryBoleto) {
-          proRataBoletoData = {
-            id: entryBoleto.id,
-            invoiceUrl: entryBoleto.invoiceUrl || null,
-            bankSlipUrl: entryBoleto.bankSlipUrl || null,
-          };
+        if (needsEntryBoleto) {
+          // Calculate entry boleto value
+          const entryBoletoValue = useProRata ? proRataValue : regularValue;
+          const entryBoletoDescription = useProRata 
+            ? `${description} - Pro-Rata (1ª Parcela)` 
+            : `${description} - Entrada (1ª Parcela)`;
           
-          // Save entry payment to database
-          await createPayment({
-            enrollment_id: enrollment.id,
-            guardian_id: guardian.id,
-            contract_id: contract.id,
-            asaas_payment_id: entryBoleto.id,
-            asaas_installment_id: null,
-            description: useProRata ? `${description} - Pro-Rata` : `${description} - Entrada`,
-            value: entryBoleto.value,
-            due_date: entryBoleto.dueDate,
-            status: entryBoleto.status,
-            invoice_url: entryBoleto.invoiceUrl,
-            bank_slip_url: entryBoleto.bankSlipUrl,
-            installment_number: 1,
-            external_reference: enrollment.id,
+          // Create entry boleto (due in 5 days from enrollment)
+          const entryBoleto = await createAsaasBoleto({
+            customerId: asaasCustomer.id,
+            value: entryBoletoValue,
+            dueDate: proRataDueDateStr,
+            description: entryBoletoDescription,
+            externalReference: enrollment.id,
+            discount: discountConfig,
           });
-        }
-        
-        // Create carnê for remaining installments - starts on firstDueDate (next month)
-        const remainingInstallments = installmentCount - 1;
-        const totalRemainingValue = regularValue * remainingInstallments;
-        
-        const asaasPayment = await createAsaasCarne({
-          customerId: asaasCustomer.id,
-          value: totalRemainingValue,
-          dueDate: firstDueDateStr,
-          description: `${description} - Parcelas 2 a ${installmentCount}`,
-          installmentCount: remainingInstallments,
-          externalReference: enrollment.id,
-          discount: discountConfig,
-        });
-        
-        if (asaasPayment) {
-          const savedCarne = await createCarne({
-            enrollment_id: enrollment.id,
-            guardian_id: guardian.id,
-            contract_id: contract.id,
-            asaas_installment_id: asaasPayment.installment || asaasPayment.id,
+          
+          if (entryBoleto) {
+            proRataBoletoData = {
+              id: entryBoleto.id,
+              invoiceUrl: entryBoleto.invoiceUrl || null,
+              bankSlipUrl: entryBoleto.bankSlipUrl || null,
+            };
+            
+            // Save entry payment to database
+            await createPayment({
+              enrollment_id: enrollment.id,
+              guardian_id: guardian.id,
+              contract_id: contract.id,
+              asaas_payment_id: entryBoleto.id,
+              asaas_installment_id: null,
+              description: useProRata ? `${description} - Pro-Rata` : `${description} - Entrada`,
+              value: entryBoleto.value,
+              due_date: entryBoleto.dueDate,
+              status: entryBoleto.status,
+              invoice_url: entryBoleto.invoiceUrl,
+              bank_slip_url: entryBoleto.bankSlipUrl,
+              installment_number: 1,
+              external_reference: enrollment.id,
+            });
+          }
+          
+          // Create carnê for remaining installments - starts on firstDueDate (next month)
+          const remainingInstallments = installmentCount - 1;
+          const totalRemainingValue = regularValue * remainingInstallments;
+          
+          const asaasPayment = await createAsaasCarne({
+            customerId: asaasCustomer.id,
+            value: totalRemainingValue,
+            dueDate: firstDueDateStr,
+            description: `${description} - Parcelas 2 a ${installmentCount}`,
+            installmentCount: remainingInstallments,
+            externalReference: enrollment.id,
+            discount: discountConfig,
+          });
+          
+          if (asaasPayment) {
+            const savedCarne = await createCarne({
+              enrollment_id: enrollment.id,
+              guardian_id: guardian.id,
+              contract_id: contract.id,
+              asaas_installment_id: asaasPayment.installment || asaasPayment.id,
+              description,
+              total_value: entryBoletoValue + totalRemainingValue,
+              installment_count: installmentCount,
+              first_due_date: proRataDueDateStr,
+            });
+
+            carneData = {
+              id: savedCarne.id,
+              asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
+            };
+          }
+        } else {
+          // Standard flow: all installments equal, no entry boleto
+          const totalValue = regularValue * installmentCount;
+          
+          const asaasPayment = await createAsaasCarne({
+            customerId: asaasCustomer.id,
+            value: totalValue,
+            dueDate: firstDueDateStr,
             description,
-            total_value: entryBoletoValue + totalRemainingValue,
-            installment_count: installmentCount,
-            first_due_date: proRataDueDateStr,
+            installmentCount,
+            externalReference: enrollment.id,
+            discount: discountConfig,
           });
 
-          carneData = {
-            id: savedCarne.id,
-            asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
-          };
-        }
-      } else {
-        // Standard flow: all installments equal, no entry boleto
-        const totalValue = regularValue * installmentCount;
-        
-        const asaasPayment = await createAsaasCarne({
-          customerId: asaasCustomer.id,
-          value: totalValue,
-          dueDate: firstDueDateStr,
-          description,
-          installmentCount,
-          externalReference: enrollment.id,
-          discount: discountConfig,
-        });
+          if (asaasPayment) {
+            const savedCarne = await createCarne({
+              enrollment_id: enrollment.id,
+              guardian_id: guardian.id,
+              contract_id: contract.id,
+              asaas_installment_id: asaasPayment.installment || asaasPayment.id,
+              description,
+              total_value: totalValue,
+              installment_count: installmentCount,
+              first_due_date: firstDueDateStr,
+            });
 
-        if (asaasPayment) {
-          const savedCarne = await createCarne({
-            enrollment_id: enrollment.id,
-            guardian_id: guardian.id,
-            contract_id: contract.id,
-            asaas_installment_id: asaasPayment.installment || asaasPayment.id,
-            description,
-            total_value: totalValue,
-            installment_count: installmentCount,
-            first_due_date: firstDueDateStr,
-          });
+            carneData = {
+              id: savedCarne.id,
+              asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
+            };
 
-          carneData = {
-            id: savedCarne.id,
-            asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
-          };
-
-          await createPayment({
-            enrollment_id: enrollment.id,
-            guardian_id: guardian.id,
-            contract_id: contract.id,
-            asaas_payment_id: asaasPayment.id,
-            asaas_installment_id: asaasPayment.installment || null,
-            description,
-            value: asaasPayment.value,
-            due_date: asaasPayment.dueDate,
-            status: asaasPayment.status,
-            invoice_url: asaasPayment.invoiceUrl,
-            bank_slip_url: asaasPayment.bankSlipUrl,
-            installment_number: 1,
-            external_reference: enrollment.id,
-          });
+            await createPayment({
+              enrollment_id: enrollment.id,
+              guardian_id: guardian.id,
+              contract_id: contract.id,
+              asaas_payment_id: asaasPayment.id,
+              asaas_installment_id: asaasPayment.installment || null,
+              description,
+              value: asaasPayment.value,
+              due_date: asaasPayment.dueDate,
+              status: asaasPayment.status,
+              invoice_url: asaasPayment.invoiceUrl,
+              bank_slip_url: asaasPayment.bankSlipUrl,
+              installment_number: 1,
+              external_reference: enrollment.id,
+            });
+          }
         }
       }
 
@@ -836,16 +840,25 @@ export default function Enrollment() {
         proRataBoleto: proRataBoletoData,
       });
 
-      const hasEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
-                             (!useProRata && useEntryBoleto && installmentCount > 1);
+      const hasEntryBoleto = generateCarneNow && ((useProRata && proRataValue !== regularValue && installmentCount > 1) || 
+                             (!useProRata && useEntryBoleto && installmentCount > 1));
       
+      let toastDescription = "O contrato foi gerado.";
+      if (generateCarneNow) {
+        if (hasEntryBoleto) {
+          toastDescription = useProRata 
+            ? "O contrato, boleto pro-rata e carnê foram gerados automaticamente."
+            : "O contrato, boleto de entrada e carnê foram gerados automaticamente.";
+        } else {
+          toastDescription = "O contrato e o carnê foram gerados automaticamente.";
+        }
+      } else {
+        toastDescription = "O contrato foi gerado. O carnê poderá ser gerado posteriormente na página de Contratos.";
+      }
+
       toast({
         title: "Matrícula realizada com sucesso!",
-        description: hasEntryBoleto 
-          ? useProRata 
-            ? "O contrato, boleto pro-rata e carnê foram gerados automaticamente."
-            : "O contrato, boleto de entrada e carnê foram gerados automaticamente."
-          : "O contrato e o carnê foram gerados automaticamente.",
+        description: toastDescription,
       });
 
       setCurrentStep('summary');
@@ -1633,6 +1646,30 @@ export default function Enrollment() {
               </div>
             )}
 
+            {/* Generate Carnê Toggle */}
+            <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-4 border-2 border-primary/30">
+              <div>
+                <Label className="font-medium flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  Gerar Carnê Agora
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {generateCarneNow 
+                    ? "O carnê será gerado automaticamente ao finalizar a matrícula"
+                    : "Você poderá gerar o carnê posteriormente na página de Contratos"}
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={generateCarneNow}
+                  onChange={(e) => setGenerateCarneNow(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+              </label>
+            </div>
+
               <div className="space-y-2">
                 <Label>Dia de Vencimento</Label>
                 <Select
@@ -1775,12 +1812,17 @@ export default function Enrollment() {
                   </p>
                 </div>
               </div>
-              <div className="bg-primary/10 rounded-xl p-4 flex items-start gap-3">
-                <CreditCard className="w-5 h-5 text-primary mt-0.5" />
+              <div className={cn(
+                "rounded-xl p-4 flex items-start gap-3",
+                generateCarneNow ? "bg-primary/10" : "bg-warning/10"
+              )}>
+                <CreditCard className={cn("w-5 h-5 mt-0.5", generateCarneNow ? "text-primary" : "text-warning")} />
                 <div>
                   <p className="font-medium text-foreground">Carnê de pagamento</p>
                   <p className="text-sm text-muted-foreground">
-                    Serão gerados {formData.payment.installments} boletos para pagamento.
+                    {generateCarneNow 
+                      ? `Serão gerados ${formData.payment.installments} boletos para pagamento.`
+                      : "O carnê será gerado posteriormente na página de Contratos."}
                   </p>
                 </div>
               </div>
