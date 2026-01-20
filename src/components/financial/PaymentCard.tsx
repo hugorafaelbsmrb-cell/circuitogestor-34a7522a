@@ -32,6 +32,7 @@ export function PaymentCard({ payment, guardianName }: PaymentCardProps) {
       PENDING: { label: 'Pendente', variant: 'secondary', icon: Clock, color: 'text-yellow-500' },
       RECEIVED: { label: 'Recebido', variant: 'default', icon: CheckCircle2, color: 'text-green-500' },
       CONFIRMED: { label: 'Confirmado', variant: 'default', icon: CheckCircle2, color: 'text-green-500' },
+      RECEIVED_IN_CASH: { label: 'Pago em Dinheiro', variant: 'default', icon: CheckCircle2, color: 'text-green-500' },
       OVERDUE: { label: 'Vencido', variant: 'destructive', icon: AlertCircle, color: 'text-destructive' },
       REFUNDED: { label: 'Estornado', variant: 'outline', icon: AlertCircle, color: 'text-muted-foreground' },
     };
