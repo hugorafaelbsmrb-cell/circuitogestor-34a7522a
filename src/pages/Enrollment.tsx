@@ -1036,7 +1036,7 @@ export default function Enrollment() {
     if (!enrollmentResult?.proRataBoleto) {
       toast({
         title: "Erro",
-        description: "Boleto pro-rata não encontrado",
+        description: "Boleto de entrada não encontrado",
         variant: "destructive",
       });
       return;
@@ -1045,6 +1045,35 @@ export default function Enrollment() {
     const url = enrollmentResult.proRataBoleto.invoiceUrl || enrollmentResult.proRataBoleto.bankSlipUrl;
     if (url) {
       window.open(url, '_blank');
+    } else {
+      toast({
+        title: "Erro",
+        description: "URL do boleto não disponível",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadProRataBoleto = () => {
+    if (!enrollmentResult?.proRataBoleto) {
+      toast({
+        title: "Erro",
+        description: "Boleto de entrada não encontrado",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const url = enrollmentResult.proRataBoleto.bankSlipUrl || enrollmentResult.proRataBoleto.invoiceUrl;
+    if (url) {
+      // For PDFs, we can try to download directly
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.download = `boleto_entrada_${enrollmentResult.proRataBoleto.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } else {
       toast({
         title: "Erro",
@@ -1912,6 +1941,7 @@ export default function Enrollment() {
                 installments: parseInt(formData.payment.installments),
                 dueDayOfMonth: parseInt(formData.payment.dueDayOfMonth),
                 firstDueDate: calculateFirstDueDate().toISOString().split('T')[0],
+                entryBoletoDueDate: enrollmentResult.proRataBoleto ? calculateProRataDueDate().toISOString().split('T')[0] : undefined,
                 proRataValue: calculateTotalWithProRata.proRataValue,
                 regularValue: calculateTotalWithProRata.regularValue,
                 total: calculateTotalWithProRata.total,
@@ -1924,6 +1954,7 @@ export default function Enrollment() {
             onViewCarne={handleViewCarne}
             onDownloadCarne={handleDownloadCarne}
             onViewProRataBoleto={handleViewProRataBoleto}
+            onDownloadProRataBoleto={handleDownloadProRataBoleto}
             onNewEnrollment={handleNewEnrollment}
             isLoadingCarne={isLoadingCarne}
           />
