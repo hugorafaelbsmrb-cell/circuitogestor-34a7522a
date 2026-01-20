@@ -826,6 +826,27 @@ export default function Enrollment() {
             });
           }
         }
+      } else {
+        // When not generating carnê now, still save the payment info for reference
+        // Create a pending payment record so financial tracking works
+        const firstDueDateStr = calculateFirstDueDate().toISOString().split('T')[0];
+        const totalValue = calculateTotalWithProRata.regularValue * parseInt(formData.payment.installments);
+        
+        await createPayment({
+          enrollment_id: enrollment.id,
+          guardian_id: guardian.id,
+          contract_id: contract.id,
+          asaas_payment_id: null,
+          asaas_installment_id: null,
+          description: `${description} - Aguardando geração de carnê`,
+          value: calculateTotalWithProRata.regularValue,
+          due_date: firstDueDateStr,
+          status: 'PENDING',
+          invoice_url: null,
+          bank_slip_url: null,
+          installment_number: 1,
+          external_reference: enrollment.id,
+        });
       }
 
       // 8. Update enrollment with contract flag
