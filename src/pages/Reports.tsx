@@ -74,8 +74,23 @@ export default function Reports() {
   const [selectedReport, setSelectedReport] = useState<ReportType>(null);
   const [birthdayMonth, setBirthdayMonth] = useState<string>(String(new Date().getMonth()));
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>('all');
+  const [sexFilter, setSexFilter] = useState<string>('all');
+  const [ageMinFilter, setAgeMinFilter] = useState<string>('');
+  const [ageMaxFilter, setAgeMaxFilter] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  // Calculate age helper
+  const calculateAge = (birthDate: string): number => {
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
   useEffect(() => {
     fetchLeads();
@@ -114,20 +129,34 @@ export default function Reports() {
   ];
 
   const getStudentsReport = () => {
-    return students.map(student => {
-      const guardian = guardians.find(g => g.id === student.guardian_id);
-      const enrollment = enrollments.find(e => e.student_id === student.id);
-      const classGroup = classGroups.find(c => c.id === enrollment?.class_group_id);
-      const course = courses.find(c => c.id === classGroup?.course_id);
-      
-      return {
-        ...student,
-        guardian,
-        classGroup,
-        course,
-        enrollment,
-      };
-    });
+    return students
+      .filter(student => {
+        // Sex filter
+        if (sexFilter !== 'all' && student.sex !== sexFilter) return false;
+        
+        // Age filter
+        const age = calculateAge(student.birth_date);
+        if (ageMinFilter && age < parseInt(ageMinFilter)) return false;
+        if (ageMaxFilter && age > parseInt(ageMaxFilter)) return false;
+        
+        return true;
+      })
+      .map(student => {
+        const guardian = guardians.find(g => g.id === student.guardian_id);
+        const enrollment = enrollments.find(e => e.student_id === student.id);
+        const classGroup = classGroups.find(c => c.id === enrollment?.class_group_id);
+        const course = courses.find(c => c.id === classGroup?.course_id);
+        const age = calculateAge(student.birth_date);
+        
+        return {
+          ...student,
+          guardian,
+          classGroup,
+          course,
+          enrollment,
+          age,
+        };
+      });
   };
 
   const getBirthdayReport = () => {
@@ -162,9 +191,10 @@ export default function Reports() {
     
     if (selectedReport === 'students') {
       const data = getStudentsReport();
-      csvContent = 'Nome do Aluno,Data de Nascimento,Responsável,Telefone,Email,Curso,Turma\n';
+      csvContent = 'Nome do Aluno,Sexo,Idade,Data de Nascimento,Responsável,Telefone,Email,Curso,Turma\n';
       data.forEach(row => {
-        csvContent += `"${row.name}","${format(parseISO(row.birth_date), 'dd/MM/yyyy')}","${row.guardian?.name || ''}","${row.guardian?.phone || ''}","${row.guardian?.email || ''}","${row.course?.name || ''}","${row.classGroup?.name || ''}"\n`;
+        const sexLabel = row.sex === 'M' ? 'Masculino' : row.sex === 'F' ? 'Feminino' : '';
+        csvContent += `"${row.name}","${sexLabel}","${row.age} anos","${format(parseISO(row.birth_date), 'dd/MM/yyyy')}","${row.guardian?.name || ''}","${row.guardian?.phone || ''}","${row.guardian?.email || ''}","${row.course?.name || ''}","${row.classGroup?.name || ''}"\n`;
       });
       filename = `relatorio_alunos_${format(new Date(), 'yyyy-MM-dd')}.csv`;
     } else if (selectedReport === 'birthdays') {
@@ -242,6 +272,58 @@ export default function Reports() {
       const data = getStudentsReport();
       return (
         <div className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-wrap items-end gap-4 p-4 bg-secondary/30 rounded-lg">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Sexo</label>
+              <Select value={sexFilter} onValueChange={setSexFilter}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="M">Masculino</SelectItem>
+                  <SelectItem value="F">Feminino</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Idade mín.</label>
+              <input
+                type="number"
+                min="0"
+                max="99"
+                placeholder="0"
+                value={ageMinFilter}
+                onChange={(e) => setAgeMinFilter(e.target.value)}
+                className="w-[80px] h-10 px-3 border rounded-md bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Idade máx.</label>
+              <input
+                type="number"
+                min="0"
+                max="99"
+                placeholder="99"
+                value={ageMaxFilter}
+                onChange={(e) => setAgeMaxFilter(e.target.value)}
+                className="w-[80px] h-10 px-3 border rounded-md bg-background"
+              />
+            </div>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => {
+                setSexFilter('all');
+                setAgeMinFilter('');
+                setAgeMaxFilter('');
+              }}
+            >
+              Limpar filtros
+            </Button>
+          </div>
+
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h3 className="font-semibold">Alunos Matriculados ({data.length})</h3>
             <div className="flex gap-2">
@@ -260,6 +342,8 @@ export default function Reports() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Aluno</TableHead>
+                  <TableHead>Sexo</TableHead>
+                  <TableHead>Idade</TableHead>
                   <TableHead>Nascimento</TableHead>
                   <TableHead>Responsável</TableHead>
                   <TableHead>Telefone</TableHead>
@@ -270,6 +354,12 @@ export default function Reports() {
                 {data.map(row => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {row.sex === 'M' ? 'M' : row.sex === 'F' ? 'F' : '-'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{row.age} anos</TableCell>
                     <TableCell>{format(parseISO(row.birth_date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>{row.guardian?.name || '-'}</TableCell>
                     <TableCell>{row.guardian?.phone || '-'}</TableCell>

@@ -17,6 +17,8 @@ interface ContractContent {
   guardianAddress: string;
   studentName: string;
   studentBirthDate: string;
+  studentSex?: string;
+  studentAge?: number | null;
   courseName: string;
   courseDuration: string;
   coursePrice: number;
@@ -135,7 +137,9 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
             
             <p style={{ marginBottom: '4px' }}>
               <strong>CONTRATANTE:</strong> {content.guardianName || '___________________________________________'}, 
-              responsável legal pelo(a) aluno(a) <strong>{content.studentName || '___________________________________________'}</strong>, 
+              responsável legal pelo(a) aluno(a) <strong>{content.studentName || '___________________________________________'}</strong>
+              {content.studentSex && `, sexo ${content.studentSex === 'M' ? 'masculino' : 'feminino'}`}
+              {content.studentAge !== null && content.studentAge !== undefined && `, ${content.studentAge} anos de idade`}, 
               CPF nº {content.guardianCpf || '____________________'}
               {content.guardianRg && `, RG nº ${content.guardianRg}`}.
             </p>

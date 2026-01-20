@@ -118,7 +118,8 @@ export default function Enrollment() {
   const [formData, setFormData] = useState({
     student: { 
       name: '', 
-      birthDate: '' 
+      birthDate: '',
+      sex: 'M' as 'M' | 'F'
     },
     guardian: { 
       name: '', 
@@ -138,6 +139,21 @@ export default function Enrollment() {
     }
   });
 
+  // Calculate age from birth date
+  const calculateAge = (birthDate: string): number | null => {
+    if (!birthDate) return null;
+    const today = new Date();
+    const birth = new Date(birthDate);
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const studentAge = calculateAge(formData.student.birthDate);
+
   // Standard due date options
   const dueDateOptions = [5, 10, 15, 20, 25];
 
@@ -153,6 +169,7 @@ export default function Enrollment() {
           student: {
             name: existingStudent.name,
             birthDate: existingStudent.birth_date,
+            sex: (existingStudent.sex as 'M' | 'F') || 'M',
           },
           guardian: existingGuardian ? {
             name: existingGuardian.name,
@@ -555,6 +572,7 @@ export default function Enrollment() {
           name: formData.student.name,
           birth_date: formData.student.birthDate,
           guardian_id: guardian.id,
+          sex: formData.student.sex,
         });
       }
 
@@ -614,6 +632,8 @@ export default function Enrollment() {
         guardianAddress: guardian.address,
         studentName: student.name,
         studentBirthDate: student.birth_date,
+        studentSex: formData.student.sex,
+        studentAge: calculateAge(student.birth_date),
         courseName: selectedCourse.name,
         courseDuration: selectedCourse.duration,
         coursePrice: finalPrice,
@@ -1094,7 +1114,7 @@ export default function Enrollment() {
 
   const handleNewEnrollment = () => {
     setFormData({
-      student: { name: '', birthDate: '' },
+      student: { name: '', birthDate: '', sex: 'M' },
       guardian: { 
         name: '', 
         cpf: '', 
@@ -1193,6 +1213,26 @@ export default function Enrollment() {
                   value={formData.student.birthDate}
                   onChange={(e) => handleStudentChange('birthDate', e.target.value)}
                 />
+                {studentAge !== null && (
+                  <p className="text-sm text-muted-foreground">
+                    Idade: <span className="font-medium text-foreground">{studentAge} anos</span>
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="studentSex">Sexo</Label>
+                <Select 
+                  value={formData.student.sex} 
+                  onValueChange={(value: 'M' | 'F') => handleStudentChange('sex', value)}
+                >
+                  <SelectTrigger id="studentSex">
+                    <SelectValue placeholder="Selecione o sexo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="M">Masculino</SelectItem>
+                    <SelectItem value="F">Feminino</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
