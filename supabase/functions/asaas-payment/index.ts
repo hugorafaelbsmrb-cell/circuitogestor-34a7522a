@@ -403,12 +403,20 @@ async function listPayments(config: AsaasConfig, customerId: string) {
 async function receiveInCash(config: AsaasConfig, paymentId: string, paymentDate: string, value?: number, notifyCustomer?: boolean) {
   console.log("Registrando pagamento em dinheiro:", paymentId);
   
+  // Asaas requires a minimum value of R$ 1.00 for receiveInCash
+  // If value is provided and less than 1.00, we need to handle it
+  if (value !== undefined && value < 1.0) {
+    console.log("Valor abaixo do mínimo de R$ 1,00. Valor:", value);
+    throw new Error("O valor mínimo para confirmar pagamento em dinheiro é R$ 1,00. Para valores menores, cancele a cobrança.");
+  }
+  
   const body: Record<string, unknown> = {
     paymentDate,
     notifyCustomer: notifyCustomer ?? false,
   };
   
-  if (value) {
+  // Only include value if explicitly provided (for partial payments)
+  if (value !== undefined && value >= 1.0) {
     body.value = value;
   }
   
