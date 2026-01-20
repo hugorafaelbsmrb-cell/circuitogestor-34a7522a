@@ -37,6 +37,7 @@ export function PaymentTable({ payments, getGuardianName, sortField, sortDirecti
       PENDING: { label: 'Pendente', variant: 'secondary', icon: Clock },
       RECEIVED: { label: 'Recebido', variant: 'default', icon: CheckCircle2 },
       CONFIRMED: { label: 'Confirmado', variant: 'default', icon: CheckCircle2 },
+      RECEIVED_IN_CASH: { label: 'Pago em Dinheiro', variant: 'default', icon: CheckCircle2 },
       OVERDUE: { label: 'Vencido', variant: 'destructive', icon: AlertCircle },
       REFUNDED: { label: 'Estornado', variant: 'outline', icon: AlertCircle },
     };
