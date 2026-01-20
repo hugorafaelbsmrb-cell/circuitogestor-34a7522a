@@ -212,13 +212,21 @@ export function EnrollmentSummary({
               </>
             )}
             <div className="flex justify-between">
+              <span className="text-muted-foreground text-sm">Duração do Contrato:</span>
+              <span className="font-medium text-sm">
+                {data.payment.installments === 0 || data.payment.installments === 12 && !hasProRataBoleto
+                  ? 'Indeterminado'
+                  : `${data.payment.installments} meses`}
+              </span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-muted-foreground text-sm">
                 {hasProRataBoleto ? 'Demais Parcelas:' : 'Parcelas:'}
               </span>
               <span className="font-medium text-sm">
                 {hasProRataBoleto 
-                  ? `${data.payment.installments - 1}x de R$ ${data.payment.regularValue.toFixed(2).replace('.', ',')}`
-                  : `${data.payment.installments}x de R$ ${data.payment.regularValue.toFixed(2).replace('.', ',')}`
+                  ? `${(data.payment.installments || 12) - 1}x de R$ ${data.payment.regularValue.toFixed(2).replace('.', ',')}`
+                  : `${data.payment.installments || 12}x de R$ ${data.payment.regularValue.toFixed(2).replace('.', ',')}`
                 }
               </span>
             </div>
@@ -314,8 +322,8 @@ export function EnrollmentSummary({
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
                 {hasProRataBoleto 
-                  ? `${data.payment.installments - 1} boletos (parcelas 2 a ${data.payment.installments})`
-                  : `${data.payment.installments} boletos gerados para pagamento`}
+                  ? `${(data.payment.installments || 12) - 1} boletos (parcelas 2 a ${data.payment.installments || 12})`
+                  : `${data.payment.installments || 12} boletos gerados para pagamento`}
               </p>
               <div className="flex gap-3">
                 <Button 
