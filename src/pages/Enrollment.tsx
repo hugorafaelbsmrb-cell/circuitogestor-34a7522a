@@ -49,9 +49,9 @@ const GRADE_LEVELS = [
 const REFORCO_ESCOLAR_PRICES: Record<number, number> = {
   1: 120,
   2: 200,
-  3: 300,
-  4: 320,
-  5: 350,
+  3: 250,
+  4: 300,
+  5: 300,
 };
 
 interface SelectedSchedule {
