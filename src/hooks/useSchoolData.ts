@@ -634,6 +634,146 @@ export function useSchoolData() {
     setEnrollments(prev => prev.map(e => e.id === id ? { ...e, ...data } : e));
   };
 
+  const deleteEnrollment = async (enrollmentId: string) => {
+    const enrollment = enrollments.find(e => e.id === enrollmentId);
+    if (!enrollment) throw new Error('Matrícula não encontrada');
+
+    // Get related carnês
+    const enrollmentCarnes = carnes.filter(c => c.enrollment_id === enrollmentId);
+    
+    // Get related contracts
+    const enrollmentContracts = contracts.filter(c => c.enrollment_id === enrollmentId);
+    const contractIds = enrollmentContracts.map(c => c.id);
+    
+    // Get related payments (by enrollment or contract)
+    const enrollmentPayments = payments.filter(p => 
+      p.enrollment_id === enrollmentId || 
+      (p.contract_id && contractIds.includes(p.contract_id))
+    );
+
+    // Cancel carnês in Asaas API
+    for (const carne of enrollmentCarnes) {
+      if (carne.asaas_installment_id && carne.status !== 'DELETED') {
+        try {
+          console.log('Cancelando carnê no Asaas:', carne.asaas_installment_id);
+          const response = await supabase.functions.invoke('asaas-payment', {
+            body: {
+              action: 'deleteInstallment',
+              data: { installmentId: carne.asaas_installment_id }
+            }
+          });
+          
+          if (response.error) {
+            console.warn('Erro ao cancelar carnê no Asaas:', response.error);
+          }
+        } catch (err) {
+          console.warn('Erro ao cancelar carnê no Asaas:', err);
+        }
+      }
+    }
+    
+    // Cancel individual payments in Asaas API (only non-installment pending ones)
+    for (const payment of enrollmentPayments) {
+      if (payment.asaas_payment_id && !payment.asaas_installment_id && payment.status === 'PENDING') {
+        try {
+          console.log('Cancelando boleto no Asaas:', payment.asaas_payment_id);
+          const response = await supabase.functions.invoke('asaas-payment', {
+            body: {
+              action: 'deletePayment',
+              data: { paymentId: payment.asaas_payment_id }
+            }
+          });
+          
+          if (response.error) {
+            console.warn('Erro ao cancelar boleto no Asaas:', response.error);
+          }
+        } catch (err) {
+          console.warn('Erro ao cancelar boleto no Asaas:', err);
+        }
+      }
+    }
+
+    // Delete carnês from database
+    const { error: carnesError } = await supabase
+      .from('carnes')
+      .delete()
+      .eq('enrollment_id', enrollmentId);
+    
+    if (carnesError) {
+      console.warn('Erro ao excluir carnês:', carnesError);
+    }
+
+    // Delete payments from database (by enrollment)
+    const { error: paymentsError } = await supabase
+      .from('payments')
+      .delete()
+      .eq('enrollment_id', enrollmentId);
+    
+    if (paymentsError) {
+      console.warn('Erro ao excluir payments:', paymentsError);
+    }
+
+    // Delete payments by contract_id
+    if (contractIds.length > 0) {
+      const { error: contractPaymentsError } = await supabase
+        .from('payments')
+        .delete()
+        .in('contract_id', contractIds);
+      
+      if (contractPaymentsError) {
+        console.warn('Erro ao excluir payments de contratos:', contractPaymentsError);
+      }
+
+      // Delete carnês by contract_id
+      const { error: contractCarnesError } = await supabase
+        .from('carnes')
+        .delete()
+        .in('contract_id', contractIds);
+      
+      if (contractCarnesError) {
+        console.warn('Erro ao excluir carnês de contratos:', contractCarnesError);
+      }
+    }
+
+    // Delete contracts
+    const { error: contractsError } = await supabase
+      .from('contracts')
+      .delete()
+      .eq('enrollment_id', enrollmentId);
+    
+    if (contractsError) {
+      console.warn('Erro ao excluir contratos:', contractsError);
+    }
+
+    // Decrement class group student count if enrollment was active/pending
+    if (enrollment.status === 'active' || enrollment.status === 'pending') {
+      const classGroup = classGroups.find(cg => cg.id === enrollment.class_group_id);
+      if (classGroup && classGroup.current_students > 0) {
+        await supabase
+          .from('class_groups')
+          .update({ current_students: classGroup.current_students - 1 })
+          .eq('id', enrollment.class_group_id);
+      }
+    }
+
+    // Delete the enrollment
+    const { error } = await supabase
+      .from('enrollments')
+      .delete()
+      .eq('id', enrollmentId);
+    
+    if (error) throw error;
+
+    // Update local state
+    setEnrollments(prev => prev.filter(e => e.id !== enrollmentId));
+    setContracts(prev => prev.filter(c => c.enrollment_id !== enrollmentId));
+    setCarnes(prev => prev.filter(c => c.enrollment_id !== enrollmentId && !contractIds.includes(c.contract_id || '')));
+    setPayments(prev => prev.filter(p => p.enrollment_id !== enrollmentId && !contractIds.includes(p.contract_id || '')));
+
+    // Refresh data to update counts
+    await fetchData();
+  };
+
   // Contract CRUD
   const createContract = async (data: {
     enrollment_id: string;
@@ -946,6 +1086,7 @@ export function useSchoolData() {
     // Enrollment
     createEnrollment,
     updateEnrollment,
+    deleteEnrollment,
     
     // Contract
     createContract,
