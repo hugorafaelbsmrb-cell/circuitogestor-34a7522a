@@ -413,12 +413,23 @@ async function listPayments(config: AsaasConfig, customerId: string) {
 
 async function receiveInCash(config: AsaasConfig, paymentId: string, paymentDate: string, value?: number, notifyCustomer?: boolean) {
   console.log("Registrando pagamento em dinheiro:", paymentId);
+  console.log("Parâmetros recebidos - paymentDate:", paymentDate, "value:", value, "notifyCustomer:", notifyCustomer);
   
-  // First, get the payment details to check its value
+  // First, get the payment details to check its value and status
   const payment = await getPayment(config, paymentId);
+  console.log("Status do pagamento:", payment.status);
+  console.log("Valor original:", payment.value);
+  console.log("Valor líquido:", payment.netValue);
+  console.log("Desconto configurado:", JSON.stringify(payment.discount));
+  
   const paymentValue = value ?? payment.value;
   
-  console.log("Valor da cobrança:", paymentValue);
+  console.log("Valor para baixa:", paymentValue);
+  
+  // Check payment status - can only receive in cash if PENDING or OVERDUE
+  if (!['PENDING', 'OVERDUE'].includes(payment.status)) {
+    throw new Error(`Não é possível dar baixa em cobrança com status ${payment.status}. Status permitidos: PENDING, OVERDUE`);
+  }
   
   // Asaas requires a minimum value of R$ 1.00 for receiveInCash
   if (paymentValue < 1.0) {
@@ -432,15 +443,14 @@ async function receiveInCash(config: AsaasConfig, paymentId: string, paymentDate
     };
   }
   
+  // Always include value in the request - Asaas seems to require it
   const body: Record<string, unknown> = {
     paymentDate,
     notifyCustomer: notifyCustomer ?? false,
+    value: paymentValue,
   };
   
-  // Only include value if explicitly provided (for partial payments)
-  if (value !== undefined && value >= 1.0) {
-    body.value = value;
-  }
+  console.log("Body da requisição:", JSON.stringify(body));
   
   const response = await fetch(`${config.baseUrl}/payments/${paymentId}/receiveInCash`, {
     method: "POST",
