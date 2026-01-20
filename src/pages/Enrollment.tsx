@@ -1601,25 +1601,66 @@ export default function Enrollment() {
               </div>
             )}
             
+            {/* Contract Duration for Reforço Escolar */}
+            {isReforcoEscolar && (
+              <div className="space-y-2 mb-6">
+                <Label className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Duração do Contrato
+                </Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    onClick={() => handlePaymentChange('installments', '6')}
+                    className={cn(
+                      "p-4 rounded-xl border-2 text-center transition-all",
+                      formData.payment.installments === '6'
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <span className="text-2xl font-bold text-primary">6</span>
+                    <p className="text-sm text-muted-foreground">meses</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handlePaymentChange('installments', '12')}
+                    className={cn(
+                      "p-4 rounded-xl border-2 text-center transition-all",
+                      formData.payment.installments === '12'
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    <span className="text-2xl font-bold text-primary">12</span>
+                    <p className="text-sm text-muted-foreground">meses</p>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label>Número de Mensalidades</Label>
-                <Select
-                  value={formData.payment.installments}
-                  onValueChange={(value) => handlePaymentChange('installments', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
-                      <SelectItem key={n} value={n.toString()}>
-                        {n}x {selectedCourse && `(Total: R$ ${(calculateDiscountedPrice.discountedPrice * n).toFixed(2).replace('.', ',')})`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-            </div>
+              {/* Show installments select only for non-Reforço Escolar courses */}
+              {!isReforcoEscolar && (
+                <div className="space-y-2">
+                  <Label>Número de Mensalidades</Label>
+                  <Select
+                    value={formData.payment.installments}
+                    onValueChange={(value) => handlePaymentChange('installments', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                        <SelectItem key={n} value={n.toString()}>
+                          {n}x {selectedCourse && `(Total: R$ ${(calculateDiscountedPrice.discountedPrice * n).toFixed(2).replace('.', ',')})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
             {/* Pro-Rata Toggle */}
             <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-4">
