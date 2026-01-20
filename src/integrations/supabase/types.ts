@@ -325,6 +325,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          contract_duration_months: number | null
           created_at: string
           description: string | null
           duration: string
@@ -335,6 +336,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          contract_duration_months?: number | null
           created_at?: string
           description?: string | null
           duration: string
@@ -345,6 +347,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          contract_duration_months?: number | null
           created_at?: string
           description?: string | null
           duration?: string

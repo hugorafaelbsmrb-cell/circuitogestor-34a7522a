@@ -38,6 +38,7 @@ export interface DbCourse {
   duration: string;
   price: number;
   is_active: boolean;
+  contract_duration_months: number | null;
   created_at: string;
   updated_at: string;
 }

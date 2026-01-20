@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { BookOpen, Clock, DollarSign, Plus, Pencil, Trash2 } from 'lucide-react';
+import { BookOpen, Clock, DollarSign, Plus, Pencil, Trash2, FileText } from 'lucide-react';
 import { useSchool, Course } from '@/contexts/SchoolContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function Courses() {
   const { courses, classGroups, addCourse, updateCourse, deleteCourse } = useSchool();
@@ -16,6 +17,7 @@ export default function Courses() {
     description: '',
     duration: '',
     price: '',
+    contract_duration_months: '' as string,
   });
 
   const getClassCount = (courseId: string) => {
@@ -29,7 +31,7 @@ export default function Courses() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', duration: '', price: '' });
+    setFormData({ name: '', description: '', duration: '', price: '', contract_duration_months: '' });
     setEditingCourse(null);
   };
 
@@ -41,6 +43,7 @@ export default function Courses() {
         description: course.description || '',
         duration: course.duration,
         price: course.price.toString(),
+        contract_duration_months: course.contract_duration_months?.toString() || '',
       });
     } else {
       resetForm();
@@ -55,6 +58,7 @@ export default function Courses() {
       description: formData.description,
       duration: formData.duration,
       price: parseFloat(formData.price) || 0,
+      contract_duration_months: formData.contract_duration_months ? parseInt(formData.contract_duration_months) : null,
     };
 
     if (editingCourse) {
@@ -111,7 +115,7 @@ export default function Courses() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="duration">Duração</Label>
+                  <Label htmlFor="duration">Duração do Curso</Label>
                   <Input
                     id="duration"
                     value={formData.duration}
@@ -131,6 +135,23 @@ export default function Courses() {
                     required
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contract_duration">Duração do Contrato</Label>
+                <Select
+                  value={formData.contract_duration_months}
+                  onValueChange={(value) => setFormData({ ...formData, contract_duration_months: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a duração do contrato" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="6">6 meses</SelectItem>
+                    <SelectItem value="12">12 meses</SelectItem>
+                    <SelectItem value="18">18 meses</SelectItem>
+                    <SelectItem value="">Indeterminado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -183,9 +204,19 @@ export default function Courses() {
                 </div>
 
                 <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-sm">{course.duration}</span>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Clock className="w-4 h-4" />
+                      <span className="text-sm">{course.duration}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <FileText className="w-4 h-4" />
+                      <span className="text-sm">
+                        {course.contract_duration_months 
+                          ? `${course.contract_duration_months} meses` 
+                          : 'Indeterminado'}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 text-primary font-semibold">
                     <span>R$ {course.price.toFixed(2).replace('.', ',')}</span>
