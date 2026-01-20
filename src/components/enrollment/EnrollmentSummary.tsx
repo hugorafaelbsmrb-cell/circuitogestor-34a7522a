@@ -74,7 +74,9 @@ export function EnrollmentSummary({
         <div>
           <h2 className="text-xl font-semibold text-foreground">Matrícula Realizada com Sucesso!</h2>
           <p className="text-muted-foreground">
-            O contrato e o carnê de pagamento foram gerados automaticamente.
+            {data.carne 
+              ? "O contrato e o carnê de pagamento foram gerados automaticamente."
+              : "O contrato foi gerado. O carnê poderá ser gerado na página de Contratos."}
           </p>
         </div>
       </div>
@@ -271,48 +273,74 @@ export function EnrollmentSummary({
         )}
 
         {/* Carne Actions */}
-        <Card className="border-primary/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-primary" />
-              Carnê de Pagamento
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              {hasProRataBoleto 
-                ? `${data.payment.installments - 1} boletos (parcelas 2 a ${data.payment.installments})`
-                : `${data.payment.installments} boletos gerados para pagamento`}
-            </p>
-            <div className="flex gap-3">
-              <Button 
-                variant="outline" 
-                className="flex-1 gap-2" 
-                onClick={onViewCarne}
-                disabled={isLoadingCarne || !data.carne}
-              >
-                {isLoadingCarne ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Eye className="w-4 h-4" />
-                )}
-                Visualizar
-              </Button>
-              <Button 
-                className="flex-1 gap-2" 
-                onClick={onDownloadCarne}
-                disabled={isLoadingCarne || !data.carne}
-              >
-                {isLoadingCarne ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                Baixar PDF
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {data.carne ? (
+          <Card className="border-primary/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-primary" />
+                Carnê de Pagamento
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                {hasProRataBoleto 
+                  ? `${data.payment.installments - 1} boletos (parcelas 2 a ${data.payment.installments})`
+                  : `${data.payment.installments} boletos gerados para pagamento`}
+              </p>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 gap-2" 
+                  onClick={onViewCarne}
+                  disabled={isLoadingCarne}
+                >
+                  {isLoadingCarne ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                  Visualizar
+                </Button>
+                <Button 
+                  className="flex-1 gap-2" 
+                  onClick={onDownloadCarne}
+                  disabled={isLoadingCarne}
+                >
+                  {isLoadingCarne ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  Baixar PDF
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-warning/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-warning" />
+                Carnê de Pagamento
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-4">
+                O carnê não foi gerado no ato da matrícula. Você pode gerá-lo posteriormente na página de <strong>Contratos</strong>.
+              </p>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1 gap-2"
+                  disabled
+                >
+                  <CreditCard className="w-4 h-4" />
+                  Gerar na página de Contratos
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Navigation Actions */}
