@@ -25,6 +25,7 @@ export interface DbStudent {
   birth_date: string;
   guardian_id: string;
   is_active: boolean;
+  sex?: string | null;
   created_at: string;
   updated_at: string;
   guardian?: DbGuardian;
@@ -355,7 +356,7 @@ export function useSchoolData() {
   };
 
   // Student CRUD
-  const createStudent = async (data: { name: string; birth_date: string; guardian_id: string }) => {
+  const createStudent = async (data: { name: string; birth_date: string; guardian_id: string; sex?: string }) => {
     const { data: result, error } = await supabase
       .from('students')
       .insert(data)
