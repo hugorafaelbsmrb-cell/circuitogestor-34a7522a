@@ -701,54 +701,56 @@ export default function Enrollment() {
       let carneData = null;
       let proRataBoletoData: { id: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null = null;
       
-      // Only generate carnê if user chose to do so
-      if (generateCarneNow) {
-        // Determine if we need an entry boleto (pro-rata OR entry boleto with full value)
-        const needsEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
-                                 (!useProRata && useEntryBoleto && installmentCount > 1);
+      // Always generate entry boleto (pro-rata or full value)
+      const needsEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
+                               (!useProRata && useEntryBoleto && installmentCount > 1);
+      
+      if (needsEntryBoleto) {
+        // Calculate entry boleto value
+        const entryBoletoValue = useProRata ? proRataValue : regularValue;
+        const entryBoletoDescription = useProRata 
+          ? `${description} - Pro-Rata (1ª Parcela)` 
+          : `${description} - Entrada (1ª Parcela)`;
         
-        if (needsEntryBoleto) {
-          // Calculate entry boleto value
-          const entryBoletoValue = useProRata ? proRataValue : regularValue;
-          const entryBoletoDescription = useProRata 
-            ? `${description} - Pro-Rata (1ª Parcela)` 
-            : `${description} - Entrada (1ª Parcela)`;
+        // Create entry boleto (due in 5 days from enrollment)
+        const entryBoleto = await createAsaasBoleto({
+          customerId: asaasCustomer.id,
+          value: entryBoletoValue,
+          dueDate: proRataDueDateStr,
+          description: entryBoletoDescription,
+          externalReference: enrollment.id,
+          discount: discountConfig,
+        });
+        
+        if (entryBoleto) {
+          proRataBoletoData = {
+            id: entryBoleto.id,
+            invoiceUrl: entryBoleto.invoiceUrl || null,
+            bankSlipUrl: entryBoleto.bankSlipUrl || null,
+          };
           
-          // Create entry boleto (due in 5 days from enrollment)
-          const entryBoleto = await createAsaasBoleto({
-            customerId: asaasCustomer.id,
-            value: entryBoletoValue,
-            dueDate: proRataDueDateStr,
-            description: entryBoletoDescription,
-            externalReference: enrollment.id,
-            discount: discountConfig,
+          // Save entry payment to database
+          await createPayment({
+            enrollment_id: enrollment.id,
+            guardian_id: guardian.id,
+            contract_id: contract.id,
+            asaas_payment_id: entryBoleto.id,
+            asaas_installment_id: null,
+            description: useProRata ? `${description} - Pro-Rata` : `${description} - Entrada`,
+            value: entryBoleto.value,
+            due_date: entryBoleto.dueDate,
+            status: entryBoleto.status,
+            invoice_url: entryBoleto.invoiceUrl,
+            bank_slip_url: entryBoleto.bankSlipUrl,
+            installment_number: 1,
+            external_reference: enrollment.id,
           });
-          
-          if (entryBoleto) {
-            proRataBoletoData = {
-              id: entryBoleto.id,
-              invoiceUrl: entryBoleto.invoiceUrl || null,
-              bankSlipUrl: entryBoleto.bankSlipUrl || null,
-            };
-            
-            // Save entry payment to database
-            await createPayment({
-              enrollment_id: enrollment.id,
-              guardian_id: guardian.id,
-              contract_id: contract.id,
-              asaas_payment_id: entryBoleto.id,
-              asaas_installment_id: null,
-              description: useProRata ? `${description} - Pro-Rata` : `${description} - Entrada`,
-              value: entryBoleto.value,
-              due_date: entryBoleto.dueDate,
-              status: entryBoleto.status,
-              invoice_url: entryBoleto.invoiceUrl,
-              bank_slip_url: entryBoleto.bankSlipUrl,
-              installment_number: 1,
-              external_reference: enrollment.id,
-            });
-          }
-          
+        }
+      }
+      
+      // Generate carnê only if user chose to do so
+      if (generateCarneNow) {
+        if (needsEntryBoleto) {
           // Create carnê for remaining installments - starts on firstDueDate (next month)
           const remainingInstallments = installmentCount - 1;
           const totalRemainingValue = regularValue * remainingInstallments;
@@ -764,6 +766,7 @@ export default function Enrollment() {
           });
           
           if (asaasPayment) {
+            const entryBoletoValue = useProRata ? proRataValue : regularValue;
             const savedCarne = await createCarne({
               enrollment_id: enrollment.id,
               guardian_id: guardian.id,
@@ -828,11 +831,9 @@ export default function Enrollment() {
             });
           }
         }
-      } else {
-        // When not generating carnê now, still save the payment info for reference
-        // Create a pending payment record so financial tracking works
+      } else if (!needsEntryBoleto) {
+        // When not generating carnê now and no entry boleto, create a pending payment record
         const firstDueDateStr = calculateFirstDueDate().toISOString().split('T')[0];
-        const totalValue = calculateTotalWithProRata.regularValue * parseInt(formData.payment.installments);
         
         await createPayment({
           enrollment_id: enrollment.id,
@@ -863,20 +864,26 @@ export default function Enrollment() {
         proRataBoleto: proRataBoletoData,
       });
 
-      const hasEntryBoleto = generateCarneNow && ((useProRata && proRataValue !== regularValue && installmentCount > 1) || 
-                             (!useProRata && useEntryBoleto && installmentCount > 1));
+      const hasEntryBoleto = (useProRata && proRataValue !== regularValue && installmentCount > 1) || 
+                             (!useProRata && useEntryBoleto && installmentCount > 1);
       
       let toastDescription = "O contrato foi gerado.";
-      if (generateCarneNow) {
-        if (hasEntryBoleto) {
+      if (hasEntryBoleto) {
+        if (generateCarneNow) {
           toastDescription = useProRata 
             ? "O contrato, boleto pro-rata e carnê foram gerados automaticamente."
             : "O contrato, boleto de entrada e carnê foram gerados automaticamente.";
         } else {
-          toastDescription = "O contrato e o carnê foram gerados automaticamente.";
+          toastDescription = useProRata 
+            ? "O contrato e boleto pro-rata foram gerados. O carnê poderá ser gerado na página de Contratos."
+            : "O contrato e boleto de entrada foram gerados. O carnê poderá ser gerado na página de Contratos.";
         }
       } else {
-        toastDescription = "O contrato foi gerado. O carnê poderá ser gerado posteriormente na página de Contratos.";
+        if (generateCarneNow) {
+          toastDescription = "O contrato e o carnê foram gerados automaticamente.";
+        } else {
+          toastDescription = "O contrato foi gerado. O carnê poderá ser gerado posteriormente na página de Contratos.";
+        }
       }
 
       toast({
