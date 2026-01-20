@@ -389,6 +389,17 @@ async function deletePayment(config: AsaasConfig, paymentId: string) {
   return await handleAsaasResponse(response, "deletePayment");
 }
 
+async function getPayment(config: AsaasConfig, paymentId: string) {
+  console.log("Obtendo detalhes da cobrança:", paymentId);
+  
+  const response = await fetch(`${config.baseUrl}/payments/${paymentId}`, {
+    method: "GET",
+    headers: getHeaders(config.apiKey),
+  });
+
+  return await handleAsaasResponse(response, "getPayment");
+}
+
 async function listPayments(config: AsaasConfig, customerId: string) {
   console.log("Listando cobranças do cliente:", customerId);
   
@@ -403,11 +414,22 @@ async function listPayments(config: AsaasConfig, customerId: string) {
 async function receiveInCash(config: AsaasConfig, paymentId: string, paymentDate: string, value?: number, notifyCustomer?: boolean) {
   console.log("Registrando pagamento em dinheiro:", paymentId);
   
+  // First, get the payment details to check its value
+  const payment = await getPayment(config, paymentId);
+  const paymentValue = value ?? payment.value;
+  
+  console.log("Valor da cobrança:", paymentValue);
+  
   // Asaas requires a minimum value of R$ 1.00 for receiveInCash
-  // If value is provided and less than 1.00, we need to handle it
-  if (value !== undefined && value < 1.0) {
-    console.log("Valor abaixo do mínimo de R$ 1,00. Valor:", value);
-    throw new Error("O valor mínimo para confirmar pagamento em dinheiro é R$ 1,00. Para valores menores, cancele a cobrança.");
+  if (paymentValue < 1.0) {
+    console.log("Valor abaixo do mínimo de R$ 1,00. Cancelando cobrança ao invés de dar baixa.");
+    // For payments below R$ 1.00, we cancel the payment instead
+    const deleteResult = await deletePayment(config, paymentId);
+    return { 
+      ...deleteResult, 
+      message: "Cobrança cancelada (valor abaixo de R$ 1,00)",
+      wasDeleted: true 
+    };
   }
   
   const body: Record<string, unknown> = {
