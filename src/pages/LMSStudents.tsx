@@ -281,28 +281,19 @@ export default function LMSStudents() {
     setReportLoading(credential.id);
     
     try {
-      // Build the URL with the appropriate parameter
-      const baseUrl = 'https://api.educacionalcircuitokids.com.br/functions/v1/get-parent-report';
-      const url = credential.lms_user_id 
-        ? `${baseUrl}?student_user_id=${credential.lms_user_id}`
-        : `${baseUrl}?matricula=${credential.matricula}`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      const { data, error } = await supabase.functions.invoke('lms-sync', {
+        body: { 
+          action: 'getParentReport',
+          studentUserId: credential.lms_user_id,
+          matricula: credential.matricula
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`Erro ao gerar relatório: ${response.status}`);
-      }
+      if (error) throw error;
 
-      // The API returns a PDF, so we need to handle the blob
-      const contentType = response.headers.get('content-type');
-      
-      if (contentType?.includes('application/pdf')) {
-        const blob = await response.blob();
+      // Check if we got a PDF blob or JSON
+      if (data instanceof Blob || data instanceof ArrayBuffer) {
+        const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/pdf' });
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
@@ -316,27 +307,26 @@ export default function LMSStudents() {
           title: 'Relatório gerado!',
           description: 'O download do relatório pedagógico foi iniciado.',
         });
+      } else if (data?.success === false) {
+        throw new Error(data.error || 'Erro ao gerar relatório');
       } else {
-        // If it's not a PDF, it might be JSON with an error or the report content
-        const data = await response.json();
-        
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        
         // If it's HTML or text content, open in new tab
-        if (data.html || data.content) {
+        if (data?.data?.html || data?.data?.content) {
           const newWindow = window.open('', '_blank');
           if (newWindow) {
-            newWindow.document.write(data.html || data.content);
+            newWindow.document.write(data.data.html || data.data.content);
             newWindow.document.close();
           }
+          toast({
+            title: 'Relatório gerado!',
+            description: 'O relatório pedagógico foi aberto em uma nova aba.',
+          });
+        } else {
+          toast({
+            title: 'Relatório gerado!',
+            description: 'O relatório foi processado com sucesso.',
+          });
         }
-        
-        toast({
-          title: 'Relatório gerado!',
-          description: 'O relatório pedagógico foi aberto em uma nova aba.',
-        });
       }
     } catch (error) {
       console.error('Error generating report:', error);

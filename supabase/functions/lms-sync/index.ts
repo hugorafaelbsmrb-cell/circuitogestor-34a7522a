@@ -552,6 +552,64 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ============ GET PARENT REPORT ============
+    if (action === 'getParentReport') {
+      const { studentUserId, matricula } = requestBody;
+      
+      if (!studentUserId && !matricula) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'studentUserId or matricula is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const reportApiBase = 'https://api.educacionalcircuitokids.com.br/functions/v1';
+      const queryParam = studentUserId 
+        ? `student_user_id=${encodeURIComponent(studentUserId)}`
+        : `matricula=${encodeURIComponent(matricula)}`;
+      
+      console.log(`Fetching parent report with: ${queryParam}`);
+
+      const response = await fetch(`${reportApiBase}/get-parent-report?${queryParam}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('Report API response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Report API error:', errorText);
+        return new Response(
+          JSON.stringify({ success: false, error: `Report API error: ${response.status}` }),
+          { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType?.includes('application/pdf')) {
+        // Return the PDF blob with proper headers
+        const pdfBuffer = await response.arrayBuffer();
+        return new Response(pdfBuffer, {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="relatorio-pedagogico.pdf"`,
+          },
+        });
+      } else {
+        // Return JSON response
+        const data = await response.json();
+        return new Response(
+          JSON.stringify({ success: true, data }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: false, error: 'Invalid action' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
