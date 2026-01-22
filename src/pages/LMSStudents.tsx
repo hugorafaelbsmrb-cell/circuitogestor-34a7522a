@@ -22,7 +22,8 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  FileText
+  FileText,
+  Printer
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -490,6 +491,80 @@ export default function LMSStudents() {
     }
   };
 
+  const printCredentials = (credential: LMSCredential) => {
+    const studentName = credential.student?.name || 'Aluno';
+    
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Credenciais - ${studentName}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; }
+    .container { max-width: 400px; margin: 0 auto; border: 2px solid #f58220; border-radius: 16px; overflow: hidden; }
+    .header { background: linear-gradient(135deg, #f58220 0%, #e06b10 100%); color: white; padding: 20px; text-align: center; }
+    .header h1 { font-size: 18px; margin-bottom: 4px; }
+    .header p { font-size: 12px; opacity: 0.9; }
+    .content { padding: 24px; }
+    .field { margin-bottom: 20px; }
+    .field label { display: block; font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .field .value { font-size: 18px; font-weight: 600; color: #333; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #f58220; }
+    .password-box { background: #fff3e6 !important; }
+    .footer { text-align: center; padding: 16px; background: #f8f9fa; font-size: 11px; color: #888; }
+    @media print {
+      body { padding: 20px; }
+      .container { border: 2px solid #333; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Credenciais de Acesso</h1>
+      <p>Circuito Kids - Plataforma de Ensino</p>
+    </div>
+    
+    <div class="content">
+      <div class="field">
+        <label>Nome do Aluno</label>
+        <div class="value">${studentName}</div>
+      </div>
+      
+      <div class="field">
+        <label>E-mail / Login</label>
+        <div class="value">${credential.email}</div>
+      </div>
+      
+      <div class="field">
+        <label>Senha</label>
+        <div class="value password-box">${credential.password}</div>
+      </div>
+      
+      <div class="field">
+        <label>Matrícula</label>
+        <div class="value">${credential.matricula}</div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      Acesse: <strong>plataforma.circuitokids.com.br</strong>
+    </div>
+  </div>
+  
+  <script>window.onload = function() { window.print(); }</script>
+</body>
+</html>`;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+    }
+  };
+
   const togglePasswordVisibility = (id: string) => {
     setVisiblePasswords(prev => {
       const newSet = new Set(prev);
@@ -862,6 +937,10 @@ export default function LMSStudents() {
                               <FileText className="w-4 h-4 mr-2" />
                             )}
                             Relatório Pedagógico
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => printCredentials(cred)}>
+                            <Printer className="w-4 h-4 mr-2" />
+                            Imprimir Credenciais
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => handleUnlockLevel(cred, 'current')}>
