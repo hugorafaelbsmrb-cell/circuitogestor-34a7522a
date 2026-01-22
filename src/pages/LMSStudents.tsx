@@ -565,6 +565,96 @@ export default function LMSStudents() {
     }
   };
 
+  const printAllCredentials = () => {
+    if (filteredCredentials.length === 0) {
+      toast({
+        title: 'Nenhum aluno',
+        description: 'Não há alunos para imprimir.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const cardsHtml = filteredCredentials.map(cred => `
+      <div class="card">
+        <div class="card-header">
+          <div class="student-name">${cred.student?.name || 'Aluno'}</div>
+          <div class="matricula">${cred.matricula}</div>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <span class="label">E-mail:</span>
+            <span class="value">${cred.email}</span>
+          </div>
+          <div class="field">
+            <span class="label">Senha:</span>
+            <span class="value password">${cred.password}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Credenciais - Todos os Alunos</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background: #f5f5f5; }
+    .header { text-align: center; margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #f58220 0%, #e06b10 100%); color: white; border-radius: 12px; }
+    .header h1 { font-size: 24px; margin-bottom: 4px; }
+    .header p { font-size: 14px; opacity: 0.9; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .card { background: white; border-radius: 12px; overflow: hidden; border: 1px solid #e0e0e0; break-inside: avoid; }
+    .card-header { background: #f8f9fa; padding: 12px 16px; border-bottom: 1px solid #e0e0e0; border-left: 4px solid #f58220; }
+    .student-name { font-weight: 600; font-size: 14px; color: #333; }
+    .matricula { font-size: 11px; color: #888; margin-top: 2px; }
+    .card-body { padding: 12px 16px; }
+    .field { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .field:last-child { margin-bottom: 0; }
+    .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+    .value { font-size: 13px; font-weight: 500; color: #333; text-align: right; max-width: 180px; word-break: break-all; }
+    .password { background: #fff3e6; padding: 4px 8px; border-radius: 4px; font-family: monospace; }
+    .footer { text-align: center; margin-top: 30px; padding: 16px; font-size: 12px; color: #888; }
+    .print-btn { display: block; width: 200px; margin: 20px auto; padding: 12px 24px; background: #f58220; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .print-btn:hover { background: #d35400; }
+    @media print {
+      body { background: white; padding: 10px; }
+      .header { margin-bottom: 20px; }
+      .print-btn { display: none; }
+      .grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .card { border: 1px solid #ccc; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Credenciais de Acesso</h1>
+    <p>Circuito Kids - Plataforma de Ensino • ${filteredCredentials.length} alunos</p>
+  </div>
+  
+  <div class="grid">
+    ${cardsHtml}
+  </div>
+  
+  <div class="footer">
+    Acesse: <strong>plataforma.circuitokids.com.br</strong> • Gerado em ${new Date().toLocaleString('pt-BR')}
+  </div>
+  
+  <button class="print-btn" onclick="window.print()">🖨️ Imprimir</button>
+</body>
+</html>`;
+
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+    }
+  };
+
   const togglePasswordVisibility = (id: string) => {
     setVisiblePasswords(prev => {
       const newSet = new Set(prev);
@@ -663,14 +753,24 @@ export default function LMSStudents() {
           <h1 className="page-title">Alunos LMS</h1>
           <p className="page-subtitle">Gerencie acessos e acompanhe o progresso no sistema de ensino</p>
         </div>
-        <Button 
-          onClick={syncAll} 
-          disabled={isSyncing}
-          className="gap-2"
-        >
-          <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-          {isSyncing ? 'Sincronizando...' : 'Sincronizar Todos'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline"
+            onClick={printAllCredentials}
+            className="gap-2"
+          >
+            <Printer className="w-4 h-4" />
+            Imprimir Credenciais
+          </Button>
+          <Button 
+            onClick={syncAll} 
+            disabled={isSyncing}
+            className="gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar Todos'}
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
