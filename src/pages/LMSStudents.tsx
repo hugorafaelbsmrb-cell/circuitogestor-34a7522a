@@ -282,41 +282,54 @@ export default function LMSStudents() {
     setReportLoading(credential.id);
     
     try {
-      // Build the query parameter
-      const queryParam = credential.lms_user_id 
-        ? `student_user_id=${encodeURIComponent(credential.lms_user_id)}`
-        : `matricula=${encodeURIComponent(credential.matricula)}`;
-      
-      // Call external LMS API with full format to get complete data
-      const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1';
-      const response = await fetch(`${LMS_API_BASE}/get-parent-report?${queryParam}&format=full`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': 'educacionalcircuuiToKIdsLTDA',
-        },
+      // Use the edge function proxy to call the LMS API securely
+      const { data, error } = await supabase.functions.invoke('lms-sync', {
+        body: { 
+          action: 'getParentReport',
+          studentUserId: credential.lms_user_id,
+          matricula: credential.matricula,
+          format: 'full'
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`Erro ao gerar relatório: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Report data from API:', data);
+      if (error) throw error;
       
-      if (data?.error) {
-        throw new Error(data.error);
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro ao buscar relatório');
       }
 
-      // Open the data in a new tab as a formatted report
-      const studentName = data.student?.full_name || credential.student?.name || 'Aluno';
-      const nickname = data.student?.nickname || '';
-      const currentLevel = data.student?.current_level || 1;
-      const totalXp = data.student?.total_xp || 0;
-      const coins = data.student?.coins || 0;
-      const reports = data.reports || [];
-      const levels = data.levels || [];
-      const progress = data.progress || {};
+      console.log('Report data from API:', data);
+
+      // Check if it's a PDF response
+      if (data.isPdf && data.pdfBase64) {
+        // Convert base64 to blob and open
+        const byteCharacters = atob(data.pdfBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const pdfUrl = URL.createObjectURL(blob);
+        window.open(pdfUrl, '_blank');
+        
+        toast({
+          title: 'Relatório gerado!',
+          description: 'O PDF foi aberto em uma nova aba.',
+        });
+        return;
+      }
+
+      // Handle JSON response - build HTML report
+      const reportData = data.data;
+      const studentName = reportData?.student?.full_name || credential.student?.name || 'Aluno';
+      const nickname = reportData?.student?.nickname || '';
+      const currentLevel = reportData?.student?.current_level || 1;
+      const totalXp = reportData?.student?.total_xp || 0;
+      const coins = reportData?.student?.coins || 0;
+      const reports = reportData?.reports || [];
+      const levels = reportData?.levels || [];
+      const progress = reportData?.progress || {};
 
       const htmlContent = `
 <!DOCTYPE html>

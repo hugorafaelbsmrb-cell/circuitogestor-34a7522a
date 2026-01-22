@@ -554,7 +554,7 @@ Deno.serve(async (req) => {
 
     // ============ GET PARENT REPORT ============
     if (action === 'getParentReport') {
-      const { studentUserId, matricula } = requestBody;
+      const { studentUserId, matricula, format } = requestBody;
       
       if (!studentUserId && !matricula) {
         return new Response(
@@ -563,12 +563,14 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Build query parameters according to API documentation
       const baseParam = studentUserId 
         ? `student_user_id=${encodeURIComponent(studentUserId)}`
         : `matricula=${encodeURIComponent(matricula)}`;
       
-      // Use format=pdf_data for optimized PDF generation structure
-      const queryParam = `${baseParam}&format=pdf_data`;
+      // Support format parameter: full (default), summary, or pdf_data
+      const requestFormat = format || 'full';
+      const queryParam = `${baseParam}&format=${requestFormat}`;
       
       console.log(`Fetching parent report with: ${queryParam}`);
 
