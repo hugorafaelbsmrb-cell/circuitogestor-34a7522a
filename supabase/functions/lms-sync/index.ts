@@ -563,9 +563,12 @@ Deno.serve(async (req) => {
         );
       }
 
-      const queryParam = studentUserId 
+      const baseParam = studentUserId 
         ? `student_user_id=${encodeURIComponent(studentUserId)}`
         : `matricula=${encodeURIComponent(matricula)}`;
+      
+      // Use format=pdf_data for optimized PDF generation structure
+      const queryParam = `${baseParam}&format=pdf_data`;
       
       console.log(`Fetching parent report with: ${queryParam}`);
 
