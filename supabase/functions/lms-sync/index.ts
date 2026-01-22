@@ -563,14 +563,13 @@ Deno.serve(async (req) => {
         );
       }
 
-      const reportApiBase = 'https://api.educacionalcircuitokids.com.br/functions/v1';
       const queryParam = studentUserId 
         ? `student_user_id=${encodeURIComponent(studentUserId)}`
         : `matricula=${encodeURIComponent(matricula)}`;
       
       console.log(`Fetching parent report with: ${queryParam}`);
 
-      const response = await fetch(`${reportApiBase}/get-parent-report?${queryParam}`, {
+      const response = await fetch(`${LMS_API_BASE}/get-parent-report?${queryParam}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
