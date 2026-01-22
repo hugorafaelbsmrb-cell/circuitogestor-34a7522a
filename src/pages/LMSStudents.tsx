@@ -21,7 +21,8 @@ import {
   Zap,
   TrendingUp,
   TrendingDown,
-  Minus
+  Minus,
+  FileText
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -124,6 +125,7 @@ export default function LMSStudents() {
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState<LMSCredential | null>(null);
+  const [reportLoading, setReportLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCredentials();
@@ -273,6 +275,79 @@ export default function LMSStudents() {
     if (!confirmReset) return;
     await executeLMSAction('resetProgress', confirmReset);
     setConfirmReset(null);
+  };
+
+  const generatePedagogicalReport = async (credential: LMSCredential) => {
+    setReportLoading(credential.id);
+    
+    try {
+      // Build the URL with the appropriate parameter
+      const baseUrl = 'https://api.educacionalcircuitokids.com.br/functions/v1/get-parent-report';
+      const url = credential.lms_user_id 
+        ? `${baseUrl}?student_user_id=${credential.lms_user_id}`
+        : `${baseUrl}?matricula=${credential.matricula}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro ao gerar relatório: ${response.status}`);
+      }
+
+      // The API returns a PDF, so we need to handle the blob
+      const contentType = response.headers.get('content-type');
+      
+      if (contentType?.includes('application/pdf')) {
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `relatorio-pedagogico-${credential.student?.name || credential.matricula}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        toast({
+          title: 'Relatório gerado!',
+          description: 'O download do relatório pedagógico foi iniciado.',
+        });
+      } else {
+        // If it's not a PDF, it might be JSON with an error or the report content
+        const data = await response.json();
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        // If it's HTML or text content, open in new tab
+        if (data.html || data.content) {
+          const newWindow = window.open('', '_blank');
+          if (newWindow) {
+            newWindow.document.write(data.html || data.content);
+            newWindow.document.close();
+          }
+        }
+        
+        toast({
+          title: 'Relatório gerado!',
+          description: 'O relatório pedagógico foi aberto em uma nova aba.',
+        });
+      }
+    } catch (error) {
+      console.error('Error generating report:', error);
+      toast({
+        title: 'Erro ao gerar relatório',
+        description: error instanceof Error ? error.message : 'Não foi possível gerar o relatório pedagógico.',
+        variant: 'destructive',
+      });
+    } finally {
+      setReportLoading(null);
+    }
   };
 
   const togglePasswordVisibility = (id: string) => {
@@ -637,6 +712,18 @@ export default function LMSStudents() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Gerenciar Aluno</DropdownMenuLabel>
                           <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => generatePedagogicalReport(cred)}
+                            disabled={reportLoading === cred.id}
+                          >
+                            {reportLoading === cred.id ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              <FileText className="w-4 h-4 mr-2" />
+                            )}
+                            Relatório Pedagógico
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => handleUnlockLevel(cred, 'current')}>
                             <Unlock className="w-4 h-4 mr-2" />
                             Desbloquear Nível
@@ -932,6 +1019,21 @@ export default function LMSStudents() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Report Button */}
+              <Button 
+                onClick={() => generatePedagogicalReport(selectedCredential)}
+                disabled={reportLoading === selectedCredential.id}
+                variant="outline"
+                className="w-full gap-2"
+              >
+                {reportLoading === selectedCredential.id ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                Gerar Relatório Pedagógico
+              </Button>
 
               <Button 
                 onClick={() => syncSingle(selectedCredential.id)}
