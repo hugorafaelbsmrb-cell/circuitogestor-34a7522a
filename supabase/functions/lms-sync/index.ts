@@ -573,6 +573,7 @@ Deno.serve(async (req) => {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
+          'X-API-Key': getLmsApiKey(),
         },
       });
 
