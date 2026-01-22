@@ -64,6 +64,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import jsPDF from 'jspdf';
 
 interface LMSProgressData {
   status?: string;
@@ -286,9 +287,9 @@ export default function LMSStudents() {
         ? `student_user_id=${encodeURIComponent(credential.lms_user_id)}`
         : `matricula=${encodeURIComponent(credential.matricula)}`;
       
-      // Call external LMS API directly for PDF
+      // Call external LMS API with pdf_data format
       const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1';
-      const response = await fetch(`${LMS_API_BASE}/get-parent-report?${queryParam}&format=pdf`, {
+      const response = await fetch(`${LMS_API_BASE}/get-parent-report?${queryParam}&format=pdf_data`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -300,34 +301,119 @@ export default function LMSStudents() {
         throw new Error(`Erro ao gerar relatório: ${response.status}`);
       }
 
-      const contentType = response.headers.get('content-type');
+      const data = await response.json();
       
-      if (contentType?.includes('application/pdf')) {
-        // Direct PDF response - download it
-        const blob = await response.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
-        
-        // Open in new tab for viewing
-        window.open(downloadUrl, '_blank');
-        
-        toast({
-          title: 'Relatório gerado!',
-          description: 'O relatório pedagógico foi aberto em uma nova aba.',
-        });
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      // Generate PDF from the data
+      const doc = new jsPDF();
+      const studentName = data.student?.full_name || credential.student?.name || 'Aluno';
+      const nickname = data.student?.nickname || '';
+      const currentLevel = data.student?.current_level || 1;
+      const totalXp = data.student?.total_xp || 0;
+      const reports = data.reports || [];
+      
+      // Header
+      doc.setFillColor(245, 130, 32); // Orange color
+      doc.rect(0, 0, 210, 40, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(22);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Relatório Pedagógico', 105, 20, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Circuito Kids - Robótica Educacional', 105, 30, { align: 'center' });
+      
+      // Student Info
+      doc.setTextColor(51, 51, 51);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Dados do Aluno', 20, 55);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      let yPos = 65;
+      
+      doc.text(`Nome: ${studentName}`, 20, yPos);
+      yPos += 8;
+      if (nickname) {
+        doc.text(`Apelido: ${nickname}`, 20, yPos);
+        yPos += 8;
+      }
+      doc.text(`Nível Atual: ${currentLevel}`, 20, yPos);
+      yPos += 8;
+      doc.text(`XP Total: ${totalXp}`, 20, yPos);
+      yPos += 8;
+      doc.text(`Data do Relatório: ${new Date().toLocaleDateString('pt-BR')}`, 20, yPos);
+      
+      // Reports Section
+      yPos += 20;
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Relatórios de Aula', 20, yPos);
+      yPos += 10;
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      
+      if (reports.length === 0) {
+        doc.setTextColor(128, 128, 128);
+        doc.text('Nenhum relatório de aula disponível ainda.', 20, yPos);
+        doc.text('Os relatórios serão adicionados conforme o aluno avança nas aulas.', 20, yPos + 6);
       } else {
-        // JSON response - maybe error or data
-        const data = await response.json();
-        
-        if (data?.error) {
-          throw new Error(data.error);
-        }
-        
-        toast({
-          title: 'Relatório não disponível',
-          description: 'A API não retornou um PDF. Verifique os dados do aluno.',
-          variant: 'destructive',
+        reports.forEach((report: { date?: string; title?: string; content?: string; lesson_title?: string; bncc_codes?: string[] }, index: number) => {
+          if (yPos > 270) {
+            doc.addPage();
+            yPos = 20;
+          }
+          
+          doc.setTextColor(245, 130, 32);
+          doc.setFont('helvetica', 'bold');
+          doc.text(`${index + 1}. ${report.lesson_title || report.title || 'Aula'}`, 20, yPos);
+          yPos += 6;
+          
+          doc.setTextColor(100, 100, 100);
+          doc.setFont('helvetica', 'normal');
+          if (report.date) {
+            doc.text(`Data: ${report.date}`, 25, yPos);
+            yPos += 5;
+          }
+          if (report.content) {
+            const lines = doc.splitTextToSize(report.content, 165);
+            doc.text(lines, 25, yPos);
+            yPos += lines.length * 5;
+          }
+          if (report.bncc_codes && report.bncc_codes.length > 0) {
+            doc.setTextColor(80, 80, 80);
+            doc.text(`BNCC: ${report.bncc_codes.join(', ')}`, 25, yPos);
+            yPos += 5;
+          }
+          yPos += 8;
         });
       }
+      
+      // Footer
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setTextColor(150, 150, 150);
+        doc.setFontSize(8);
+        doc.text(`Página ${i} de ${pageCount}`, 105, 290, { align: 'center' });
+      }
+      
+      // Open PDF in new tab
+      const pdfBlob = doc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      window.open(pdfUrl, '_blank');
+      
+      toast({
+        title: 'Relatório gerado!',
+        description: 'O relatório pedagógico foi aberto em uma nova aba.',
+      });
     } catch (error) {
       console.error('Error generating report:', error);
       toast({
