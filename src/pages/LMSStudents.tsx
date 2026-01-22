@@ -318,21 +318,97 @@ export default function LMSStudents() {
           title: 'Relatório gerado!',
           description: 'O download do relatório pedagógico foi iniciado.',
         });
-      } else if (data?.data?.html || data?.data?.content) {
-        // If it's HTML or text content, open in new tab
+      } else if (data?.data) {
+        // If it's JSON data, generate an HTML report and open in new tab
+        const studentData = data.data.student || {};
+        const reports = data.data.reports || [];
+        
+        const htmlContent = `
+          <!DOCTYPE html>
+          <html lang="pt-BR">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Relatório Pedagógico - ${studentData.full_name || credential.student?.name || 'Aluno'}</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; padding: 20px; }
+              .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 40px; }
+              .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #e0e0e0; }
+              .header h1 { color: #333; font-size: 24px; margin-bottom: 8px; }
+              .header p { color: #666; }
+              .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px; }
+              .info-card { background: #f9f9f9; padding: 16px; border-radius: 8px; }
+              .info-card label { font-size: 12px; color: #888; text-transform: uppercase; display: block; margin-bottom: 4px; }
+              .info-card span { font-size: 18px; font-weight: 600; color: #333; }
+              .section { margin-bottom: 30px; }
+              .section h2 { color: #333; font-size: 18px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #e0e0e0; }
+              .empty-message { color: #888; text-align: center; padding: 40px; background: #f9f9f9; border-radius: 8px; }
+              .print-btn { display: block; width: 200px; margin: 30px auto 0; padding: 12px 24px; background: #4f46e5; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; }
+              .print-btn:hover { background: #4338ca; }
+              @media print { .print-btn { display: none; } }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>Relatório Pedagógico</h1>
+                <p>Circuito Kids - Robótica Educacional</p>
+              </div>
+              
+              <div class="info-grid">
+                <div class="info-card">
+                  <label>Nome do Aluno</label>
+                  <span>${studentData.full_name || credential.student?.name || 'N/A'}</span>
+                </div>
+                <div class="info-card">
+                  <label>Apelido</label>
+                  <span>${studentData.nickname || '-'}</span>
+                </div>
+                <div class="info-card">
+                  <label>Nível Atual</label>
+                  <span>Nível ${studentData.current_level || 1}</span>
+                </div>
+                <div class="info-card">
+                  <label>XP Total</label>
+                  <span>${studentData.total_xp || 0} XP</span>
+                </div>
+              </div>
+              
+              <div class="section">
+                <h2>Relatórios de Aula</h2>
+                ${reports.length > 0 
+                  ? reports.map((r: { date?: string; title?: string; content?: string }) => `
+                      <div class="info-card" style="margin-bottom: 12px;">
+                        <label>${r.date || 'Data não informada'}</label>
+                        <span>${r.title || r.content || 'Sem conteúdo'}</span>
+                      </div>
+                    `).join('')
+                  : '<div class="empty-message">Nenhum relatório de aula disponível ainda.</div>'
+                }
+              </div>
+              
+              <button class="print-btn" onclick="window.print()">Imprimir Relatório</button>
+            </div>
+          </body>
+          </html>
+        `;
+        
         const newWindow = window.open('', '_blank');
         if (newWindow) {
-          newWindow.document.write(data.data.html || data.data.content);
+          newWindow.document.write(htmlContent);
           newWindow.document.close();
         }
+        
         toast({
           title: 'Relatório gerado!',
           description: 'O relatório pedagógico foi aberto em uma nova aba.',
         });
       } else {
         toast({
-          title: 'Relatório gerado!',
-          description: 'O relatório foi processado com sucesso.',
+          title: 'Relatório vazio',
+          description: 'Não há dados disponíveis para este aluno.',
+          variant: 'destructive',
         });
       }
     } catch (error) {
