@@ -64,7 +64,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import jsPDF from 'jspdf';
+
 
 interface LMSProgressData {
   status?: string;
@@ -287,9 +287,9 @@ export default function LMSStudents() {
         ? `student_user_id=${encodeURIComponent(credential.lms_user_id)}`
         : `matricula=${encodeURIComponent(credential.matricula)}`;
       
-      // Call external LMS API with pdf_data format
+      // Call external LMS API with full format to get complete data
       const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1';
-      const response = await fetch(`${LMS_API_BASE}/get-parent-report?${queryParam}&format=pdf_data`, {
+      const response = await fetch(`${LMS_API_BASE}/get-parent-report?${queryParam}&format=full`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -302,113 +302,164 @@ export default function LMSStudents() {
       }
 
       const data = await response.json();
+      console.log('Report data from API:', data);
       
       if (data?.error) {
         throw new Error(data.error);
       }
 
-      // Generate PDF from the data
-      const doc = new jsPDF();
+      // Open the data in a new tab as a formatted report
       const studentName = data.student?.full_name || credential.student?.name || 'Aluno';
       const nickname = data.student?.nickname || '';
       const currentLevel = data.student?.current_level || 1;
       const totalXp = data.student?.total_xp || 0;
+      const coins = data.student?.coins || 0;
       const reports = data.reports || [];
-      
-      // Header
-      doc.setFillColor(245, 130, 32); // Orange color
-      doc.rect(0, 0, 210, 40, 'F');
-      
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(22);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Relatório Pedagógico', 105, 20, { align: 'center' });
-      
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Circuito Kids - Robótica Educacional', 105, 30, { align: 'center' });
-      
-      // Student Info
-      doc.setTextColor(51, 51, 51);
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Dados do Aluno', 20, 55);
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(11);
-      let yPos = 65;
-      
-      doc.text(`Nome: ${studentName}`, 20, yPos);
-      yPos += 8;
-      if (nickname) {
-        doc.text(`Apelido: ${nickname}`, 20, yPos);
-        yPos += 8;
+      const levels = data.levels || [];
+      const progress = data.progress || {};
+
+      const htmlContent = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relatório Pedagógico - ${studentName}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; padding: 20px; line-height: 1.6; }
+    .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
+    .header { background: linear-gradient(135deg, #f58220 0%, #e06b10 100%); color: white; padding: 30px 40px; text-align: center; }
+    .header h1 { font-size: 28px; margin-bottom: 8px; }
+    .header p { opacity: 0.9; font-size: 14px; }
+    .content { padding: 30px 40px; }
+    .student-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 30px; }
+    .stat-card { background: #f8f9fa; padding: 20px; border-radius: 12px; text-align: center; border-left: 4px solid #f58220; }
+    .stat-card label { font-size: 12px; color: #888; text-transform: uppercase; display: block; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .stat-card span { font-size: 22px; font-weight: 700; color: #333; }
+    .section { margin-bottom: 30px; }
+    .section-title { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #f58220; display: flex; align-items: center; gap: 10px; }
+    .section-title::before { content: '📚'; }
+    .report-card { background: #fafafa; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid #eee; }
+    .report-card:hover { border-color: #f58220; }
+    .report-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .report-title { font-weight: 600; color: #333; font-size: 16px; }
+    .report-date { font-size: 12px; color: #888; background: #f0f0f0; padding: 4px 10px; border-radius: 20px; }
+    .report-content { color: #555; font-size: 14px; margin-bottom: 12px; }
+    .bncc-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .bncc-tag { background: #fff3e6; color: #d35400; font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; }
+    .concepts { margin-top: 12px; }
+    .concept-tag { background: #e8f5e9; color: #2e7d32; font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; margin-right: 6px; margin-bottom: 6px; display: inline-block; }
+    .empty-state { text-align: center; padding: 50px 20px; color: #888; }
+    .empty-state p { margin-bottom: 10px; }
+    .progress-section { background: #f0f7ff; border-radius: 12px; padding: 20px; margin-bottom: 30px; }
+    .progress-bar { background: #e0e0e0; border-radius: 10px; height: 12px; overflow: hidden; margin-top: 10px; }
+    .progress-fill { background: linear-gradient(90deg, #f58220, #ffb74d); height: 100%; border-radius: 10px; transition: width 0.3s; }
+    .level-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+    .level-card { background: white; border: 2px solid #eee; border-radius: 10px; padding: 12px; text-align: center; }
+    .level-card.completed { border-color: #4caf50; background: #e8f5e9; }
+    .level-card.current { border-color: #f58220; background: #fff3e6; }
+    .print-btn { display: block; width: 200px; margin: 20px auto; padding: 14px 28px; background: #f58220; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; }
+    .print-btn:hover { background: #d35400; }
+    @media print { .print-btn { display: none; } body { background: white; } .container { box-shadow: none; } }
+    .meta-info { text-align: center; padding: 20px; background: #f8f9fa; color: #888; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Relatório Pedagógico</h1>
+      <p>Circuito Kids - Robótica Educacional</p>
+    </div>
+    
+    <div class="content">
+      <div class="student-card">
+        <div class="stat-card">
+          <label>Nome do Aluno</label>
+          <span style="font-size: 18px;">${studentName}</span>
+        </div>
+        ${nickname ? `<div class="stat-card"><label>Apelido</label><span>${nickname}</span></div>` : ''}
+        <div class="stat-card">
+          <label>Nível Atual</label>
+          <span>${currentLevel}</span>
+        </div>
+        <div class="stat-card">
+          <label>XP Total</label>
+          <span>${totalXp}</span>
+        </div>
+        ${coins ? `<div class="stat-card"><label>Moedas</label><span>${coins}</span></div>` : ''}
+      </div>
+
+      ${progress.completion_percentage !== undefined ? `
+      <div class="progress-section">
+        <strong>Progresso Geral: ${progress.completion_percentage || 0}%</strong>
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progress.completion_percentage || 0}%"></div>
+        </div>
+        <p style="margin-top: 10px; font-size: 14px; color: #666;">
+          ${progress.completed_lessons || 0} de ${progress.total_lessons || 0} aulas concluídas
+        </p>
+      </div>
+      ` : ''}
+
+      ${levels.length > 0 ? `
+      <div class="section">
+        <h2 class="section-title" style="::before { content: '🎯'; }">Níveis</h2>
+        <div class="level-grid">
+          ${levels.map((level: { name?: string; status?: string; level_number?: number }) => `
+            <div class="level-card ${level.status === 'completed' ? 'completed' : level.status === 'current' ? 'current' : ''}">
+              <div style="font-weight: 600;">${level.name || `Nível ${level.level_number}`}</div>
+              <div style="font-size: 12px; color: #888;">${level.status === 'completed' ? '✅ Concluído' : level.status === 'current' ? '🔄 Atual' : '🔒 Bloqueado'}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
+
+      <div class="section">
+        <h2 class="section-title">Relatórios de Aula</h2>
+        ${reports.length > 0 ? reports.map((report: { lesson_title?: string; title?: string; date?: string; created_at?: string; content?: string; description?: string; bncc_codes?: string[]; bncc?: { code?: string; description?: string }[]; concepts?: string[] }) => `
+          <div class="report-card">
+            <div class="report-header">
+              <div class="report-title">${report.lesson_title || report.title || 'Aula'}</div>
+              ${report.date || report.created_at ? `<div class="report-date">${report.date || new Date(report.created_at!).toLocaleDateString('pt-BR')}</div>` : ''}
+            </div>
+            ${report.content || report.description ? `<div class="report-content">${report.content || report.description}</div>` : ''}
+            ${(report.bncc_codes && report.bncc_codes.length > 0) || (report.bncc && report.bncc.length > 0) ? `
+              <div class="bncc-tags">
+                ${(report.bncc_codes || []).map((code: string) => `<span class="bncc-tag">${code}</span>`).join('')}
+                ${(report.bncc || []).map((b: { code?: string }) => `<span class="bncc-tag">${b.code}</span>`).join('')}
+              </div>
+            ` : ''}
+            ${report.concepts && report.concepts.length > 0 ? `
+              <div class="concepts">
+                ${report.concepts.map((concept: string) => `<span class="concept-tag">${concept}</span>`).join('')}
+              </div>
+            ` : ''}
+          </div>
+        `).join('') : `
+          <div class="empty-state">
+            <p>📝 Nenhum relatório de aula disponível ainda.</p>
+            <p style="font-size: 14px;">Os relatórios serão adicionados conforme o aluno avança nas aulas.</p>
+          </div>
+        `}
+      </div>
+    </div>
+    
+    <div class="meta-info">
+      Relatório gerado em ${new Date().toLocaleString('pt-BR')}
+    </div>
+    
+    <button class="print-btn" onclick="window.print()">🖨️ Imprimir Relatório</button>
+  </div>
+</body>
+</html>`;
+
+      const newWindow = window.open('', '_blank');
+      if (newWindow) {
+        newWindow.document.write(htmlContent);
+        newWindow.document.close();
       }
-      doc.text(`Nível Atual: ${currentLevel}`, 20, yPos);
-      yPos += 8;
-      doc.text(`XP Total: ${totalXp}`, 20, yPos);
-      yPos += 8;
-      doc.text(`Data do Relatório: ${new Date().toLocaleDateString('pt-BR')}`, 20, yPos);
-      
-      // Reports Section
-      yPos += 20;
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Relatórios de Aula', 20, yPos);
-      yPos += 10;
-      
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(10);
-      
-      if (reports.length === 0) {
-        doc.setTextColor(128, 128, 128);
-        doc.text('Nenhum relatório de aula disponível ainda.', 20, yPos);
-        doc.text('Os relatórios serão adicionados conforme o aluno avança nas aulas.', 20, yPos + 6);
-      } else {
-        reports.forEach((report: { date?: string; title?: string; content?: string; lesson_title?: string; bncc_codes?: string[] }, index: number) => {
-          if (yPos > 270) {
-            doc.addPage();
-            yPos = 20;
-          }
-          
-          doc.setTextColor(245, 130, 32);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`${index + 1}. ${report.lesson_title || report.title || 'Aula'}`, 20, yPos);
-          yPos += 6;
-          
-          doc.setTextColor(100, 100, 100);
-          doc.setFont('helvetica', 'normal');
-          if (report.date) {
-            doc.text(`Data: ${report.date}`, 25, yPos);
-            yPos += 5;
-          }
-          if (report.content) {
-            const lines = doc.splitTextToSize(report.content, 165);
-            doc.text(lines, 25, yPos);
-            yPos += lines.length * 5;
-          }
-          if (report.bncc_codes && report.bncc_codes.length > 0) {
-            doc.setTextColor(80, 80, 80);
-            doc.text(`BNCC: ${report.bncc_codes.join(', ')}`, 25, yPos);
-            yPos += 5;
-          }
-          yPos += 8;
-        });
-      }
-      
-      // Footer
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setTextColor(150, 150, 150);
-        doc.setFontSize(8);
-        doc.text(`Página ${i} de ${pageCount}`, 105, 290, { align: 'center' });
-      }
-      
-      // Open PDF in new tab
-      const pdfBlob = doc.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      window.open(pdfUrl, '_blank');
       
       toast({
         title: 'Relatório gerado!',
