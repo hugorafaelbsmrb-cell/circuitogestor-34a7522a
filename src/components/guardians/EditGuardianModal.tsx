@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DbGuardian } from '@/hooks/useSchoolData';
+import { isValidCPF, isValidEmail, formatCPF, formatPhone, formatCEP } from '@/utils/validators';
 
 interface EditGuardianModalProps {
   guardian: DbGuardian | null;
@@ -59,6 +60,26 @@ export default function EditGuardianModal({
     e.preventDefault();
     if (!guardian) return;
 
+    // Validate CPF
+    if (!isValidCPF(formData.cpf)) {
+      toast({
+        title: 'CPF inválido',
+        description: 'Por favor, insira um CPF válido.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate Email
+    if (!isValidEmail(formData.email)) {
+      toast({
+        title: 'E-mail inválido',
+        description: 'Por favor, insira um e-mail válido.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       await onSave(guardian.id, formData);
@@ -76,28 +97,6 @@ export default function EditGuardianModal({
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatCPF = (value: string) => {
-    const cleaned = value.replace(/\D/g, '');
-    return cleaned
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d)/, '$1.$2')
-      .replace(/(\d{3})(\d{1,2})$/, '$1-$2')
-      .slice(0, 14);
-  };
-
-  const formatPhone = (value: string) => {
-    const cleaned = value.replace(/\D/g, '');
-    return cleaned
-      .replace(/(\d{2})(\d)/, '($1) $2')
-      .replace(/(\d{5})(\d)/, '$1-$2')
-      .slice(0, 15);
-  };
-
-  const formatCEP = (value: string) => {
-    const cleaned = value.replace(/\D/g, '');
-    return cleaned.replace(/(\d{5})(\d)/, '$1-$2').slice(0, 9);
   };
 
   return (
@@ -135,8 +134,12 @@ export default function EditGuardianModal({
                     cpf: formatCPF(e.target.value),
                   }))
                 }
+                className={formData.cpf && !isValidCPF(formData.cpf) ? 'border-destructive' : ''}
                 required
               />
+              {formData.cpf && !isValidCPF(formData.cpf) && (
+                <p className="text-xs text-destructive mt-1">CPF inválido</p>
+              )}
             </div>
 
             <div>
@@ -163,8 +166,12 @@ export default function EditGuardianModal({
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, email: e.target.value }))
                 }
+                className={formData.email && !isValidEmail(formData.email) ? 'border-destructive' : ''}
                 required
               />
+              {formData.email && !isValidEmail(formData.email) && (
+                <p className="text-xs text-destructive mt-1">E-mail inválido</p>
+              )}
             </div>
 
             <div className="col-span-2">

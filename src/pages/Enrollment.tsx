@@ -16,6 +16,7 @@ import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { EnrollmentSummary } from '@/components/enrollment/EnrollmentSummary';
 import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
 import { supabase } from '@/integrations/supabase/client';
+import { isValidCPF, isValidEmail, formatCPF, formatPhone, formatCEP } from '@/utils/validators';
 
 type Step = 'student' | 'guardian' | 'course' | 'schedule' | 'payment' | 'contract' | 'summary';
 
@@ -470,7 +471,33 @@ export default function Enrollment() {
 
   const validateGuardian = () => {
     const { name, cpf, email, phone, address, postalCode } = formData.guardian;
-    return name.trim() !== '' && cpf.trim() !== '' && email.trim() !== '' && phone.trim() !== '' && address.trim() !== '' && postalCode.trim() !== '';
+    
+    // Basic required field check
+    if (name.trim() === '' || cpf.trim() === '' || email.trim() === '' || phone.trim() === '' || address.trim() === '' || postalCode.trim() === '') {
+      return false;
+    }
+    
+    // Validate CPF
+    if (!isValidCPF(cpf)) {
+      toast({
+        title: 'CPF inválido',
+        description: 'Por favor, insira um CPF válido.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    // Validate Email
+    if (!isValidEmail(email)) {
+      toast({
+        title: 'E-mail inválido',
+        description: 'Por favor, insira um e-mail válido.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    return true;
   };
 
   const validateSchedule = () => {
@@ -1321,9 +1348,13 @@ export default function Enrollment() {
                   id="cpf"
                   placeholder="000.000.000-00"
                   value={formData.guardian.cpf}
-                  onChange={(e) => handleGuardianChange('cpf', e.target.value)}
+                  onChange={(e) => handleGuardianChange('cpf', formatCPF(e.target.value))}
                   disabled={!!foundGuardianId}
+                  className={formData.guardian.cpf && !isValidCPF(formData.guardian.cpf) ? 'border-destructive' : ''}
                 />
+                {formData.guardian.cpf && !isValidCPF(formData.guardian.cpf) && (
+                  <p className="text-xs text-destructive">CPF inválido</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail</Label>
@@ -1333,7 +1364,11 @@ export default function Enrollment() {
                   placeholder="email@exemplo.com"
                   value={formData.guardian.email}
                   onChange={(e) => handleGuardianChange('email', e.target.value)}
+                  className={formData.guardian.email && !isValidEmail(formData.guardian.email) ? 'border-destructive' : ''}
                 />
+                {formData.guardian.email && !isValidEmail(formData.guardian.email) && (
+                  <p className="text-xs text-destructive">E-mail inválido</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>

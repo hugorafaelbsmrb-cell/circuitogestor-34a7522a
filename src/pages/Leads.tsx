@@ -38,6 +38,7 @@ import { useSchool } from '@/contexts/SchoolContext';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
+import { isValidEmail, formatPhone } from '@/utils/validators';
 
 interface Lead {
   id: string;
@@ -134,6 +135,16 @@ export default function Leads() {
       toast({
         title: 'Campos obrigatórios',
         description: 'Nome e telefone são obrigatórios.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate email if provided
+    if (form.email && !isValidEmail(form.email)) {
+      toast({
+        title: 'E-mail inválido',
+        description: 'Por favor, insira um e-mail válido.',
         variant: 'destructive',
       });
       return;
@@ -520,7 +531,7 @@ export default function Leads() {
                 <Input
                   id="phone"
                   value={form.phone}
-                  onChange={(e) => setForm(prev => ({ ...prev, phone: e.target.value }))}
+                  onChange={(e) => setForm(prev => ({ ...prev, phone: formatPhone(e.target.value) }))}
                   placeholder="(00) 00000-0000"
                 />
               </div>
@@ -534,7 +545,11 @@ export default function Leads() {
                 value={form.email}
                 onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))}
                 placeholder="email@exemplo.com"
+                className={form.email && !isValidEmail(form.email) ? 'border-destructive' : ''}
               />
+              {form.email && !isValidEmail(form.email) && (
+                <p className="text-xs text-destructive">E-mail inválido</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
