@@ -290,10 +290,21 @@ export default function LMSStudents() {
       });
 
       if (error) throw error;
+      
+      if (data?.success === false) {
+        throw new Error(data.error || 'Erro ao gerar relatório');
+      }
 
-      // Check if we got a PDF blob or JSON
-      if (data instanceof Blob || data instanceof ArrayBuffer) {
-        const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/pdf' });
+      // Handle PDF response (base64 encoded)
+      if (data?.isPdf && data?.pdfBase64) {
+        // Decode base64 to binary
+        const binaryString = atob(data.pdfBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        
         const downloadUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = downloadUrl;
@@ -307,26 +318,22 @@ export default function LMSStudents() {
           title: 'Relatório gerado!',
           description: 'O download do relatório pedagógico foi iniciado.',
         });
-      } else if (data?.success === false) {
-        throw new Error(data.error || 'Erro ao gerar relatório');
-      } else {
+      } else if (data?.data?.html || data?.data?.content) {
         // If it's HTML or text content, open in new tab
-        if (data?.data?.html || data?.data?.content) {
-          const newWindow = window.open('', '_blank');
-          if (newWindow) {
-            newWindow.document.write(data.data.html || data.data.content);
-            newWindow.document.close();
-          }
-          toast({
-            title: 'Relatório gerado!',
-            description: 'O relatório pedagógico foi aberto em uma nova aba.',
-          });
-        } else {
-          toast({
-            title: 'Relatório gerado!',
-            description: 'O relatório foi processado com sucesso.',
-          });
+        const newWindow = window.open('', '_blank');
+        if (newWindow) {
+          newWindow.document.write(data.data.html || data.data.content);
+          newWindow.document.close();
         }
+        toast({
+          title: 'Relatório gerado!',
+          description: 'O relatório pedagógico foi aberto em uma nova aba.',
+        });
+      } else {
+        toast({
+          title: 'Relatório gerado!',
+          description: 'O relatório foi processado com sucesso.',
+        });
       }
     } catch (error) {
       console.error('Error generating report:', error);

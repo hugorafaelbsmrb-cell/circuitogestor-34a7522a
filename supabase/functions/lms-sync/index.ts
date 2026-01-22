@@ -591,15 +591,24 @@ Deno.serve(async (req) => {
       const contentType = response.headers.get('content-type');
       
       if (contentType?.includes('application/pdf')) {
-        // Return the PDF blob with proper headers
+        // Convert PDF to base64 for JSON response (Supabase SDK doesn't handle binary well)
         const pdfBuffer = await response.arrayBuffer();
-        return new Response(pdfBuffer, {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="relatorio-pedagogico.pdf"`,
-          },
-        });
+        const uint8Array = new Uint8Array(pdfBuffer);
+        let binary = '';
+        for (let i = 0; i < uint8Array.byteLength; i++) {
+          binary += String.fromCharCode(uint8Array[i]);
+        }
+        const base64Pdf = btoa(binary);
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            isPdf: true,
+            pdfBase64: base64Pdf,
+            filename: 'relatorio-pedagogico.pdf'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       } else {
         // Return JSON response
         const data = await response.json();
