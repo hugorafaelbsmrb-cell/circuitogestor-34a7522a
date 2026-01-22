@@ -554,7 +554,7 @@ Deno.serve(async (req) => {
 
     // ============ GET PARENT REPORT ============
     if (action === 'getParentReport') {
-      const { studentUserId, matricula, format } = requestBody;
+      let { studentUserId, matricula, format } = requestBody;
       
       if (!studentUserId && !matricula) {
         return new Response(
@@ -563,14 +563,49 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Build query parameters according to API documentation
-      const baseParam = studentUserId 
-        ? `student_user_id=${encodeURIComponent(studentUserId)}`
-        : `matricula=${encodeURIComponent(matricula)}`;
-      
-      // Support format parameter: full (default), summary, or pdf_data
+      // If we don't have studentUserId, we need to look it up first
+      // The external API requires student_user_id for the parent report
+      if (!studentUserId && matricula) {
+        console.log('No studentUserId provided, looking up by matricula:', matricula);
+        
+        // Try to find in our database first
+        const { data: credential } = await supabase
+          .from('lms_credentials')
+          .select('lms_user_id, email, student:students(name)')
+          .eq('matricula', matricula)
+          .maybeSingle();
+        
+        if (credential?.lms_user_id) {
+          studentUserId = credential.lms_user_id;
+          console.log('Found studentUserId in database:', studentUserId);
+        } else {
+          // Look up in external LMS API
+          const studentName = (credential?.student as any)?.name;
+          const email = credential?.email;
+          studentUserId = await findStudentUUIDWithFallback(matricula, email, studentName);
+          
+          if (studentUserId && credential) {
+            // Save for future use
+            await supabase
+              .from('lms_credentials')
+              .update({ lms_user_id: studentUserId })
+              .eq('matricula', matricula);
+            console.log('Saved lms_user_id for future use:', studentUserId);
+          }
+        }
+        
+        if (!studentUserId) {
+          console.error('Could not find student UUID for matricula:', matricula);
+          return new Response(
+            JSON.stringify({ success: false, error: 'Student not found in LMS. Please sync the student first.' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Build query parameters - always use student_user_id
       const requestFormat = format || 'full';
-      const queryParam = `${baseParam}&format=${requestFormat}`;
+      const queryParam = `student_user_id=${encodeURIComponent(studentUserId)}&format=${requestFormat}`;
       
       console.log(`Fetching parent report with: ${queryParam}`);
 
