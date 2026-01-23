@@ -478,8 +478,13 @@ export default function LMSStudents() {
       .concept-tag { background: transparent !important; color: #000 !important; border: 1pt solid #000 !important; }
       .meta-info { background: transparent !important; color: #000 !important; border-top: 1pt solid #000 !important; }
 
-      /* Evita quebra dentro de blocos (quando couber na página) */
-      .level-report, .pdf-section, .bncc-item { break-inside: avoid-page !important; page-break-inside: avoid !important; }
+      /* IMPORTANTE: não podemos “travar” o relatório inteiro (level-report/pdf-section) em uma única página,
+         senão o navegador empurra o bloco para a próxima folha e a 1ª página fica vazia.
+         Mantemos anti-quebra apenas em itens pequenos e nos títulos. */
+      .level-report { break-inside: auto !important; page-break-inside: auto !important; }
+      .pdf-section { break-inside: auto !important; page-break-inside: auto !important; }
+      .bncc-item { break-inside: avoid !important; page-break-inside: avoid !important; }
+      .level-report-header, .pdf-section-title { break-after: avoid !important; page-break-after: avoid !important; }
       .section-content { orphans: 3; widows: 3; }
     }
   </style>
