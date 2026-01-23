@@ -816,8 +816,21 @@ export default function LMSStudents() {
     return Math.max(1, lessonCount);
   };
 
-  // Get the current lesson number from the lesson string (e.g., "Aula 5" -> 5)
-  const extractLessonNumber = (lessonString: string | null): number => {
+  // Helper to safely extract string value from object or string
+  const extractStringValue = (value: unknown): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'object' && value !== null) {
+      const obj = value as Record<string, unknown>;
+      // Try common properties that might contain the display value
+      return String(obj.name || obj.title || obj.id || '');
+    }
+    return String(value);
+  };
+
+  // Get the current lesson number from the lesson string or object (e.g., "Aula 5" -> 5)
+  const extractLessonNumber = (lessonValue: unknown): number => {
+    const lessonString = extractStringValue(lessonValue);
     if (!lessonString) return 0;
     // Try to find a number in the string
     const match = lessonString.match(/(\d+)/);
@@ -1028,10 +1041,10 @@ export default function LMSStudents() {
                   <TableCell>
                     {cred.current_module ? (
                       <div className="text-sm">
-                        <p className="font-medium">{cred.current_module}</p>
+                        <p className="font-medium">{extractStringValue(cred.current_module)}</p>
                         {cred.current_lesson && (
                           <p className="text-muted-foreground text-xs">
-                            Aula: {cred.current_lesson}
+                            Aula: {extractStringValue(cred.current_lesson)}
                           </p>
                         )}
                       </div>
@@ -1337,15 +1350,15 @@ export default function LMSStudents() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Módulo Atual</p>
-                      <p className="font-medium">{selectedCredential.progressData?.current_module || selectedCredential.current_module || '-'}</p>
+                      <p className="font-medium">{extractStringValue(selectedCredential.progressData?.current_module || selectedCredential.current_module) || '-'}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Nível</p>
-                      <p className="font-medium">{selectedCredential.progressData?.current_level || selectedCredential.current_level || '-'}</p>
+                      <p className="font-medium">{extractStringValue(selectedCredential.progressData?.current_level || selectedCredential.current_level) || '-'}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Aula Atual</p>
-                      <p className="font-medium">{selectedCredential.progressData?.current_lesson || selectedCredential.current_lesson || '-'}</p>
+                      <p className="font-medium">{extractStringValue(selectedCredential.progressData?.current_lesson || selectedCredential.current_lesson) || '-'}</p>
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Status</p>
