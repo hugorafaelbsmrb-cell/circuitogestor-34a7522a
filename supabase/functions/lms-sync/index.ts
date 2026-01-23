@@ -330,30 +330,43 @@ Deno.serve(async (req) => {
       }
     }
 
-    // LMS Management Actions (POST to external LMS)
-    if (action === 'unlockLevel') {
-      const { lmsUserId, levelId } = requestBody;
-      return await callLMSAction('unlock_level', { student_user_id: lmsUserId, level_id: levelId });
-    }
-
-    if (action === 'updateLessonStatus') {
-      const { lmsUserId, lessonId, status } = requestBody;
-      return await callLMSAction('update_lesson_status', { student_user_id: lmsUserId, lesson_id: lessonId, status });
-    }
-
-    if (action === 'resetProgress') {
-      const { lmsUserId } = requestBody;
-      return await callLMSAction('reset_progress', { student_user_id: lmsUserId });
-    }
-
-    if (action === 'setModule') {
-      const { lmsUserId, moduleId } = requestBody;
-      return await callLMSAction('set_module', { student_user_id: lmsUserId, module_id: moduleId });
+    // LMS Management Actions (POST to external LMS - uses matricula)
+    // New API: set_lesson, set_level, set_module with automatic XP/coins credit
+    if (action === 'setLesson') {
+      const { matricula, lessonId } = requestBody;
+      return await callLMSAction('set_lesson', { matricula, lesson_id: lessonId });
     }
 
     if (action === 'setLevel') {
-      const { lmsUserId, levelId } = requestBody;
-      return await callLMSAction('set_level', { student_user_id: lmsUserId, level_id: levelId });
+      const { matricula, levelId } = requestBody;
+      return await callLMSAction('set_level', { matricula, level_id: levelId });
+    }
+
+    if (action === 'setModule') {
+      const { matricula, moduleId } = requestBody;
+      return await callLMSAction('set_module', { matricula, module_id: moduleId });
+    }
+
+    // Legacy actions (kept for compatibility but may not work with new API)
+    if (action === 'unlockLevel') {
+      const { matricula, levelId } = requestBody;
+      // Map to new set_level action
+      return await callLMSAction('set_level', { matricula, level_id: levelId });
+    }
+
+    if (action === 'updateLessonStatus') {
+      const { matricula, lessonId } = requestBody;
+      // Map to new set_lesson action
+      return await callLMSAction('set_lesson', { matricula, lesson_id: lessonId });
+    }
+
+    if (action === 'resetProgress') {
+      const { matricula } = requestBody;
+      // Reset by setting to first lesson/level/module - needs specific IDs
+      return new Response(
+        JSON.stringify({ success: false, message: 'Reset progress requires specific first lesson/level/module IDs' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Sync all credentials
@@ -702,21 +715,39 @@ Deno.serve(async (req) => {
 });
 
 // Helper function to call LMS management actions
+// New API format: POST with { matricula, action, lesson_id|level_id|module_id }
 async function callLMSAction(actionType: string, params: Record<string, string>) {
+  // External LMS API anon key (public, required by the API)
+  const LMS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljYnVkZ3BqcHRlbWpmeW1zc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA4NjYsImV4cCI6MjA4NDE3Njg2Nn0.FkdaED4uk45rKzWTkZbFE7WUYlMPZgc1ovyAMFzL34Q';
+  
   try {
-    console.log(`Calling LMS action: ${actionType}`, params);
+    // Build request body: { matricula, action, lesson_id|level_id|module_id }
+    const requestBody: Record<string, string> = {
+      matricula: params.matricula,
+      action: actionType,
+    };
+    
+    // Add the specific ID based on action type
+    if (params.lesson_id) requestBody.lesson_id = params.lesson_id;
+    if (params.level_id) requestBody.level_id = params.level_id;
+    if (params.module_id) requestBody.module_id = params.module_id;
+    
+    console.log(`Calling LMS action: ${actionType}`, requestBody);
     
     const response = await fetch(`${LMS_API_BASE}/lms-student-progress`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'X-API-Key': getLmsApiKey(),
+        'apikey': LMS_ANON_KEY,
       },
-      body: JSON.stringify({ action: actionType, ...params }),
+      body: JSON.stringify(requestBody),
     });
 
     // Always consume as text first (safer for non-JSON responses)
     const responseText = await response.text();
+    console.log(`LMS API response (${response.status}):`, responseText);
+    
     let result: any = null;
     try {
       result = JSON.parse(responseText);
@@ -724,20 +755,33 @@ async function callLMSAction(actionType: string, params: Record<string, string>)
       result = { raw: responseText };
     }
 
-    const success = Boolean(response.ok && (result?.success ?? true));
-    const message =
-      result?.message ||
-      result?.error ||
-      (success ? 'Action completed' : 'Action failed');
+    const success = Boolean(response.ok && result?.success);
+    
+    // Build detailed message
+    let message = result?.message || result?.error || (success ? 'Ação concluída' : 'Ação falhou');
+    
+    // Add XP/coins info if available
+    if (success && result) {
+      const details: string[] = [];
+      if (result.xp_credited) details.push(`+${result.xp_credited} XP`);
+      if (result.coins_credited) details.push(`+${result.coins_credited} moedas`);
+      if (result.lessons_completed) details.push(`${result.lessons_completed} aulas completadas`);
+      if (details.length > 0) {
+        message = `${message} (${details.join(', ')})`;
+      }
+    }
 
     // IMPORTANT: return 200 even when the external API fails.
-    // This prevents supabase-js from throwing FunctionsHttpError (non-2xx) and allows the UI
-    // to display the error message from `data.message`.
     return new Response(
       JSON.stringify({
         success,
         message,
-        data: result?.data,
+        lesson_id: result?.lesson_id,
+        level_id: result?.level_id,
+        module_id: result?.module_id,
+        xp_credited: result?.xp_credited,
+        coins_credited: result?.coins_credited,
+        lessons_completed: result?.lessons_completed,
         external_status: response.status,
         external_response: result,
       }),
@@ -751,9 +795,9 @@ async function callLMSAction(actionType: string, params: Record<string, string>)
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error instanceof Error ? error.message : 'LMS API error' 
+        message: error instanceof Error ? error.message : 'Erro na API do LMS' 
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 }
