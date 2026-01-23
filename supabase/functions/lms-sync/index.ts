@@ -563,9 +563,45 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Build query parameters using matricula directly (API supports matricula now)
       const requestFormat = format || 'pdf_data';
-      let queryParams = `matricula=${encodeURIComponent(matricula)}&format=${requestFormat}`;
+      
+      // External LMS API anon key (public, required by the API)
+      const LMS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljYnVkZ3BqcHRlbWpmeW1zc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA4NjYsImV4cCI6MjA4NDE3Njg2Nn0.FkdaED4uk45rKzWTkZbFE7WUYlMPZgc1ovyAMFzL34Q';
+
+      // Try to get the student_user_id from our database first (more reliable)
+      const { data: credential } = await supabase
+        .from('lms_credentials')
+        .select('lms_user_id, email, student:students(name)')
+        .eq('matricula', matricula)
+        .maybeSingle();
+      
+      let studentUserId = credential?.lms_user_id;
+      
+      // If we don't have it cached, look it up in the LMS
+      if (!studentUserId) {
+        const studentName = (credential?.student as any)?.name;
+        const email = credential?.email;
+        console.log('No lms_user_id cached, looking up by matricula/email/name');
+        studentUserId = await findStudentUUIDWithFallback(matricula, email, studentName);
+        
+        // Save it for future use
+        if (studentUserId && credential) {
+          await supabase
+            .from('lms_credentials')
+            .update({ lms_user_id: studentUserId })
+            .eq('matricula', matricula);
+          console.log('Saved lms_user_id for future use:', studentUserId);
+        }
+      }
+
+      // Build query parameters - prefer student_user_id as it's more reliable
+      let queryParams: string;
+      if (studentUserId) {
+        queryParams = `student_user_id=${encodeURIComponent(studentUserId)}&format=${requestFormat}`;
+      } else {
+        // Fallback to matricula if we couldn't find the UUID
+        queryParams = `matricula=${encodeURIComponent(matricula)}&format=${requestFormat}`;
+      }
       
       // Add optional level_id if provided
       if (levelId) {
@@ -573,9 +609,6 @@ Deno.serve(async (req) => {
       }
       
       console.log(`Fetching parent report with: ${queryParams}`);
-
-      // External LMS API anon key (public, required by the API)
-      const LMS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljYnVkZ3BqcHRlbWpmeW1zc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA4NjYsImV4cCI6MjA4NDE3Njg2Nn0.FkdaED4uk45rKzWTkZbFE7WUYlMPZgc1ovyAMFzL34Q';
 
       const response = await fetch(`${LMS_API_BASE}/get-parent-report?${queryParams}`, {
         method: 'GET',
