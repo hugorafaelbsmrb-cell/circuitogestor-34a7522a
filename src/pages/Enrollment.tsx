@@ -717,6 +717,20 @@ export default function Enrollment() {
           province: formData.guardian.province || guardian.province || 'Centro',
           postalCode: guardian.postal_code,
         });
+
+        // Save the asaas_customer_id back to the guardian record
+        if (asaasCustomer?.id) {
+          const { error: updateGuardianError } = await supabase
+            .from('guardians')
+            .update({ asaas_customer_id: asaasCustomer.id })
+            .eq('id', guardian.id);
+          
+          if (updateGuardianError) {
+            console.error('Erro ao salvar asaas_customer_id no responsável:', updateGuardianError);
+          } else {
+            console.log('asaas_customer_id salvo com sucesso:', asaasCustomer.id);
+          }
+        }
       }
 
       if (!asaasCustomer) {
