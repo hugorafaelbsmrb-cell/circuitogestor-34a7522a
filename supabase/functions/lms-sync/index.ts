@@ -699,8 +699,10 @@ Deno.serve(async (req) => {
 
               const completion = Number(lmsData.completion_percentage ?? 0);
               const userId = String(lmsData.user_id ?? studentUserId);
+              const completedLessons = Number(lmsData.completed_lessons ?? 0);
+              const totalLessons = Number(lmsData.total_lessons ?? 110);
 
-              console.log(`Updating credential ${cred.id}: module=${currentModule}, level=${currentLevel}, lesson=${currentLesson}, completion=${completion}%`);
+              console.log(`Updating credential ${cred.id}: module=${currentModule}, level=${currentLevel}, lesson=${currentLesson}, completion=${completion}%, completedLessons=${completedLessons}/${totalLessons}`);
 
               const { error: updateError } = await supabase
                 .from('lms_credentials')
@@ -709,6 +711,8 @@ Deno.serve(async (req) => {
                   current_level: currentLevel,
                   current_lesson: currentLesson,
                   completion_percentage: completion,
+                  completed_lessons: completedLessons,
+                  total_lessons: totalLessons,
                   lms_user_id: userId,
                   last_sync_at: now,
                 })
