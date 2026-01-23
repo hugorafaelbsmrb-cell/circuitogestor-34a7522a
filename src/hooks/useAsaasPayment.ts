@@ -284,6 +284,48 @@ export function useAsaasPayment() {
     }
   };
 
+  const searchCustomerByCpf = async (cpfCnpj: string): Promise<AsaasCustomer | null> => {
+    setIsLoading(true);
+    try {
+      const result = await callAsaasFunction('searchCustomerByCpf', { cpfCnpj });
+      return result as AsaasCustomer | null;
+    } catch (error) {
+      console.error('Erro ao buscar cliente por CPF:', error);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  interface SyncResult {
+    total: number;
+    synced: number;
+    created: number;
+    errors: { name: string; error: string }[];
+  }
+
+  const syncGuardians = async (): Promise<SyncResult | null> => {
+    setIsLoading(true);
+    try {
+      const result = await callAsaasFunction('syncGuardians', {});
+      const syncResult = result as SyncResult;
+      toast({
+        title: 'Sincronização concluída',
+        description: `${syncResult.synced} vinculados, ${syncResult.created} criados, ${syncResult.errors.length} erros.`,
+      });
+      return syncResult;
+    } catch (error) {
+      toast({
+        title: 'Erro na sincronização',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     isLoading,
     createCustomer,
@@ -296,5 +338,7 @@ export function useAsaasPayment() {
     refundInstallment,
     getInstallmentBooklet,
     receiveInCash,
+    searchCustomerByCpf,
+    syncGuardians,
   };
 }
