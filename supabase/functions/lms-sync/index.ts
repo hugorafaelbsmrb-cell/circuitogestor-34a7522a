@@ -35,6 +35,34 @@ interface LMSStudentListResponse {
 const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1';
 const getLmsApiKey = () => Deno.env.get('LMS_API_KEY') || '';
 
+// Validate that a candidate UUID really belongs to the expected matricula.
+// This prevents caching a wrong lms_user_id when list-students returns fuzzy matches.
+async function uuidMatchesMatricula(studentUserId: string, expectedMatricula: string): Promise<boolean> {
+  try {
+    const matriculaNormalized = String(expectedMatricula || '').trim().toLowerCase();
+    if (!matriculaNormalized) return false;
+
+    const resp = await fetch(`${LMS_API_BASE}/lms-student-progress?student_user_id=${encodeURIComponent(studentUserId)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': getLmsApiKey(),
+      },
+    });
+
+    if (!resp.ok) return false;
+
+    const txt = await resp.text();
+    const parsed = JSON.parse(txt) as any;
+    const data = parsed?.success ? parsed.data : parsed;
+    const returnedMatricula = String(data?.matricula ?? '').trim().toLowerCase();
+    return returnedMatricula === matriculaNormalized;
+  } catch (e) {
+    console.error('uuidMatchesMatricula error:', e);
+    return false;
+  }
+}
+
 // ============================================================
 // STANDARDIZED FLEXIBLE MATRICULA SEARCH
 // Searches by: exact matricula, case-insensitive, email, name
@@ -117,23 +145,35 @@ async function flexibleStudentSearch(
   console.log('Strategy 1: Trying exact matricula match...');
   let uuid = await findByExactMatricula(matricula);
   if (uuid) {
-    console.log('✓ Found by exact matricula');
-    return { student_user_id: uuid, matched_by: 'exact_matricula' };
+    const ok = await uuidMatchesMatricula(uuid, matricula);
+    if (ok) {
+      console.log('✓ Found by exact matricula (validated)');
+      return { student_user_id: uuid, matched_by: 'exact_matricula' };
+    }
+    console.log('✗ UUID found by exact matricula did not validate against matricula; ignoring candidate');
   }
   
   // Strategy 2: Case-insensitive matricula search
   console.log('Strategy 2: Trying case-insensitive matricula search...');
   uuid = await findStudentUUID(matricula.toLowerCase());
   if (uuid) {
-    console.log('✓ Found by case-insensitive matricula');
-    return { student_user_id: uuid, matched_by: 'case_insensitive_matricula' };
+    const ok = await uuidMatchesMatricula(uuid, matricula);
+    if (ok) {
+      console.log('✓ Found by case-insensitive matricula (validated)');
+      return { student_user_id: uuid, matched_by: 'case_insensitive_matricula' };
+    }
+    console.log('✗ UUID found by case-insensitive matricula did not validate; ignoring candidate');
   }
   
   // Try uppercase variant
   uuid = await findStudentUUID(matricula.toUpperCase());
   if (uuid) {
-    console.log('✓ Found by uppercase matricula');
-    return { student_user_id: uuid, matched_by: 'uppercase_matricula' };
+    const ok = await uuidMatchesMatricula(uuid, matricula);
+    if (ok) {
+      console.log('✓ Found by uppercase matricula (validated)');
+      return { student_user_id: uuid, matched_by: 'uppercase_matricula' };
+    }
+    console.log('✗ UUID found by uppercase matricula did not validate; ignoring candidate');
   }
   
   // Strategy 3: Email search
@@ -141,8 +181,12 @@ async function flexibleStudentSearch(
     console.log('Strategy 3: Trying email search:', email);
     uuid = await findStudentUUID(email);
     if (uuid) {
-      console.log('✓ Found by email');
-      return { student_user_id: uuid, matched_by: 'email' };
+      const ok = await uuidMatchesMatricula(uuid, matricula);
+      if (ok) {
+        console.log('✓ Found by email (validated)');
+        return { student_user_id: uuid, matched_by: 'email' };
+      }
+      console.log('✗ UUID found by email did not validate against matricula; ignoring candidate');
     }
   }
   
@@ -151,8 +195,12 @@ async function flexibleStudentSearch(
     console.log('Strategy 4: Trying name search:', studentName);
     uuid = await findStudentUUID(studentName);
     if (uuid) {
-      console.log('✓ Found by student name');
-      return { student_user_id: uuid, matched_by: 'student_name' };
+      const ok = await uuidMatchesMatricula(uuid, matricula);
+      if (ok) {
+        console.log('✓ Found by student name (validated)');
+        return { student_user_id: uuid, matched_by: 'student_name' };
+      }
+      console.log('✗ UUID found by student name did not validate against matricula; ignoring candidate');
     }
   }
   
