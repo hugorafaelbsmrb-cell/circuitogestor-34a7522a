@@ -685,17 +685,23 @@ Deno.serve(async (req) => {
             const lmsData = parsed?.success ? parsed.data : parsed;
 
             if (lmsData) {
-              const currentModule = typeof lmsData.current_module === 'string'
-                ? lmsData.current_module
-                : lmsData.current_module?.name || lmsData.current_module?.id || null;
+              // Prefer last_completed_lesson data if available (shows actual progress)
+              const lastCompleted = lmsData.last_completed_lesson;
+              
+              const currentModule = lastCompleted?.module_name 
+                || (typeof lmsData.current_module === 'string' 
+                    ? lmsData.current_module 
+                    : lmsData.current_module?.name || lmsData.current_module?.id || null);
 
-              const currentLevel = typeof lmsData.current_level === 'string'
-                ? lmsData.current_level
-                : lmsData.current_level?.name || lmsData.current_level?.id || null;
+              const currentLevel = lastCompleted?.level_name 
+                || (typeof lmsData.current_level === 'string' 
+                    ? lmsData.current_level 
+                    : lmsData.current_level?.name || lmsData.current_level?.id || null);
 
-              const currentLesson = typeof lmsData.current_lesson === 'string'
-                ? lmsData.current_lesson
-                : lmsData.current_lesson?.title || lmsData.current_lesson?.id || null;
+              const currentLesson = lastCompleted?.title 
+                || (typeof lmsData.current_lesson === 'string' 
+                    ? lmsData.current_lesson 
+                    : lmsData.current_lesson?.title || lmsData.current_lesson?.id || null);
 
               const completion = Number(lmsData.completion_percentage ?? 0);
               const userId = String(lmsData.user_id ?? studentUserId);
