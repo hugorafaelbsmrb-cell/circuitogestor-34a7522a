@@ -411,6 +411,99 @@ async function listPayments(config: AsaasConfig, customerId: string) {
   return await handleAsaasResponse(response, "listPayments");
 }
 
+async function searchCustomerByCpf(config: AsaasConfig, cpfCnpj: string) {
+  const cleanCpf = cpfCnpj.replace(/\D/g, "");
+  console.log("Buscando cliente por CPF:", cleanCpf);
+  
+  const response = await fetch(`${config.baseUrl}/customers?cpfCnpj=${cleanCpf}`, {
+    method: "GET",
+    headers: getHeaders(config.apiKey),
+  });
+
+  const result = await handleAsaasResponse(response, "searchCustomerByCpf");
+  
+  if (result.data && result.data.length > 0) {
+    console.log("Cliente encontrado:", result.data[0].id);
+    return result.data[0];
+  }
+  
+  console.log("Nenhum cliente encontrado para o CPF:", cleanCpf);
+  return null;
+}
+
+async function syncGuardians(config: AsaasConfig) {
+  console.log("Iniciando sincronização de responsáveis...");
+  
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  
+  // Get all guardians without asaas_customer_id
+  const { data: guardians, error } = await supabase
+    .from("guardians")
+    .select("id, name, cpf, email, phone, address, address_number, province, postal_code")
+    .or("asaas_customer_id.is.null,asaas_customer_id.eq.");
+  
+  if (error) {
+    throw new Error("Erro ao buscar responsáveis: " + error.message);
+  }
+  
+  console.log(`Encontrados ${guardians?.length || 0} responsáveis sem asaas_customer_id`);
+  
+  const results = {
+    total: guardians?.length || 0,
+    synced: 0,
+    created: 0,
+    errors: [] as { name: string; error: string }[],
+  };
+  
+  for (const guardian of guardians || []) {
+    try {
+      // Try to find existing customer by CPF
+      const existingCustomer = await searchCustomerByCpf(config, guardian.cpf);
+      
+      let customerId: string;
+      
+      if (existingCustomer) {
+        customerId = existingCustomer.id;
+        results.synced++;
+        console.log(`Cliente existente encontrado para ${guardian.name}: ${customerId}`);
+      } else {
+        // Create new customer
+        const newCustomer = await createCustomer(config, {
+          name: guardian.name,
+          cpfCnpj: guardian.cpf,
+          email: guardian.email,
+          phone: guardian.phone,
+          address: guardian.address,
+          addressNumber: guardian.address_number || "S/N",
+          province: guardian.province || "Centro",
+          postalCode: guardian.postal_code || "00000000",
+        });
+        customerId = newCustomer.id;
+        results.created++;
+        console.log(`Novo cliente criado para ${guardian.name}: ${customerId}`);
+      }
+      
+      // Update guardian with asaas_customer_id
+      const { error: updateError } = await supabase
+        .from("guardians")
+        .update({ asaas_customer_id: customerId })
+        .eq("id", guardian.id);
+      
+      if (updateError) {
+        throw new Error("Erro ao atualizar guardian: " + updateError.message);
+      }
+      
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Erro desconhecido";
+      console.error(`Erro ao sincronizar ${guardian.name}:`, errorMsg);
+      results.errors.push({ name: guardian.name, error: errorMsg });
+    }
+  }
+  
+  console.log("Sincronização concluída:", results);
+  return results;
+}
+
 async function receiveInCash(config: AsaasConfig, paymentId: string, paymentDate: string, value?: number, notifyCustomer?: boolean) {
   console.log("Registrando pagamento em dinheiro:", paymentId);
   console.log("Parâmetros recebidos - paymentDate:", paymentDate, "value:", value, "notifyCustomer:", notifyCustomer);
@@ -508,6 +601,12 @@ serve(async (req) => {
         break;
       case "deletePayment":
         result = await deletePayment(config, data.paymentId);
+        break;
+      case "searchCustomerByCpf":
+        result = await searchCustomerByCpf(config, data.cpfCnpj);
+        break;
+      case "syncGuardians":
+        result = await syncGuardians(config);
         break;
       default:
         throw new Error("Ação não reconhecida");

@@ -8,13 +8,15 @@ import {
   Loader2,
   User,
   Pencil,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSchool } from '@/contexts/SchoolContext';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useAsaasPayment } from '@/hooks/useAsaasPayment';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
 import EditGuardianModal from '@/components/guardians/EditGuardianModal';
 import { DbGuardian } from '@/hooks/useSchoolData';
@@ -31,8 +33,9 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export default function Guardians() {
-  const { guardians, students, isLoading, updateGuardian, deleteStudent, deleteGuardian } = useSchool();
+  const { guardians, students, isLoading, updateGuardian, deleteStudent, deleteGuardian, refetch } = useSchool();
   const { profile } = useAuthContext();
+  const { syncGuardians, isLoading: isSyncing } = useAsaasPayment();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingGuardian, setEditingGuardian] = useState<DbGuardian | null>(null);
@@ -42,6 +45,16 @@ export default function Guardians() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const isAdmin = profile?.role === 'admin';
+
+  // Count guardians without asaas_customer_id
+  const guardiansWithoutAsaas = guardians.filter(g => !g.asaas_customer_id);
+
+  const handleSyncGuardians = async () => {
+    const result = await syncGuardians();
+    if (result) {
+      await refetch();
+    }
+  };
 
   const filteredGuardians = guardians.filter(guardian => {
     const matchesSearch = guardian.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -124,9 +137,26 @@ export default function Guardians() {
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header">
-        <h1 className="page-title">Responsáveis</h1>
-        <p className="page-subtitle">Lista de responsáveis cadastrados ({guardians.length})</p>
+      <div className="page-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="page-title">Responsáveis</h1>
+          <p className="page-subtitle">Lista de responsáveis cadastrados ({guardians.length})</p>
+        </div>
+        {isAdmin && guardiansWithoutAsaas.length > 0 && (
+          <Button
+            onClick={handleSyncGuardians}
+            disabled={isSyncing}
+            variant="outline"
+            className="gap-2"
+          >
+            {isSyncing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            Sincronizar Asaas ({guardiansWithoutAsaas.length})
+          </Button>
+        )}
       </div>
 
       {/* Search */}
