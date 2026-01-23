@@ -554,66 +554,35 @@ Deno.serve(async (req) => {
 
     // ============ GET PARENT REPORT ============
     if (action === 'getParentReport') {
-      let { studentUserId, matricula, format } = requestBody;
+      const { matricula, format, levelId } = requestBody;
       
-      if (!studentUserId && !matricula) {
+      if (!matricula) {
         return new Response(
-          JSON.stringify({ success: false, error: 'studentUserId or matricula is required' }),
+          JSON.stringify({ success: false, error: 'matricula is required' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // If we don't have studentUserId, we need to look it up first
-      // The external API requires student_user_id for the parent report
-      if (!studentUserId && matricula) {
-        console.log('No studentUserId provided, looking up by matricula:', matricula);
-        
-        // Try to find in our database first
-        const { data: credential } = await supabase
-          .from('lms_credentials')
-          .select('lms_user_id, email, student:students(name)')
-          .eq('matricula', matricula)
-          .maybeSingle();
-        
-        if (credential?.lms_user_id) {
-          studentUserId = credential.lms_user_id;
-          console.log('Found studentUserId in database:', studentUserId);
-        } else {
-          // Look up in external LMS API
-          const studentName = (credential?.student as any)?.name;
-          const email = credential?.email;
-          studentUserId = await findStudentUUIDWithFallback(matricula, email, studentName);
-          
-          if (studentUserId && credential) {
-            // Save for future use
-            await supabase
-              .from('lms_credentials')
-              .update({ lms_user_id: studentUserId })
-              .eq('matricula', matricula);
-            console.log('Saved lms_user_id for future use:', studentUserId);
-          }
-        }
-        
-        if (!studentUserId) {
-          console.error('Could not find student UUID for matricula:', matricula);
-          return new Response(
-            JSON.stringify({ success: false, error: 'Student not found in LMS. Please sync the student first.' }),
-            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
-      // Build query parameters - always use student_user_id
-      const requestFormat = format || 'full';
-      const queryParam = `student_user_id=${encodeURIComponent(studentUserId)}&format=${requestFormat}`;
+      // Build query parameters using matricula directly (API supports matricula now)
+      const requestFormat = format || 'pdf_data';
+      let queryParams = `matricula=${encodeURIComponent(matricula)}&format=${requestFormat}`;
       
-      console.log(`Fetching parent report with: ${queryParam}`);
+      // Add optional level_id if provided
+      if (levelId) {
+        queryParams += `&level_id=${encodeURIComponent(levelId)}`;
+      }
+      
+      console.log(`Fetching parent report with: ${queryParams}`);
 
-      const response = await fetch(`${LMS_API_BASE}/get-parent-report?${queryParam}`, {
+      // External LMS API anon key (public, required by the API)
+      const LMS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljYnVkZ3BqcHRlbWpmeW1zc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA4NjYsImV4cCI6MjA4NDE3Njg2Nn0.FkdaED4uk45rKzWTkZbFE7WUYlMPZgc1ovyAMFzL34Q';
+
+      const response = await fetch(`${LMS_API_BASE}/get-parent-report?${queryParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': getLmsApiKey(),
+          'apikey': LMS_ANON_KEY,
         },
       });
 
@@ -622,8 +591,18 @@ Deno.serve(async (req) => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Report API error:', errorText);
+        
+        // Parse error message if possible
+        let errorMessage = `Report API error: ${response.status}`;
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.error || errorJson.message || errorMessage;
+        } catch {
+          // Keep default error message
+        }
+        
         return new Response(
-          JSON.stringify({ success: false, error: `Report API error: ${response.status}` }),
+          JSON.stringify({ success: false, error: errorMessage }),
           { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -645,15 +624,22 @@ Deno.serve(async (req) => {
             success: true, 
             isPdf: true,
             pdfBase64: base64Pdf,
-            filename: 'relatorio-pedagogico.pdf'
+            filename: `relatorio-pedagogico-${matricula}.pdf`
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } else {
-        // Return JSON response
+        // Return JSON response - API returns { success, student, reports, meta }
         const data = await response.json();
+        console.log('Report API response data keys:', Object.keys(data));
+        
         return new Response(
-          JSON.stringify({ success: true, data }),
+          JSON.stringify({ 
+            success: true, 
+            student: data.student,
+            reports: data.reports || [],
+            meta: data.meta
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
