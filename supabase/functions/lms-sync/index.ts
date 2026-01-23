@@ -35,6 +35,17 @@ interface LMSStudentListResponse {
 const LMS_API_BASE = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1';
 const getLmsApiKey = () => Deno.env.get('LMS_API_KEY') || '';
 
+// ============================================================
+// STANDARDIZED FLEXIBLE MATRICULA SEARCH
+// Searches by: exact matricula, case-insensitive, email, name
+// Used across all LMS actions for consistency
+// ============================================================
+
+interface FlexibleSearchResult {
+  student_user_id: string | null;
+  matched_by: string | null;
+}
+
 // Helper function to find student UUID from LMS by search term
 async function findStudentUUID(searchTerm: string): Promise<string | null> {
   try {
@@ -50,7 +61,7 @@ async function findStudentUUID(searchTerm: string): Promise<string | null> {
 
     console.log('List-students response status:', response.status);
     const responseText = await response.text();
-    console.log('List-students response body:', responseText);
+    console.log('List-students response body:', responseText.substring(0, 500));
 
     if (response.ok) {
       const result: LMSStudentListResponse = JSON.parse(responseText);
@@ -67,28 +78,92 @@ async function findStudentUUID(searchTerm: string): Promise<string | null> {
   }
 }
 
-// Try multiple search strategies to find student UUID
-async function findStudentUUIDWithFallback(matricula: string, email?: string, studentName?: string): Promise<string | null> {
-  // First try by matricula
-  console.log('Trying search by matricula:', matricula);
-  let uuid = await findStudentUUID(matricula);
-  if (uuid) return uuid;
+// Try exact matricula match first (direct API call if supported)
+async function findByExactMatricula(matricula: string): Promise<string | null> {
+  try {
+    // Try direct matricula lookup endpoint if available
+    const response = await fetch(`${LMS_API_BASE}/list-students?matricula=${encodeURIComponent(matricula)}&limit=1`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': getLmsApiKey(),
+      },
+    });
+
+    if (response.ok) {
+      const result: LMSStudentListResponse = JSON.parse(await response.text());
+      if (result.success && result.data && result.data.length > 0) {
+        console.log('Found by exact matricula:', result.data[0].student_user_id);
+        return result.data[0].student_user_id;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Error finding by exact matricula:', error);
+    return null;
+  }
+}
+
+// Standardized flexible search with multiple fallback strategies
+async function flexibleStudentSearch(
+  matricula: string, 
+  email?: string, 
+  studentName?: string
+): Promise<FlexibleSearchResult> {
+  console.log('=== FLEXIBLE STUDENT SEARCH ===');
+  console.log('Searching with:', { matricula, email, studentName });
   
-  // Try by email if available
+  // Strategy 1: Exact matricula match
+  console.log('Strategy 1: Trying exact matricula match...');
+  let uuid = await findByExactMatricula(matricula);
+  if (uuid) {
+    console.log('✓ Found by exact matricula');
+    return { student_user_id: uuid, matched_by: 'exact_matricula' };
+  }
+  
+  // Strategy 2: Case-insensitive matricula search
+  console.log('Strategy 2: Trying case-insensitive matricula search...');
+  uuid = await findStudentUUID(matricula.toLowerCase());
+  if (uuid) {
+    console.log('✓ Found by case-insensitive matricula');
+    return { student_user_id: uuid, matched_by: 'case_insensitive_matricula' };
+  }
+  
+  // Try uppercase variant
+  uuid = await findStudentUUID(matricula.toUpperCase());
+  if (uuid) {
+    console.log('✓ Found by uppercase matricula');
+    return { student_user_id: uuid, matched_by: 'uppercase_matricula' };
+  }
+  
+  // Strategy 3: Email search
   if (email) {
-    console.log('Matricula search failed, trying by email:', email);
+    console.log('Strategy 3: Trying email search:', email);
     uuid = await findStudentUUID(email);
-    if (uuid) return uuid;
+    if (uuid) {
+      console.log('✓ Found by email');
+      return { student_user_id: uuid, matched_by: 'email' };
+    }
   }
   
-  // Try by student name if available
+  // Strategy 4: Student name search
   if (studentName) {
-    console.log('Email search failed, trying by name:', studentName);
+    console.log('Strategy 4: Trying name search:', studentName);
     uuid = await findStudentUUID(studentName);
-    if (uuid) return uuid;
+    if (uuid) {
+      console.log('✓ Found by student name');
+      return { student_user_id: uuid, matched_by: 'student_name' };
+    }
   }
   
-  return null;
+  console.log('✗ Student not found by any search strategy');
+  return { student_user_id: null, matched_by: null };
+}
+
+// Legacy function maintained for backward compatibility
+async function findStudentUUIDWithFallback(matricula: string, email?: string, studentName?: string): Promise<string | null> {
+  const result = await flexibleStudentSearch(matricula, email, studentName);
+  return result.student_user_id;
 }
 
 Deno.serve(async (req) => {
@@ -463,34 +538,34 @@ Deno.serve(async (req) => {
       }
     }
 
-    // LMS Management Actions (POST to external LMS - uses matricula)
+    // LMS Management Actions (POST to external LMS - uses flexible matricula search)
     // New API: set_lesson, set_level, set_module with automatic XP/coins credit
     if (action === 'setLesson') {
       const { matricula, lessonId } = requestBody;
-      return await callLMSAction('set_lesson', { matricula, lesson_id: lessonId });
+      return await callLMSAction('set_lesson', { matricula, lesson_id: lessonId }, supabase);
     }
 
     if (action === 'setLevel') {
       const { matricula, levelId } = requestBody;
-      return await callLMSAction('set_level', { matricula, level_id: levelId });
+      return await callLMSAction('set_level', { matricula, level_id: levelId }, supabase);
     }
 
     if (action === 'setModule') {
       const { matricula, moduleId } = requestBody;
-      return await callLMSAction('set_module', { matricula, module_id: moduleId });
+      return await callLMSAction('set_module', { matricula, module_id: moduleId }, supabase);
     }
 
     // Legacy actions (kept for compatibility but may not work with new API)
     if (action === 'unlockLevel') {
       const { matricula, levelId } = requestBody;
       // Map to new set_level action
-      return await callLMSAction('set_level', { matricula, level_id: levelId });
+      return await callLMSAction('set_level', { matricula, level_id: levelId }, supabase);
     }
 
     if (action === 'updateLessonStatus') {
       const { matricula, lessonId } = requestBody;
       // Map to new set_lesson action
-      return await callLMSAction('set_lesson', { matricula, lesson_id: lessonId });
+      return await callLMSAction('set_lesson', { matricula, lesson_id: lessonId }, supabase);
     }
 
     if (action === 'resetProgress') {
@@ -847,18 +922,32 @@ Deno.serve(async (req) => {
   }
 });
 
-// Helper function to call LMS management actions
-// New API format: POST with { matricula, action, lesson_id|level_id|module_id }
-async function callLMSAction(actionType: string, params: Record<string, string>) {
+// ============================================================
+// HELPER FUNCTION TO CALL LMS MANAGEMENT ACTIONS
+// Uses standardized flexible search when matricula fails
+// ============================================================
+async function callLMSAction(
+  actionType: string, 
+  params: Record<string, string>,
+  supabaseClient?: any
+) {
   // External LMS API anon key (public, required by the API)
   const LMS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljYnVkZ3BqcHRlbWpmeW1zc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA4NjYsImV4cCI6MjA4NDE3Njg2Nn0.FkdaED4uk45rKzWTkZbFE7WUYlMPZgc1ovyAMFzL34Q';
   
-  try {
-    // Build request body: { matricula, action, lesson_id|level_id|module_id }
+  const matricula = params.matricula;
+  
+  // Helper to make the actual API call
+  const makeApiCall = async (identifier: string, identifierType: 'matricula' | 'student_user_id') => {
     const requestBody: Record<string, string> = {
-      matricula: params.matricula,
       action: actionType,
     };
+    
+    // Use the appropriate identifier
+    if (identifierType === 'student_user_id') {
+      requestBody.student_user_id = identifier;
+    } else {
+      requestBody.matricula = identifier;
+    }
     
     // Add the specific ID based on action type
     if (params.lesson_id) requestBody.lesson_id = params.lesson_id;
@@ -877,7 +966,6 @@ async function callLMSAction(actionType: string, params: Record<string, string>)
       body: JSON.stringify(requestBody),
     });
 
-    // Always consume as text first (safer for non-JSON responses)
     const responseText = await response.text();
     console.log(`LMS API response (${response.status}):`, responseText);
     
@@ -888,10 +976,69 @@ async function callLMSAction(actionType: string, params: Record<string, string>)
       result = { raw: responseText };
     }
 
+    return { response, result, responseText };
+  };
+  
+  try {
+    // First attempt: Try with matricula directly
+    console.log('=== LMS ACTION: First attempt with matricula ===');
+    let { response, result } = await makeApiCall(matricula, 'matricula');
+    
+    // Check if it failed due to student not found
+    const notFound = !response.ok || 
+                     result?.error?.includes('not found') || 
+                     result?.error?.includes('Student not found') ||
+                     result?.message?.includes('not found');
+    
+    // If failed, try flexible search to find the student
+    if (notFound) {
+      console.log('=== LMS ACTION: Matricula failed, trying flexible search ===');
+      
+      // Get email and name from local database if we have supabase client
+      let email: string | undefined;
+      let studentName: string | undefined;
+      
+      if (supabaseClient) {
+        const { data: credential } = await supabaseClient
+          .from('lms_credentials')
+          .select('email, student:students(name)')
+          .eq('matricula', matricula)
+          .maybeSingle();
+        
+        if (credential) {
+          email = credential.email;
+          studentName = (credential.student as any)?.name;
+        }
+      }
+      
+      // Use flexible search
+      const searchResult = await flexibleStudentSearch(matricula, email, studentName);
+      
+      if (searchResult.student_user_id) {
+        console.log(`Found student via ${searchResult.matched_by}, retrying action...`);
+        
+        // Retry with student_user_id
+        const retryResult = await makeApiCall(searchResult.student_user_id, 'student_user_id');
+        response = retryResult.response;
+        result = retryResult.result;
+        
+        // If successful, update the lms_user_id in our database for future calls
+        if (response.ok && result?.success && supabaseClient) {
+          await supabaseClient
+            .from('lms_credentials')
+            .update({ lms_user_id: searchResult.student_user_id })
+            .eq('matricula', matricula);
+          console.log('Updated lms_user_id for future calls');
+        }
+      } else {
+        console.log('Student not found by any search strategy');
+      }
+    }
+
     const success = Boolean(response.ok && result?.success);
     
     // Build detailed message
-    let message = result?.message || result?.error || (success ? 'Ação concluída' : 'Ação falhou');
+    let message = result?.message || result?.error || (success ? 'Ação concluída' : 'Aluno não encontrado no LMS');
     
     // Add XP/coins info if available
     if (success && result) {
