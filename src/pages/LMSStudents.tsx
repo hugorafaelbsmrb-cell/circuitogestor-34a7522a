@@ -14,7 +14,7 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Unlock,
+  
   RotateCcw,
   Settings,
   Coins,
@@ -130,6 +130,13 @@ export default function LMSStudents() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState<LMSCredential | null>(null);
   const [reportLoading, setReportLoading] = useState<string | null>(null);
+  
+  // Modal for set actions with input
+  const [actionModal, setActionModal] = useState<{
+    type: 'setLesson' | 'setLevel' | 'setModule' | null;
+    credential: LMSCredential | null;
+    inputValue: string;
+  }>({ type: null, credential: null, inputValue: '' });
 
   useEffect(() => {
     fetchCredentials();
@@ -316,16 +323,27 @@ export default function LMSStudents() {
     }
   };
 
-  const handleUnlockLevel = (credential: LMSCredential, levelId: string) => {
-    executeLMSAction('unlockLevel', credential, { levelId });
-  };
 
   const handleSetModule = (credential: LMSCredential, moduleId: string) => {
-    executeLMSAction('setModule', credential, { moduleId });
+    if (moduleId === 'next' || !moduleId) {
+      // Open modal for input
+      setActionModal({ type: 'setModule', credential, inputValue: '' });
+    } else {
+      executeLMSAction('setModule', credential, { moduleId });
+    }
   };
 
   const handleSetLevel = (credential: LMSCredential, levelId: string) => {
-    executeLMSAction('setLevel', credential, { levelId });
+    if (levelId === 'next' || !levelId) {
+      // Open modal for input
+      setActionModal({ type: 'setLevel', credential, inputValue: '' });
+    } else {
+      executeLMSAction('setLevel', credential, { levelId });
+    }
+  };
+
+  const handleSetLesson = (credential: LMSCredential) => {
+    setActionModal({ type: 'setLesson', credential, inputValue: '' });
   };
 
   const handleResetProgress = (credential: LMSCredential) => {
@@ -336,6 +354,57 @@ export default function LMSStudents() {
     if (!confirmReset) return;
     await executeLMSAction('resetProgress', confirmReset);
     setConfirmReset(null);
+  };
+
+  const executeActionFromModal = async () => {
+    if (!actionModal.type || !actionModal.credential || !actionModal.inputValue.trim()) {
+      toast({
+        title: 'Erro',
+        description: 'Informe o ID (UUID) do destino.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const params: Record<string, string> = {};
+    
+    if (actionModal.type === 'setLesson') {
+      params.lessonId = actionModal.inputValue.trim();
+    } else if (actionModal.type === 'setLevel') {
+      params.levelId = actionModal.inputValue.trim();
+    } else if (actionModal.type === 'setModule') {
+      params.moduleId = actionModal.inputValue.trim();
+    }
+
+    await executeLMSAction(actionModal.type, actionModal.credential, params);
+    setActionModal({ type: null, credential: null, inputValue: '' });
+  };
+
+  const getActionModalTitle = () => {
+    switch (actionModal.type) {
+      case 'setLesson': return 'Definir Aula';
+      case 'setLevel': return 'Definir Nível';
+      case 'setModule': return 'Definir Módulo';
+      default: return 'Ação';
+    }
+  };
+
+  const getActionModalDescription = () => {
+    switch (actionModal.type) {
+      case 'setLesson': return 'Informe o UUID da aula de destino. Aulas anteriores serão marcadas como completas e XP/moedas serão creditados.';
+      case 'setLevel': return 'Informe o UUID do nível de destino. Níveis anteriores serão marcados como completos.';
+      case 'setModule': return 'Informe o UUID do módulo de destino. Módulos anteriores serão marcados como completos.';
+      default: return '';
+    }
+  };
+
+  const getActionModalPlaceholder = () => {
+    switch (actionModal.type) {
+      case 'setLesson': return 'Ex: 2f9d3f91-264e-4e1d-a5d8-1696857cce9c';
+      case 'setLevel': return 'Ex: a278d064-ea41-413a-8cfe-82c5f952705f';
+      case 'setModule': return 'Ex: aafa1070-019b-40ec-a74a-e08ff87c6cbb';
+      default: return 'UUID';
+    }
   };
 
   const generatePedagogicalReport = async (credential: LMSCredential) => {
@@ -1196,17 +1265,17 @@ export default function LMSStudents() {
                             Imprimir Credenciais
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleUnlockLevel(cred, 'current')}>
-                            <Unlock className="w-4 h-4 mr-2" />
-                            Desbloquear Nível
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSetModule(cred, 'next')}>
+                          <DropdownMenuItem onClick={() => handleSetLesson(cred)}>
                             <BookOpen className="w-4 h-4 mr-2" />
-                            Mover para Módulo
+                            Definir Aula
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSetLevel(cred, 'next')}>
+                          <DropdownMenuItem onClick={() => handleSetLevel(cred, '')}>
                             <Trophy className="w-4 h-4 mr-2" />
-                            Mover para Nível
+                            Definir Nível
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleSetModule(cred, '')}>
+                            <GraduationCap className="w-4 h-4 mr-2" />
+                            Definir Módulo
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 
@@ -1435,35 +1504,21 @@ export default function LMSStudents() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleUnlockLevel(selectedCredential, 'current')}
+                      onClick={() => handleSetLesson(selectedCredential)}
                       disabled={!!actionLoading}
                       className="gap-2"
                     >
-                      {actionLoading === 'unlockLevel' ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Unlock className="w-4 h-4" />
-                      )}
-                      Desbloquear Nível
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSetModule(selectedCredential, 'next')}
-                      disabled={!!actionLoading}
-                      className="gap-2"
-                    >
-                      {actionLoading === 'setModule' ? (
+                      {actionLoading === 'setLesson' ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <BookOpen className="w-4 h-4" />
                       )}
-                      Próximo Módulo
+                      Definir Aula
                     </Button>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleSetLevel(selectedCredential, 'next')}
+                      onClick={() => handleSetLevel(selectedCredential, '')}
                       disabled={!!actionLoading}
                       className="gap-2"
                     >
@@ -1472,7 +1527,21 @@ export default function LMSStudents() {
                       ) : (
                         <Trophy className="w-4 h-4" />
                       )}
-                      Próximo Nível
+                      Definir Nível
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSetModule(selectedCredential, '')}
+                      disabled={!!actionLoading}
+                      className="gap-2"
+                    >
+                      {actionLoading === 'setModule' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <GraduationCap className="w-4 h-4" />
+                      )}
+                      Definir Módulo
                     </Button>
                     <Button
                       variant="outline"
@@ -1537,6 +1606,49 @@ export default function LMSStudents() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Action Modal for set actions */}
+      <Dialog open={!!actionModal.type} onOpenChange={() => setActionModal({ type: null, credential: null, inputValue: '' })}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{getActionModalTitle()}</DialogTitle>
+            <DialogDescription>
+              {getActionModalDescription()}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                ID (UUID) do destino
+              </label>
+              <Input
+                placeholder={getActionModalPlaceholder()}
+                value={actionModal.inputValue}
+                onChange={(e) => setActionModal({ ...actionModal, inputValue: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Aluno: {actionModal.credential?.student?.name} ({actionModal.credential?.matricula})
+              </p>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setActionModal({ type: null, credential: null, inputValue: '' })}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={executeActionFromModal}
+                disabled={!actionModal.inputValue.trim() || !!actionLoading}
+              >
+                {actionLoading ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : null}
+                Confirmar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
