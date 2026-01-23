@@ -397,27 +397,24 @@ export default function LMSStudents() {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; padding: 20px; line-height: 1.6; }
     .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
-    .header { background: linear-gradient(135deg, #f58220 0%, #e06b10 100%); color: white; padding: 24px 40px; }
-    .header-content { display: flex; align-items: center; justify-content: center; gap: 20px; }
-    .header-logo { background: white; padding: 8px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
-    .header-logo img { max-height: 60px; max-width: 120px; object-fit: contain; }
-    .header-text { text-align: left; }
-    .header-text h1 { font-size: 26px; margin-bottom: 4px; font-weight: 700; }
-    .header-text p { opacity: 0.9; font-size: 14px; }
+    .header { background: linear-gradient(135deg, #f58220 0%, #e06b10 100%); color: white; padding: 20px 40px; display: flex; align-items: center; gap: 16px; }
+    .header-logo { background: white; padding: 6px 10px; border-radius: 8px; flex-shrink: 0; }
+    .header-logo img { height: 40px; max-width: 100px; object-fit: contain; display: block; }
+    .header-info { flex: 1; }
+    .header-title { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+    .header-student { font-size: 15px; opacity: 0.95; }
+    .header-meta { font-size: 12px; opacity: 0.8; margin-top: 4px; }
+    .header-meta span { margin-right: 16px; }
     .content { padding: 30px 40px; }
-    .student-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 30px; }
-    .stat-card { background: #f8f9fa; padding: 20px; border-radius: 12px; text-align: center; border-left: 4px solid #f58220; }
-    .stat-card label { font-size: 12px; color: #888; text-transform: uppercase; display: block; margin-bottom: 6px; letter-spacing: 0.5px; }
-    .stat-card span { font-size: 22px; font-weight: 700; color: #333; }
-    .level-report { background: #fafafa; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #eee; }
+    .level-report { background: #fafafa; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #eee; page-break-inside: avoid; break-inside: avoid; }
     .level-report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f58220; }
     .level-report-title { font-size: 18px; font-weight: 600; color: #333; }
     .level-report-date { font-size: 12px; color: #888; background: #f0f0f0; padding: 6px 12px; border-radius: 20px; }
-    .pdf-section { margin-bottom: 20px; }
+    .pdf-section { margin-bottom: 20px; page-break-inside: avoid; break-inside: avoid; }
     .pdf-section-title { font-size: 16px; font-weight: 600; color: #f58220; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
     .section-content { color: #555; font-size: 14px; line-height: 1.8; background: white; padding: 16px; border-radius: 8px; border-left: 3px solid #f58220; }
     .bncc-list { display: flex; flex-direction: column; gap: 8px; }
-    .bncc-item { display: flex; gap: 12px; padding: 10px; background: white; border-radius: 8px; align-items: flex-start; }
+    .bncc-item { display: flex; gap: 12px; padding: 10px; background: white; border-radius: 8px; align-items: flex-start; page-break-inside: avoid; break-inside: avoid; }
     .bncc-code { background: #fff3e6; color: #d35400; font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
     .bncc-desc { color: #555; font-size: 13px; }
     .tags-container { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -426,47 +423,35 @@ export default function LMSStudents() {
     .empty-state p { margin-bottom: 10px; }
     .print-btn { display: block; width: 200px; margin: 20px auto; padding: 14px 28px; background: #f58220; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; }
     .print-btn:hover { background: #d35400; }
-    @media print { .print-btn { display: none; } body { background: white; padding: 0; } .container { box-shadow: none; } }
     .meta-info { text-align: center; padding: 20px; background: #f8f9fa; color: #888; font-size: 12px; }
+    @media print { 
+      .print-btn { display: none; } 
+      body { background: white; padding: 0; } 
+      .container { box-shadow: none; border-radius: 0; }
+      .level-report, .pdf-section, .bncc-item { page-break-inside: avoid; break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <div class="header-content">
-        ${branding.logo ? `
-          <div class="header-logo">
-            <img src="${branding.logo}" alt="Logo" />
-          </div>
-        ` : ''}
-        <div class="header-text">
-          <h1>Relatório Pedagógico</h1>
-          <p>${branding.name || 'Robótica Educacional'}</p>
+      ${branding.logo ? `
+        <div class="header-logo">
+          <img src="${branding.logo}" alt="Logo" />
+        </div>
+      ` : ''}
+      <div class="header-info">
+        <div class="header-title">Relatório Pedagógico</div>
+        <div class="header-student">${studentName}${nickname ? ` (${nickname})` : ''}</div>
+        <div class="header-meta">
+          <span>Matrícula: ${credential.matricula}</span>
+          <span>Nível: ${currentLevel}</span>
+          <span>XP: ${totalXp}</span>
         </div>
       </div>
     </div>
     
     <div class="content">
-      <div class="student-card">
-        <div class="stat-card">
-          <label>Nome do Aluno</label>
-          <span style="font-size: 18px;">${studentName}</span>
-        </div>
-        ${nickname ? `<div class="stat-card"><label>Apelido</label><span>${nickname}</span></div>` : ''}
-        <div class="stat-card">
-          <label>Matrícula</label>
-          <span style="font-size: 16px;">${credential.matricula}</span>
-        </div>
-        <div class="stat-card">
-          <label>Nível Atual</label>
-          <span>${currentLevel}</span>
-        </div>
-        <div class="stat-card">
-          <label>XP Total</label>
-          <span>${totalXp}</span>
-        </div>
-      </div>
-
       ${reports.length > 0 ? reports.map((report: { id?: string; level_name?: string; generated_at?: string; pdf_sections?: Array<{ key: string; title: string; icon?: string; content?: string; items?: Array<{ code?: string; description?: string } | string> }> }) => `
         <div class="level-report">
           <div class="level-report-header">
