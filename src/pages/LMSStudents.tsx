@@ -395,8 +395,10 @@ export default function LMSStudents() {
   <title>Relatório Pedagógico - ${studentName}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: white; padding: 0; line-height: 1.6; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: white; padding: 0; line-height: 1.6; color: #111; }
     .container { max-width: 100%; margin: 0; background: white; }
+
+    /* --- Tela (pré-visualização) --- */
     .header { background: #f58220; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 16px; border-bottom: 3px solid #e06b10; }
     .header-logo { background: white; padding: 6px 10px; border-radius: 6px; flex-shrink: 0; }
     .header-logo img { height: 36px; max-width: 90px; object-fit: contain; display: block; }
@@ -424,14 +426,61 @@ export default function LMSStudents() {
     .print-btn { display: block; width: 180px; margin: 16px auto; padding: 12px 24px; background: #f58220; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
     .print-btn:hover { background: #d35400; }
     .meta-info { text-align: center; padding: 12px; background: #f5f5f5; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #888; font-size: 10px; border-top: 1px solid #eee; }
-    @media print { 
-      .print-btn { display: none !important; } 
-      body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 11px; }
-      .container { box-shadow: none !important; border-radius: 0 !important; max-width: 100% !important; }
-      .header { background: #f58220 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      .level-report { page-break-inside: avoid; break-inside: avoid; }
-      .pdf-section { page-break-inside: avoid; break-inside: avoid; }
-      .bncc-item { page-break-inside: avoid; break-inside: avoid; }
+
+    /* --- Impressão (limpo, sem “blocos”) --- */
+    @media print {
+      @page { size: A4; margin: 12mm 12mm 12mm 12mm; }
+
+      html, body { background: #fff !important; color: #000 !important; }
+      body { padding: 0 !important; margin: 0 !important; font-size: 10.5pt !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .print-btn { display: none !important; }
+
+      .container { max-width: 100% !important; }
+      .content { padding: 8mm 0 0 0 !important; }
+
+      /* Cabeçalho minimalista (sem fundo/caixas) */
+      .header {
+        background: transparent !important;
+        color: #000 !important;
+        border-bottom: 1.2pt solid #000 !important;
+        padding: 0 0 6mm 0 !important;
+        margin: 0 0 0 0 !important;
+        gap: 10mm !important;
+      }
+      .header-logo { background: transparent !important; padding: 0 !important; border-radius: 0 !important; }
+      .header-logo img { height: 14mm !important; max-width: 45mm !important; }
+      .header-title { color: #000 !important; font-size: 14pt !important; margin: 0 0 1.5mm 0 !important; }
+      .header-student { color: #000 !important; font-size: 11pt !important; opacity: 1 !important; }
+      .header-meta {
+        color: #000 !important;
+        opacity: 1 !important;
+        font-size: 9.5pt !important;
+        margin-top: 2mm !important;
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 8mm !important;
+      }
+      .header-meta span { margin-right: 0 !important; }
+
+      /* Remove cards/cores e usa linhas para separar */
+      .level-report { background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; margin: 0 0 10mm 0 !important; }
+      .level-report-header { border-bottom: 1pt solid #000 !important; padding-bottom: 2.5mm !important; margin-bottom: 4mm !important; }
+      .level-report-title { color: #000 !important; font-size: 13pt !important; }
+      .level-report-date { background: transparent !important; color: #000 !important; border: 1pt solid #000 !important; padding: 1.5mm 4mm !important; }
+
+      .pdf-section { margin: 0 0 6mm 0 !important; }
+      .pdf-section-title { color: #000 !important; font-size: 11pt !important; margin: 0 0 2mm 0 !important; break-after: avoid-page !important; page-break-after: avoid !important; }
+      .section-content { background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; color: #000 !important; font-size: 10pt !important; }
+
+      .bncc-item { background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; }
+      .bncc-code { background: transparent !important; color: #000 !important; border: 1pt solid #000 !important; }
+      .bncc-desc { color: #000 !important; }
+      .concept-tag { background: transparent !important; color: #000 !important; border: 1pt solid #000 !important; }
+      .meta-info { background: transparent !important; color: #000 !important; border-top: 1pt solid #000 !important; }
+
+      /* Evita quebra dentro de blocos (quando couber na página) */
+      .level-report, .pdf-section, .bncc-item { break-inside: avoid-page !important; page-break-inside: avoid !important; }
+      .section-content { orphans: 3; widows: 3; }
     }
   </style>
 </head>
