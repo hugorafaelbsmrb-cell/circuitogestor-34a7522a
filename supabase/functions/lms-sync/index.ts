@@ -332,8 +332,6 @@ Deno.serve(async (req) => {
 
     // Get curriculum structure (modules, levels, lessons) from LMS
     if (action === 'getCurriculum') {
-      const LMS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljYnVkZ3BqcHRlbWpmeW1zc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA4NjYsImV4cCI6MjA4NDE3Njg2Nn0.FkdaED4uk45rKzWTkZbFE7WUYlMPZgc1ovyAMFzL34Q';
-      
       // Helper to normalize names from various API response formats
       const extractName = (item: any): string => {
         if (!item) return '';
@@ -341,17 +339,18 @@ Deno.serve(async (req) => {
       };
       
       try {
-        // Fetch modules
+        // Fetch all modules (no filter needed)
         console.log('Fetching modules from:', `${LMS_API_BASE}/list-modules`);
         const modulesRes = await fetch(`${LMS_API_BASE}/list-modules`, {
+          method: 'GET',
           headers: { 
             'Content-Type': 'application/json',
             'X-API-Key': getLmsApiKey(),
-            'apikey': LMS_ANON_KEY,
           },
         });
         const modulesText = await modulesRes.text();
-        console.log('Modules response status:', modulesRes.status, 'body:', modulesText.substring(0, 500));
+        console.log('Modules response status:', modulesRes.status, 'body:', modulesText.substring(0, 1000));
+        
         let rawModules: any[] = [];
         try {
           const parsed = JSON.parse(modulesText);
@@ -362,20 +361,21 @@ Deno.serve(async (req) => {
         const modules = rawModules.map((m: any) => ({
           id: m.id,
           name: extractName(m),
-          order_index: m.order_index || m.order || m.ordem || null
-        }));
+          order_index: m.order_index || m.order || m.ordem || 0
+        })).sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
 
-        // Fetch levels
+        // Fetch all levels (no filter - we'll filter client-side for cascading selection)
         console.log('Fetching levels from:', `${LMS_API_BASE}/list-levels`);
         const levelsRes = await fetch(`${LMS_API_BASE}/list-levels`, {
+          method: 'GET',
           headers: { 
             'Content-Type': 'application/json',
             'X-API-Key': getLmsApiKey(),
-            'apikey': LMS_ANON_KEY,
           },
         });
         const levelsText = await levelsRes.text();
-        console.log('Levels response status:', levelsRes.status, 'body:', levelsText.substring(0, 500));
+        console.log('Levels response status:', levelsRes.status, 'body:', levelsText.substring(0, 1000));
+        
         let rawLevels: any[] = [];
         try {
           const parsed = JSON.parse(levelsText);
@@ -387,20 +387,21 @@ Deno.serve(async (req) => {
           id: l.id,
           name: extractName(l),
           module_id: l.module_id || l.moduleId || l.modulo_id || null,
-          level_number: l.level_number || l.number || l.numero || l.order || null
-        }));
+          level_number: l.level_number || l.number || l.numero || l.order || 0
+        })).sort((a: any, b: any) => (a.level_number || 0) - (b.level_number || 0));
 
-        // Fetch lessons
+        // Fetch all lessons (no filter - we'll filter client-side for cascading selection)
         console.log('Fetching lessons from:', `${LMS_API_BASE}/list-lessons`);
         const lessonsRes = await fetch(`${LMS_API_BASE}/list-lessons`, {
+          method: 'GET',
           headers: { 
             'Content-Type': 'application/json',
             'X-API-Key': getLmsApiKey(),
-            'apikey': LMS_ANON_KEY,
           },
         });
         const lessonsText = await lessonsRes.text();
-        console.log('Lessons response status:', lessonsRes.status, 'body:', lessonsText.substring(0, 500));
+        console.log('Lessons response status:', lessonsRes.status, 'body:', lessonsText.substring(0, 1000));
+        
         let rawLessons: any[] = [];
         try {
           const parsed = JSON.parse(lessonsText);
@@ -412,8 +413,9 @@ Deno.serve(async (req) => {
           id: l.id,
           title: extractName(l),
           level_id: l.level_id || l.levelId || l.nivel_id || null,
-          lesson_number: l.lesson_number || l.number || l.numero || l.order || null
-        }));
+          module_id: l.module_id || l.moduleId || l.modulo_id || null,
+          lesson_number: l.lesson_number || l.number || l.numero || l.order || 0
+        })).sort((a: any, b: any) => (a.lesson_number || 0) - (b.lesson_number || 0));
 
         console.log(`Curriculum loaded: ${modules.length} modules, ${levels.length} levels, ${lessons.length} lessons`);
 
