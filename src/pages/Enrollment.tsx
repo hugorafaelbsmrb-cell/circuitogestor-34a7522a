@@ -469,7 +469,8 @@ export default function Enrollment() {
     return formData.student.name.trim() !== '' && formData.student.birthDate !== '';
   };
 
-  const validateGuardian = () => {
+  // Silent validation for button disabled state (no toasts)
+  const isGuardianValid = () => {
     const { name, cpf, email, phone, address, postalCode } = formData.guardian;
     
     // Basic required field check
@@ -479,9 +480,36 @@ export default function Enrollment() {
     
     // Validate CPF
     if (!isValidCPF(cpf)) {
+      return false;
+    }
+    
+    // Validate Email
+    if (!isValidEmail(email)) {
+      return false;
+    }
+    
+    return true;
+  };
+
+  // Validation with toast messages for user feedback when clicking next
+  const validateGuardianWithFeedback = () => {
+    const { name, cpf, email, phone, address, postalCode } = formData.guardian;
+    
+    // Basic required field check
+    if (name.trim() === '' || cpf.trim() === '' || email.trim() === '' || phone.trim() === '' || address.trim() === '' || postalCode.trim() === '') {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Preencha todos os campos obrigatórios do responsável.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    
+    // Validate CPF
+    if (!isValidCPF(cpf)) {
       toast({
         title: 'CPF inválido',
-        description: 'Por favor, insira um CPF válido.',
+        description: 'O CPF informado não é válido. Verifique os dígitos e tente novamente.',
         variant: 'destructive',
       });
       return false;
@@ -507,6 +535,14 @@ export default function Enrollment() {
       return false;
     }
     return selectedSchedules.length > 0;
+  };
+
+  const handleNextStep = () => {
+    // Validate current step with feedback before proceeding
+    if (currentStep === 'guardian' && !validateGuardianWithFeedback()) {
+      return;
+    }
+    goToNextStep();
   };
 
   const goToNextStep = () => {
@@ -2094,10 +2130,10 @@ export default function Enrollment() {
               </Button>
             ) : (
               <Button
-                onClick={goToNextStep}
+                onClick={handleNextStep}
                 disabled={
                   (currentStep === 'student' && !validateStudent()) ||
-                  (currentStep === 'guardian' && !validateGuardian()) ||
+                  (currentStep === 'guardian' && !isGuardianValid()) ||
                   (currentStep === 'course' && !formData.courseId) ||
                   (currentStep === 'schedule' && !validateSchedule())
                 }
