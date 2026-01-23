@@ -590,15 +590,19 @@ Deno.serve(async (req) => {
       console.log(`Syncing ${credentials?.length || 0} credentials`);
 
       let syncedCount = 0;
+      let failedCount = 0;
       const now = new Date().toISOString();
       
       for (const cred of credentials || []) {
+        console.log(`Processing credential: ${cred.id}, matricula: ${cred.matricula}`);
         let studentUserId = cred.lms_user_id;
 
         // If no UUID, look it up by matricula first (then email fallback)
         if (!studentUserId) {
+          console.log(`No UUID found, searching for matricula: ${cred.matricula}`);
           studentUserId = await findStudentUUIDWithFallback(cred.matricula, cred.email);
           if (studentUserId) {
+            console.log(`Found UUID: ${studentUserId} for matricula: ${cred.matricula}`);
             await supabase
               .from('lms_credentials')
               .update({ lms_user_id: studentUserId })
@@ -607,12 +611,16 @@ Deno.serve(async (req) => {
         }
 
         if (!studentUserId) {
-          console.log(`Skipping credential ${cred.id}: no UUID found`);
+          console.log(`Skipping credential ${cred.id}: no UUID found for matricula ${cred.matricula}`);
+          failedCount++;
           continue;
         }
 
         try {
-          const lmsResponse = await fetch(`${LMS_API_BASE}/lms-student-progress?student_user_id=${studentUserId}`, {
+          const apiUrl = `${LMS_API_BASE}/lms-student-progress?student_user_id=${studentUserId}`;
+          console.log(`Fetching progress from: ${apiUrl}`);
+          
+          const lmsResponse = await fetch(apiUrl, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -620,8 +628,11 @@ Deno.serve(async (req) => {
             },
           });
 
+          console.log(`LMS response status for ${cred.matricula}: ${lmsResponse.status}`);
+
           if (lmsResponse.ok) {
             const responseText = await lmsResponse.text();
+            console.log(`LMS response for ${cred.matricula}: ${responseText.substring(0, 200)}...`);
             const parsed = JSON.parse(responseText) as any;
             const lmsData = parsed?.success ? parsed.data : parsed;
 
@@ -641,7 +652,9 @@ Deno.serve(async (req) => {
               const completion = Number(lmsData.completion_percentage ?? 0);
               const userId = String(lmsData.user_id ?? studentUserId);
 
-              await supabase
+              console.log(`Updating credential ${cred.id}: module=${currentModule}, level=${currentLevel}, lesson=${currentLesson}, completion=${completion}%`);
+
+              const { error: updateError } = await supabase
                 .from('lms_credentials')
                 .update({
                   current_module: currentModule,
@@ -653,13 +666,29 @@ Deno.serve(async (req) => {
                 })
                 .eq('id', cred.id);
 
-              syncedCount++;
+              if (updateError) {
+                console.error(`Error updating credential ${cred.id}:`, updateError);
+                failedCount++;
+              } else {
+                syncedCount++;
+                console.log(`Successfully synced credential ${cred.id}`);
+              }
+            } else {
+              console.log(`No data in LMS response for ${cred.matricula}`);
+              failedCount++;
             }
+          } else {
+            const errorText = await lmsResponse.text();
+            console.error(`LMS API error for ${cred.matricula}: ${lmsResponse.status} - ${errorText}`);
+            failedCount++;
           }
         } catch (err) {
           console.error(`Error syncing credential ${cred.id}:`, err);
+          failedCount++;
         }
       }
+      
+      console.log(`Sync completed: ${syncedCount} synced, ${failedCount} failed`);
 
       return new Response(
         JSON.stringify({ 
