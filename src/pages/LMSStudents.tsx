@@ -395,40 +395,43 @@ export default function LMSStudents() {
   <title>Relatório Pedagógico - ${studentName}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; padding: 20px; line-height: 1.6; }
-    .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
-    .header { background: linear-gradient(135deg, #f58220 0%, #e06b10 100%); color: white; padding: 20px 40px; display: flex; align-items: center; gap: 16px; }
-    .header-logo { background: white; padding: 6px 10px; border-radius: 8px; flex-shrink: 0; }
-    .header-logo img { height: 40px; max-width: 100px; object-fit: contain; display: block; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: white; padding: 0; line-height: 1.6; }
+    .container { max-width: 100%; margin: 0; background: white; }
+    .header { background: #f58220; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: white; padding: 16px 24px; display: flex; align-items: center; gap: 16px; border-bottom: 3px solid #e06b10; }
+    .header-logo { background: white; padding: 6px 10px; border-radius: 6px; flex-shrink: 0; }
+    .header-logo img { height: 36px; max-width: 90px; object-fit: contain; display: block; }
     .header-info { flex: 1; }
-    .header-title { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
-    .header-student { font-size: 15px; opacity: 0.95; }
-    .header-meta { font-size: 12px; opacity: 0.8; margin-top: 4px; }
-    .header-meta span { margin-right: 16px; }
-    .content { padding: 30px 40px; }
-    .level-report { background: #fafafa; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #eee; page-break-inside: avoid; break-inside: avoid; }
-    .level-report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f58220; }
-    .level-report-title { font-size: 18px; font-weight: 600; color: #333; }
-    .level-report-date { font-size: 12px; color: #888; background: #f0f0f0; padding: 6px 12px; border-radius: 20px; }
-    .pdf-section { margin-bottom: 20px; page-break-inside: avoid; break-inside: avoid; }
-    .pdf-section-title { font-size: 16px; font-weight: 600; color: #f58220; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-    .section-content { color: #555; font-size: 14px; line-height: 1.8; background: white; padding: 16px; border-radius: 8px; border-left: 3px solid #f58220; }
-    .bncc-list { display: flex; flex-direction: column; gap: 8px; }
-    .bncc-item { display: flex; gap: 12px; padding: 10px; background: white; border-radius: 8px; align-items: flex-start; page-break-inside: avoid; break-inside: avoid; }
-    .bncc-code { background: #fff3e6; color: #d35400; font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
-    .bncc-desc { color: #555; font-size: 13px; }
-    .tags-container { display: flex; flex-wrap: wrap; gap: 8px; }
-    .concept-tag { background: #e8f5e9; color: #2e7d32; font-size: 12px; padding: 6px 14px; border-radius: 20px; font-weight: 500; }
-    .empty-state { text-align: center; padding: 50px 20px; color: #888; }
-    .empty-state p { margin-bottom: 10px; }
-    .print-btn { display: block; width: 200px; margin: 20px auto; padding: 14px 28px; background: #f58220; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; }
+    .header-title { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+    .header-student { font-size: 14px; opacity: 0.95; }
+    .header-meta { font-size: 11px; opacity: 0.85; margin-top: 4px; }
+    .header-meta span { margin-right: 14px; }
+    .content { padding: 20px 24px; }
+    .level-report { background: #fafafa; -webkit-print-color-adjust: exact; print-color-adjust: exact; border-radius: 8px; padding: 16px; margin-bottom: 16px; border: 1px solid #ddd; }
+    .level-report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid #f58220; }
+    .level-report-title { font-size: 16px; font-weight: 600; color: #333; }
+    .level-report-date { font-size: 11px; color: #666; background: #eee; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 4px 10px; border-radius: 12px; }
+    .pdf-section { margin-bottom: 14px; }
+    .pdf-section-title { font-size: 14px; font-weight: 600; color: #f58220; -webkit-print-color-adjust: exact; print-color-adjust: exact; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .section-content { color: #444; font-size: 12px; line-height: 1.7; background: white; padding: 12px; border-radius: 6px; border-left: 3px solid #f58220; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .bncc-list { display: flex; flex-direction: column; gap: 6px; }
+    .bncc-item { display: flex; gap: 10px; padding: 8px; background: white; border-radius: 6px; align-items: flex-start; border: 1px solid #eee; }
+    .bncc-code { background: #fff3e6; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #d35400; font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
+    .bncc-desc { color: #444; font-size: 11px; }
+    .tags-container { display: flex; flex-wrap: wrap; gap: 6px; }
+    .concept-tag { background: #e8f5e9; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #2e7d32; font-size: 11px; padding: 4px 10px; border-radius: 12px; font-weight: 500; }
+    .empty-state { text-align: center; padding: 30px 20px; color: #888; }
+    .empty-state p { margin-bottom: 8px; }
+    .print-btn { display: block; width: 180px; margin: 16px auto; padding: 12px 24px; background: #f58220; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
     .print-btn:hover { background: #d35400; }
-    .meta-info { text-align: center; padding: 20px; background: #f8f9fa; color: #888; font-size: 12px; }
+    .meta-info { text-align: center; padding: 12px; background: #f5f5f5; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #888; font-size: 10px; border-top: 1px solid #eee; }
     @media print { 
-      .print-btn { display: none; } 
-      body { background: white; padding: 0; } 
-      .container { box-shadow: none; border-radius: 0; }
-      .level-report, .pdf-section, .bncc-item { page-break-inside: avoid; break-inside: avoid; }
+      .print-btn { display: none !important; } 
+      body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 11px; }
+      .container { box-shadow: none !important; border-radius: 0 !important; max-width: 100% !important; }
+      .header { background: #f58220 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .level-report { page-break-inside: avoid; break-inside: avoid; }
+      .pdf-section { page-break-inside: avoid; break-inside: avoid; }
+      .bncc-item { page-break-inside: avoid; break-inside: avoid; }
     }
   </style>
 </head>
