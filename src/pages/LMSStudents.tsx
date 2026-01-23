@@ -228,10 +228,39 @@ export default function LMSStudents() {
     credential: LMSCredential, 
     extraParams: Record<string, string> = {}
   ) => {
-    const lmsUserId = credential.lms_user_id || credential.matricula;
     setActionLoading(actionName);
     
     try {
+      // First, ensure we have the lms_user_id by syncing if needed
+      let lmsUserId = credential.lms_user_id;
+      
+      if (!lmsUserId) {
+        // Sync first to get the lms_user_id
+        const { error: syncError } = await supabase.functions.invoke('lms-sync', {
+          body: { action: 'syncProgress', credentialId: credential.id }
+        });
+        
+        if (syncError) throw syncError;
+        
+        // Get the updated credential
+        const { data: refreshData } = await supabase.functions.invoke('lms-sync', {
+          body: { action: 'getCredentials', studentId: credential.student_id }
+        });
+        
+        if (refreshData?.success && refreshData?.data?.[0]?.lms_user_id) {
+          lmsUserId = refreshData.data[0].lms_user_id;
+        }
+      }
+      
+      if (!lmsUserId) {
+        toast({
+          title: 'Erro',
+          description: 'Não foi possível encontrar o aluno no LMS. Verifique se o e-mail está correto.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('lms-sync', {
         body: { action: actionName, lmsUserId, ...extraParams }
       });
