@@ -222,7 +222,7 @@ export default function LMSStudents() {
     }
   };
 
-  // LMS Management Actions
+  // LMS Management Actions - uses matricula (new API)
   const executeLMSAction = async (
     actionName: string, 
     credential: LMSCredential, 
@@ -231,41 +231,22 @@ export default function LMSStudents() {
     setActionLoading(actionName);
     
     try {
-      // First, ensure we have the lms_user_id by syncing if needed
-      let lmsUserId = credential.lms_user_id;
+      // New API uses matricula instead of lms_user_id
+      const matricula = credential.matricula;
       
-      if (!lmsUserId) {
-        // Sync first to get the lms_user_id
-        const { error: syncError } = await supabase.functions.invoke('lms-sync', {
-          body: { action: 'syncProgress', credentialId: credential.id }
-        });
-        
-        if (syncError) throw syncError;
-        
-        // Get the updated credential
-        const { data: refreshData } = await supabase.functions.invoke('lms-sync', {
-          body: { action: 'getCredentials', studentId: credential.student_id }
-        });
-        
-        if (refreshData?.success && refreshData?.data?.[0]?.lms_user_id) {
-          lmsUserId = refreshData.data[0].lms_user_id;
-        }
-      }
-      
-      if (!lmsUserId) {
+      if (!matricula) {
         toast({
           title: 'Erro',
-          description: 'Não foi possível encontrar o aluno no LMS. Verifique se o e-mail está correto.',
+          description: 'Matrícula não encontrada para este aluno.',
           variant: 'destructive',
         });
         return;
       }
 
       // Normalize params for actions that require UUIDs
-      const params: Record<string, string> = { ...extraParams };
+      const params: Record<string, string> = { ...extraParams, matricula };
 
-      // The external LMS requires UUIDs for module_id/level_id.
-      // Our UI used placeholders like "current"/"next"; map them here.
+      // For unlockLevel, map to setLevel
       if (actionName === 'unlockLevel') {
         if (params.levelId === 'current') {
           const { data: progressResp, error: progressError } = await supabase.functions.invoke('lms-sync', {
@@ -286,6 +267,8 @@ export default function LMSStudents() {
 
           params.levelId = currentLevelId;
         }
+        // Map unlockLevel to setLevel (new API)
+        actionName = 'setLevel';
       }
 
       if (actionName === 'setLevel' && params.levelId === 'next') {
@@ -307,7 +290,7 @@ export default function LMSStudents() {
       }
 
       const { data, error } = await supabase.functions.invoke('lms-sync', {
-        body: { action: actionName, lmsUserId, ...params }
+        body: { action: actionName, ...params }
       });
 
       if (error) throw error;
