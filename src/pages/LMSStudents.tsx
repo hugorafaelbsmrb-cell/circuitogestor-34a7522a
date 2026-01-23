@@ -287,10 +287,8 @@ export default function LMSStudents() {
       const { data, error } = await supabase.functions.invoke('lms-sync', {
         body: { 
           action: 'getParentReport',
-          studentUserId: credential.lms_user_id,
           matricula: credential.matricula,
-          credentialId: credential.id,
-          format: 'full'
+          format: 'pdf_data'
         }
       });
 
@@ -321,29 +319,68 @@ export default function LMSStudents() {
         return;
       }
 
-      // Handle JSON response - the API may return nested data
-      // Handle both { success, data: { student, reports... } } and { success, data: { success, student, reports... } }
-      let reportData = data.data;
-      if (reportData?.success !== undefined && reportData?.student) {
-        // Nested structure - use as is
-      } else if (reportData?.data?.student) {
-        // Double nested - unwrap
-        reportData = reportData.data;
-      }
+      // Handle JSON response - new structure: { success, student, reports, meta }
+      const studentData = data.student || {};
+      const reports = data.reports || [];
       
-      const studentName = reportData?.student?.full_name || credential.student?.name || 'Aluno';
-      const nickname = reportData?.student?.nickname || '';
-      const currentLevel = reportData?.student?.current_level || credential.current_level || 1;
-      const totalXp = reportData?.student?.total_xp || 0;
-      const coins = reportData?.student?.coins || 0;
-      const reports = reportData?.reports || [];
-      const levels = reportData?.levels || [];
-      const progress = reportData?.progress || {
-        completion_percentage: credential.completion_percentage || 0,
-        current_lesson: credential.current_lesson,
-        current_module: credential.current_module
+      const studentName = studentData.full_name || credential.student?.name || 'Aluno';
+      const nickname = studentData.nickname || '';
+      const currentLevel = studentData.current_level || credential.current_level || 1;
+      const totalXp = studentData.total_xp || 0;
+
+      // Helper function to get icon for section
+      const getIconForSection = (icon: string) => {
+        const icons: Record<string, string> = {
+          'book': '📖',
+          'award': '🏆',
+          'brain': '🧠',
+          'activity': '🎯',
+          'star': '⭐',
+          'globe': '🌍',
+          'code': '💻',
+          'default': '📋'
+        };
+        return icons[icon] || icons['default'];
       };
-      
+
+      // Build sections HTML from pdf_sections
+      const buildSectionsHtml = (pdfSections: Array<{ key: string; title: string; icon?: string; content?: string; items?: Array<{ code?: string; description?: string } | string> }>) => {
+        return pdfSections.map(section => {
+          const icon = getIconForSection(section.icon || 'default');
+          let contentHtml = '';
+          
+          if (section.content) {
+            contentHtml = `<div class="section-content">${section.content}</div>`;
+          } else if (section.items && section.items.length > 0) {
+            // Handle both BNCC items (objects) and simple string items
+            if (typeof section.items[0] === 'string') {
+              contentHtml = `
+                <div class="tags-container">
+                  ${(section.items as string[]).map(item => `<span class="concept-tag">${item}</span>`).join('')}
+                </div>
+              `;
+            } else {
+              contentHtml = `
+                <div class="bncc-list">
+                  ${(section.items as Array<{ code?: string; description?: string }>).map(item => `
+                    <div class="bncc-item">
+                      <span class="bncc-code">${item.code || ''}</span>
+                      <span class="bncc-desc">${item.description || ''}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              `;
+            }
+          }
+          
+          return `
+            <div class="pdf-section">
+              <div class="pdf-section-title">${icon} ${section.title}</div>
+              ${contentHtml}
+            </div>
+          `;
+        }).join('');
+      };
 
       const htmlContent = `
 <!DOCTYPE html>
@@ -364,31 +401,24 @@ export default function LMSStudents() {
     .stat-card { background: #f8f9fa; padding: 20px; border-radius: 12px; text-align: center; border-left: 4px solid #f58220; }
     .stat-card label { font-size: 12px; color: #888; text-transform: uppercase; display: block; margin-bottom: 6px; letter-spacing: 0.5px; }
     .stat-card span { font-size: 22px; font-weight: 700; color: #333; }
-    .section { margin-bottom: 30px; }
-    .section-title { font-size: 20px; font-weight: 600; color: #333; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #f58220; display: flex; align-items: center; gap: 10px; }
-    .section-title::before { content: '📚'; }
-    .report-card { background: #fafafa; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid #eee; }
-    .report-card:hover { border-color: #f58220; }
-    .report-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-    .report-title { font-weight: 600; color: #333; font-size: 16px; }
-    .report-date { font-size: 12px; color: #888; background: #f0f0f0; padding: 4px 10px; border-radius: 20px; }
-    .report-content { color: #555; font-size: 14px; margin-bottom: 12px; }
-    .bncc-tags { display: flex; flex-wrap: wrap; gap: 8px; }
-    .bncc-tag { background: #fff3e6; color: #d35400; font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; }
-    .concepts { margin-top: 12px; }
-    .concept-tag { background: #e8f5e9; color: #2e7d32; font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 500; margin-right: 6px; margin-bottom: 6px; display: inline-block; }
+    .level-report { background: #fafafa; border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #eee; }
+    .level-report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 2px solid #f58220; }
+    .level-report-title { font-size: 18px; font-weight: 600; color: #333; }
+    .level-report-date { font-size: 12px; color: #888; background: #f0f0f0; padding: 6px 12px; border-radius: 20px; }
+    .pdf-section { margin-bottom: 20px; }
+    .pdf-section-title { font-size: 16px; font-weight: 600; color: #f58220; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .section-content { color: #555; font-size: 14px; line-height: 1.8; background: white; padding: 16px; border-radius: 8px; border-left: 3px solid #f58220; }
+    .bncc-list { display: flex; flex-direction: column; gap: 8px; }
+    .bncc-item { display: flex; gap: 12px; padding: 10px; background: white; border-radius: 8px; align-items: flex-start; }
+    .bncc-code { background: #fff3e6; color: #d35400; font-size: 12px; padding: 4px 10px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+    .bncc-desc { color: #555; font-size: 13px; }
+    .tags-container { display: flex; flex-wrap: wrap; gap: 8px; }
+    .concept-tag { background: #e8f5e9; color: #2e7d32; font-size: 12px; padding: 6px 14px; border-radius: 20px; font-weight: 500; }
     .empty-state { text-align: center; padding: 50px 20px; color: #888; }
     .empty-state p { margin-bottom: 10px; }
-    .progress-section { background: #f0f7ff; border-radius: 12px; padding: 20px; margin-bottom: 30px; }
-    .progress-bar { background: #e0e0e0; border-radius: 10px; height: 12px; overflow: hidden; margin-top: 10px; }
-    .progress-fill { background: linear-gradient(90deg, #f58220, #ffb74d); height: 100%; border-radius: 10px; transition: width 0.3s; }
-    .level-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
-    .level-card { background: white; border: 2px solid #eee; border-radius: 10px; padding: 12px; text-align: center; }
-    .level-card.completed { border-color: #4caf50; background: #e8f5e9; }
-    .level-card.current { border-color: #f58220; background: #fff3e6; }
     .print-btn { display: block; width: 200px; margin: 20px auto; padding: 14px 28px; background: #f58220; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; }
     .print-btn:hover { background: #d35400; }
-    @media print { .print-btn { display: none; } body { background: white; } .container { box-shadow: none; } }
+    @media print { .print-btn { display: none; } body { background: white; padding: 0; } .container { box-shadow: none; } }
     .meta-info { text-align: center; padding: 20px; background: #f8f9fa; color: #888; font-size: 12px; }
   </style>
 </head>
@@ -418,63 +448,22 @@ export default function LMSStudents() {
           <label>XP Total</label>
           <span>${totalXp}</span>
         </div>
-        ${coins ? `<div class="stat-card"><label>Moedas</label><span>${coins}</span></div>` : ''}
       </div>
 
-      ${progress.completion_percentage !== undefined ? `
-      <div class="progress-section">
-        <strong>Progresso Geral: ${progress.completion_percentage || 0}%</strong>
-        <div class="progress-bar">
-          <div class="progress-fill" style="width: ${progress.completion_percentage || 0}%"></div>
-        </div>
-        <p style="margin-top: 10px; font-size: 14px; color: #666;">
-          ${progress.completed_lessons || 0} de ${progress.total_lessons || 0} aulas concluídas
-        </p>
-      </div>
-      ` : ''}
-
-      ${levels.length > 0 ? `
-      <div class="section">
-        <h2 class="section-title" style="::before { content: '🎯'; }">Níveis</h2>
-        <div class="level-grid">
-          ${levels.map((level: { name?: string; status?: string; level_number?: number }) => `
-            <div class="level-card ${level.status === 'completed' ? 'completed' : level.status === 'current' ? 'current' : ''}">
-              <div style="font-weight: 600;">${level.name || `Nível ${level.level_number}`}</div>
-              <div style="font-size: 12px; color: #888;">${level.status === 'completed' ? '✅ Concluído' : level.status === 'current' ? '🔄 Atual' : '🔒 Bloqueado'}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-      ` : ''}
-
-      <div class="section">
-        <h2 class="section-title">Relatórios de Aula</h2>
-        ${reports.length > 0 ? reports.map((report: { lesson_title?: string; title?: string; date?: string; created_at?: string; content?: string; description?: string; bncc_codes?: string[]; bncc?: { code?: string; description?: string }[]; concepts?: string[] }) => `
-          <div class="report-card">
-            <div class="report-header">
-              <div class="report-title">${report.lesson_title || report.title || 'Aula'}</div>
-              ${report.date || report.created_at ? `<div class="report-date">${report.date || new Date(report.created_at!).toLocaleDateString('pt-BR')}</div>` : ''}
-            </div>
-            ${report.content || report.description ? `<div class="report-content">${report.content || report.description}</div>` : ''}
-            ${(report.bncc_codes && report.bncc_codes.length > 0) || (report.bncc && report.bncc.length > 0) ? `
-              <div class="bncc-tags">
-                ${(report.bncc_codes || []).map((code: string) => `<span class="bncc-tag">${code}</span>`).join('')}
-                ${(report.bncc || []).map((b: { code?: string }) => `<span class="bncc-tag">${b.code}</span>`).join('')}
-              </div>
-            ` : ''}
-            ${report.concepts && report.concepts.length > 0 ? `
-              <div class="concepts">
-                ${report.concepts.map((concept: string) => `<span class="concept-tag">${concept}</span>`).join('')}
-              </div>
-            ` : ''}
+      ${reports.length > 0 ? reports.map((report: { id?: string; level_name?: string; generated_at?: string; pdf_sections?: Array<{ key: string; title: string; icon?: string; content?: string; items?: Array<{ code?: string; description?: string } | string> }> }) => `
+        <div class="level-report">
+          <div class="level-report-header">
+            <div class="level-report-title">${report.level_name || 'Relatório de Nível'}</div>
+            ${report.generated_at ? `<div class="level-report-date">${new Date(report.generated_at).toLocaleDateString('pt-BR')}</div>` : ''}
           </div>
-        `).join('') : `
-          <div class="empty-state">
-            <p>📝 Nenhum relatório de aula disponível ainda.</p>
-            <p style="font-size: 14px;">Os relatórios serão adicionados conforme o aluno avança nas aulas.</p>
-          </div>
-        `}
-      </div>
+          ${report.pdf_sections ? buildSectionsHtml(report.pdf_sections) : '<p style="color: #888;">Sem seções disponíveis</p>'}
+        </div>
+      `).join('') : `
+        <div class="empty-state">
+          <p>📝 Nenhum relatório pedagógico disponível ainda.</p>
+          <p style="font-size: 14px;">Os relatórios serão adicionados conforme o aluno avança nos níveis.</p>
+        </div>
+      `}
     </div>
     
     <div class="meta-info">
