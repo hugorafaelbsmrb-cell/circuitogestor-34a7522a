@@ -64,6 +64,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { supabase } from '@/integrations/supabase/client';
 
 
@@ -118,6 +119,7 @@ interface LMSCredential {
 
 export default function LMSStudents() {
   const { toast } = useToast();
+  const { branding } = useSystemBranding();
   const [credentials, setCredentials] = useState<LMSCredential[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -395,9 +397,13 @@ export default function LMSStudents() {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; padding: 20px; line-height: 1.6; }
     .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); overflow: hidden; }
-    .header { background: linear-gradient(135deg, #f58220 0%, #e06b10 100%); color: white; padding: 30px 40px; text-align: center; }
-    .header h1 { font-size: 28px; margin-bottom: 8px; }
-    .header p { opacity: 0.9; font-size: 14px; }
+    .header { background: linear-gradient(135deg, #f58220 0%, #e06b10 100%); color: white; padding: 24px 40px; }
+    .header-content { display: flex; align-items: center; justify-content: center; gap: 20px; }
+    .header-logo { background: white; padding: 8px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+    .header-logo img { max-height: 60px; max-width: 120px; object-fit: contain; }
+    .header-text { text-align: left; }
+    .header-text h1 { font-size: 26px; margin-bottom: 4px; font-weight: 700; }
+    .header-text p { opacity: 0.9; font-size: 14px; }
     .content { padding: 30px 40px; }
     .student-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 30px; }
     .stat-card { background: #f8f9fa; padding: 20px; border-radius: 12px; text-align: center; border-left: 4px solid #f58220; }
@@ -427,8 +433,17 @@ export default function LMSStudents() {
 <body>
   <div class="container">
     <div class="header">
-      <h1>Relatório Pedagógico</h1>
-      <p>Circuito Kids - Robótica Educacional</p>
+      <div class="header-content">
+        ${branding.logo ? `
+          <div class="header-logo">
+            <img src="${branding.logo}" alt="Logo" />
+          </div>
+        ` : ''}
+        <div class="header-text">
+          <h1>Relatório Pedagógico</h1>
+          <p>${branding.name || 'Robótica Educacional'}</p>
+        </div>
+      </div>
     </div>
     
     <div class="content">
