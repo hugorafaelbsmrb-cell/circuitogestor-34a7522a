@@ -334,8 +334,15 @@ Deno.serve(async (req) => {
     if (action === 'getCurriculum') {
       const LMS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljYnVkZ3BqcHRlbWpmeW1zc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA4NjYsImV4cCI6MjA4NDE3Njg2Nn0.FkdaED4uk45rKzWTkZbFE7WUYlMPZgc1ovyAMFzL34Q';
       
+      // Helper to normalize names from various API response formats
+      const extractName = (item: any): string => {
+        if (!item) return '';
+        return item.name || item.title || item.nome || item.titulo || item.label || String(item.id || '');
+      };
+      
       try {
         // Fetch modules
+        console.log('Fetching modules from:', `${LMS_API_BASE}/list-modules`);
         const modulesRes = await fetch(`${LMS_API_BASE}/list-modules`, {
           headers: { 
             'Content-Type': 'application/json',
@@ -344,13 +351,22 @@ Deno.serve(async (req) => {
           },
         });
         const modulesText = await modulesRes.text();
-        let modules: any[] = [];
+        console.log('Modules response status:', modulesRes.status, 'body:', modulesText.substring(0, 500));
+        let rawModules: any[] = [];
         try {
           const parsed = JSON.parse(modulesText);
-          modules = parsed.data || parsed.modules || parsed || [];
-        } catch { modules = []; }
+          rawModules = parsed.data || parsed.modules || (Array.isArray(parsed) ? parsed : []);
+        } catch { rawModules = []; }
+
+        // Normalize module data
+        const modules = rawModules.map((m: any) => ({
+          id: m.id,
+          name: extractName(m),
+          order_index: m.order_index || m.order || m.ordem || null
+        }));
 
         // Fetch levels
+        console.log('Fetching levels from:', `${LMS_API_BASE}/list-levels`);
         const levelsRes = await fetch(`${LMS_API_BASE}/list-levels`, {
           headers: { 
             'Content-Type': 'application/json',
@@ -359,13 +375,23 @@ Deno.serve(async (req) => {
           },
         });
         const levelsText = await levelsRes.text();
-        let levels: any[] = [];
+        console.log('Levels response status:', levelsRes.status, 'body:', levelsText.substring(0, 500));
+        let rawLevels: any[] = [];
         try {
           const parsed = JSON.parse(levelsText);
-          levels = parsed.data || parsed.levels || parsed || [];
-        } catch { levels = []; }
+          rawLevels = parsed.data || parsed.levels || (Array.isArray(parsed) ? parsed : []);
+        } catch { rawLevels = []; }
+
+        // Normalize level data
+        const levels = rawLevels.map((l: any) => ({
+          id: l.id,
+          name: extractName(l),
+          module_id: l.module_id || l.moduleId || l.modulo_id || null,
+          level_number: l.level_number || l.number || l.numero || l.order || null
+        }));
 
         // Fetch lessons
+        console.log('Fetching lessons from:', `${LMS_API_BASE}/list-lessons`);
         const lessonsRes = await fetch(`${LMS_API_BASE}/list-lessons`, {
           headers: { 
             'Content-Type': 'application/json',
@@ -374,20 +400,29 @@ Deno.serve(async (req) => {
           },
         });
         const lessonsText = await lessonsRes.text();
-        let lessons: any[] = [];
+        console.log('Lessons response status:', lessonsRes.status, 'body:', lessonsText.substring(0, 500));
+        let rawLessons: any[] = [];
         try {
           const parsed = JSON.parse(lessonsText);
-          lessons = parsed.data || parsed.lessons || parsed || [];
-        } catch { lessons = []; }
+          rawLessons = parsed.data || parsed.lessons || (Array.isArray(parsed) ? parsed : []);
+        } catch { rawLessons = []; }
 
-        console.log(`Curriculum: ${modules.length} modules, ${levels.length} levels, ${lessons.length} lessons`);
+        // Normalize lesson data
+        const lessons = rawLessons.map((l: any) => ({
+          id: l.id,
+          title: extractName(l),
+          level_id: l.level_id || l.levelId || l.nivel_id || null,
+          lesson_number: l.lesson_number || l.number || l.numero || l.order || null
+        }));
+
+        console.log(`Curriculum loaded: ${modules.length} modules, ${levels.length} levels, ${lessons.length} lessons`);
 
         return new Response(
           JSON.stringify({ 
             success: true, 
-            modules: Array.isArray(modules) ? modules : [],
-            levels: Array.isArray(levels) ? levels : [],
-            lessons: Array.isArray(lessons) ? lessons : []
+            modules,
+            levels,
+            lessons
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
