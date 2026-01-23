@@ -289,6 +289,7 @@ export default function LMSStudents() {
           action: 'getParentReport',
           studentUserId: credential.lms_user_id,
           matricula: credential.matricula,
+          credentialId: credential.id,
           format: 'full'
         }
       });
@@ -305,10 +306,9 @@ export default function LMSStudents() {
       if (data.isPdf && data.pdfBase64) {
         // Convert base64 to blob and open
         const byteCharacters = atob(data.pdfBase64);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
+        const byteNumbers = Array.from({ length: byteCharacters.length }, (_, i) => 
+          byteCharacters.charCodeAt(i)
+        );
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'application/pdf' });
         const pdfUrl = URL.createObjectURL(blob);
@@ -321,16 +321,29 @@ export default function LMSStudents() {
         return;
       }
 
-      // Handle JSON response - build HTML report
-      const reportData = data.data;
+      // Handle JSON response - the API may return nested data
+      // Handle both { success, data: { student, reports... } } and { success, data: { success, student, reports... } }
+      let reportData = data.data;
+      if (reportData?.success !== undefined && reportData?.student) {
+        // Nested structure - use as is
+      } else if (reportData?.data?.student) {
+        // Double nested - unwrap
+        reportData = reportData.data;
+      }
+      
       const studentName = reportData?.student?.full_name || credential.student?.name || 'Aluno';
       const nickname = reportData?.student?.nickname || '';
-      const currentLevel = reportData?.student?.current_level || 1;
+      const currentLevel = reportData?.student?.current_level || credential.current_level || 1;
       const totalXp = reportData?.student?.total_xp || 0;
       const coins = reportData?.student?.coins || 0;
       const reports = reportData?.reports || [];
       const levels = reportData?.levels || [];
-      const progress = reportData?.progress || {};
+      const progress = reportData?.progress || {
+        completion_percentage: credential.completion_percentage || 0,
+        current_lesson: credential.current_lesson,
+        current_module: credential.current_module
+      };
+      
 
       const htmlContent = `
 <!DOCTYPE html>
@@ -393,6 +406,10 @@ export default function LMSStudents() {
           <span style="font-size: 18px;">${studentName}</span>
         </div>
         ${nickname ? `<div class="stat-card"><label>Apelido</label><span>${nickname}</span></div>` : ''}
+        <div class="stat-card">
+          <label>Matrícula</label>
+          <span style="font-size: 16px;">${credential.matricula}</span>
+        </div>
         <div class="stat-card">
           <label>Nível Atual</label>
           <span>${currentLevel}</span>
