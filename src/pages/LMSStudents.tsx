@@ -131,12 +131,22 @@ export default function LMSStudents() {
   const [confirmReset, setConfirmReset] = useState<LMSCredential | null>(null);
   const [reportLoading, setReportLoading] = useState<string | null>(null);
   
-  // Modal for set actions with input
+  // Curriculum data for progressive selection
+  const [curriculum, setCurriculum] = useState<{
+    modules: Array<{ id: string; name: string; order_index?: number }>;
+    levels: Array<{ id: string; name: string; module_id?: string; level_number?: number }>;
+    lessons: Array<{ id: string; title: string; level_id?: string; lesson_number?: number }>;
+  }>({ modules: [], levels: [], lessons: [] });
+  const [curriculumLoading, setCurriculumLoading] = useState(false);
+  
+  // Modal for set actions with progressive selection
   const [actionModal, setActionModal] = useState<{
     type: 'setLesson' | 'setLevel' | 'setModule' | null;
     credential: LMSCredential | null;
-    inputValue: string;
-  }>({ type: null, credential: null, inputValue: '' });
+    selectedModuleId: string;
+    selectedLevelId: string;
+    selectedLessonId: string;
+  }>({ type: null, credential: null, selectedModuleId: '', selectedLevelId: '', selectedLessonId: '' });
 
   useEffect(() => {
     fetchCredentials();
@@ -324,26 +334,47 @@ export default function LMSStudents() {
   };
 
 
-  const handleSetModule = (credential: LMSCredential, moduleId: string) => {
-    if (moduleId === 'next' || !moduleId) {
-      // Open modal for input
-      setActionModal({ type: 'setModule', credential, inputValue: '' });
-    } else {
-      executeLMSAction('setModule', credential, { moduleId });
+  const openActionModal = async (type: 'setLesson' | 'setLevel' | 'setModule', credential: LMSCredential) => {
+    // Fetch curriculum if not loaded
+    if (curriculum.modules.length === 0) {
+      setCurriculumLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('lms-sync', {
+          body: { action: 'getCurriculum' }
+        });
+        if (!error && data?.success) {
+          setCurriculum({
+            modules: data.modules || [],
+            levels: data.levels || [],
+            lessons: data.lessons || []
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching curriculum:', err);
+      } finally {
+        setCurriculumLoading(false);
+      }
     }
+    
+    setActionModal({ 
+      type, 
+      credential, 
+      selectedModuleId: '', 
+      selectedLevelId: '', 
+      selectedLessonId: '' 
+    });
   };
 
-  const handleSetLevel = (credential: LMSCredential, levelId: string) => {
-    if (levelId === 'next' || !levelId) {
-      // Open modal for input
-      setActionModal({ type: 'setLevel', credential, inputValue: '' });
-    } else {
-      executeLMSAction('setLevel', credential, { levelId });
-    }
+  const handleSetModule = (credential: LMSCredential) => {
+    openActionModal('setModule', credential);
+  };
+
+  const handleSetLevel = (credential: LMSCredential) => {
+    openActionModal('setLevel', credential);
   };
 
   const handleSetLesson = (credential: LMSCredential) => {
-    setActionModal({ type: 'setLesson', credential, inputValue: '' });
+    openActionModal('setLesson', credential);
   };
 
   const handleResetProgress = (credential: LMSCredential) => {
@@ -357,28 +388,53 @@ export default function LMSStudents() {
   };
 
   const executeActionFromModal = async () => {
-    if (!actionModal.type || !actionModal.credential || !actionModal.inputValue.trim()) {
-      toast({
-        title: 'Erro',
-        description: 'Informe o ID (UUID) do destino.',
-        variant: 'destructive',
-      });
+    if (!actionModal.type || !actionModal.credential) {
       return;
     }
 
+    let targetId = '';
     const params: Record<string, string> = {};
     
     if (actionModal.type === 'setLesson') {
-      params.lessonId = actionModal.inputValue.trim();
+      targetId = actionModal.selectedLessonId;
+      if (!targetId) {
+        toast({ title: 'Erro', description: 'Selecione uma aula.', variant: 'destructive' });
+        return;
+      }
+      params.lessonId = targetId;
     } else if (actionModal.type === 'setLevel') {
-      params.levelId = actionModal.inputValue.trim();
+      targetId = actionModal.selectedLevelId;
+      if (!targetId) {
+        toast({ title: 'Erro', description: 'Selecione um nível.', variant: 'destructive' });
+        return;
+      }
+      params.levelId = targetId;
     } else if (actionModal.type === 'setModule') {
-      params.moduleId = actionModal.inputValue.trim();
+      targetId = actionModal.selectedModuleId;
+      if (!targetId) {
+        toast({ title: 'Erro', description: 'Selecione um módulo.', variant: 'destructive' });
+        return;
+      }
+      params.moduleId = targetId;
     }
 
     await executeLMSAction(actionModal.type, actionModal.credential, params);
-    setActionModal({ type: null, credential: null, inputValue: '' });
+    setActionModal({ type: null, credential: null, selectedModuleId: '', selectedLevelId: '', selectedLessonId: '' });
   };
+
+  const closeActionModal = () => {
+    setActionModal({ type: null, credential: null, selectedModuleId: '', selectedLevelId: '', selectedLessonId: '' });
+  };
+
+  // Filter levels by selected module
+  const filteredLevels = actionModal.selectedModuleId
+    ? curriculum.levels.filter(l => l.module_id === actionModal.selectedModuleId)
+    : curriculum.levels;
+
+  // Filter lessons by selected level
+  const filteredLessons = actionModal.selectedLevelId
+    ? curriculum.lessons.filter(l => l.level_id === actionModal.selectedLevelId)
+    : curriculum.lessons;
 
   const getActionModalTitle = () => {
     switch (actionModal.type) {
@@ -391,21 +447,13 @@ export default function LMSStudents() {
 
   const getActionModalDescription = () => {
     switch (actionModal.type) {
-      case 'setLesson': return 'Informe o UUID da aula de destino. Aulas anteriores serão marcadas como completas e XP/moedas serão creditados.';
-      case 'setLevel': return 'Informe o UUID do nível de destino. Níveis anteriores serão marcados como completos.';
-      case 'setModule': return 'Informe o UUID do módulo de destino. Módulos anteriores serão marcados como completos.';
+      case 'setLesson': return 'Selecione a aula de destino. Aulas anteriores serão marcadas como completas e XP/moedas serão creditados.';
+      case 'setLevel': return 'Selecione o nível de destino. Níveis anteriores serão marcados como completos.';
+      case 'setModule': return 'Selecione o módulo de destino. Módulos anteriores serão marcados como completos.';
       default: return '';
     }
   };
 
-  const getActionModalPlaceholder = () => {
-    switch (actionModal.type) {
-      case 'setLesson': return 'Ex: 2f9d3f91-264e-4e1d-a5d8-1696857cce9c';
-      case 'setLevel': return 'Ex: a278d064-ea41-413a-8cfe-82c5f952705f';
-      case 'setModule': return 'Ex: aafa1070-019b-40ec-a74a-e08ff87c6cbb';
-      default: return 'UUID';
-    }
-  };
 
   const generatePedagogicalReport = async (credential: LMSCredential) => {
     setReportLoading(credential.id);
@@ -1269,11 +1317,11 @@ export default function LMSStudents() {
                             <BookOpen className="w-4 h-4 mr-2" />
                             Definir Aula
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSetLevel(cred, '')}>
+                          <DropdownMenuItem onClick={() => handleSetLevel(cred)}>
                             <Trophy className="w-4 h-4 mr-2" />
                             Definir Nível
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSetModule(cred, '')}>
+                          <DropdownMenuItem onClick={() => handleSetModule(cred)}>
                             <GraduationCap className="w-4 h-4 mr-2" />
                             Definir Módulo
                           </DropdownMenuItem>
@@ -1518,7 +1566,7 @@ export default function LMSStudents() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleSetLevel(selectedCredential, '')}
+                      onClick={() => handleSetLevel(selectedCredential)}
                       disabled={!!actionLoading}
                       className="gap-2"
                     >
@@ -1532,7 +1580,7 @@ export default function LMSStudents() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleSetModule(selectedCredential, '')}
+                      onClick={() => handleSetModule(selectedCredential)}
                       disabled={!!actionLoading}
                       className="gap-2"
                     >
@@ -1607,9 +1655,9 @@ export default function LMSStudents() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Action Modal for set actions */}
-      <Dialog open={!!actionModal.type} onOpenChange={() => setActionModal({ type: null, credential: null, inputValue: '' })}>
-        <DialogContent>
+      {/* Action Modal for progressive selection */}
+      <Dialog open={!!actionModal.type} onOpenChange={closeActionModal}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{getActionModalTitle()}</DialogTitle>
             <DialogDescription>
@@ -1618,27 +1666,99 @@ export default function LMSStudents() {
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                ID (UUID) do destino
-              </label>
-              <Input
-                placeholder={getActionModalPlaceholder()}
-                value={actionModal.inputValue}
-                onChange={(e) => setActionModal({ ...actionModal, inputValue: e.target.value })}
-              />
-              <p className="text-xs text-muted-foreground">
-                Aluno: {actionModal.credential?.student?.name} ({actionModal.credential?.matricula})
-              </p>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Aluno: <span className="font-medium text-foreground">{actionModal.credential?.student?.name}</span> ({actionModal.credential?.matricula})
+            </p>
+
+            {curriculumLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <span className="ml-2 text-muted-foreground">Carregando opções...</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Module Selection - always show for setLesson and setLevel, required for setModule */}
+                {(actionModal.type === 'setModule' || actionModal.type === 'setLevel' || actionModal.type === 'setLesson') && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Módulo</label>
+                    <select
+                      className="w-full p-2 border rounded-md bg-background text-foreground"
+                      value={actionModal.selectedModuleId}
+                      onChange={(e) => setActionModal({ 
+                        ...actionModal, 
+                        selectedModuleId: e.target.value,
+                        selectedLevelId: '',
+                        selectedLessonId: ''
+                      })}
+                    >
+                      <option value="">Selecione um módulo...</option>
+                      {curriculum.modules.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} {m.order_index ? `(${m.order_index})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Level Selection - show for setLevel and setLesson */}
+                {(actionModal.type === 'setLevel' || actionModal.type === 'setLesson') && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Nível</label>
+                    <select
+                      className="w-full p-2 border rounded-md bg-background text-foreground"
+                      value={actionModal.selectedLevelId}
+                      onChange={(e) => setActionModal({ 
+                        ...actionModal, 
+                        selectedLevelId: e.target.value,
+                        selectedLessonId: ''
+                      })}
+                      disabled={!actionModal.selectedModuleId && actionModal.type !== 'setLevel'}
+                    >
+                      <option value="">Selecione um nível...</option>
+                      {filteredLevels.map(l => (
+                        <option key={l.id} value={l.id}>
+                          {l.name} {l.level_number ? `(Nível ${l.level_number})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Lesson Selection - only for setLesson */}
+                {actionModal.type === 'setLesson' && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Aula</label>
+                    <select
+                      className="w-full p-2 border rounded-md bg-background text-foreground"
+                      value={actionModal.selectedLessonId}
+                      onChange={(e) => setActionModal({ ...actionModal, selectedLessonId: e.target.value })}
+                      disabled={!actionModal.selectedLevelId}
+                    >
+                      <option value="">Selecione uma aula...</option>
+                      {filteredLessons.map(l => (
+                        <option key={l.id} value={l.id}>
+                          {l.lesson_number ? `${l.lesson_number}. ` : ''}{l.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
             
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setActionModal({ type: null, credential: null, inputValue: '' })}>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={closeActionModal}>
                 Cancelar
               </Button>
               <Button 
                 onClick={executeActionFromModal}
-                disabled={!actionModal.inputValue.trim() || !!actionLoading}
+                disabled={
+                  !!actionLoading ||
+                  (actionModal.type === 'setModule' && !actionModal.selectedModuleId) ||
+                  (actionModal.type === 'setLevel' && !actionModal.selectedLevelId) ||
+                  (actionModal.type === 'setLesson' && !actionModal.selectedLessonId)
+                }
               >
                 {actionLoading ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

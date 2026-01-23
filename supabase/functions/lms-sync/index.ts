@@ -330,6 +330,76 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Get curriculum structure (modules, levels, lessons) from LMS
+    if (action === 'getCurriculum') {
+      const LMS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljYnVkZ3BqcHRlbWpmeW1zc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA4NjYsImV4cCI6MjA4NDE3Njg2Nn0.FkdaED4uk45rKzWTkZbFE7WUYlMPZgc1ovyAMFzL34Q';
+      
+      try {
+        // Fetch modules
+        const modulesRes = await fetch(`${LMS_API_BASE}/list-modules`, {
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-API-Key': getLmsApiKey(),
+            'apikey': LMS_ANON_KEY,
+          },
+        });
+        const modulesText = await modulesRes.text();
+        let modules: any[] = [];
+        try {
+          const parsed = JSON.parse(modulesText);
+          modules = parsed.data || parsed.modules || parsed || [];
+        } catch { modules = []; }
+
+        // Fetch levels
+        const levelsRes = await fetch(`${LMS_API_BASE}/list-levels`, {
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-API-Key': getLmsApiKey(),
+            'apikey': LMS_ANON_KEY,
+          },
+        });
+        const levelsText = await levelsRes.text();
+        let levels: any[] = [];
+        try {
+          const parsed = JSON.parse(levelsText);
+          levels = parsed.data || parsed.levels || parsed || [];
+        } catch { levels = []; }
+
+        // Fetch lessons
+        const lessonsRes = await fetch(`${LMS_API_BASE}/list-lessons`, {
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-API-Key': getLmsApiKey(),
+            'apikey': LMS_ANON_KEY,
+          },
+        });
+        const lessonsText = await lessonsRes.text();
+        let lessons: any[] = [];
+        try {
+          const parsed = JSON.parse(lessonsText);
+          lessons = parsed.data || parsed.lessons || parsed || [];
+        } catch { lessons = []; }
+
+        console.log(`Curriculum: ${modules.length} modules, ${levels.length} levels, ${lessons.length} lessons`);
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            modules: Array.isArray(modules) ? modules : [],
+            levels: Array.isArray(levels) ? levels : [],
+            lessons: Array.isArray(lessons) ? lessons : []
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (error) {
+        console.error('Error fetching curriculum:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to fetch curriculum' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // LMS Management Actions (POST to external LMS - uses matricula)
     // New API: set_lesson, set_level, set_module with automatic XP/coins credit
     if (action === 'setLesson') {
