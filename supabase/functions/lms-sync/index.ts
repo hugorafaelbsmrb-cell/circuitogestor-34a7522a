@@ -568,7 +568,7 @@ Deno.serve(async (req) => {
       // External LMS API anon key (public, required by the API)
       const LMS_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImljYnVkZ3BqcHRlbWpmeW1zc3ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2MDA4NjYsImV4cCI6MjA4NDE3Njg2Nn0.FkdaED4uk45rKzWTkZbFE7WUYlMPZgc1ovyAMFzL34Q';
 
-      // Try to get the student_user_id from our database first (more reliable)
+      // Get the student_user_id from our database - this is REQUIRED for the external API
       const { data: credential } = await supabase
         .from('lms_credentials')
         .select('lms_user_id, email, student:students(name)')
@@ -581,7 +581,7 @@ Deno.serve(async (req) => {
       if (!studentUserId) {
         const studentName = (credential?.student as any)?.name;
         const email = credential?.email;
-        console.log('No lms_user_id cached, looking up by matricula/email/name');
+        console.log('No lms_user_id cached, looking up by matricula/email/name...');
         studentUserId = await findStudentUUIDWithFallback(matricula, email, studentName);
         
         // Save it for future use
@@ -594,16 +594,22 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Build query parameters - prefer student_user_id as it's more reliable
-      let queryParams: string;
-      if (studentUserId) {
-        queryParams = `student_user_id=${encodeURIComponent(studentUserId)}&format=${requestFormat}`;
-      } else {
-        // Fallback to matricula if we couldn't find the UUID
-        queryParams = `matricula=${encodeURIComponent(matricula)}&format=${requestFormat}`;
+      // The external API REQUIRES student_user_id to work properly
+      if (!studentUserId) {
+        console.error('Could not find student_user_id for matricula:', matricula);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Aluno não encontrado no sistema LMS. Sincronize o progresso primeiro.' 
+          }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
+
+      // Build query parameters - ALWAYS use student_user_id (matricula alone doesn't work)
+      let queryParams = `student_user_id=${encodeURIComponent(studentUserId)}&format=${requestFormat}`;
       
-      // Add optional level_id if provided
+      // Add optional level_id if provided (recommended for auto-generation)
       if (levelId) {
         queryParams += `&level_id=${encodeURIComponent(levelId)}`;
       }
