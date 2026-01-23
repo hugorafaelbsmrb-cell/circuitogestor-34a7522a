@@ -116,6 +116,7 @@ export default function Enrollment() {
   const [useProRata, setUseProRata] = useState(true);
   const [useEntryBoleto, setUseEntryBoleto] = useState(true); // Boleto de entrada com valor cheio
   const [generateCarneNow, setGenerateCarneNow] = useState(true); // Gerar carnê no ato da matrícula
+  const [customPrice, setCustomPrice] = useState<string>(''); // Valor personalizado
   const [formData, setFormData] = useState({
     student: { 
       name: '', 
@@ -218,9 +219,15 @@ export default function Enrollment() {
   // Check if course is "Reforço Escolar" for variable pricing
   const isReforcoEscolar = selectedCourse?.name.toLowerCase().includes('reforço escolar');
   
-  // Get the effective price based on course type and selected days
+  // Get the effective price based on course type, selected days, or custom price
   const effectiveCoursePrice = useMemo(() => {
     if (!selectedCourse) return 0;
+    
+    // If custom price is set, use it
+    const parsedCustomPrice = parseFloat(customPrice.replace(',', '.'));
+    if (customPrice && !isNaN(parsedCustomPrice) && parsedCustomPrice >= 0) {
+      return parsedCustomPrice;
+    }
     
     if (isReforcoEscolar && selectedSchedules.length > 0) {
       // Use variable pricing based on days per week
@@ -229,7 +236,7 @@ export default function Enrollment() {
     }
     
     return Number(selectedCourse.price);
-  }, [selectedCourse, isReforcoEscolar, selectedSchedules.length]);
+  }, [selectedCourse, isReforcoEscolar, selectedSchedules.length, customPrice]);
   
   const calculateDiscountedPrice = useMemo(() => {
     if (!selectedCourse) return { originalPrice: 0, discountedPrice: 0, totalDiscount: 0, isFullDiscount: false };
@@ -1725,8 +1732,58 @@ export default function Enrollment() {
                     <span className="font-semibold">{selectedSchedules.length}x por semana</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Valor {isReforcoEscolar ? `(${selectedSchedules.length}x semana)` : 'por mensalidade'}</span>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm text-muted-foreground">Valor padrão do curso</span>
+                  <span className={cn(
+                    "font-semibold",
+                    (customPrice || selectedDiscountIds.length > 0) ? "line-through text-muted-foreground" : "text-primary"
+                  )}>
+                    R$ {(isReforcoEscolar && selectedSchedules.length > 0 
+                      ? REFORCO_ESCOLAR_PRICES[selectedSchedules.length] || REFORCO_ESCOLAR_PRICES[5]
+                      : Number(selectedCourse.price)
+                    ).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+                
+                {/* Custom Price Field */}
+                <div className="border-t border-border/50 pt-4 mt-4">
+                  <Label htmlFor="customPrice" className="text-sm font-medium mb-2 block">
+                    Valor Personalizado (opcional)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">R$</span>
+                    <Input
+                      id="customPrice"
+                      type="text"
+                      placeholder="Ex: 150,00"
+                      value={customPrice}
+                      onChange={(e) => {
+                        // Allow only numbers, comma, and dot
+                        const value = e.target.value.replace(/[^0-9,.-]/g, '');
+                        setCustomPrice(value);
+                      }}
+                      className="max-w-[150px]"
+                    />
+                    {customPrice && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCustomPrice('')}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Deixe em branco para usar o valor padrão do curso
+                  </p>
+                </div>
+                
+                {/* Effective price display */}
+                <div className="flex justify-between items-center mt-4 pt-4 border-t border-border/50">
+                  <span className="text-sm text-muted-foreground">Valor base da mensalidade</span>
                   <span className={cn(
                     "font-semibold",
                     selectedDiscountIds.length > 0 ? "line-through text-muted-foreground" : "text-primary"
@@ -1734,6 +1791,7 @@ export default function Enrollment() {
                     R$ {effectiveCoursePrice.toFixed(2).replace('.', ',')}
                   </span>
                 </div>
+                
                 {selectedDiscountIds.length > 0 && (
                   <div className="flex justify-between items-center mt-2">
                     <span className="text-sm text-muted-foreground">Valor com desconto</span>
