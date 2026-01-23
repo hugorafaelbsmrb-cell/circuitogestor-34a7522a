@@ -261,8 +261,53 @@ export default function LMSStudents() {
         return;
       }
 
+      // Normalize params for actions that require UUIDs
+      const params: Record<string, string> = { ...extraParams };
+
+      // The external LMS requires UUIDs for module_id/level_id.
+      // Our UI used placeholders like "current"/"next"; map them here.
+      if (actionName === 'unlockLevel') {
+        if (params.levelId === 'current') {
+          const { data: progressResp, error: progressError } = await supabase.functions.invoke('lms-sync', {
+            body: { action: 'syncProgress', credentialId: credential.id }
+          });
+
+          if (progressError) throw progressError;
+
+          const currentLevelId = extractIdValue(progressResp?.data?.current_level);
+          if (!currentLevelId) {
+            toast({
+              title: 'Nível indisponível',
+              description: 'Não foi possível identificar o nível atual do aluno no LMS. Tente sincronizar o progresso e repetir a ação.',
+              variant: 'destructive',
+            });
+            return;
+          }
+
+          params.levelId = currentLevelId;
+        }
+      }
+
+      if (actionName === 'setLevel' && params.levelId === 'next') {
+        toast({
+          title: 'Ação não suportada',
+          description: 'O LMS exige o ID (UUID) do nível de destino. Por enquanto, esta ação não suporta "próximo" automaticamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (actionName === 'setModule' && params.moduleId === 'next') {
+        toast({
+          title: 'Ação não suportada',
+          description: 'O LMS exige o ID (UUID) do módulo de destino. Por enquanto, esta ação não suporta "próximo" automaticamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('lms-sync', {
-        body: { action: actionName, lmsUserId, ...extraParams }
+        body: { action: actionName, lmsUserId, ...params }
       });
 
       if (error) throw error;
@@ -817,25 +862,42 @@ export default function LMSStudents() {
   };
 
   // Helper to safely extract string value from object or string
-  const extractStringValue = (value: unknown): string => {
+  function extractStringValue(value: unknown): string {
     if (!value) return '';
     if (typeof value === 'string') return value;
     if (typeof value === 'object' && value !== null) {
       const obj = value as Record<string, unknown>;
-      // Try common properties that might contain the display value
       return String(obj.name || obj.title || obj.id || '');
     }
     return String(value);
-  };
+  }
+
+  // Helper to extract UUID-like id from object or string
+  function extractIdValue(value: unknown): string {
+    if (!value) return '';
+
+    if (typeof value === 'string') {
+      // Only accept UUID-ish strings; otherwise it's probably a name like "Spark"
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(value) ? value : '';
+    }
+
+    if (typeof value === 'object' && value !== null) {
+      const obj = value as Record<string, unknown>;
+      const id = obj.id;
+      return typeof id === 'string' ? id : '';
+    }
+
+    return '';
+  }
 
   // Get the current lesson number from the lesson string or object (e.g., "Aula 5" -> 5)
-  const extractLessonNumber = (lessonValue: unknown): number => {
+  function extractLessonNumber(lessonValue: unknown): number {
     const lessonString = extractStringValue(lessonValue);
     if (!lessonString) return 0;
-    // Try to find a number in the string
     const match = lessonString.match(/(\d+)/);
     return match ? parseInt(match[1], 10) : 0;
-  };
+  }
 
   // Calculate progress status
   const getProgressStatus = (currentLesson: number, expectedLesson: number) => {

@@ -715,18 +715,36 @@ async function callLMSAction(actionType: string, params: Record<string, string>)
       body: JSON.stringify({ action: actionType, ...params }),
     });
 
-    const result = await response.json();
-    
+    // Always consume as text first (safer for non-JSON responses)
+    const responseText = await response.text();
+    let result: any = null;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      result = { raw: responseText };
+    }
+
+    const success = Boolean(response.ok && (result?.success ?? true));
+    const message =
+      result?.message ||
+      result?.error ||
+      (success ? 'Action completed' : 'Action failed');
+
+    // IMPORTANT: return 200 even when the external API fails.
+    // This prevents supabase-js from throwing FunctionsHttpError (non-2xx) and allows the UI
+    // to display the error message from `data.message`.
     return new Response(
-      JSON.stringify({ 
-        success: response.ok && result.success, 
-        message: result.message || (response.ok ? 'Action completed' : 'Action failed'),
-        data: result.data
+      JSON.stringify({
+        success,
+        message,
+        data: result?.data,
+        external_status: response.status,
+        external_response: result,
       }),
-      { 
-        status: response.ok ? 200 : 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      },
     );
   } catch (error) {
     console.error(`Error calling LMS action ${actionType}:`, error);
