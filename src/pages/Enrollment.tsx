@@ -232,7 +232,7 @@ export default function Enrollment() {
   }, [selectedCourse, isReforcoEscolar, selectedSchedules.length]);
   
   const calculateDiscountedPrice = useMemo(() => {
-    if (!selectedCourse) return { originalPrice: 0, discountedPrice: 0, totalDiscount: 0 };
+    if (!selectedCourse) return { originalPrice: 0, discountedPrice: 0, totalDiscount: 0, isFullDiscount: false };
     
     const originalPrice = effectiveCoursePrice;
     let discountedPrice = originalPrice;
@@ -251,7 +251,10 @@ export default function Enrollment() {
     
     discountedPrice = Math.max(0, discountedPrice);
     
-    return { originalPrice, discountedPrice, totalDiscount };
+    // Detect if this is a 100% discount (value is 0 or effectively 0)
+    const isFullDiscount = discountedPrice <= 0 || totalDiscount >= originalPrice;
+    
+    return { originalPrice, discountedPrice, totalDiscount, isFullDiscount };
   }, [selectedCourse, effectiveCoursePrice, activeDiscounts]);
 
   // Calculate the pro-rata due date (enrollment date + a few days for processing)
@@ -738,72 +741,86 @@ export default function Enrollment() {
         installment_count: contractContent.installments,
       });
 
-      // 6. Create Customer in Asaas (or use existing)
-      let asaasCustomer;
-      if (guardian.asaas_customer_id) {
-        asaasCustomer = { id: guardian.asaas_customer_id };
-      } else {
-        asaasCustomer = await createCustomer({
-          name: guardian.name,
-          cpfCnpj: guardian.cpf,
-          email: guardian.email,
-          phone: guardian.phone,
-          address: guardian.address,
-          addressNumber: formData.guardian.addressNumber || guardian.address_number || 'S/N',
-          province: formData.guardian.province || guardian.province || 'Centro',
-          postalCode: guardian.postal_code,
-        });
-
-        // Save the asaas_customer_id back to the guardian record
-        if (asaasCustomer?.id) {
-          const { error: updateGuardianError } = await supabase
-            .from('guardians')
-            .update({ asaas_customer_id: asaasCustomer.id })
-            .eq('id', guardian.id);
-          
-          if (updateGuardianError) {
-            console.error('Erro ao salvar asaas_customer_id no responsável:', updateGuardianError);
-          } else {
-            console.log('asaas_customer_id salvo com sucesso:', asaasCustomer.id);
-          }
-        }
-      }
-
-      if (!asaasCustomer) {
-        throw new Error('Erro ao criar cliente no sistema de pagamentos');
-      }
-
-      // 7. Generate payment in Asaas
-      const installmentCount = parseInt(formData.payment.installments);
-      const discountInfo = appliedDiscounts.length > 0 
-        ? ` (${appliedDiscounts.map(d => d.name).join(', ')})` 
-        : '';
-      const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student.name}${discountInfo}`;
+      // 6. Check if this is a 100% discount - skip all payment generation
+      const isFullDiscount = calculateDiscountedPrice.isFullDiscount;
       
-      // Calculate dates
-      const proRataDueDate = calculateProRataDueDate();
-      const proRataDueDateStr = proRataDueDate.toISOString().split('T')[0];
-      const firstDueDate = calculateFirstDueDate();
-      const firstDueDateStr = firstDueDate.toISOString().split('T')[0];
-      
-      // Calculate pro-rata value
-      const proRataValue = calculateTotalWithProRata.proRataValue;
-      const regularValue = calculateTotalWithProRata.regularValue;
-      
-      const discountConfig = {
-        value: 5, // 5% de desconto por antecipação
-        dueDateLimitDays: 5, // até 5 dias antes do vencimento
-        type: 'PERCENTAGE' as const,
-      };
-
+      let asaasCustomer: { id: string } | null = null;
       let carneData = null;
       let proRataBoletoData: { id: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null = null;
       
-      // Always generate entry boleto (pro-rata or full value) when:
-      // 1. Pro-rata is enabled and there are multiple installments (always generates entry boleto with pro-rata value)
-      // 2. Entry boleto is enabled (without pro-rata) and there are multiple installments
-      const needsEntryBoleto = (useProRata && installmentCount > 1) || 
-                               (!useProRata && useEntryBoleto && installmentCount > 1);
+      if (isFullDiscount) {
+        // 100% discount - only generate contract, no boletos or carnês
+        console.log('Desconto de 100% aplicado - pulando geração de boletos e carnês');
+        
+        toast({
+          title: "Desconto de 100% aplicado",
+          description: "Matrícula isenta de pagamento. Apenas o contrato foi gerado.",
+        });
+      } else {
+        // Normal flow - create customer and payments in Asaas
+        
+        // Create Customer in Asaas (or use existing)
+        if (guardian.asaas_customer_id) {
+          asaasCustomer = { id: guardian.asaas_customer_id };
+        } else {
+          asaasCustomer = await createCustomer({
+            name: guardian.name,
+            cpfCnpj: guardian.cpf,
+            email: guardian.email,
+            phone: guardian.phone,
+            address: guardian.address,
+            addressNumber: formData.guardian.addressNumber || guardian.address_number || 'S/N',
+            province: formData.guardian.province || guardian.province || 'Centro',
+            postalCode: guardian.postal_code,
+          });
+
+          // Save the asaas_customer_id back to the guardian record
+          if (asaasCustomer?.id) {
+            const { error: updateGuardianError } = await supabase
+              .from('guardians')
+              .update({ asaas_customer_id: asaasCustomer.id })
+              .eq('id', guardian.id);
+            
+            if (updateGuardianError) {
+              console.error('Erro ao salvar asaas_customer_id no responsável:', updateGuardianError);
+            } else {
+              console.log('asaas_customer_id salvo com sucesso:', asaasCustomer.id);
+            }
+          }
+        }
+
+        if (!asaasCustomer) {
+          throw new Error('Erro ao criar cliente no sistema de pagamentos');
+        }
+
+        // 7. Generate payment in Asaas
+        const installmentCount = parseInt(formData.payment.installments);
+        const discountInfo = appliedDiscounts.length > 0 
+          ? ` (${appliedDiscounts.map(d => d.name).join(', ')})` 
+          : '';
+        const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student.name}${discountInfo}`;
+        
+        // Calculate dates
+        const proRataDueDate = calculateProRataDueDate();
+        const proRataDueDateStr = proRataDueDate.toISOString().split('T')[0];
+        const firstDueDate = calculateFirstDueDate();
+        const firstDueDateStr = firstDueDate.toISOString().split('T')[0];
+        
+        // Calculate pro-rata value
+        const proRataValue = calculateTotalWithProRata.proRataValue;
+        const regularValue = calculateTotalWithProRata.regularValue;
+        
+        const discountConfig = {
+          value: 5, // 5% de desconto por antecipação
+          dueDateLimitDays: 5, // até 5 dias antes do vencimento
+          type: 'PERCENTAGE' as const,
+        };
+        
+        // Always generate entry boleto (pro-rata or full value) when:
+        // 1. Pro-rata is enabled and there are multiple installments (always generates entry boleto with pro-rata value)
+        // 2. Entry boleto is enabled (without pro-rata) and there are multiple installments
+        const needsEntryBoleto = (useProRata && installmentCount > 1) || 
+                                 (!useProRata && useEntryBoleto && installmentCount > 1);
       
       if (needsEntryBoleto) {
         // Calculate entry boleto value
@@ -950,7 +967,8 @@ export default function Enrollment() {
           installment_number: 1,
           external_reference: enrollment.id,
         });
-      }
+        }
+      } // End of else block for non-100% discount
 
       // 8. Update enrollment with contract flag
       await updateEnrollment(enrollment.id, { contract_generated: true });
@@ -964,25 +982,33 @@ export default function Enrollment() {
         proRataBoleto: proRataBoletoData,
       });
 
-      const hasEntryBoleto = (useProRata && installmentCount > 1) || 
-                             (!useProRata && useEntryBoleto && installmentCount > 1);
-      
+      // Build toast message based on what was generated
       let toastDescription = "O contrato foi gerado.";
-      if (hasEntryBoleto) {
-        if (generateCarneNow) {
-          toastDescription = useProRata 
-            ? "O contrato, boleto pro-rata e carnê foram gerados automaticamente."
-            : "O contrato, boleto de entrada e carnê foram gerados automaticamente.";
-        } else {
-          toastDescription = useProRata 
-            ? "O contrato e boleto pro-rata foram gerados. O carnê poderá ser gerado na página de Contratos."
-            : "O contrato e boleto de entrada foram gerados. O carnê poderá ser gerado na página de Contratos.";
-        }
+      
+      if (isFullDiscount) {
+        // 100% discount - only contract was generated
+        toastDescription = "Matrícula isenta. Apenas o contrato foi gerado (desconto de 100%).";
       } else {
-        if (generateCarneNow) {
-          toastDescription = "O contrato e o carnê foram gerados automaticamente.";
+        const installmentCount = parseInt(formData.payment.installments);
+        const hasEntryBoleto = (useProRata && installmentCount > 1) || 
+                               (!useProRata && useEntryBoleto && installmentCount > 1);
+        
+        if (hasEntryBoleto) {
+          if (generateCarneNow) {
+            toastDescription = useProRata 
+              ? "O contrato, boleto pro-rata e carnê foram gerados automaticamente."
+              : "O contrato, boleto de entrada e carnê foram gerados automaticamente.";
+          } else {
+            toastDescription = useProRata 
+              ? "O contrato e boleto pro-rata foram gerados. O carnê poderá ser gerado na página de Contratos."
+              : "O contrato e boleto de entrada foram gerados. O carnê poderá ser gerado na página de Contratos.";
+          }
         } else {
-          toastDescription = "O contrato foi gerado. O carnê poderá ser gerado posteriormente na página de Contratos.";
+          if (generateCarneNow) {
+            toastDescription = "O contrato e o carnê foram gerados automaticamente.";
+          } else {
+            toastDescription = "O contrato foi gerado. O carnê poderá ser gerado posteriormente na página de Contratos.";
+          }
         }
       }
 
@@ -1834,30 +1860,32 @@ export default function Enrollment() {
               )}
             </div>
 
-            {/* Pro-Rata Toggle */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-4">
-              <div>
-                <Label className="font-medium">Cálculo Pro-Rata</Label>
-                <p className="text-sm text-muted-foreground">
-                  A primeira parcela é calculada proporcionalmente aos dias até o vencimento
-                </p>
+            {/* Pro-Rata Toggle - Hidden when 100% discount */}
+            {!calculateDiscountedPrice.isFullDiscount && (
+              <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-4">
+                <div>
+                  <Label className="font-medium">Cálculo Pro-Rata</Label>
+                  <p className="text-sm text-muted-foreground">
+                    A primeira parcela é calculada proporcionalmente aos dias até o vencimento
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useProRata}
+                    onChange={(e) => {
+                      setUseProRata(e.target.checked);
+                      // Se ativar pro-rata, desativa boleto de entrada (são mutuamente exclusivos para o cálculo)
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                </label>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={useProRata}
-                  onChange={(e) => {
-                    setUseProRata(e.target.checked);
-                    // Se ativar pro-rata, desativa boleto de entrada (são mutuamente exclusivos para o cálculo)
-                  }}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-              </label>
-            </div>
+            )}
 
-            {/* Entry Boleto Toggle - only show if pro-rata is disabled and has installments */}
-            {!useProRata && (parseInt(formData.payment.installments) > 1 || formData.payment.installments === '0') && (
+            {/* Entry Boleto Toggle - only show if pro-rata is disabled, has installments, and NOT 100% discount */}
+            {!calculateDiscountedPrice.isFullDiscount && !useProRata && (parseInt(formData.payment.installments) > 1 || formData.payment.installments === '0') && (
               <div className="flex items-center justify-between p-4 bg-primary/10 rounded-xl mb-6 border border-primary/20">
                 <div>
                   <Label className="font-medium">Boleto de Entrada</Label>
@@ -1880,29 +1908,48 @@ export default function Enrollment() {
               </div>
             )}
 
-            {/* Generate Carnê Toggle */}
-            <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-4 border-2 border-primary/30">
-              <div>
-                <Label className="font-medium flex items-center gap-2">
-                  <CreditCard className="w-4 h-4" />
-                  Gerar Carnê Agora
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  {generateCarneNow 
-                    ? "O carnê será gerado automaticamente ao finalizar a matrícula"
-                    : "Você poderá gerar o carnê posteriormente na página de Contratos"}
-                </p>
+            {/* Full Discount Alert */}
+            {calculateDiscountedPrice.isFullDiscount && (
+              <div className="p-4 bg-success/10 border-2 border-success/30 rounded-xl mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-success/20 rounded-full">
+                    <Percent className="w-5 h-5 text-success" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-success">Matrícula Isenta (100% de Desconto)</p>
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum boleto ou carnê será gerado. Apenas o contrato do aluno será criado.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={generateCarneNow}
-                  onChange={(e) => setGenerateCarneNow(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-              </label>
-            </div>
+            )}
+
+            {/* Generate Carnê Toggle - Hidden when 100% discount */}
+            {!calculateDiscountedPrice.isFullDiscount && (
+              <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-4 border-2 border-primary/30">
+                <div>
+                  <Label className="font-medium flex items-center gap-2">
+                    <CreditCard className="w-4 h-4" />
+                    Gerar Carnê Agora
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    {generateCarneNow 
+                      ? "O carnê será gerado automaticamente ao finalizar a matrícula"
+                      : "Você poderá gerar o carnê posteriormente na página de Contratos"}
+                  </p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={generateCarneNow}
+                    onChange={(e) => setGenerateCarneNow(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                </label>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Dia de Vencimento</Label>
