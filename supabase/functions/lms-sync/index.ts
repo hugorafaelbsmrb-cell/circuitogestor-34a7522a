@@ -337,25 +337,40 @@ Deno.serve(async (req) => {
         if (!item) return '';
         return item.name || item.title || item.nome || item.titulo || item.label || String(item.id || '');
       };
-      
-      try {
-        // Fetch all modules (no filter needed)
-        console.log('Fetching modules from:', `${LMS_API_BASE}/list-modules`);
-        const modulesRes = await fetch(`${LMS_API_BASE}/list-modules`, {
+
+      const parseArrayPayload = (parsed: any, keys: string[]) => {
+        if (!parsed) return [];
+        for (const k of keys) {
+          const v = parsed?.[k];
+          if (Array.isArray(v)) return v;
+        }
+        return Array.isArray(parsed) ? parsed : [];
+      };
+
+      const fetchAsArray = async (url: string, keys: string[]) => {
+        const res = await fetch(url, {
           method: 'GET',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
             'X-API-Key': getLmsApiKey(),
           },
         });
-        const modulesText = await modulesRes.text();
-        console.log('Modules response status:', modulesRes.status, 'body:', modulesText.substring(0, 1000));
-        
-        let rawModules: any[] = [];
+        const text = await res.text();
+        console.log('Curriculum fetch:', url, 'status:', res.status, 'body:', text.substring(0, 600));
+        if (!res.ok) {
+          throw new Error(`Curriculum endpoint failed: ${url} (${res.status})`);
+        }
         try {
-          const parsed = JSON.parse(modulesText);
-          rawModules = parsed.data || parsed.modules || (Array.isArray(parsed) ? parsed : []);
-        } catch { rawModules = []; }
+          const parsed = JSON.parse(text);
+          return parseArrayPayload(parsed, keys);
+        } catch {
+          return [];
+        }
+      };
+      
+      try {
+        // Modules
+        const rawModules = await fetchAsArray(`${LMS_API_BASE}/list-modules`, ['data', 'modules']);
 
         // Normalize module data
         const modules = rawModules.map((m: any) => ({
@@ -364,58 +379,69 @@ Deno.serve(async (req) => {
           order_index: m.order_index || m.order || m.ordem || 0
         })).sort((a: any, b: any) => (a.order_index || 0) - (b.order_index || 0));
 
-        // Fetch all levels (no filter - we'll filter client-side for cascading selection)
-        console.log('Fetching levels from:', `${LMS_API_BASE}/list-levels`);
-        const levelsRes = await fetch(`${LMS_API_BASE}/list-levels`, {
-          method: 'GET',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-API-Key': getLmsApiKey(),
-          },
-        });
-        const levelsText = await levelsRes.text();
-        console.log('Levels response status:', levelsRes.status, 'body:', levelsText.substring(0, 1000));
-        
+        // Levels
+        // Observação: alguns backends só retornam corretamente o vínculo (module_id) quando filtrado.
+        // Então buscamos por módulo e garantimos module_id no retorno.
         let rawLevels: any[] = [];
-        try {
-          const parsed = JSON.parse(levelsText);
-          rawLevels = parsed.data || parsed.levels || (Array.isArray(parsed) ? parsed : []);
-        } catch { rawLevels = []; }
+        if (modules.length > 0) {
+          const levelsByModule = await Promise.all(
+            modules.map(async (m: any) => {
+              const url = `${LMS_API_BASE}/list-levels?module_id=${encodeURIComponent(m.id)}`;
+              const arr = await fetchAsArray(url, ['data', 'levels']);
+              return arr.map((l: any) => ({ ...l, __module_id: m.id }));
+            })
+          );
+          rawLevels = levelsByModule.flat();
+        } else {
+          rawLevels = await fetchAsArray(`${LMS_API_BASE}/list-levels`, ['data', 'levels']);
+        }
 
-        // Normalize level data
-        const levels = rawLevels.map((l: any) => ({
-          id: l.id,
-          name: extractName(l),
-          module_id: l.module_id || l.moduleId || l.modulo_id || null,
-          level_number: l.level_number || l.number || l.numero || l.order || 0
-        })).sort((a: any, b: any) => (a.level_number || 0) - (b.level_number || 0));
+        const levels = rawLevels
+          .map((l: any) => ({
+            id: l.id,
+            name: extractName(l),
+            module_id: l.module_id || l.moduleId || l.modulo_id || l.__module_id || null,
+            level_number: l.level_number || l.number || l.numero || l.order || 0,
+          }))
+          .filter((l: any) => !!l.id)
+          .sort((a: any, b: any) => (a.level_number || 0) - (b.level_number || 0));
 
-        // Fetch all lessons (no filter - we'll filter client-side for cascading selection)
-        console.log('Fetching lessons from:', `${LMS_API_BASE}/list-lessons`);
-        const lessonsRes = await fetch(`${LMS_API_BASE}/list-lessons`, {
-          method: 'GET',
-          headers: { 
-            'Content-Type': 'application/json',
-            'X-API-Key': getLmsApiKey(),
-          },
-        });
-        const lessonsText = await lessonsRes.text();
-        console.log('Lessons response status:', lessonsRes.status, 'body:', lessonsText.substring(0, 1000));
-        
+        // Lessons
+        // A API permite filtros opcionais; para garantir vínculo e reduzir payload, buscamos por nível.
         let rawLessons: any[] = [];
-        try {
-          const parsed = JSON.parse(lessonsText);
-          rawLessons = parsed.data || parsed.lessons || (Array.isArray(parsed) ? parsed : []);
-        } catch { rawLessons = []; }
+        if (levels.length > 0) {
+          const lessonsByLevel = await Promise.all(
+            levels.map(async (lvl: any) => {
+              const qs = new URLSearchParams();
+              qs.set('level_id', lvl.id);
+              if (lvl.module_id) qs.set('module_id', lvl.module_id);
+              const url = `${LMS_API_BASE}/list-lessons?${qs.toString()}`;
+              const arr = await fetchAsArray(url, ['data', 'lessons']);
+              return arr.map((ls: any) => ({ ...ls, __level_id: lvl.id, __module_id: lvl.module_id }));
+            })
+          );
+          rawLessons = lessonsByLevel.flat();
+        } else {
+          rawLessons = await fetchAsArray(`${LMS_API_BASE}/list-lessons`, ['data', 'lessons']);
+        }
 
-        // Normalize lesson data
-        const lessons = rawLessons.map((l: any) => ({
-          id: l.id,
-          title: extractName(l),
-          level_id: l.level_id || l.levelId || l.nivel_id || null,
-          module_id: l.module_id || l.moduleId || l.modulo_id || null,
-          lesson_number: l.lesson_number || l.number || l.numero || l.order || 0
-        })).sort((a: any, b: any) => (a.lesson_number || 0) - (b.lesson_number || 0));
+        // De-dup (caso algum endpoint retorne repetidos)
+        const seenLessonIds = new Set<string>();
+        const lessons = rawLessons
+          .map((l: any) => ({
+            id: l.id,
+            title: extractName(l),
+            level_id: l.level_id || l.levelId || l.nivel_id || l.__level_id || null,
+            module_id: l.module_id || l.moduleId || l.modulo_id || l.__module_id || null,
+            lesson_number: l.lesson_number || l.number || l.numero || l.order || 0,
+          }))
+          .filter((l: any) => {
+            if (!l.id) return false;
+            if (seenLessonIds.has(l.id)) return false;
+            seenLessonIds.add(l.id);
+            return true;
+          })
+          .sort((a: any, b: any) => (a.lesson_number || 0) - (b.lesson_number || 0));
 
         console.log(`Curriculum loaded: ${modules.length} modules, ${levels.length} levels, ${lessons.length} lessons`);
 
