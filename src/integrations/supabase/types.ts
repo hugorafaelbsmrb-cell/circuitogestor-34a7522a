@@ -633,6 +633,7 @@ export type Database = {
       }
       lms_credentials: {
         Row: {
+          completed_lessons: number | null
           completion_percentage: number | null
           created_at: string
           current_lesson: string | null
@@ -646,9 +647,11 @@ export type Database = {
           matricula: string
           password: string
           student_id: string
+          total_lessons: number | null
           updated_at: string
         }
         Insert: {
+          completed_lessons?: number | null
           completion_percentage?: number | null
           created_at?: string
           current_lesson?: string | null
@@ -662,9 +665,11 @@ export type Database = {
           matricula: string
           password: string
           student_id: string
+          total_lessons?: number | null
           updated_at?: string
         }
         Update: {
+          completed_lessons?: number | null
           completion_percentage?: number | null
           created_at?: string
           current_lesson?: string | null
@@ -678,6 +683,7 @@ export type Database = {
           matricula?: string
           password?: string
           student_id?: string
+          total_lessons?: number | null
           updated_at?: string
         }
         Relationships: [

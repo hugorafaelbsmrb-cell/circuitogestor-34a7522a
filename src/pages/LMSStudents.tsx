@@ -92,6 +92,8 @@ interface LMSCredential {
   current_level: string | null;
   current_lesson: string | null;
   completion_percentage: number;
+  completed_lessons: number | null;
+  total_lessons: number | null;
   last_sync_at: string | null;
   created_at: string;
   progressData?: LMSProgressData;
@@ -1204,11 +1206,9 @@ export default function LMSStudents() {
                     {cred.current_module ? (
                       <div className="text-sm">
                         <p className="font-medium">{extractStringValue(cred.current_module)}</p>
-                        {cred.current_lesson && (
-                          <p className="text-muted-foreground text-xs">
-                            Aula: {extractStringValue(cred.current_lesson)}
-                          </p>
-                        )}
+                        <p className="text-muted-foreground text-xs">
+                          Aulas: {cred.completed_lessons ?? 0}/{cred.total_lessons ?? 110}
+                        </p>
                       </div>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
@@ -1219,7 +1219,7 @@ export default function LMSStudents() {
                       const classDays = cred.all_class_days || [];
                       const enrollmentDate = cred.earliest_enrollment_date || cred.enrollment?.enrollment_date;
                       const expectedLesson = calculateExpectedLesson(enrollmentDate, classDays);
-                      const currentLesson = extractLessonNumber(cred.current_lesson);
+                      const currentLesson = cred.completed_lessons ?? 0;
                       const status = getProgressStatus(currentLesson, expectedLesson);
                       const diff = currentLesson - expectedLesson;
                       
@@ -1253,7 +1253,7 @@ export default function LMSStudents() {
                           </div>
                           {expectedLesson > 0 && (
                             <p className="text-xs text-muted-foreground">
-                              Esperado: Aula {expectedLesson} | Atual: {currentLesson || '-'}
+                              Esperado: {expectedLesson} | Concluídas: {currentLesson}
                               {diff !== 0 && currentLesson > 0 && (
                                 <span className={diff > 0 ? 'text-success ml-1' : 'text-destructive ml-1'}>
                                   ({diff > 0 ? '+' : ''}{diff})
