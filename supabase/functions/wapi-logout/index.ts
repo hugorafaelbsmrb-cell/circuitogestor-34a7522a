@@ -84,8 +84,10 @@ Deno.serve(async (req) => {
 
     console.log('Attempting logout for instance:', session);
 
-    // Based on W-API PRO documentation - prioritize correct endpoints
-    const candidates: Array<{ method: 'DELETE' | 'POST'; url: string }> = [
+    const tokenForQuery = encodeURIComponent(config.W_API_TOKEN);
+
+    // W-API has plan/provider variations. We try PRO-style first, then LITE-style (often GET + access_token).
+    const candidates: Array<{ method: 'DELETE' | 'POST' | 'GET'; url: string; note?: string }> = [
       // PRO endpoints (prioritized based on documentation)
       { method: 'DELETE', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
       { method: 'POST', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
@@ -97,9 +99,18 @@ Deno.serve(async (req) => {
       // Without /v1 prefix
       { method: 'DELETE', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
       { method: 'POST', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
+
+      // LITE variants observed in some Postman collections: GET + access_token as query
+      { method: 'GET', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}&access_token=${tokenForQuery}`, note: 'lite_query' },
+      { method: 'GET', url: `${baseUrl}/instance/logout?instanceId=${encoded}&access_token=${tokenForQuery}`, note: 'lite_query_no_v1' },
     ];
 
-    const attempts: Array<{ method: string; url: string; status: number | null; ok: boolean; error?: string }> = [];
+    const attempts: Array<{ method: string; url: string; status: number | null; ok: boolean; error?: string; note?: string }> = [];
+
+    const sanitizeUrl = (url: string) =>
+      url
+        .replace(/access_token=[^&]+/gi, 'access_token=<redacted>')
+        .replace(/instanceId=[^&]+/gi, 'instanceId=<redacted>');
 
     for (const c of candidates) {
       try {
@@ -111,13 +122,15 @@ Deno.serve(async (req) => {
             'Authorization': `Bearer ${config.W_API_TOKEN}`,
             'Accept': 'application/json',
             'Content-Type': 'application/json',
+            // Some variants require instanceId as a header
+            instanceId: session,
           },
         });
 
         const responseText = await res.text();
         console.log(`Response ${res.status}: ${responseText.slice(0, 200)}`);
         
-        attempts.push({ method: c.method, url: c.url, status: res.status, ok: res.ok });
+        attempts.push({ method: c.method, url: sanitizeUrl(c.url), status: res.status, ok: res.ok, note: c.note });
 
         if (!res.ok) continue;
 
@@ -131,7 +144,7 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: true,
-            endpoint: c.url,
+            endpoint: sanitizeUrl(c.url),
             data: parsed,
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -140,10 +153,11 @@ Deno.serve(async (req) => {
         console.error(`Error with ${c.method} ${c.url}:`, e);
         attempts.push({
           method: c.method,
-          url: c.url,
+          url: sanitizeUrl(c.url),
           status: null,
           ok: false,
           error: e instanceof Error ? e.message : String(e),
+          note: c.note,
         });
       }
     }
@@ -151,13 +165,16 @@ Deno.serve(async (req) => {
     // All attempts failed
     console.error('All logout attempts failed:', attempts);
     
+    // IMPORTANT: return 200 so the frontend can show a friendly message (otherwise invoke() becomes an error).
+    // 404 across all candidates strongly suggests the provider/plan does not expose logout for this instance.
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'Não foi possível desconectar na W-API',
+        error: 'Não foi possível desconectar na W-API (endpoint não encontrado para esta instância/plano).',
+        hint: 'Se sua instância é LITE, pode ser necessário desconectar pelo painel do provedor. Se for PRO, confirme na coleção Postman o endpoint exato de logout para o seu gateway.',
         attempts,
       }),
-      { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   } catch (error: unknown) {
     console.error('Error in wapi-logout:', error);
