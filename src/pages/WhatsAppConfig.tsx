@@ -47,11 +47,15 @@ interface WhatsAppTemplate {
 const categoryOptions = [
   { value: 'lead', label: 'Lead - Primeiro Contato' },
   { value: 'lead_followup', label: 'Lead - Acompanhamento' },
+  { value: 'lead_scheduled', label: 'Lead - Agendamento' },
+  { value: 'lead_reactivation', label: 'Lead - Reativação' },
   { value: 'enrollment', label: 'Matrícula' },
   { value: 'payment_reminder', label: 'Lembrete de Pagamento' },
   { value: 'payment_due_48h', label: 'Pagamento Vence em 48h' },
   { value: 'payment_overdue', label: 'Pagamento Atrasado' },
   { value: 'payment_confirmed', label: 'Pagamento Confirmado' },
+  { value: 'birthday', label: 'Aniversário' },
+  { value: 'lms_alert', label: 'Alerta Pedagógico LMS' },
   { value: 'general', label: 'Geral' },
 ];
 

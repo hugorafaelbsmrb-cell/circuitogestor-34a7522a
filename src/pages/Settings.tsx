@@ -15,7 +15,9 @@ import {
   Copy,
   CheckCircle,
   Upload,
-  Building2
+  Building2,
+  Zap,
+  MessageSquare as MessageSquareIcon
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -24,6 +26,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +40,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { WapiConfigCard } from '@/components/settings/WapiConfigCard';
+import { AutomationControlPanel } from '@/components/settings/AutomationControlPanel';
+import { MessageLogsViewer } from '@/components/settings/MessageLogsViewer';
 
 interface AppSetting {
   id: string;
@@ -440,14 +445,31 @@ export default function Settings() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {/* System Branding Card */}
-          <Card className="border-border/50">
+      <Tabs defaultValue="general" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="general" className="gap-2">
+            <SettingsIcon className="w-4 h-4" />
+            Geral
+          </TabsTrigger>
+          <TabsTrigger value="automations" className="gap-2">
+            <Zap className="w-4 h-4" />
+            Automações
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="gap-2">
+            <MessageSquareIcon className="w-4 h-4" />
+            Histórico
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* System Branding Card */}
+              <Card className="border-border/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="w-5 h-5" />
@@ -1020,79 +1042,89 @@ export default function Settings() {
               </CardContent>
             </Card>
           )}
-        </div>
-      )}
-
-      {/* Add Setting Modal */}
-      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Nova Configuração</DialogTitle>
-            <DialogDescription>
-              Adicione uma nova configuração ao sistema
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleAddSetting} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-key">Chave *</Label>
-              <Input
-                id="new-key"
-                value={newSetting.key}
-                onChange={(e) => setNewSetting(prev => ({ ...prev, key: e.target.value }))}
-                placeholder="Ex: API_KEY, CONFIG_NAME"
-              />
-              <p className="text-xs text-muted-foreground">
-                A chave será convertida para maiúsculas
-              </p>
             </div>
+          )}
 
-            <div className="space-y-2">
-              <Label htmlFor="new-value">Valor</Label>
-              <Input
-                id="new-value"
-                type={newSetting.is_secret ? 'password' : 'text'}
-                value={newSetting.value}
-                onChange={(e) => setNewSetting(prev => ({ ...prev, value: e.target.value }))}
-                placeholder="Valor da configuração"
-              />
-            </div>
+          {/* Add Setting Modal */}
+          <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Nova Configuração</DialogTitle>
+                <DialogDescription>
+                  Adicione uma nova configuração ao sistema
+                </DialogDescription>
+              </DialogHeader>
+              
+              <form onSubmit={handleAddSetting} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="new-key">Chave *</Label>
+                  <Input
+                    id="new-key"
+                    value={newSetting.key}
+                    onChange={(e) => setNewSetting(prev => ({ ...prev, key: e.target.value }))}
+                    placeholder="Ex: API_KEY, CONFIG_NAME"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A chave será convertida para maiúsculas
+                  </p>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="new-description">Descrição</Label>
-              <Input
-                id="new-description"
-                value={newSetting.description}
-                onChange={(e) => setNewSetting(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Descrição da configuração"
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-value">Valor</Label>
+                  <Input
+                    id="new-value"
+                    type={newSetting.is_secret ? 'password' : 'text'}
+                    value={newSetting.value}
+                    onChange={(e) => setNewSetting(prev => ({ ...prev, value: e.target.value }))}
+                    placeholder="Valor da configuração"
+                  />
+                </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="new-is-secret">Valor secreto</Label>
-                <p className="text-xs text-muted-foreground">
-                  Valores secretos são ocultados na interface
-                </p>
-              </div>
-              <Switch
-                id="new-is-secret"
-                checked={newSetting.is_secret}
-                onCheckedChange={(checked) => setNewSetting(prev => ({ ...prev, is_secret: checked }))}
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-description">Descrição</Label>
+                  <Input
+                    id="new-description"
+                    value={newSetting.description}
+                    onChange={(e) => setNewSetting(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Descrição da configuração"
+                  />
+                </div>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit">
-                Criar Configuração
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="new-is-secret">Valor secreto</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Valores secretos são ocultados na interface
+                    </p>
+                  </div>
+                  <Switch
+                    id="new-is-secret"
+                    checked={newSetting.is_secret}
+                    onCheckedChange={(checked) => setNewSetting(prev => ({ ...prev, is_secret: checked }))}
+                  />
+                </div>
+
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit">
+                    Criar Configuração
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
+        <TabsContent value="automations">
+          <AutomationControlPanel />
+        </TabsContent>
+
+        <TabsContent value="logs">
+          <MessageLogsViewer />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

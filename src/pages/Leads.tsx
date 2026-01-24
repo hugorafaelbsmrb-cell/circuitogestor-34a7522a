@@ -15,13 +15,15 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Send
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -38,6 +40,8 @@ import { useSchool } from '@/contexts/SchoolContext';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
+import { BulkMessageModal } from '@/components/bulk/BulkMessageModal';
+import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { isValidEmail, formatPhone } from '@/utils/validators';
 
 interface Lead {
@@ -82,8 +86,10 @@ export default function Leads() {
   const { toast } = useToast();
   const { courses, getCourseById } = useSchool();
   const { profile } = useAuthContext();
+  const { isEnabled } = useAutomationSettings();
 
   const isAdmin = profile?.role === 'admin';
+  const isBulkEnabled = isEnabled('bulk_leads_enabled');
   
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -92,6 +98,8 @@ export default function Leads() {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [showBulkModal, setShowBulkModal] = useState(false);
   
   const [form, setForm] = useState({
     name: '',

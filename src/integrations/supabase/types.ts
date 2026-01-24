@@ -77,6 +77,36 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_settings: {
+        Row: {
+          config: Json | null
+          created_at: string
+          description: string | null
+          enabled: boolean | null
+          id: string
+          key: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string
+          description?: string | null
+          enabled?: boolean | null
+          id?: string
+          key: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string
+          description?: string | null
+          enabled?: boolean | null
+          id?: string
+          key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       carnes: {
         Row: {
           asaas_installment_id: string
@@ -699,6 +729,60 @@ export type Database = {
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_logs: {
+        Row: {
+          automation_key: string | null
+          error_message: string | null
+          guardian_id: string | null
+          id: string
+          lead_id: string | null
+          message_preview: string | null
+          phone: string
+          sent_at: string
+          status: string | null
+          template_category: string | null
+        }
+        Insert: {
+          automation_key?: string | null
+          error_message?: string | null
+          guardian_id?: string | null
+          id?: string
+          lead_id?: string | null
+          message_preview?: string | null
+          phone: string
+          sent_at?: string
+          status?: string | null
+          template_category?: string | null
+        }
+        Update: {
+          automation_key?: string | null
+          error_message?: string | null
+          guardian_id?: string | null
+          id?: string
+          lead_id?: string | null
+          message_preview?: string | null
+          phone?: string
+          sent_at?: string
+          status?: string | null
+          template_category?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_logs_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_logs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
