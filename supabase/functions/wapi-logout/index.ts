@@ -40,9 +40,10 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
+    // Verify user using getUser instead of deprecated getClaims
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -79,67 +80,64 @@ Deno.serve(async (req) => {
 
     const baseUrl = normalizeBaseUrl(config.W_API_URL);
     const session = config.W_API_SESSION;
-
     const encoded = encodeURIComponent(session);
+
+    console.log('Attempting logout for instance:', session);
+
+    // Based on W-API PRO documentation - prioritize correct endpoints
     const candidates: Array<{ method: 'DELETE' | 'POST'; url: string }> = [
-      // Alguns provedores aceitam instanceId apenas via header (sem path/query)
-      { method: 'DELETE', url: `${baseUrl}/v1/instance/logout` },
-      { method: 'POST', url: `${baseUrl}/v1/instance/logout` },
-      { method: 'DELETE', url: `${baseUrl}/instance/logout` },
-      { method: 'POST', url: `${baseUrl}/instance/logout` },
-
-      // Sem /v1
-      { method: 'DELETE', url: `${baseUrl}/instance/logout/${encoded}` },
-      { method: 'DELETE', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
-      { method: 'POST', url: `${baseUrl}/instance/logout/${encoded}` },
-      { method: 'POST', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
-
-      // Com /v1
-      { method: 'DELETE', url: `${baseUrl}/v1/instance/logout/${encoded}` },
+      // PRO endpoints (prioritized based on documentation)
       { method: 'DELETE', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
-      { method: 'POST', url: `${baseUrl}/v1/instance/logout/${encoded}` },
       { method: 'POST', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
+      
+      // Alternative with instanceId in path
+      { method: 'DELETE', url: `${baseUrl}/v1/instance/logout/${encoded}` },
+      { method: 'POST', url: `${baseUrl}/v1/instance/logout/${encoded}` },
+      
+      // Without /v1 prefix
+      { method: 'DELETE', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
+      { method: 'POST', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
     ];
 
     const attempts: Array<{ method: string; url: string; status: number | null; ok: boolean; error?: string }> = [];
 
-    let lastBody: string | null = null;
-    let lastStatus: number | null = null;
-
     for (const c of candidates) {
       try {
+        console.log(`Trying ${c.method} ${c.url}`);
+        
         const res = await fetch(c.url, {
           method: c.method,
           headers: {
-            Authorization: `Bearer ${config.W_API_TOKEN}`,
-            Accept: 'application/json',
-            // Para endpoints que usam header em vez de path/query
-            instanceId: session,
+            'Authorization': `Bearer ${config.W_API_TOKEN}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
           },
         });
 
-        lastStatus = res.status;
-        lastBody = await res.text();
+        const responseText = await res.text();
+        console.log(`Response ${res.status}: ${responseText.slice(0, 200)}`);
+        
         attempts.push({ method: c.method, url: c.url, status: res.status, ok: res.ok });
 
         if (!res.ok) continue;
 
         let parsed: any = null;
         try {
-          parsed = JSON.parse(lastBody);
+          parsed = JSON.parse(responseText);
         } catch {
-          parsed = null;
+          parsed = { raw: responseText };
         }
 
         return new Response(
           JSON.stringify({
             success: true,
             endpoint: c.url,
-            data: parsed ?? { raw: lastBody },
+            data: parsed,
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
       } catch (e) {
+        console.error(`Error with ${c.method} ${c.url}:`, e);
         attempts.push({
           method: c.method,
           url: c.url,
@@ -150,12 +148,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    // All attempts failed
+    console.error('All logout attempts failed:', attempts);
+    
     return new Response(
       JSON.stringify({
         success: false,
         error: 'Não foi possível desconectar na W-API',
-        lastStatus,
-        lastBody: lastBody?.slice(0, 400) ?? null,
         attempts,
       }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
