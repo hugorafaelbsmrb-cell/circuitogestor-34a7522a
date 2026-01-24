@@ -85,20 +85,48 @@ Deno.serve(async (req) => {
     
     console.log('Fetching QR Code from:', qrCodeUrl.replace(config.W_API_TOKEN, '***'));
     
-    const response = await fetch(qrCodeUrl, {
-      method: 'POST',
+    const fetchOptions = {
       headers: {
-        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8',
       },
-    });
+    } as const;
 
-    const responseData = await response.json();
+    // Docs call this "POST", but many providers serve it as GET.
+    let response = await fetch(qrCodeUrl, { method: 'GET', ...fetchOptions });
+    if (!response.ok) {
+      // Fallback to POST in case the provider expects it.
+      response = await fetch(qrCodeUrl, { method: 'POST', ...fetchOptions });
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const rawBody = await response.text();
+
+    let responseData: any = null;
+    if (contentType.includes('application/json')) {
+      try {
+        responseData = JSON.parse(rawBody);
+      } catch {
+        responseData = null;
+      }
+    } else {
+      // Some providers respond with text/json but wrong content-type.
+      try {
+        responseData = JSON.parse(rawBody);
+      } catch {
+        responseData = null;
+      }
+    }
 
     if (!response.ok) {
-      console.error('W-API QR Code error:', responseData);
+      console.error('W-API QR Code error:', {
+        status: response.status,
+        contentType,
+        bodyPreview: rawBody.slice(0, 300),
+        parsed: responseData,
+      });
       
       // Check if already connected
-      if (responseData.status === 'CONNECTED' || responseData.connected) {
+      if (responseData?.status === 'CONNECTED' || responseData?.connected) {
         return new Response(
           JSON.stringify({ 
             success: true,
@@ -112,9 +140,33 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Erro ao obter QR Code',
-          details: responseData 
+          details: responseData || {
+            status: response.status,
+            contentType,
+            bodyPreview: rawBody.slice(0, 500),
+            hint: 'O provedor retornou HTML/texto em vez de JSON. Confira se a URL base está correta e se o endpoint /get_qrcode existe no seu provedor.'
+          }
         }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!responseData) {
+      console.error('W-API QR Code: expected JSON but got non-JSON response', {
+        status: response.status,
+        contentType,
+        bodyPreview: rawBody.slice(0, 300),
+      });
+      return new Response(
+        JSON.stringify({
+          error: 'Resposta inválida do provedor W-API',
+          details: {
+            status: response.status,
+            contentType,
+            bodyPreview: rawBody.slice(0, 500),
+          }
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

@@ -107,7 +107,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
         setQrStatus('error');
         toast({
           title: 'Erro ao obter QR Code',
-          description: 'Não foi possível gerar o QR Code. Verifique as configurações.',
+          description: response.error.message || 'Não foi possível gerar o QR Code. Verifique as configurações.',
           variant: 'destructive',
         });
       } else if (response.data?.status === 'connected') {
@@ -126,7 +126,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
           setQrStatus('error');
           toast({
             title: 'QR Code não disponível',
-            description: 'Não foi possível obter o QR Code. Tente novamente.',
+            description: response.data?.error || 'Não foi possível obter o QR Code. Tente novamente.',
             variant: 'destructive',
           });
         }
