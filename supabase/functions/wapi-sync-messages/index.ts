@@ -153,28 +153,76 @@ Deno.serve(async (req) => {
       const phoneWithCC = phone.startsWith('55') ? phone : `55${phone}`;
       const phoneWithoutCC = phoneWithCC.replace(/^55/, '');
 
+      const attempts: Attempt[] = [];
+
+      // ========================================
+      // PRIORITY 1: /v1/chats/chat?phoneNumber= (confirmed working endpoint)
+      // This endpoint uses phoneNumber directly without @c.us suffix
+      // ========================================
+      const priorityEndpoints = [
+        `${wapiUrl}/v1/chats/chat?instanceId=${encoded}&phoneNumber=${phoneWithCC}`,
+        `${wapiUrl}/v1/chats/chat?instanceId=${encoded}&phoneNumber=${phoneWithoutCC}`,
+      ];
+
+      for (const endpoint of priorityEndpoints) {
+        const endpointBase = endpoint.split('?')[0];
+        const res = await fetchWithTimeout(
+          endpoint,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${config.W_API_TOKEN}`,
+              'Accept': 'application/json',
+              'instanceId': session,
+            },
+          },
+          6000,
+        );
+
+        if (!res) {
+          attempts.push({ endpoint: endpointBase, status: null, ok: false, note: 'timeout' });
+          continue;
+        }
+
+        attempts.push({ endpoint: endpointBase, status: res.status, ok: res.ok });
+        if (!res.ok) continue;
+
+        try {
+          const text = await res.text();
+          const parsed = JSON.parse(text);
+          
+          // Extract messages from various possible response structures
+          const msgs: WapiMessage[] = Array.isArray(parsed)
+            ? parsed
+            : (parsed.messages ?? parsed.data?.messages ?? parsed.data ?? parsed.chat?.messages ?? []);
+
+          if (Array.isArray(msgs) && msgs.length > 0) {
+            console.log(`Found ${msgs.length} messages via /v1/chats/chat for phone ...${phone.slice(-4)}`);
+            return { messages: msgs.slice(0, 30), success: true, workingEndpoint: endpointBase, attempts };
+          }
+        } catch (e) {
+          attempts.push({ endpoint: endpointBase, status: res.status, ok: false, note: 'parse_error' });
+          continue;
+        }
+      }
+
+      // ========================================
+      // FALLBACK: Try JID-based endpoints if priority endpoints don't work
+      // ========================================
       const jidCandidates = [
         `${phoneWithCC}@c.us`,
         `${phoneWithCC}@s.whatsapp.net`,
-        `${phoneWithoutCC}@c.us`,
-        `${phoneWithoutCC}@s.whatsapp.net`,
       ];
-
-      const attempts: Attempt[] = [];
 
       for (const jid of jidCandidates) {
         const encodedJid = encodeURIComponent(jid);
 
-        // Endpoint candidates across common W-API variants
-        const endpoints = [
+        const fallbackEndpoints = [
           `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=30`,
-          `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&chatId=${encodedJid}&limit=30`,
           `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=30`,
-          `${wapiUrl}/v1/message/list?instanceId=${encoded}&remoteJid=${encodedJid}&limit=30`,
-          `${wapiUrl}/wp-json/awp/v1/chats/${encodedJid}/messages?instance_id=${encoded}&limit=30`,
         ];
 
-        for (const endpoint of endpoints) {
+        for (const endpoint of fallbackEndpoints) {
           const endpointBase = endpoint.split('?')[0];
           const res = await fetchWithTimeout(
             endpoint,
@@ -190,7 +238,7 @@ Deno.serve(async (req) => {
           );
 
           if (!res) {
-            attempts.push({ endpoint: endpointBase, status: null, ok: false, note: 'fetch_failed_or_timeout' });
+            attempts.push({ endpoint: endpointBase, status: null, ok: false, note: 'timeout' });
             continue;
           }
 
@@ -202,13 +250,12 @@ Deno.serve(async (req) => {
             const parsed = JSON.parse(text);
             const msgs: WapiMessage[] = Array.isArray(parsed)
               ? parsed
-              : (Array.isArray(parsed.messages) ? parsed.messages : (Array.isArray(parsed.data) ? parsed.data : []));
+              : (parsed.messages ?? parsed.data ?? []);
 
-            if (msgs.length > 0) {
-              return { messages: msgs, success: true, workingEndpoint: endpointBase, attempts };
+            if (Array.isArray(msgs) && msgs.length > 0) {
+              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: endpointBase, attempts };
             }
           } catch {
-            // keep trying other endpoints
             continue;
           }
         }
