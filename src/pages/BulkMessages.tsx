@@ -156,6 +156,18 @@ export default function BulkMessages() {
     }
   };
 
+  // Helper to get first name only
+  const getFirstName = (fullName: string): string => {
+    return fullName.trim().split(' ')[0] || fullName;
+  };
+
+  // Helper to get first and last name
+  const getFirstAndLastName = (fullName: string): string => {
+    const parts = fullName.trim().split(' ').filter(Boolean);
+    if (parts.length <= 1) return fullName;
+    return `${parts[0]} ${parts[parts.length - 1]}`;
+  };
+
   // Build recipients list with course associations
   const recipients = useMemo(() => {
     const recipientMap = new Map<string, Recipient>();
@@ -166,7 +178,8 @@ export default function BulkMessages() {
       const studentNames: string[] = [];
 
       guardianStudents.forEach(student => {
-        studentNames.push(student.name);
+        // Use first and last name for students
+        studentNames.push(getFirstAndLastName(student.name));
         const studentEnrollments = enrollments.filter(e => e.student_id === student.id && e.status === 'active');
         studentEnrollments.forEach(enrollment => {
           const classGroup = classGroups.find(cg => cg.id === enrollment.class_group_id);
@@ -182,7 +195,7 @@ export default function BulkMessages() {
 
       recipientMap.set(guardian.id, {
         id: guardian.id,
-        name: guardian.name,
+        name: getFirstName(guardian.name), // Store only first name for guardian
         phone: guardian.phone,
         type: 'guardian',
         courseIds: Array.from(courseIds),
