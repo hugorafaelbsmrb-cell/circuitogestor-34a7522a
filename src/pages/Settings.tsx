@@ -36,6 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
+import { WapiConfigCard } from '@/components/settings/WapiConfigCard';
 
 interface AppSetting {
   id: string;
@@ -712,6 +713,12 @@ export default function Settings() {
               )}
             </CardContent>
           </Card>
+
+          {/* W-API WhatsApp Integration Card */}
+          <WapiConfigCard 
+            editedSettings={editedSettings} 
+            setEditedSettings={setEditedSettings} 
+          />
 
           {/* Webhook URL Card */}
           <Card className="border-border/50">
