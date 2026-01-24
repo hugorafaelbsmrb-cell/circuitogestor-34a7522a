@@ -587,12 +587,17 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
               )}
               Status da Conexão
             </h4>
-            <div className="flex items-center gap-2">
+             <div className="flex items-center gap-2">
               {connectionStatus === 'connected' ? (
                 <Badge variant="default">
                   <CheckCircle className="w-3 h-3 mr-1" />
                   Conectado
                   {statusDetails && <span className="ml-1 opacity-80">({statusDetails})</span>}
+                </Badge>
+              ) : isConfigured ? (
+                <Badge variant="secondary">
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  Status desconhecido
                 </Badge>
               ) : (
                 <Badge variant="secondary">

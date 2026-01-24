@@ -80,27 +80,50 @@ Deno.serve(async (req) => {
     const baseUrl = normalizeBaseUrl(config.W_API_URL);
     const session = config.W_API_SESSION;
 
-    const candidates = [
-      `${baseUrl}/v1/instance/logout/${encodeURIComponent(session)}`,
-      `${baseUrl}/v1/instance/logout?instanceId=${encodeURIComponent(session)}`,
+    const encoded = encodeURIComponent(session);
+    const candidates: Array<{ method: 'DELETE' | 'POST'; url: string }> = [
+      // Alguns provedores aceitam instanceId apenas via header (sem path/query)
+      { method: 'DELETE', url: `${baseUrl}/v1/instance/logout` },
+      { method: 'POST', url: `${baseUrl}/v1/instance/logout` },
+      { method: 'DELETE', url: `${baseUrl}/instance/logout` },
+      { method: 'POST', url: `${baseUrl}/instance/logout` },
+
+      // Sem /v1
+      { method: 'DELETE', url: `${baseUrl}/instance/logout/${encoded}` },
+      { method: 'DELETE', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
+      { method: 'POST', url: `${baseUrl}/instance/logout/${encoded}` },
+      { method: 'POST', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
+
+      // Com /v1
+      { method: 'DELETE', url: `${baseUrl}/v1/instance/logout/${encoded}` },
+      { method: 'DELETE', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
+      { method: 'POST', url: `${baseUrl}/v1/instance/logout/${encoded}` },
+      { method: 'POST', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
     ];
+
+    const attempts: Array<{ method: string; url: string; status: number | null; ok: boolean; error?: string }> = [];
 
     let lastBody: string | null = null;
     let lastStatus: number | null = null;
 
-    for (const url of candidates) {
-      const res = await fetch(url, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${config.W_API_TOKEN}`,
-          Accept: 'application/json',
-        },
-      });
+    for (const c of candidates) {
+      try {
+        const res = await fetch(c.url, {
+          method: c.method,
+          headers: {
+            Authorization: `Bearer ${config.W_API_TOKEN}`,
+            Accept: 'application/json',
+            // Para endpoints que usam header em vez de path/query
+            instanceId: session,
+          },
+        });
 
-      lastStatus = res.status;
-      lastBody = await res.text();
+        lastStatus = res.status;
+        lastBody = await res.text();
+        attempts.push({ method: c.method, url: c.url, status: res.status, ok: res.ok });
 
-      if (res.ok) {
+        if (!res.ok) continue;
+
         let parsed: any = null;
         try {
           parsed = JSON.parse(lastBody);
@@ -111,11 +134,19 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: true,
-            endpoint: url,
+            endpoint: c.url,
             data: parsed ?? { raw: lastBody },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
+      } catch (e) {
+        attempts.push({
+          method: c.method,
+          url: c.url,
+          status: null,
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
 
@@ -125,6 +156,7 @@ Deno.serve(async (req) => {
         error: 'Não foi possível desconectar na W-API',
         lastStatus,
         lastBody: lastBody?.slice(0, 400) ?? null,
+        attempts,
       }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
