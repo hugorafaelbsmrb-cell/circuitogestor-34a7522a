@@ -169,29 +169,29 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
             <p className="text-xs text-muted-foreground">
               URL base da sua instância W-API
             </p>
-          </div>
+        </div>
 
-          {/* Session Name */}
+          {/* Instance ID (Session) */}
           <div className="space-y-2">
             <Label htmlFor="W_API_SESSION" className="font-medium">
-              Nome da Sessão *
+              ID da Instância *
             </Label>
             <Input
               id="W_API_SESSION"
               value={editedSettings['W_API_SESSION'] || ''}
               onChange={(e) => setEditedSettings(prev => ({ ...prev, 'W_API_SESSION': e.target.value }))}
-              placeholder="minha-sessao"
+              placeholder="LITE-XXXXXXXX-XXXXXX"
             />
             <p className="text-xs text-muted-foreground">
-              Nome da sessão configurada no W-API
+              ID da instância fornecido pelo W-API
             </p>
           </div>
         </div>
 
-        {/* API Token */}
+        {/* Instance Token */}
         <div className="space-y-2">
           <Label htmlFor="W_API_TOKEN" className="font-medium">
-            Token da API *
+            Token da Instância *
           </Label>
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -212,9 +212,15 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
               {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Chave de API fornecida pelo W-API (apikey)
-          </p>
+          <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 mt-2">
+            <p className="text-xs text-muted-foreground flex items-start gap-2">
+              <span className="text-primary">ℹ</span>
+              <span>
+                Para autenticação, adicione o token da instância no <strong>Header</strong> da requisição, 
+                no atributo <strong>Authorization</strong>, utilizando o formato: <code className="bg-muted px-1 rounded">Bearer &lt;seu_token&gt;</code>
+              </span>
+            </p>
+          </div>
         </div>
 
         {/* Test Connection */}
