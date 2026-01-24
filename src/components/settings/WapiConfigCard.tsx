@@ -214,61 +214,45 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     setIsCheckingStatus(true);
 
     try {
-      const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
-      const instanceId = editedSettings['W_API_SESSION'] || '';
-      const token = editedSettings['W_API_TOKEN'] || '';
-      
-      // W-API usa instanceId no header ou como parte da URL base
-      // Endpoint: GET /v1/instance/connectionState com instanceId no header
-      const statusUrl = `${baseUrl}/v1/instance/connectionState`;
+      // Importante: chamar W-API direto do navegador pode falhar por CORS
+      // (principalmente quando adicionamos headers customizados).
+      // Aqui fazemos via backend para ficar confiável.
+      await saveSettings();
 
-      const res = await fetch(statusUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-          'instanceId': instanceId,
-        },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        // Verificar se está conectado - resposta: { instance: { state: "open" } }
-        // "open" = conectado, "close"/"refused" = desconectado
-        const state = data?.instance?.state || data?.state || '';
-        const isConnected = 
-          state === 'open' ||
-          state === 'CONNECTED' ||
-          data?.connected === true ||
-          data?.status === 'connected';
-
-        if (isConnected) {
-          setQrStatus('connected');
-          setConnectionStatus('connected');
-          toast({
-            title: 'WhatsApp Conectado!',
-            description: 'Sua instância está conectada e pronta para uso.',
-          });
-        } else {
-          setConnectionStatus('unknown');
-          toast({
-            title: 'Aguardando conexão',
-            description: 'Escaneie o QR Code com seu WhatsApp para conectar.',
-          });
-        }
-      } else {
-        // API retornou erro - mostrar feedback
+      const { data, error } = await supabase.functions.invoke('wapi-connection-status');
+      if (error) {
         toast({
           title: 'Erro ao verificar',
-          description: 'Não foi possível verificar o status. Tente novamente.',
+          description: error.message || 'Não foi possível verificar o status. Tente novamente.',
           variant: 'destructive',
+        });
+        return;
+      }
+
+      const isConnected = !!(data as any)?.connected;
+      const phone = (data as any)?.phone || null;
+
+      if (isConnected) {
+        setQrStatus('connected');
+        setConnectionStatus('connected');
+        setStatusDetails(phone);
+        toast({
+          title: 'WhatsApp Conectado!',
+          description: 'Sua instância está conectada e pronta para uso.',
+        });
+      } else {
+        setConnectionStatus('unknown');
+        setStatusDetails(null);
+        toast({
+          title: 'Aguardando conexão',
+          description: 'Escaneie o QR Code com seu WhatsApp para conectar.',
         });
       }
     } catch (error) {
       console.error('Status check error:', error);
       toast({
         title: 'Erro de conexão',
-        description: 'Não foi possível conectar à API W-API.',
+        description: 'Não foi possível verificar o status no momento.',
         variant: 'destructive',
       });
     }
@@ -284,23 +268,19 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     setIsDisconnecting(true);
 
     try {
-      const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
-      const instanceId = editedSettings['W_API_SESSION'] || '';
-      const token = editedSettings['W_API_TOKEN'] || '';
-      
-      // Endpoint: DELETE /v1/instance/logout com instanceId no header
-      const logoutUrl = `${baseUrl}/v1/instance/logout`;
+      await saveSettings();
 
-      const res = await fetch(logoutUrl, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-          'instanceId': instanceId,
-        },
-      });
+      const { data, error } = await supabase.functions.invoke('wapi-logout');
+      if (error) {
+        toast({
+          title: 'Erro ao desconectar',
+          description: error.message || 'Não foi possível desconectar a instância.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-      if (res.ok) {
+      if ((data as any)?.success) {
         setConnectionStatus('unknown');
         setQrStatus('pending');
         setStatusDetails(null);
@@ -309,10 +289,9 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
           description: 'A instância foi desconectada com sucesso.',
         });
       } else {
-        const errorData = await res.json().catch(() => ({}));
         toast({
           title: 'Erro ao desconectar',
-          description: errorData?.message || 'Não foi possível desconectar a instância.',
+          description: (data as any)?.error || 'Não foi possível desconectar a instância.',
           variant: 'destructive',
         });
       }
@@ -335,38 +314,11 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     }
 
     try {
-      const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
-      const instanceId = editedSettings['W_API_SESSION'] || '';
-      const token = editedSettings['W_API_TOKEN'] || '';
-      
-      // Endpoint: GET /v1/instance/connectionState com instanceId no header
-      const statusUrl = `${baseUrl}/v1/instance/connectionState`;
-
-      const res = await fetch(statusUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-          'instanceId': instanceId,
-        },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const state = data?.instance?.state || data?.state || '';
-        const isConnected = 
-          state === 'open' ||
-          state === 'CONNECTED' ||
-          data?.connected === true;
-
-        if (isConnected) {
-          setConnectionStatus('connected');
-          setStatusDetails(data?.instance?.phone || data?.phone || data?.number || null);
-        } else {
-          setConnectionStatus('unknown');
-          setStatusDetails(null);
-        }
-      }
+      const { data } = await supabase.functions.invoke('wapi-connection-status');
+      const isConnected = !!(data as any)?.connected;
+      const phone = (data as any)?.phone || null;
+      setConnectionStatus(isConnected ? 'connected' : 'unknown');
+      setStatusDetails(isConnected ? phone : null);
     } catch (error) {
       console.error('Silent status check error:', error);
     }
