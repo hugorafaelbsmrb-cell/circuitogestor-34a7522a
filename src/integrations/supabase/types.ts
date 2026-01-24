@@ -1177,6 +1177,53 @@ export type Database = {
           },
         ]
       }
+      whatsapp_messages: {
+        Row: {
+          created_at: string
+          direction: string
+          guardian_id: string | null
+          id: string
+          media_type: string | null
+          media_url: string | null
+          message: string
+          phone: string
+          status: string | null
+          wapi_message_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          direction: string
+          guardian_id?: string | null
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message: string
+          phone: string
+          status?: string | null
+          wapi_message_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          guardian_id?: string | null
+          id?: string
+          media_type?: string | null
+          media_url?: string | null
+          message?: string
+          phone?: string
+          status?: string | null
+          wapi_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
