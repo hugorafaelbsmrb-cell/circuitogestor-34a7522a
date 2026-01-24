@@ -39,6 +39,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { MessageHistoryModal } from '@/components/support/MessageHistoryModal';
 
 interface SupportTicket {
   id: string;
@@ -81,8 +82,11 @@ export default function GuardianSupport() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingTicket, setEditingTicket] = useState<SupportTicket | null>(null);
   const [draggedTicket, setDraggedTicket] = useState<string | null>(null);
+  
+  // Message history modal state
+  const [showMessagesModal, setShowMessagesModal] = useState(false);
+  const [selectedTicketForMessages, setSelectedTicketForMessages] = useState<SupportTicket | null>(null);
 
-  // Form state
   const [formGuardian, setFormGuardian] = useState('');
   const [formSubject, setFormSubject] = useState('');
   const [formNotes, setFormNotes] = useState('');
@@ -443,10 +447,17 @@ export default function GuardianSupport() {
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openWhatsApp(guardianInfo.phone)}>
+                            <DropdownMenuContent align="end" className="bg-popover">
+                              <DropdownMenuItem onClick={() => {
+                                setSelectedTicketForMessages(ticket);
+                                setShowMessagesModal(true);
+                              }}>
                                 <MessageSquare className="h-4 w-4 mr-2" />
-                                WhatsApp
+                                Ver Mensagens
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openWhatsApp(guardianInfo.phone)}>
+                                <Phone className="h-4 w-4 mr-2" />
+                                Abrir WhatsApp
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openEditDialog(ticket)}>
                                 <Edit className="h-4 w-4 mr-2" />
@@ -680,6 +691,20 @@ export default function GuardianSupport() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Message History Modal */}
+      {selectedTicketForMessages && (
+        <MessageHistoryModal
+          open={showMessagesModal}
+          onOpenChange={(open) => {
+            setShowMessagesModal(open);
+            if (!open) setSelectedTicketForMessages(null);
+          }}
+          guardianId={selectedTicketForMessages.guardian_id}
+          guardianName={getGuardianInfo(selectedTicketForMessages.guardian_id).name}
+          guardianPhone={getGuardianInfo(selectedTicketForMessages.guardian_id).phone}
+        />
+      )}
     </div>
   );
 }
