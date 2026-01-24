@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { MessageCircle, Eye, EyeOff, ExternalLink, CheckCircle, AlertCircle, Loader2, TestTube } from 'lucide-react';
+import { MessageCircle, Eye, EyeOff, ExternalLink, CheckCircle, AlertCircle, Loader2, TestTube, QrCode, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -19,12 +20,112 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
   const [isTesting, setIsTesting] = useState(false);
   const [testPhone, setTestPhone] = useState('');
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState<string | null>(null);
+  const [isLoadingQr, setIsLoadingQr] = useState(false);
+  const [qrStatus, setQrStatus] = useState<'pending' | 'connected' | 'error'>('pending');
 
   const isConfigured = !!(
     editedSettings['W_API_URL'] && 
     editedSettings['W_API_TOKEN'] && 
     editedSettings['W_API_SESSION']
   );
+
+  const saveSettings = async () => {
+    const settingsToSave = [
+      { key: 'W_API_URL', value: editedSettings['W_API_URL'] || 'https://app.wawp.net/api/' },
+      { key: 'W_API_TOKEN', value: editedSettings['W_API_TOKEN'] },
+      { key: 'W_API_SESSION', value: editedSettings['W_API_SESSION'] },
+    ];
+
+    for (const setting of settingsToSave) {
+      if (!setting.value) continue;
+      
+      const { data: existing } = await supabase
+        .from('app_settings')
+        .select('id')
+        .eq('key', setting.key)
+        .single();
+
+      if (existing) {
+        await supabase
+          .from('app_settings')
+          .update({ value: setting.value })
+          .eq('id', existing.id);
+      } else {
+        await supabase
+          .from('app_settings')
+          .insert({
+            key: setting.key,
+            value: setting.value,
+            description: `W-API ${setting.key.replace('W_API_', '')}`,
+            is_secret: setting.key === 'W_API_TOKEN',
+          });
+      }
+    }
+  };
+
+  const handleGetQrCode = async () => {
+    if (!editedSettings['W_API_TOKEN'] || !editedSettings['W_API_SESSION']) {
+      toast({
+        title: 'Configuração incompleta',
+        description: 'Preencha o ID e Token da instância antes de gerar o QR Code.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoadingQr(true);
+    setShowQrModal(true);
+    setQrCodeData(null);
+    setQrStatus('pending');
+
+    try {
+      // Save settings first
+      await saveSettings();
+
+      const response = await supabase.functions.invoke('wapi-get-qrcode');
+
+      if (response.error) {
+        setQrStatus('error');
+        toast({
+          title: 'Erro ao obter QR Code',
+          description: 'Não foi possível gerar o QR Code. Verifique as configurações.',
+          variant: 'destructive',
+        });
+      } else if (response.data?.status === 'connected') {
+        setQrStatus('connected');
+        setConnectionStatus('connected');
+        toast({
+          title: 'WhatsApp conectado!',
+          description: 'Sua instância já está conectada ao WhatsApp.',
+        });
+      } else {
+        const qrCode = response.data?.qrcode || response.data?.qrcode_url;
+        if (qrCode) {
+          setQrCodeData(qrCode);
+          setQrStatus('pending');
+        } else {
+          setQrStatus('error');
+          toast({
+            title: 'QR Code não disponível',
+            description: 'Não foi possível obter o QR Code. Tente novamente.',
+            variant: 'destructive',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('QR Code error:', error);
+      setQrStatus('error');
+      toast({
+        title: 'Erro ao gerar QR Code',
+        description: 'Ocorreu um erro ao buscar o QR Code.',
+        variant: 'destructive',
+      });
+    }
+
+    setIsLoadingQr(false);
+  };
 
   const handleTestConnection = async () => {
     if (!isConfigured) {
@@ -39,36 +140,8 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     setIsTesting(true);
 
     try {
-      // First, ensure settings are saved
-      const settingsToSave = [
-        { key: 'W_API_URL', value: editedSettings['W_API_URL'] },
-        { key: 'W_API_TOKEN', value: editedSettings['W_API_TOKEN'] },
-        { key: 'W_API_SESSION', value: editedSettings['W_API_SESSION'] },
-      ];
-
-      for (const setting of settingsToSave) {
-        const { data: existing } = await supabase
-          .from('app_settings')
-          .select('id')
-          .eq('key', setting.key)
-          .single();
-
-        if (existing) {
-          await supabase
-            .from('app_settings')
-            .update({ value: setting.value })
-            .eq('id', existing.id);
-        } else {
-          await supabase
-            .from('app_settings')
-            .insert({
-              key: setting.key,
-              value: setting.value,
-              description: `W-API ${setting.key.replace('W_API_', '')}`,
-              is_secret: setting.key === 'W_API_TOKEN',
-            });
-        }
-      }
+      // Save settings first
+      await saveSettings();
 
       // Test sending a message
       if (!testPhone) {
@@ -223,6 +296,35 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
           </div>
         </div>
 
+        {/* QR Code Section */}
+        <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
+          <h4 className="font-medium flex items-center gap-2">
+            <QrCode className="w-4 h-4" />
+            Conectar WhatsApp
+          </h4>
+          <p className="text-sm text-muted-foreground">
+            Gere o QR Code para conectar sua instância ao WhatsApp. Após preencher o ID e Token, clique no botão abaixo.
+          </p>
+          <Button
+            onClick={handleGetQrCode}
+            disabled={isLoadingQr || !editedSettings['W_API_TOKEN'] || !editedSettings['W_API_SESSION']}
+            variant="outline"
+            className="gap-2"
+          >
+            {isLoadingQr ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Gerando QR Code...
+              </>
+            ) : (
+              <>
+                <QrCode className="w-4 h-4" />
+                Gerar QR Code
+              </>
+            )}
+          </Button>
+        </div>
+
         {/* Test Connection */}
         <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
           <h4 className="font-medium flex items-center gap-2">
@@ -263,14 +365,84 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
         <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
           <h4 className="font-medium mb-2">📋 Como configurar:</h4>
           <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-            <li>Acesse o painel W-API e crie uma instância</li>
-            <li>Conecte seu WhatsApp escaneando o QR Code</li>
-            <li>Copie a URL da API, o token e o nome da sessão</li>
-            <li>Preencha os campos acima e salve as configurações</li>
-            <li>Teste a conexão enviando uma mensagem de teste</li>
+            <li>Copie o ID e Token da sua instância no painel W-API</li>
+            <li>Preencha os campos acima</li>
+            <li>Clique em "Gerar QR Code" e escaneie com seu WhatsApp</li>
+            <li>Após conectar, teste enviando uma mensagem</li>
           </ol>
         </div>
       </CardContent>
+
+      {/* QR Code Modal */}
+      <Dialog open={showQrModal} onOpenChange={setShowQrModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="w-5 h-5" />
+              Conectar WhatsApp
+            </DialogTitle>
+            <DialogDescription>
+              Escaneie o QR Code abaixo com seu WhatsApp para conectar a instância.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex flex-col items-center justify-center py-6">
+            {isLoadingQr && (
+              <div className="flex flex-col items-center gap-4">
+                <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Gerando QR Code...</p>
+              </div>
+            )}
+            
+            {!isLoadingQr && qrStatus === 'connected' && (
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+                  <CheckCircle className="w-10 h-10 text-primary" />
+                </div>
+                <p className="text-lg font-medium">WhatsApp Conectado!</p>
+                <p className="text-sm text-muted-foreground text-center">
+                  Sua instância já está conectada e pronta para uso.
+                </p>
+              </div>
+            )}
+            
+            {!isLoadingQr && qrStatus === 'error' && (
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center">
+                  <AlertCircle className="w-10 h-10 text-destructive" />
+                </div>
+                <p className="text-lg font-medium">Erro ao gerar QR Code</p>
+                <p className="text-sm text-muted-foreground text-center">
+                  Verifique as configurações e tente novamente.
+                </p>
+                <Button onClick={handleGetQrCode} variant="outline" className="gap-2">
+                  <RefreshCw className="w-4 h-4" />
+                  Tentar novamente
+                </Button>
+              </div>
+            )}
+            
+            {!isLoadingQr && qrStatus === 'pending' && qrCodeData && (
+              <div className="flex flex-col items-center gap-4">
+                <div className="p-4 bg-white rounded-lg">
+                  {qrCodeData.startsWith('data:') || qrCodeData.startsWith('http') ? (
+                    <img src={qrCodeData} alt="QR Code" className="w-64 h-64" />
+                  ) : (
+                    <img src={`data:image/png;base64,${qrCodeData}`} alt="QR Code" className="w-64 h-64" />
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground text-center">
+                  Abra o WhatsApp no seu celular e escaneie este código.
+                </p>
+                <Button onClick={handleGetQrCode} variant="outline" size="sm" className="gap-2">
+                  <RefreshCw className="w-4 h-4" />
+                  Atualizar QR Code
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
