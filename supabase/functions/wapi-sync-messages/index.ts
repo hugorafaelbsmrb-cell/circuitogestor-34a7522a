@@ -96,6 +96,30 @@ Deno.serve(async (req) => {
     const processedPhones = new Set<string>();
 
     // ========================================
+    // DIAGNOSTIC: Test with a known working phone first
+    // ========================================
+    const testPhone = '5594999345048';
+    console.log(`Testing W-API with known phone: ${testPhone}`);
+    const testUrl = `${wapiUrl}/v1/chats/chat?instanceId=${encoded}&phoneNumber=${testPhone}`;
+    console.log(`Test URL: ${testUrl}`);
+    
+    try {
+      const testRes = await fetch(testUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${config.W_API_TOKEN}`,
+          'Accept': 'application/json',
+          'instanceId': session,
+        },
+      });
+      const testText = await testRes.text();
+      console.log(`Test response status: ${testRes.status}`);
+      console.log(`Test response body: ${testText.slice(0, 500)}`);
+    } catch (e) {
+      console.log(`Test error: ${e}`);
+    }
+
+    // ========================================
     // STEP 1: Load ALL guardians with their phones
     // ========================================
     const { data: guardians } = await supabase
