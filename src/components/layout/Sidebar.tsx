@@ -19,7 +19,8 @@ import {
   MessageSquare,
   ClipboardCheck,
   Package,
-  Monitor
+  Monitor,
+  Send
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -48,6 +49,7 @@ const menuItems = [
   { icon: FileText, label: 'Config. Contrato', path: '/contrato-config', permissionKey: 'contract_config', adminOnly: false },
   { icon: Shield, label: 'Usuários', path: '/usuarios', permissionKey: 'users', adminOnly: true },
   { icon: MessageSquare, label: 'WhatsApp', path: '/whatsapp-config', permissionKey: 'whatsapp', adminOnly: true },
+  { icon: Send, label: 'Envio em Massa', path: '/envio-massa', permissionKey: 'whatsapp', adminOnly: true },
   { icon: Settings, label: 'Configurações', path: '/configuracoes', permissionKey: 'settings', adminOnly: true },
 ];
 
