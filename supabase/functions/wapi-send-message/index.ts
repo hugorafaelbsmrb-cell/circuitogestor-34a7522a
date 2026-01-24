@@ -102,41 +102,37 @@ Deno.serve(async (req) => {
     const session = config.W_API_SESSION;
     const encoded = encodeURIComponent(session);
 
-    // Multiple endpoint candidates - W-API has variations between plans/collections
+    // Endpoint candidates - ordered by what worked in production
+    // The confirmed working endpoint is: /v1/message/send-text?instanceId=...
     const candidates: Array<{
       url: string;
       body: Record<string, unknown>;
       extraHeaders?: Record<string, string>;
     }> = [
-      // /v1/messages/send-text with query param (official docs)
-      {
-        url: `${wapiUrl}/v1/messages/send-text?instanceId=${encoded}`,
-        body: { phone: formattedPhone, message, isGroup },
-      },
-      // /v1/messages/send-text with header only
-      {
-        url: `${wapiUrl}/v1/messages/send-text`,
-        body: { phone: formattedPhone, message, isGroup },
-        extraHeaders: { instanceId: session },
-      },
-      // Legacy /message/send-text (some collections)
-      {
-        url: `${wapiUrl}/message/send-text?instanceId=${encoded}`,
-        body: { session, phone: formattedPhone, message, isGroup },
-      },
-      {
-        url: `${wapiUrl}/message/send-text`,
-        body: { session, phone: formattedPhone, message, isGroup },
-        extraHeaders: { instanceId: session },
-      },
-      // /v1/message/send-text singular
+      // ✅ CONFIRMED WORKING: /v1/message/send-text (singular) with query param
       {
         url: `${wapiUrl}/v1/message/send-text?instanceId=${encoded}`,
         body: { phone: formattedPhone, message, isGroup },
       },
-      // Some APIs use chatId instead of phone
+      // Fallback: /v1/messages/send-text (plural) with query param
       {
         url: `${wapiUrl}/v1/messages/send-text?instanceId=${encoded}`,
+        body: { phone: formattedPhone, message, isGroup },
+      },
+      // Fallback: with header instead of query param
+      {
+        url: `${wapiUrl}/v1/message/send-text`,
+        body: { phone: formattedPhone, message, isGroup },
+        extraHeaders: { instanceId: session },
+      },
+      // Legacy: /message/send-text (no /v1)
+      {
+        url: `${wapiUrl}/message/send-text?instanceId=${encoded}`,
+        body: { session, phone: formattedPhone, message, isGroup },
+      },
+      // Some APIs use chatId format
+      {
+        url: `${wapiUrl}/v1/message/send-text?instanceId=${encoded}`,
         body: { chatId: `${formattedPhone}@c.us`, message, isGroup },
       },
     ];
