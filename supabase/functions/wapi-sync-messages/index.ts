@@ -71,29 +71,68 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch recent chats from W-API
-    const wapiUrl = config.W_API_URL.replace(/\/$/, '');
-    
-    // First, get recent chats - using Bearer token authentication
-    const chatsResponse = await fetch(`${wapiUrl}/chat/list/${config.W_API_SESSION}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.W_API_TOKEN}`,
-      },
-    });
+    // Normalize base URL
+    let wapiUrl = config.W_API_URL.replace(/\/$/, '');
+    wapiUrl = wapiUrl.replace(/^http:\/\//i, 'https://');
+    wapiUrl = wapiUrl.replace(/\/api$/i, '');
+    if (/\/\/(app\.)?wawp\.net\b/i.test(wapiUrl)) {
+      wapiUrl = 'https://api.w-api.app';
+    }
 
-    if (!chatsResponse.ok) {
-      const errorData = await chatsResponse.text();
-      console.error('W-API chats error:', errorData);
+    const session = config.W_API_SESSION;
+    const encoded = encodeURIComponent(session);
+
+    // Fetch recent chats from W-API - try multiple endpoint patterns
+    const chatEndpoints = [
+      `${wapiUrl}/v1/chat/list?instanceId=${encoded}`,
+      `${wapiUrl}/v1/chats?instanceId=${encoded}`,
+      `${wapiUrl}/chat/list?instanceId=${encoded}`,
+      `${wapiUrl}/v1/chat/list/${encoded}`,
+      `${wapiUrl}/chat/list/${encoded}`,
+    ];
+
+    let chatsData: any = null;
+    let chatEndpointUsed: string | null = null;
+
+    for (const endpoint of chatEndpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${config.W_API_TOKEN}`,
+            'Accept': 'application/json',
+            'instanceId': session,
+          },
+        });
+
+        const text = await res.text();
+        if (!res.ok) continue;
+
+        try {
+          chatsData = JSON.parse(text);
+          chatEndpointUsed = endpoint;
+          break;
+        } catch {
+          continue;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (!chatsData) {
+      console.error('All chat list endpoints failed');
       return new Response(
-        JSON.stringify({ error: 'Erro ao buscar conversas do W-API', details: errorData }),
-        { status: chatsResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: 'Não foi possível buscar conversas do W-API',
+          hint: 'Verifique se a instância está conectada e se o plano permite acesso a chats.',
+          triedEndpoints: chatEndpoints,
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const chatsData = await chatsResponse.json();
-    console.log('Chats fetched:', chatsData);
+    console.log('Chats fetched via:', chatEndpointUsed);
 
     // Get all guardians for phone matching
     const { data: guardians } = await supabase
@@ -114,6 +153,14 @@ Deno.serve(async (req) => {
     // Process each chat and get messages
     const chats = Array.isArray(chatsData) ? chatsData : (chatsData.chats || chatsData.data || []);
     
+    // Message endpoints to try
+    const getMessageEndpoints = (phone: string) => [
+      `${wapiUrl}/v1/chat/messages?instanceId=${encoded}&phone=${phone}&limit=20`,
+      `${wapiUrl}/v1/messages?instanceId=${encoded}&phone=${phone}&limit=20`,
+      `${wapiUrl}/chat/messages?instanceId=${encoded}&phone=${phone}&limit=20`,
+      `${wapiUrl}/v1/chat/messages/${encoded}?phone=${phone}&limit=20`,
+    ];
+
     for (const chat of chats.slice(0, 50)) { // Limit to 50 most recent chats
       try {
         // Extract phone from chat id (format: 5511999999999@s.whatsapp.net)
@@ -124,25 +171,41 @@ Deno.serve(async (req) => {
         if (processedPhones.has(phone)) continue;
         processedPhones.add(phone);
 
-        // Fetch messages for this chat
-        const messagesResponse = await fetch(
-          `${wapiUrl}/chat/messages/${config.W_API_SESSION}?phone=${phone}&limit=20`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${config.W_API_TOKEN}`,
-            },
-          }
-        );
+        // Fetch messages for this chat - try multiple endpoints
+        let messagesData: any = null;
+        const messageEndpoints = getMessageEndpoints(phone);
 
-        if (!messagesResponse.ok) {
-          console.error(`Error fetching messages for ${phone}`);
+        for (const endpoint of messageEndpoints) {
+          try {
+            const res = await fetch(endpoint, {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${config.W_API_TOKEN}`,
+                'Accept': 'application/json',
+                'instanceId': session,
+              },
+            });
+
+            const text = await res.text();
+            if (!res.ok) continue;
+
+            try {
+              messagesData = JSON.parse(text);
+              break;
+            } catch {
+              continue;
+            }
+          } catch {
+            continue;
+          }
+        }
+
+        if (!messagesData) {
+          console.error(`No working endpoint for messages of ${phone}`);
           errorCount++;
           continue;
         }
 
-        const messagesData = await messagesResponse.json();
         const messages = Array.isArray(messagesData) ? messagesData : (messagesData.messages || messagesData.data || []);
 
         // Match to guardian
