@@ -27,30 +27,25 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
 
   const normalizeWapiUrl = (url?: string) => {
     const raw = (url || '').trim();
-    if (!raw) return '';
+    if (!raw) return 'https://api.w-api.app';
 
     let base = raw;
     // Garantir HTTPS
     base = base.replace(/^http:\/\//i, 'https://');
-    // Remover barras finais duplicadas
+    // Remover barras finais
     base = base.replace(/\/+$/, '');
-    // Garantir que termina com /api (sem duplicar)
-    if (!base.endsWith('/api')) {
-      base = base.includes('/api') ? base : `${base}/api`;
-    }
-    return `${base}/`;
+    return base;
   };
 
-  const effectiveUrl = normalizeWapiUrl(editedSettings['W_API_URL']);
+  const effectiveUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
 
   const isConfigured = !!(
-    effectiveUrl &&
     editedSettings['W_API_TOKEN'] &&
     editedSettings['W_API_SESSION']
   );
 
   const saveSettings = async () => {
-    const normalizedUrl = normalizeWapiUrl(editedSettings['W_API_URL']);
+    const normalizedUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
     const settingsToSave = [
       { key: 'W_API_URL', value: normalizedUrl },
       { key: 'W_API_TOKEN', value: editedSettings['W_API_TOKEN'] },
@@ -105,35 +100,37 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
 
       let response = await supabase.functions.invoke('wapi-get-qrcode');
 
-      // Fallback: se o backend não conseguir acessar o host (ex.: DNS/bloqueio),
-      // tentamos buscar o QR Code diretamente do navegador conforme a doc do Postman.
+      // Fallback: se o backend não conseguir acessar o host,
+      // tentamos buscar o QR Code diretamente do navegador conforme a doc oficial.
+      // GET https://api.w-api.app/v1/instance/qr-code?instanceId={{INSTANCE_ID}}&image=enable
       if (response.error) {
-        const baseFromSettings = normalizeWapiUrl(editedSettings['W_API_URL']);
-        const bases = [baseFromSettings].filter(Boolean) as string[];
+        try {
+          const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
+          const directUrl = `${baseUrl}/v1/instance/qr-code?instanceId=${encodeURIComponent(
+            editedSettings['W_API_SESSION'] || ''
+          )}&image=enable`;
 
-        // Se a URL salva for wawp.net, a doc aponta app.wawp.net como gateway da API.
-        if (baseFromSettings && /:\/\/wawp\.net\//i.test(baseFromSettings)) {
-          bases.push(baseFromSettings.replace(/:\/\/wawp\.net\//i, '://app.wawp.net/'));
-        }
-        // Se a URL salva for app.wawp.net, também tentamos wawp.net.
-        if (baseFromSettings && /:\/\/app\.wawp\.net\//i.test(baseFromSettings)) {
-          bases.push(baseFromSettings.replace(/:\/\/app\.wawp\.net\//i, '://wawp.net/'));
-        }
+          const directRes = await fetch(directUrl, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${editedSettings['W_API_TOKEN'] || ''}`,
+              'Accept': 'application/json, image/png, image/*',
+            },
+          });
 
-        const uniqueBases = Array.from(new Set(bases));
-        for (const base of uniqueBases) {
-          try {
-            const directUrl = `${base.replace(/\/$/, '')}/get_qrcode?instance_id=${encodeURIComponent(
-              editedSettings['W_API_SESSION'] || ''
-            )}&access_token=${encodeURIComponent(editedSettings['W_API_TOKEN'] || '')}`;
-
-            const directRes = await fetch(directUrl, {
-              method: 'GET',
-              headers: {
-                Accept: 'application/json, text/plain;q=0.9, */*;q=0.8',
-              },
+          const contentType = directRes.headers.get('content-type') || '';
+          
+          // Handle image response
+          if (contentType.includes('image/')) {
+            const blob = await directRes.blob();
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve) => {
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
             });
-
+            const dataUri = await base64Promise;
+            response = { data: { qrcode: dataUri, status: 'pending' }, error: null } as any;
+          } else {
             const raw = await directRes.text();
             let parsed: any = null;
             try {
@@ -142,14 +139,12 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
               parsed = null;
             }
 
-            if (!directRes.ok || !parsed) continue;
-
-            // Simula o formato de resposta do invoke
-            response = { data: parsed, error: null } as any;
-            break;
-          } catch {
-            // tenta próxima base
+            if (directRes.ok && parsed) {
+              response = { data: parsed, error: null } as any;
+            }
           }
+        } catch (fallbackError) {
+          console.error('Fallback QR fetch failed:', fallbackError);
         }
       }
 
@@ -305,13 +300,13 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
           {/* API URL */}
           <div className="space-y-2">
             <Label htmlFor="W_API_URL" className="font-medium">
-              URL da API *
+              URL da API
             </Label>
             <Input
               id="W_API_URL"
-              value={effectiveUrl}
+              value={editedSettings['W_API_URL'] || ''}
               onChange={(e) => setEditedSettings(prev => ({ ...prev, 'W_API_URL': e.target.value }))}
-              placeholder="https://app.wawp.net/api/"
+              placeholder="https://api.w-api.app"
             />
             <p className="text-xs text-muted-foreground">
               URL base da sua instância W-API
