@@ -47,6 +47,7 @@ interface Recipient {
   phone: string;
   type: 'guardian';
   courseIds: string[];
+  studentNames: string[];
 }
 
 interface MessageTemplate {
@@ -152,8 +153,10 @@ export default function BulkMessages() {
     guardians.forEach(guardian => {
       const guardianStudents = students.filter(s => s.guardian_id === guardian.id);
       const courseIds = new Set<string>();
+      const studentNames: string[] = [];
 
       guardianStudents.forEach(student => {
+        studentNames.push(student.name);
         const studentEnrollments = enrollments.filter(e => e.student_id === student.id && e.status === 'active');
         studentEnrollments.forEach(enrollment => {
           const classGroup = classGroups.find(cg => cg.id === enrollment.class_group_id);
@@ -169,6 +172,7 @@ export default function BulkMessages() {
         phone: guardian.phone,
         type: 'guardian',
         courseIds: Array.from(courseIds),
+        studentNames,
       });
     });
 
@@ -273,7 +277,9 @@ export default function BulkMessages() {
       // Personalize message
       const personalizedMessage = message
         .replace(/{nome_responsavel}/g, recipient.name)
-        .replace(/{nome}/g, recipient.name);
+        .replace(/{nome}/g, recipient.name)
+        .replace(/{nome_aluno}/g, recipient.studentNames[0] || '')
+        .replace(/{nomes_alunos}/g, recipient.studentNames.join(', ') || '');
 
       const success = await sendMessage({
         phone: recipient.phone,
@@ -537,13 +543,13 @@ export default function BulkMessages() {
             {/* Message Composer */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  Compor Mensagem
-                </CardTitle>
-                <CardDescription>
-                  Use {'{nome_responsavel}'} para personalizar a mensagem
-                </CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                Compor Mensagem
+              </CardTitle>
+              <CardDescription>
+                Variáveis: {'{nome_responsavel}'}, {'{nome_aluno}'}, {'{nomes_alunos}'}
+              </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
