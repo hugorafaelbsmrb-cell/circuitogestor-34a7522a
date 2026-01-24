@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import sorobanSyllabus from '@/assets/soroban-syllabus.jpg';
 
 interface LMSCredentials {
   email: string;
@@ -354,6 +355,31 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
             </div>
           </div>
         </div>
+
+        {/* PÁGINA 3 - SYLLABUS SOROBAN (apenas para alunos Soroban) */}
+        {content.sorobanCredentials && (
+          <div className="annex-page" style={{ fontFamily: 'Times New Roman, serif' }}>
+            <h2 style={{ fontSize: '14pt', fontWeight: 'bold', textAlign: 'center', marginBottom: '16px' }}>
+              GRADE CURRICULAR - SOROBAN
+            </h2>
+            <div style={{ textAlign: 'center' }}>
+              <img 
+                src={sorobanSyllabus} 
+                alt="Syllabus Soroban - Comparativo Abacus Book vs Anzan Book" 
+                style={{ 
+                  maxWidth: '100%', 
+                  height: 'auto',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px'
+                }} 
+              />
+            </div>
+            <div style={{ marginTop: '16px', fontSize: '9pt', color: '#6b7280', textAlign: 'center' }}>
+              <p>Este documento apresenta a progressão dos níveis do curso de Soroban.</p>
+              <p style={{ fontStyle: 'italic' }}>díg = dígitos | lin = linhas | Mult = multiplicação | Div = divisão</p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
