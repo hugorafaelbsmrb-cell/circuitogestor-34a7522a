@@ -190,22 +190,53 @@ Deno.serve(async (req) => {
           processedPhones.add(phone);
 
           // Fetch messages for this specific chat using PRO endpoint
-          const chatUrl = `${wapiUrl}/v1/chats/chat?instanceId=${encoded}&phoneNumber=${phone}`;
-          console.log('Fetching chat details:', chatUrl.replace(phone, '<phone>'));
+          // W-API PRO uses /v1/chats/fetch-messages with remoteJid parameter
+          const remoteJid = `${phone}@s.whatsapp.net`;
+          const encodedJid = encodeURIComponent(remoteJid);
+          
+          // Try multiple endpoint variations
+          const messageEndpoints = [
+            `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
+            `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&phoneNumber=${phone}&limit=50`,
+            `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
+            `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&phoneNumber=${phone}&limit=50`,
+          ];
 
-          const chatRes = await fetch(chatUrl, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${config.W_API_TOKEN}`,
-              'Accept': 'application/json',
-            },
-          });
+          let chatRes: Response | null = null;
+          let successfulEndpoint = '';
 
-          if (!chatRes.ok) {
-            console.log(`Chat fetch failed for phone: status ${chatRes.status}`);
+          for (const endpoint of messageEndpoints) {
+            console.log('Trying messages endpoint:', endpoint.replace(phone, '<phone>').replace(encodedJid, '<jid>'));
+            
+            try {
+              const res = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${config.W_API_TOKEN}`,
+                  'Accept': 'application/json',
+                  'instanceId': session,
+                },
+              });
+              
+              console.log(`Endpoint response: ${res.status}`);
+              
+              if (res.ok) {
+                chatRes = res;
+                successfulEndpoint = endpoint;
+                break;
+              }
+            } catch (endpointErr) {
+              console.error('Endpoint error:', endpointErr);
+            }
+          }
+
+          if (!chatRes || !chatRes.ok) {
+            console.log(`All message endpoints failed for phone: ${phone.slice(-4)}`);
             errorCount++;
             continue;
           }
+          
+          console.log('Success with endpoint:', successfulEndpoint.replace(phone, '<phone>').replace(encodedJid, '<jid>'));
 
           const chatText = await chatRes.text();
           let messages: WapiMessage[] = [];
