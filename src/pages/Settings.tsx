@@ -67,14 +67,19 @@ export default function Settings() {
   
   // Branding state
   const [systemName, setSystemName] = useState('');
+  const [browserTitle, setBrowserTitle] = useState('');
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isUploadingFavicon, setIsUploadingFavicon] = useState(false);
   const [isSavingBranding, setIsSavingBranding] = useState(false);
 
   useEffect(() => {
     if (branding.name) {
       setSystemName(branding.name);
     }
-  }, [branding.name]);
+    if (branding.browserTitle) {
+      setBrowserTitle(branding.browserTitle);
+    }
+  }, [branding.name, branding.browserTitle]);
 
   useEffect(() => {
     fetchSettings();
@@ -268,10 +273,10 @@ export default function Settings() {
     setIsSavingBranding(true);
     
     try {
-      await updateBranding({ name: systemName });
+      await updateBranding({ name: systemName, browserTitle: browserTitle || systemName });
       toast({
-        title: 'Nome atualizado',
-        description: 'O nome do sistema foi atualizado com sucesso.',
+        title: 'Configurações atualizadas',
+        description: 'O nome e título do sistema foram atualizados com sucesso.',
       });
     } catch (error: any) {
       toast({
@@ -282,6 +287,81 @@ export default function Settings() {
     }
     
     setIsSavingBranding(false);
+  };
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Arquivo inválido',
+        description: 'Por favor, selecione uma imagem.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (file.size > 500 * 1024) {
+      toast({
+        title: 'Arquivo muito grande',
+        description: 'O favicon deve ter no máximo 500KB.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploadingFavicon(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `favicon-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('system-branding')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('system-branding')
+        .getPublicUrl(fileName);
+
+      await updateBranding({ favicon: publicUrl });
+
+      toast({
+        title: 'Favicon atualizado',
+        description: 'O favicon do sistema foi atualizado com sucesso.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao enviar favicon',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+
+    setIsUploadingFavicon(false);
+  };
+
+  const handleRemoveFavicon = async () => {
+    setIsUploadingFavicon(true);
+    
+    try {
+      await updateBranding({ favicon: null });
+      toast({
+        title: 'Favicon removido',
+        description: 'O favicon do sistema foi removido.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao remover',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+    
+    setIsUploadingFavicon(false);
   };
 
   const handleRemoveLogo = async () => {
@@ -373,39 +453,67 @@ export default function Settings() {
                 Identidade do Sistema
               </CardTitle>
               <CardDescription>
-                Personalize o nome e logo do sistema
+                Personalize o nome, logo, favicon e título do navegador
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Row 1: Name and Browser Title */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* System Name */}
                 <div className="space-y-2">
                   <Label htmlFor="system-name" className="font-medium">
                     Nome do Sistema
                   </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="system-name"
-                      value={systemName}
-                      onChange={(e) => setSystemName(e.target.value)}
-                      placeholder="EduGestor"
-                    />
-                    <Button 
-                      onClick={handleSaveBranding} 
-                      disabled={isSavingBranding || systemName === branding.name}
-                    >
-                      {isSavingBranding ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Save className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
+                  <Input
+                    id="system-name"
+                    value={systemName}
+                    onChange={(e) => setSystemName(e.target.value)}
+                    placeholder="EduGestor"
+                  />
                   <p className="text-xs text-muted-foreground">
-                    Este nome será exibido na barra lateral e tela de login
+                    Exibido na barra lateral e tela de login
                   </p>
                 </div>
 
+                {/* Browser Title */}
+                <div className="space-y-2">
+                  <Label htmlFor="browser-title" className="font-medium">
+                    Título na Aba do Navegador
+                  </Label>
+                  <Input
+                    id="browser-title"
+                    value={browserTitle}
+                    onChange={(e) => setBrowserTitle(e.target.value)}
+                    placeholder={systemName || 'EduGestor'}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Texto exibido na aba do navegador (deixe vazio para usar o nome do sistema)
+                  </p>
+                </div>
+              </div>
+
+              {/* Save Name/Title Button */}
+              <div className="flex justify-end">
+                <Button 
+                  onClick={handleSaveBranding} 
+                  disabled={isSavingBranding || (systemName === branding.name && browserTitle === (branding.browserTitle || ''))}
+                >
+                  {isSavingBranding ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Salvar Nome e Título
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Row 2: Logo and Favicon */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border/50">
                 {/* System Logo */}
                 <div className="space-y-2">
                   <Label className="font-medium">Logo do Sistema</Label>
@@ -459,6 +567,64 @@ export default function Settings() {
                       </Button>
                       <p className="text-xs text-muted-foreground mt-1">
                         PNG ou JPG, máximo 2MB
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Favicon */}
+                <div className="space-y-2">
+                  <Label className="font-medium">Favicon (Ícone da Aba)</Label>
+                  <div className="flex items-center gap-4">
+                    {branding.favicon ? (
+                      <div className="relative">
+                        <img 
+                          src={branding.favicon} 
+                          alt="Favicon do sistema" 
+                          className="w-12 h-12 object-contain rounded-lg border border-border bg-background"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute -top-2 -right-2 w-6 h-6"
+                          onClick={handleRemoveFavicon}
+                          disabled={isUploadingFavicon}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg border border-dashed border-border flex items-center justify-center bg-muted/30">
+                        <Building2 className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div>
+                      <input
+                        type="file"
+                        id="favicon-upload"
+                        accept="image/png,image/x-icon,image/svg+xml"
+                        className="hidden"
+                        onChange={handleFaviconUpload}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => document.getElementById('favicon-upload')?.click()}
+                        disabled={isUploadingFavicon}
+                      >
+                        {isUploadingFavicon ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Enviando...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Enviar Favicon
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        PNG, ICO ou SVG, máximo 500KB
                       </p>
                     </div>
                   </div>

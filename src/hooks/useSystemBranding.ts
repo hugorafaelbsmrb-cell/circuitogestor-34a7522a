@@ -4,14 +4,19 @@ import { supabase } from '@/integrations/supabase/client';
 interface SystemBranding {
   name: string;
   logo: string | null;
+  favicon: string | null;
+  browserTitle: string | null;
 }
 
 const DEFAULT_NAME = 'EduGestor';
+const DEFAULT_BROWSER_TITLE = 'EduGestor';
 
 export function useSystemBranding() {
   const [branding, setBranding] = useState<SystemBranding>({
     name: DEFAULT_NAME,
     logo: null,
+    favicon: null,
+    browserTitle: null,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -19,20 +24,42 @@ export function useSystemBranding() {
     fetchBranding();
   }, []);
 
+  // Apply favicon and browser title when branding changes
+  useEffect(() => {
+    // Update browser title
+    const title = branding.browserTitle || branding.name || DEFAULT_BROWSER_TITLE;
+    document.title = title;
+
+    // Update favicon
+    if (branding.favicon) {
+      let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = branding.favicon;
+    }
+  }, [branding.favicon, branding.browserTitle, branding.name]);
+
   const fetchBranding = async () => {
     try {
       const { data } = await supabase
         .from('app_settings')
         .select('key, value')
-        .in('key', ['system_name', 'system_logo']);
+        .in('key', ['system_name', 'system_logo', 'system_favicon', 'system_browser_title']);
 
       if (data) {
         const nameEntry = data.find(d => d.key === 'system_name');
         const logoEntry = data.find(d => d.key === 'system_logo');
+        const faviconEntry = data.find(d => d.key === 'system_favicon');
+        const browserTitleEntry = data.find(d => d.key === 'system_browser_title');
         
         setBranding({
           name: nameEntry?.value || DEFAULT_NAME,
           logo: logoEntry?.value || null,
+          favicon: faviconEntry?.value || null,
+          browserTitle: browserTitleEntry?.value || null,
         });
       }
     } catch (error) {
@@ -50,6 +77,14 @@ export function useSystemBranding() {
     
     if (newBranding.logo !== undefined) {
       updates.push(upsertSetting('system_logo', newBranding.logo, 'Logo do sistema'));
+    }
+
+    if (newBranding.favicon !== undefined) {
+      updates.push(upsertSetting('system_favicon', newBranding.favicon, 'Favicon do sistema'));
+    }
+
+    if (newBranding.browserTitle !== undefined) {
+      updates.push(upsertSetting('system_browser_title', newBranding.browserTitle, 'Título na aba do navegador'));
     }
 
     await Promise.all(updates);
