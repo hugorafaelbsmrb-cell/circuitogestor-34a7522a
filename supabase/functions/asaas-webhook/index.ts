@@ -119,13 +119,13 @@ async function sendPaymentConfirmationWhatsApp(
     const cleanPhone = guardianPhone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     
-    // Send via W-API
+    // Send via W-API - using Bearer token authentication
     const wapiUrl = wapiConfig.W_API_URL.replace(/\/$/, '');
     const response = await fetch(`${wapiUrl}/message/send-text`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': wapiConfig.W_API_TOKEN,
+        'Authorization': `Bearer ${wapiConfig.W_API_TOKEN}`,
       },
       body: JSON.stringify({
         session: wapiConfig.W_API_SESSION,

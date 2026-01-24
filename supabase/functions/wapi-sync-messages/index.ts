@@ -74,12 +74,12 @@ Deno.serve(async (req) => {
     // Fetch recent chats from W-API
     const wapiUrl = config.W_API_URL.replace(/\/$/, '');
     
-    // First, get recent chats
+    // First, get recent chats - using Bearer token authentication
     const chatsResponse = await fetch(`${wapiUrl}/chat/list/${config.W_API_SESSION}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': config.W_API_TOKEN,
+        'Authorization': `Bearer ${config.W_API_TOKEN}`,
       },
     });
 
@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': config.W_API_TOKEN,
+              'Authorization': `Bearer ${config.W_API_TOKEN}`,
             },
           }
         );
