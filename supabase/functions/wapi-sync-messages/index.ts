@@ -145,36 +145,57 @@ Deno.serve(async (req) => {
       }
     };
 
+    type Attempt = { endpoint: string; status: number | null; ok: boolean; note?: string };
+
     const fetchMessagesForPhone = async (
       phone: string,
-    ): Promise<{ messages: WapiMessage[]; success: boolean; workingEndpoint?: string }> => {
+    ): Promise<{ messages: WapiMessage[]; success: boolean; workingEndpoint?: string; attempts: Attempt[] }> => {
       const phoneWithCC = phone.startsWith('55') ? phone : `55${phone}`;
-      
+      const phoneWithoutCC = phoneWithCC.replace(/^55/, '');
+
       const jidCandidates = [
         `${phoneWithCC}@c.us`,
         `${phoneWithCC}@s.whatsapp.net`,
+        `${phoneWithoutCC}@c.us`,
+        `${phoneWithoutCC}@s.whatsapp.net`,
       ];
 
-      // Try only the first 2 most common endpoints to be faster
+      const attempts: Attempt[] = [];
+
       for (const jid of jidCandidates) {
         const encodedJid = encodeURIComponent(jid);
-        
+
+        // Endpoint candidates across common W-API variants
         const endpoints = [
           `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=30`,
+          `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&chatId=${encodedJid}&limit=30`,
+          `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=30`,
           `${wapiUrl}/v1/message/list?instanceId=${encoded}&remoteJid=${encodedJid}&limit=30`,
+          `${wapiUrl}/wp-json/awp/v1/chats/${encodedJid}/messages?instance_id=${encoded}&limit=30`,
         ];
 
         for (const endpoint of endpoints) {
-          const res = await fetchWithTimeout(endpoint, {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${config.W_API_TOKEN}`,
-              'Accept': 'application/json',
-              'instanceId': session,
+          const endpointBase = endpoint.split('?')[0];
+          const res = await fetchWithTimeout(
+            endpoint,
+            {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${config.W_API_TOKEN}`,
+                'Accept': 'application/json',
+                'instanceId': session,
+              },
             },
-          }, 4000);
+            4000,
+          );
 
-          if (!res || !res.ok) continue;
+          if (!res) {
+            attempts.push({ endpoint: endpointBase, status: null, ok: false, note: 'fetch_failed_or_timeout' });
+            continue;
+          }
+
+          attempts.push({ endpoint: endpointBase, status: res.status, ok: res.ok });
+          if (!res.ok) continue;
 
           try {
             const text = await res.text();
@@ -182,20 +203,23 @@ Deno.serve(async (req) => {
             const msgs: WapiMessage[] = Array.isArray(parsed)
               ? parsed
               : (Array.isArray(parsed.messages) ? parsed.messages : (Array.isArray(parsed.data) ? parsed.data : []));
-            
+
             if (msgs.length > 0) {
-              return { messages: msgs, success: true, workingEndpoint: endpoint.split('?')[0] };
+              return { messages: msgs, success: true, workingEndpoint: endpointBase, attempts };
             }
           } catch {
+            // keep trying other endpoints
             continue;
           }
         }
       }
 
-      return { messages: [], success: false };
+      return { messages: [], success: false, attempts };
     };
 
     // Process a single guardian
+    const debugAttempts: Array<{ phoneSuffix: string; attempts: Attempt[] }> = [];
+
     const processGuardian = async (guardian: { id: string; phone: string; name: string | null }) => {
       const phone = normalizeToBR(guardian.phone);
       if (!phone || phone.length < 12) return { synced: 0, errors: 0, hasMessages: false };
@@ -203,7 +227,11 @@ Deno.serve(async (req) => {
       if (processedPhones.has(phone)) return { synced: 0, errors: 0, hasMessages: false };
       processedPhones.add(phone);
 
-      const { messages, success } = await fetchMessagesForPhone(phone);
+      const { messages, success, attempts } = await fetchMessagesForPhone(phone);
+
+      if (debugAttempts.length < 3) {
+        debugAttempts.push({ phoneSuffix: phone.slice(-4), attempts: attempts.slice(0, 10) });
+      }
       
       if (!success || messages.length === 0) {
         return { synced: 0, errors: 0, hasMessages: false };
@@ -278,21 +306,30 @@ Deno.serve(async (req) => {
     console.log(`Sync complete: ${syncedCount} messages synced, ${errorCount} errors`);
     console.log(`Guardians checked: ${processedPhones.size}, with messages: ${guardiansWithMessages}`);
 
+    // Derive a more precise message when nothing is returned
+    const attemptStatuses = debugAttempts.flatMap((d) => d.attempts.map((a) => a.status).filter((s): s is number => typeof s === 'number'));
+    const hasAuthError = attemptStatuses.some((s) => s === 401 || s === 403);
+    const allNotFound = attemptStatuses.length > 0 && attemptStatuses.every((s) => s === 404);
+    const derivedMessage = hasAuthError
+      ? 'A API recusou acesso ao histórico (401/403). Verifique token/permissões da sua instância.'
+      : allNotFound
+        ? 'Sua instância parece não suportar histórico por API (404). Nesse caso, só mensagens novas (via webhook) serão registradas.'
+        : 'Não consegui obter histórico das conversas via API. Vou precisar dos status retornados (debug) para ajustar o endpoint correto.';
+
     return new Response(
       JSON.stringify({
         success: syncedCount > 0 || errorCount === 0,
         plan: detectedPlan,
         message: syncedCount > 0 
           ? `Sincronização concluída: ${syncedCount} mensagens de ${guardiansWithMessages} responsáveis` 
-          : guardiansWithMessages === 0 
-            ? 'Nenhuma conversa encontrada com os responsáveis cadastrados'
-            : 'Nenhuma mensagem nova encontrada',
+          : derivedMessage,
         synced: syncedCount,
         errors: errorCount,
         chatsProcessed: processedPhones.size,
         guardiansProcessed: guardiansWithMessages,
         unknownContactsProcessed: 0,
         workingEndpoint: null,
+        debug: syncedCount === 0 ? { samples: debugAttempts } : null,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
