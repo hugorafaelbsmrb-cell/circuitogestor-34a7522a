@@ -215,10 +215,10 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
 
     try {
       const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
-      // Endpoint para verificar status da instância
-      const statusUrl = `${baseUrl}/v1/instance/status?instanceId=${encodeURIComponent(
-        editedSettings['W_API_SESSION'] || ''
-      )}`;
+      const instanceId = editedSettings['W_API_SESSION'] || '';
+      
+      // Endpoint correto: /v1/instance/connectionState/:instanceName (path parameter)
+      const statusUrl = `${baseUrl}/v1/instance/connectionState/${encodeURIComponent(instanceId)}`;
 
       const res = await fetch(statusUrl, {
         method: 'GET',
@@ -230,13 +230,14 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
 
       if (res.ok) {
         const data = await res.json();
-        // Verificar se está conectado (diferentes formatos de resposta possíveis)
+        // Verificar se está conectado - resposta: { instance: { state: "open" } }
+        // "open" = conectado, "close"/"refused" = desconectado
+        const state = data?.instance?.state || data?.state || '';
         const isConnected = 
+          state === 'open' ||
+          state === 'CONNECTED' ||
           data?.connected === true ||
-          data?.status === 'connected' ||
-          data?.state === 'CONNECTED' ||
-          data?.instance?.state === 'CONNECTED' ||
-          data?.data?.connected === true;
+          data?.status === 'connected';
 
         if (isConnected) {
           setQrStatus('connected');
@@ -246,14 +247,27 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
             description: 'Sua instância está conectada e pronta para uso.',
           });
         } else {
+          setConnectionStatus('unknown');
           toast({
             title: 'Aguardando conexão',
             description: 'Escaneie o QR Code com seu WhatsApp para conectar.',
           });
         }
+      } else {
+        // API retornou erro - mostrar feedback
+        toast({
+          title: 'Erro ao verificar',
+          description: 'Não foi possível verificar o status. Tente novamente.',
+          variant: 'destructive',
+        });
       }
     } catch (error) {
       console.error('Status check error:', error);
+      toast({
+        title: 'Erro de conexão',
+        description: 'Não foi possível conectar à API W-API.',
+        variant: 'destructive',
+      });
     }
 
     setIsCheckingStatus(false);
@@ -268,10 +282,10 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
 
     try {
       const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
-      // Endpoint para desconectar/logout da instância
-      const logoutUrl = `${baseUrl}/v1/instance/logout?instanceId=${encodeURIComponent(
-        editedSettings['W_API_SESSION'] || ''
-      )}`;
+      const instanceId = editedSettings['W_API_SESSION'] || '';
+      
+      // Endpoint correto: DELETE /v1/instance/logout/:instanceName (path parameter)
+      const logoutUrl = `${baseUrl}/v1/instance/logout/${encodeURIComponent(instanceId)}`;
 
       const res = await fetch(logoutUrl, {
         method: 'DELETE',
@@ -317,9 +331,10 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
 
     try {
       const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
-      const statusUrl = `${baseUrl}/v1/instance/status?instanceId=${encodeURIComponent(
-        editedSettings['W_API_SESSION'] || ''
-      )}`;
+      const instanceId = editedSettings['W_API_SESSION'] || '';
+      
+      // Endpoint correto: /v1/instance/connectionState/:instanceName
+      const statusUrl = `${baseUrl}/v1/instance/connectionState/${encodeURIComponent(instanceId)}`;
 
       const res = await fetch(statusUrl, {
         method: 'GET',
@@ -331,16 +346,15 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
 
       if (res.ok) {
         const data = await res.json();
+        const state = data?.instance?.state || data?.state || '';
         const isConnected = 
-          data?.connected === true ||
-          data?.status === 'connected' ||
-          data?.state === 'CONNECTED' ||
-          data?.instance?.state === 'CONNECTED' ||
-          data?.data?.connected === true;
+          state === 'open' ||
+          state === 'CONNECTED' ||
+          data?.connected === true;
 
         if (isConnected) {
           setConnectionStatus('connected');
-          setStatusDetails(data?.phone || data?.number || data?.instance?.phone || null);
+          setStatusDetails(data?.instance?.phone || data?.phone || data?.number || null);
         } else {
           setConnectionStatus('unknown');
           setStatusDetails(null);
