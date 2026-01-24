@@ -192,7 +192,7 @@ export default function GuardianSupport() {
 
   const loadData = async () => {
     try {
-      const [ticketsResult, messagesResult] = await Promise.all([
+        const [ticketsResult, messagesResult] = await Promise.all([
         supabase
           .from('guardian_support_tickets')
           .select('*')
@@ -201,7 +201,6 @@ export default function GuardianSupport() {
           .from('whatsapp_messages')
           .select('*')
           .is('guardian_id', null)
-          .eq('direction', 'incoming')
           .order('created_at', { ascending: false })
       ]);
 
