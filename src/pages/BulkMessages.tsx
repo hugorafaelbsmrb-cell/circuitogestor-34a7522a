@@ -48,6 +48,7 @@ interface Recipient {
   type: 'guardian';
   courseIds: string[];
   studentNames: string[];
+  courseNames: string[];
 }
 
 interface MessageTemplate {
@@ -166,6 +167,10 @@ export default function BulkMessages() {
         });
       });
 
+      const courseNames = Array.from(courseIds)
+        .map(id => courses.find(c => c.id === id)?.name)
+        .filter(Boolean) as string[];
+
       recipientMap.set(guardian.id, {
         id: guardian.id,
         name: guardian.name,
@@ -173,11 +178,12 @@ export default function BulkMessages() {
         type: 'guardian',
         courseIds: Array.from(courseIds),
         studentNames,
+        courseNames,
       });
     });
 
     return Array.from(recipientMap.values());
-  }, [guardians, students, enrollments, classGroups]);
+  }, [guardians, students, enrollments, classGroups, courses]);
 
   // Filter recipients by selected course
   const filteredRecipients = useMemo(() => {
@@ -279,7 +285,9 @@ export default function BulkMessages() {
         .replace(/{nome_responsavel}/g, recipient.name)
         .replace(/{nome}/g, recipient.name)
         .replace(/{nome_aluno}/g, recipient.studentNames[0] || '')
-        .replace(/{nomes_alunos}/g, recipient.studentNames.join(', ') || '');
+        .replace(/{nomes_alunos}/g, recipient.studentNames.join(', ') || '')
+        .replace(/{curso}/g, recipient.courseNames[0] || '')
+        .replace(/{cursos}/g, recipient.courseNames.join(', ') || '');
 
       const success = await sendMessage({
         phone: recipient.phone,
@@ -548,7 +556,7 @@ export default function BulkMessages() {
                 Compor Mensagem
               </CardTitle>
               <CardDescription>
-                Variáveis: {'{nome_responsavel}'}, {'{nome_aluno}'}, {'{nomes_alunos}'}
+                Variáveis: {'{nome_responsavel}'}, {'{nome_aluno}'}, {'{curso}'}, {'{nomes_alunos}'}, {'{cursos}'}
               </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
