@@ -662,14 +662,14 @@ export default function SorobanStudents() {
             <div className="space-y-2">
               <Label htmlFor="student">Vincular Aluno (opcional)</Label>
               <Select
-                value={formData.student_id}
-                onValueChange={(value) => setFormData({ ...formData, student_id: value })}
+                value={formData.student_id || "none"}
+                onValueChange={(value) => setFormData({ ...formData, student_id: value === "none" ? "" : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um aluno..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {students.filter(s => s.is_active).map(student => (
                     <SelectItem key={student.id} value={student.id}>
                       {student.name}
@@ -729,14 +729,14 @@ export default function SorobanStudents() {
             <div className="space-y-2">
               <Label htmlFor="edit-student">Vincular Aluno</Label>
               <Select
-                value={formData.student_id}
-                onValueChange={(value) => setFormData({ ...formData, student_id: value })}
+                value={formData.student_id || "none"}
+                onValueChange={(value) => setFormData({ ...formData, student_id: value === "none" ? "" : value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um aluno..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Nenhum</SelectItem>
+                  <SelectItem value="none">Nenhum</SelectItem>
                   {students.filter(s => s.is_active).map(student => (
                     <SelectItem key={student.id} value={student.id}>
                       {student.name}
