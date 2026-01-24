@@ -110,12 +110,35 @@ Deno.serve(async (req) => {
     const processedPhones = new Set<string>();
 
     // ========================================
-    // STEP 1: Try PRO endpoint to list all chats
+    // STEP 1: Get all guardians first (to use their phones as reference)
     // ========================================
-    const fetchChatsUrl = `${wapiUrl}/v1/chats/fetch-chats?instanceId=${encoded}&perPage=50&page=1`;
-    console.log('Trying PRO endpoint:', fetchChatsUrl);
+    const { data: guardians } = await supabase
+      .from('guardians')
+      .select('id, phone, name')
+      .limit(1000);
 
-    let chatsData: WapiChat[] = [];
+    const guardianPhoneMap = new Map<string, { id: string; name: string }>();
+    const guardiansPhoneList: string[] = [];
+    
+    (guardians || []).forEach(g => {
+      const clean = (g.phone || '').replace(/\D/g, '');
+      if (clean && clean.length >= 10) {
+        const normalized = clean.startsWith('55') ? clean : `55${clean}`;
+        guardianPhoneMap.set(normalized, { id: g.id, name: g.name });
+        guardianPhoneMap.set(clean.replace(/^55/, ''), { id: g.id, name: g.name });
+        guardiansPhoneList.push(normalized);
+      }
+    });
+
+    console.log(`Found ${guardiansPhoneList.length} guardian phone numbers to check`);
+
+    // ========================================
+    // STEP 2: Detect plan by trying PRO endpoint
+    // ========================================
+    const fetchChatsUrl = `${wapiUrl}/v1/chats/fetch-chats?instanceId=${encoded}&perPage=100&page=1`;
+    console.log('Trying PRO endpoint to detect plan:', fetchChatsUrl);
+
+    let allWapiChats: WapiChat[] = [];
     
     try {
       const chatsRes = await fetch(fetchChatsUrl, {
@@ -123,6 +146,7 @@ Deno.serve(async (req) => {
         headers: {
           'Authorization': `Bearer ${config.W_API_TOKEN}`,
           'Accept': 'application/json',
+          'instanceId': session,
         },
       });
 
@@ -134,20 +158,18 @@ Deno.serve(async (req) => {
         
         try {
           const parsed = JSON.parse(responseText);
-          // Response can be array directly or { chats: [...] } or { data: [...] }
           if (Array.isArray(parsed)) {
-            chatsData = parsed;
+            allWapiChats = parsed;
           } else if (parsed.chats && Array.isArray(parsed.chats)) {
-            chatsData = parsed.chats;
+            allWapiChats = parsed.chats;
           } else if (parsed.data && Array.isArray(parsed.data)) {
-            chatsData = parsed.data;
+            allWapiChats = parsed.data;
           }
-          console.log(`PRO: Found ${chatsData.length} chats`);
+          console.log(`PRO: Found ${allWapiChats.length} chats in W-API`);
         } catch (parseErr) {
           console.error('Error parsing chats response:', parseErr);
         }
       } else if (chatsRes.status === 404 || chatsRes.status === 403) {
-        // PRO endpoint not available - this is LITE plan
         detectedPlan = 'LITE';
         console.log('PRO endpoint returned 404/403 - detected LITE plan');
       } else {
@@ -155,161 +177,6 @@ Deno.serve(async (req) => {
       }
     } catch (fetchErr) {
       console.error('Error fetching chats:', fetchErr);
-    }
-
-    // ========================================
-    // STEP 2A: If PRO, iterate chats and fetch messages
-    // ========================================
-    if (detectedPlan === 'PRO' && chatsData.length > 0) {
-      // Get guardians for matching
-      const { data: guardians } = await supabase
-        .from('guardians')
-        .select('id, phone')
-        .limit(500);
-
-      const guardianPhoneMap = new Map<string, string>();
-      (guardians || []).forEach(g => {
-        const clean = (g.phone || '').replace(/\D/g, '');
-        if (clean) {
-          const normalized = clean.startsWith('55') ? clean : `55${clean}`;
-          guardianPhoneMap.set(normalized, g.id);
-          // Also map without country code for flexibility
-          guardianPhoneMap.set(clean.replace(/^55/, ''), g.id);
-        }
-      });
-
-      for (const chat of chatsData) {
-        try {
-          // Extract phone number from chat
-          let phone = chat.phoneNumber || chat.jid || chat.id || '';
-          // Clean phone: remove @c.us, @s.whatsapp.net, etc
-          phone = phone.replace(/@.*$/, '').replace(/\D/g, '');
-          
-          if (!phone || phone.length < 10) continue;
-          if (processedPhones.has(phone)) continue;
-          processedPhones.add(phone);
-
-          // Fetch messages for this specific chat using PRO endpoint
-          // W-API PRO uses /v1/chats/fetch-messages with remoteJid parameter
-          const remoteJid = `${phone}@s.whatsapp.net`;
-          const encodedJid = encodeURIComponent(remoteJid);
-          
-          // Try multiple endpoint variations
-          const messageEndpoints = [
-            `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
-            `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&phoneNumber=${phone}&limit=50`,
-            `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
-            `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&phoneNumber=${phone}&limit=50`,
-          ];
-
-          let chatRes: Response | null = null;
-          let successfulEndpoint = '';
-
-          for (const endpoint of messageEndpoints) {
-            console.log('Trying messages endpoint:', endpoint.replace(phone, '<phone>').replace(encodedJid, '<jid>'));
-            
-            try {
-              const res = await fetch(endpoint, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${config.W_API_TOKEN}`,
-                  'Accept': 'application/json',
-                  'instanceId': session,
-                },
-              });
-              
-              console.log(`Endpoint response: ${res.status}`);
-              
-              if (res.ok) {
-                chatRes = res;
-                successfulEndpoint = endpoint;
-                break;
-              }
-            } catch (endpointErr) {
-              console.error('Endpoint error:', endpointErr);
-            }
-          }
-
-          if (!chatRes || !chatRes.ok) {
-            console.log(`All message endpoints failed for phone: ${phone.slice(-4)}`);
-            errorCount++;
-            continue;
-          }
-          
-          console.log('Success with endpoint:', successfulEndpoint.replace(phone, '<phone>').replace(encodedJid, '<jid>'));
-
-          const chatText = await chatRes.text();
-          let messages: WapiMessage[] = [];
-          
-          try {
-            const chatParsed = JSON.parse(chatText);
-            // Messages can be in .messages, .data, or directly as array
-            if (Array.isArray(chatParsed)) {
-              messages = chatParsed;
-            } else if (chatParsed.messages && Array.isArray(chatParsed.messages)) {
-              messages = chatParsed.messages;
-            } else if (chatParsed.data && Array.isArray(chatParsed.data)) {
-              messages = chatParsed.data;
-            }
-          } catch {
-            console.error('Error parsing chat messages');
-            continue;
-          }
-
-          // Match to guardian
-          const guardianId = guardianPhoneMap.get(phone) || 
-                            guardianPhoneMap.get(phone.replace(/^55/, '')) || 
-                            null;
-
-          // Process each message
-          for (const msg of messages) {
-            const messageId = typeof msg.id === 'object' ? msg.id?._serialized : msg.id || msg.key?.id || null;
-            const messageText = msg.body || msg.text || msg.message || '';
-            const isFromMe = msg.fromMe || msg.key?.fromMe || false;
-            const timestamp = msg.timestamp || msg.t || null;
-
-            if (!messageText) continue;
-
-            // Check if message already exists
-            if (messageId) {
-              const { data: existing } = await supabase
-                .from('whatsapp_messages')
-                .select('id')
-                .eq('wapi_message_id', messageId)
-                .maybeSingle();
-
-              if (existing) continue;
-            }
-
-            // Insert the message
-            const { error: insertError } = await supabase
-              .from('whatsapp_messages')
-              .insert({
-                guardian_id: guardianId,
-                phone: phone.startsWith('55') ? phone : `55${phone}`,
-                message: messageText,
-                direction: isFromMe ? 'outgoing' : 'incoming',
-                status: isFromMe ? 'sent' : 'received',
-                wapi_message_id: messageId,
-                created_at: timestamp ? new Date(timestamp * 1000).toISOString() : new Date().toISOString(),
-              });
-
-            if (insertError) {
-              console.error('Error inserting message:', insertError);
-              errorCount++;
-            } else {
-              syncedCount++;
-            }
-          }
-
-          // Small delay to avoid rate limiting
-          await new Promise(resolve => setTimeout(resolve, 100));
-
-        } catch (chatError) {
-          console.error('Error processing chat:', chatError);
-          errorCount++;
-        }
-      }
     }
 
     // ========================================
@@ -333,9 +200,175 @@ Deno.serve(async (req) => {
     }
 
     // ========================================
-    // STEP 3: Return results
+    // STEP 3: Extract all phone numbers from W-API chats
     // ========================================
+    const allWapiPhones: string[] = [];
+    for (const chat of allWapiChats) {
+      let phone = chat.phoneNumber || chat.jid || chat.id || '';
+      phone = phone.replace(/@.*$/, '').replace(/\D/g, '');
+      if (phone && phone.length >= 10) {
+        const normalized = phone.startsWith('55') ? phone : `55${phone}`;
+        if (!allWapiPhones.includes(normalized)) {
+          allWapiPhones.push(normalized);
+        }
+      }
+    }
+
+    console.log(`Total phones from W-API chats: ${allWapiPhones.length}`);
+
+    // ========================================
+    // STEP 4: Prioritize guardian phones, then include ALL others
+    // ========================================
+    // First: Process guardian phones (those registered in the system)
+    // Second: Process ALL other phones from W-API (unknown contacts)
+    
+    const phonesToProcess: Array<{ phone: string; guardianId: string | null; guardianName: string | null }> = [];
+
+    // Add all guardian phones first
+    for (const gPhone of guardiansPhoneList) {
+      const guardianInfo = guardianPhoneMap.get(gPhone);
+      phonesToProcess.push({
+        phone: gPhone,
+        guardianId: guardianInfo?.id || null,
+        guardianName: guardianInfo?.name || null,
+      });
+    }
+
+    // Add all W-API phones that are NOT guardians (unknown contacts)
+    for (const wapiPhone of allWapiPhones) {
+      const isGuardian = guardianPhoneMap.has(wapiPhone) || 
+                         guardianPhoneMap.has(wapiPhone.replace(/^55/, ''));
+      if (!isGuardian) {
+        phonesToProcess.push({
+          phone: wapiPhone,
+          guardianId: null,
+          guardianName: null,
+        });
+      }
+    }
+
+    console.log(`Total phones to process: ${phonesToProcess.length} (${guardiansPhoneList.length} guardians + ${phonesToProcess.length - guardiansPhoneList.length} unknown)`);
+
+    // ========================================
+    // STEP 5: Fetch messages for each phone
+    // ========================================
+    // Helper function to fetch messages with multiple endpoint attempts
+    const fetchMessagesForPhone = async (phone: string): Promise<WapiMessage[]> => {
+      const remoteJid = `${phone}@s.whatsapp.net`;
+      const encodedJid = encodeURIComponent(remoteJid);
+      
+      const messageEndpoints = [
+        `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
+        `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&phoneNumber=${phone}&limit=50`,
+        `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
+        `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&phoneNumber=${phone}&limit=50`,
+        `${wapiUrl}/v1/message/list?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
+      ];
+
+      for (const endpoint of messageEndpoints) {
+        try {
+          const res = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${config.W_API_TOKEN}`,
+              'Accept': 'application/json',
+              'instanceId': session,
+            },
+          });
+          
+          if (res.ok) {
+            const text = await res.text();
+            try {
+              const parsed = JSON.parse(text);
+              if (Array.isArray(parsed)) return parsed;
+              if (parsed.messages && Array.isArray(parsed.messages)) return parsed.messages;
+              if (parsed.data && Array.isArray(parsed.data)) return parsed.data;
+            } catch {
+              continue;
+            }
+          }
+        } catch {
+          continue;
+        }
+      }
+      return [];
+    };
+
+    // Process each phone
+    for (const { phone, guardianId } of phonesToProcess) {
+      if (processedPhones.has(phone)) continue;
+      processedPhones.add(phone);
+
+      try {
+        console.log(`Processing phone: ${phone.slice(-4)} (guardian: ${guardianId ? 'yes' : 'no'})`);
+        
+        const messages = await fetchMessagesForPhone(phone);
+        
+        if (messages.length === 0) {
+          // Not an error - just no messages found for this contact
+          continue;
+        }
+
+        console.log(`Found ${messages.length} messages for ${phone.slice(-4)}`);
+
+        // Process each message
+        for (const msg of messages) {
+          const messageId = typeof msg.id === 'object' ? msg.id?._serialized : msg.id || msg.key?.id || null;
+          const messageText = msg.body || msg.text || msg.message || '';
+          const isFromMe = msg.fromMe || msg.key?.fromMe || false;
+          const timestamp = msg.timestamp || msg.t || null;
+
+          if (!messageText) continue;
+
+          // Check if message already exists
+          if (messageId) {
+            const { data: existing } = await supabase
+              .from('whatsapp_messages')
+              .select('id')
+              .eq('wapi_message_id', messageId)
+              .maybeSingle();
+
+            if (existing) continue;
+          }
+
+          // Insert the message
+          const { error: insertError } = await supabase
+            .from('whatsapp_messages')
+            .insert({
+              guardian_id: guardianId, // null for unknown contacts
+              phone: phone.startsWith('55') ? phone : `55${phone}`,
+              message: messageText,
+              direction: isFromMe ? 'outgoing' : 'incoming',
+              status: isFromMe ? 'sent' : 'received',
+              wapi_message_id: messageId,
+              created_at: timestamp ? new Date(timestamp * 1000).toISOString() : new Date().toISOString(),
+            });
+
+          if (insertError) {
+            console.error('Error inserting message:', insertError);
+            errorCount++;
+          } else {
+            syncedCount++;
+          }
+        }
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+      } catch (chatError) {
+        console.error('Error processing phone:', chatError);
+        errorCount++;
+      }
+    }
+
+    // ========================================
+    // STEP 6: Return results
+    // ========================================
+    const guardiansProcessed = phonesToProcess.filter(p => p.guardianId).length;
+    const unknownProcessed = phonesToProcess.filter(p => !p.guardianId).length;
+
     console.log(`Sync complete: ${syncedCount} messages synced, ${errorCount} errors, plan: ${detectedPlan}`);
+    console.log(`Processed: ${guardiansProcessed} guardians, ${unknownProcessed} unknown contacts`);
 
     return new Response(
       JSON.stringify({
@@ -347,6 +380,8 @@ Deno.serve(async (req) => {
         synced: syncedCount,
         errors: errorCount,
         chatsProcessed: processedPhones.size,
+        guardiansProcessed,
+        unknownContactsProcessed: unknownProcessed,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
