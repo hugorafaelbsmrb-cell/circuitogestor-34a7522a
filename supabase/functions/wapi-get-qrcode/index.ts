@@ -72,17 +72,19 @@ Deno.serve(async (req) => {
     }
 
     // Get QR Code from W-API
+    // The W-API uses query parameters for authentication on the get_qrcode endpoint
     const wapiUrl = config.W_API_URL.replace(/\/$/, '');
     
-    const response = await fetch(`${wapiUrl}/get_qrcode`, {
+    // Build URL with query parameters as per W-API documentation
+    const qrCodeUrl = `${wapiUrl}/get_qrcode?instance_id=${encodeURIComponent(config.W_API_SESSION)}&access_token=${encodeURIComponent(config.W_API_TOKEN)}`;
+    
+    console.log('Fetching QR Code from:', qrCodeUrl.replace(config.W_API_TOKEN, '***'));
+    
+    const response = await fetch(qrCodeUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.W_API_TOKEN}`,
       },
-      body: JSON.stringify({
-        instance_id: config.W_API_SESSION,
-      }),
     });
 
     const responseData = await response.json();
