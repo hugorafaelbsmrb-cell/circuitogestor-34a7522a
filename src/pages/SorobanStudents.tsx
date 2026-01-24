@@ -423,11 +423,24 @@ export default function SorobanStudents() {
            matricula.includes(searchLower);
   });
 
-  const getLevelBadgeColor = (level: number) => {
-    if (level <= 3) return 'bg-green-100 text-green-800';
-    if (level <= 6) return 'bg-blue-100 text-blue-800';
-    if (level <= 9) return 'bg-purple-100 text-purple-800';
-    return 'bg-amber-100 text-amber-800';
+  const getLevelBadgeStyle = (level: number): { backgroundColor: string; color: string } => {
+    const levelColors: Record<number, { bg: string; text: string }> = {
+      1: { bg: '#FF8C00', text: '#FFFFFF' },  // Laranja Vibrante
+      2: { bg: '#E67E22', text: '#FFFFFF' },  // Laranja Queimado
+      3: { bg: '#D35400', text: '#FFFFFF' },  // Terracota
+      4: { bg: '#BA5536', text: '#FFFFFF' },  // Canela
+      5: { bg: '#A67B5B', text: '#FFFFFF' },  // Bronze Ocre
+      6: { bg: '#C2B280', text: '#1a1a1a' },  // Latte / Bege
+      7: { bg: '#B0A999', text: '#1a1a1a' },  // Fendi (Greige)
+      8: { bg: '#8B8589', text: '#FFFFFF' },  // Taupe Profundo
+      9: { bg: '#7F7F7F', text: '#FFFFFF' },  // Cinza Quente
+      10: { bg: '#707070', text: '#FFFFFF' }, // Cinza Médio
+      11: { bg: '#555555', text: '#FFFFFF' }, // Cinza Chumbo
+      12: { bg: '#424242', text: '#FFFFFF' }, // Cinza Urban
+    };
+    
+    const colors = levelColors[level] || levelColors[1];
+    return { backgroundColor: colors.bg, color: colors.text };
   };
 
   return (
@@ -596,7 +609,7 @@ export default function SorobanStudents() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge className={getLevelBadgeColor(credential.current_level || 1)}>
+                      <Badge style={getLevelBadgeStyle(credential.current_level || 1)}>
                         <Trophy className="w-3 h-3 mr-1" />
                         Nível {credential.current_level || 1}
                       </Badge>
@@ -807,11 +820,11 @@ export default function SorobanStudents() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="flex items-center justify-center gap-4">
-              <Badge className={getLevelBadgeColor(levelModal?.current_level || 1)}>
+              <Badge style={getLevelBadgeStyle(levelModal?.current_level || 1)}>
                 Nível Atual: {levelModal?.current_level || 1}
               </Badge>
               <span className="text-muted-foreground">→</span>
-              <Badge className={getLevelBadgeColor(newLevel)}>
+              <Badge style={getLevelBadgeStyle(newLevel)}>
                 Novo Nível: {newLevel}
               </Badge>
             </div>
