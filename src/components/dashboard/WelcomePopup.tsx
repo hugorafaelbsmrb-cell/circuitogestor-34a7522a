@@ -8,16 +8,17 @@ import { useSchool } from '@/contexts/SchoolContext';
 export function WelcomePopup() {
   const [isOpen, setIsOpen] = useState(false);
   const { profile } = useAuthContext();
-  const { students, enrollments, payments } = useSchool();
+  const { students, enrollments, payments, isLoading } = useSchool();
 
   useEffect(() => {
     // Check if popup was already shown in this session
     const popupShown = sessionStorage.getItem('welcomePopupShown');
-    if (!popupShown && profile) {
+    // Only show popup after data is loaded
+    if (!popupShown && profile && !isLoading && students.length >= 0) {
       setIsOpen(true);
       sessionStorage.setItem('welcomePopupShown', 'true');
     }
-  }, [profile]);
+  }, [profile, isLoading, students]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
