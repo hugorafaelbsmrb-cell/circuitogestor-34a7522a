@@ -261,9 +261,10 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
         description: 'Não foi possível verificar o status no momento.',
         variant: 'destructive',
       });
+    } finally {
+      // Garante que o botão não fique “carregando” em caso de retorno antecipado dentro do try
+      setIsCheckingStatus(false);
     }
-
-    setIsCheckingStatus(false);
   };
 
   const handleDisconnect = async () => {
