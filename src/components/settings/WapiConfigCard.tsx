@@ -41,7 +41,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     return `${base}/`;
   };
 
-  const effectiveUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://app.wawp.net/api/';
+  const effectiveUrl = normalizeWapiUrl(editedSettings['W_API_URL']);
 
   const isConfigured = !!(
     effectiveUrl &&
@@ -50,7 +50,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
   );
 
   const saveSettings = async () => {
-    const normalizedUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://app.wawp.net/api/';
+    const normalizedUrl = normalizeWapiUrl(editedSettings['W_API_URL']);
     const settingsToSave = [
       { key: 'W_API_URL', value: normalizedUrl },
       { key: 'W_API_TOKEN', value: editedSettings['W_API_TOKEN'] },
@@ -103,7 +103,55 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
       // Save settings first
       await saveSettings();
 
-      const response = await supabase.functions.invoke('wapi-get-qrcode');
+      let response = await supabase.functions.invoke('wapi-get-qrcode');
+
+      // Fallback: se o backend não conseguir acessar o host (ex.: DNS/bloqueio),
+      // tentamos buscar o QR Code diretamente do navegador conforme a doc do Postman.
+      if (response.error) {
+        const baseFromSettings = normalizeWapiUrl(editedSettings['W_API_URL']);
+        const bases = [baseFromSettings].filter(Boolean) as string[];
+
+        // Se a URL salva for wawp.net, a doc aponta app.wawp.net como gateway da API.
+        if (baseFromSettings && /:\/\/wawp\.net\//i.test(baseFromSettings)) {
+          bases.push(baseFromSettings.replace(/:\/\/wawp\.net\//i, '://app.wawp.net/'));
+        }
+        // Se a URL salva for app.wawp.net, também tentamos wawp.net.
+        if (baseFromSettings && /:\/\/app\.wawp\.net\//i.test(baseFromSettings)) {
+          bases.push(baseFromSettings.replace(/:\/\/app\.wawp\.net\//i, '://wawp.net/'));
+        }
+
+        const uniqueBases = Array.from(new Set(bases));
+        for (const base of uniqueBases) {
+          try {
+            const directUrl = `${base.replace(/\/$/, '')}/get_qrcode?instance_id=${encodeURIComponent(
+              editedSettings['W_API_SESSION'] || ''
+            )}&access_token=${encodeURIComponent(editedSettings['W_API_TOKEN'] || '')}`;
+
+            const directRes = await fetch(directUrl, {
+              method: 'GET',
+              headers: {
+                Accept: 'application/json, text/plain;q=0.9, */*;q=0.8',
+              },
+            });
+
+            const raw = await directRes.text();
+            let parsed: any = null;
+            try {
+              parsed = JSON.parse(raw);
+            } catch {
+              parsed = null;
+            }
+
+            if (!directRes.ok || !parsed) continue;
+
+            // Simula o formato de resposta do invoke
+            response = { data: parsed, error: null } as any;
+            break;
+          } catch {
+            // tenta próxima base
+          }
+        }
+      }
 
       if (response.error) {
         setQrStatus('error');
@@ -120,7 +168,14 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
           description: 'Sua instância já está conectada ao WhatsApp.',
         });
       } else {
-        const qrCode = response.data?.qrcode || response.data?.qrcode_url;
+        const qrCode =
+          response.data?.qrcode ||
+          response.data?.qr ||
+          response.data?.base64 ||
+          response.data?.qrcode_url ||
+          response.data?.qr_url ||
+          response.data?.data?.qrcode ||
+          response.data?.data?.qr;
         if (qrCode) {
           setQrCodeData(qrCode);
           setQrStatus('pending');

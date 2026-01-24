@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     // Get QR Code from W-API
     // The W-API uses query parameters for authentication on the get_qrcode endpoint
     // Per official docs: https://app.wawp.net/api/get_qrcode?instance_id=...&access_token=...
-    let wapiUrl = (config.W_API_URL || 'https://app.wawp.net/api').trim();
+    let wapiUrl = (config.W_API_URL || 'https://wawp.net/api').trim();
     // Garantir HTTPS
     wapiUrl = wapiUrl.replace(/^http:\/\//i, 'https://');
     // Remover barras finais duplicadas
