@@ -39,6 +39,122 @@ const mapPaymentStatus = (asaasStatus: string): string => {
   return statusMap[asaasStatus] || asaasStatus;
 };
 
+async function sendPaymentConfirmationWhatsApp(
+  supabase: any,
+  supabaseUrl: string,
+  supabaseKey: string,
+  guardianId: string,
+  guardianName: string,
+  guardianPhone: string,
+  paymentValue: number,
+  paymentDate: string
+) {
+  try {
+    // Check if automation is enabled
+    const { data: automationSetting } = await supabase
+      .from('automation_settings')
+      .select('enabled')
+      .eq('key', 'auto_payment_confirmed')
+      .single();
+    
+    if (!automationSetting?.enabled) {
+      console.log('Payment confirmation automation is disabled');
+      return;
+    }
+    
+    // Get template for payment_confirmed
+    const { data: templates } = await supabase
+      .from('app_settings')
+      .select('value')
+      .like('key', 'whatsapp_template_%');
+    
+    let templateMessage: string | null = null;
+    for (const t of templates || []) {
+      try {
+        const parsed = JSON.parse(t.value);
+        if (parsed.category === 'payment_confirmed' && parsed.is_active !== false) {
+          templateMessage = parsed.message;
+          break;
+        }
+      } catch {}
+    }
+    
+    if (!templateMessage) {
+      console.log('No template found for payment_confirmed');
+      return;
+    }
+    
+    // Get school name
+    const { data: schoolSetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'system_name')
+      .single();
+    
+    const schoolName = schoolSetting?.value || 'Nossa Escola';
+    
+    // Get W-API config
+    const { data: wapiSettings } = await supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION']);
+    
+    const wapiConfig: Record<string, string> = {};
+    wapiSettings?.forEach((s: any) => {
+      if (s.value) wapiConfig[s.key] = s.value;
+    });
+    
+    if (!wapiConfig.W_API_URL || !wapiConfig.W_API_TOKEN || !wapiConfig.W_API_SESSION) {
+      console.log('W-API not configured');
+      return;
+    }
+    
+    // Build message
+    const message = templateMessage
+      .replace(/{nome_responsavel}/g, guardianName)
+      .replace(/{valor}/g, `R$ ${paymentValue.toFixed(2).replace('.', ',')}`)
+      .replace(/{nome_escola}/g, schoolName);
+    
+    // Format phone
+    const cleanPhone = guardianPhone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    
+    // Send via W-API
+    const wapiUrl = wapiConfig.W_API_URL.replace(/\/$/, '');
+    const response = await fetch(`${wapiUrl}/message/send-text`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': wapiConfig.W_API_TOKEN,
+      },
+      body: JSON.stringify({
+        session: wapiConfig.W_API_SESSION,
+        phone: formattedPhone,
+        message: message,
+        isGroup: false,
+      }),
+    });
+    
+    const success = response.ok;
+    console.log(`Payment confirmation WhatsApp ${success ? 'sent' : 'failed'} to ${guardianName}`);
+    
+    // Log the message using service role key
+    const adminClient = createClient(supabaseUrl, supabaseKey);
+    await adminClient.from('message_logs').insert({
+      guardian_id: guardianId,
+      phone: guardianPhone,
+      template_category: 'payment_confirmed',
+      message_preview: message.substring(0, 100),
+      automation_key: 'auto_payment_confirmed',
+      status: success ? 'sent' : 'error',
+      error_message: success ? null : 'Falha no envio',
+    });
+    
+  } catch (error) {
+    console.error('Error sending payment confirmation WhatsApp:', error);
+  }
+}
+
 async function processPaymentEvent(supabaseUrl: string, supabaseKey: string, event: string, payment: AsaasWebhookPayment) {
   console.log(`Processing payment event: ${event} for payment ${payment.id}`);
   
@@ -48,7 +164,7 @@ async function processPaymentEvent(supabaseUrl: string, supabaseKey: string, eve
   // Update payment by Asaas ID
   const { data: existingPayment } = await supabase
     .from("payments")
-    .select("id")
+    .select("id, guardian_id")
     .eq("asaas_payment_id", payment.id)
     .maybeSingle();
   
@@ -65,9 +181,31 @@ async function processPaymentEvent(supabaseUrl: string, supabaseKey: string, eve
       .eq("asaas_payment_id", payment.id);
     
     console.log(`Payment updated to status: ${status}`);
+    
+    // If payment is confirmed, send WhatsApp notification
+    if (["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(status) && existingPayment.guardian_id) {
+      const { data: guardian } = await supabase
+        .from("guardians")
+        .select("id, name, phone")
+        .eq("id", existingPayment.guardian_id)
+        .single();
+      
+      if (guardian) {
+        await sendPaymentConfirmationWhatsApp(
+          supabase,
+          supabaseUrl,
+          supabaseKey,
+          guardian.id,
+          guardian.name,
+          guardian.phone,
+          payment.value,
+          payment.paymentDate || new Date().toISOString()
+        );
+      }
+    }
   } else if (payment.externalReference) {
     // Try by external reference
-    await supabase
+    const { data: updatedPayment } = await supabase
       .from("payments")
       .update({
         asaas_payment_id: payment.id,
@@ -78,9 +216,33 @@ async function processPaymentEvent(supabaseUrl: string, supabaseKey: string, eve
         updated_at: new Date().toISOString(),
       })
       .eq("enrollment_id", payment.externalReference)
-      .is("asaas_payment_id", null);
+      .is("asaas_payment_id", null)
+      .select("guardian_id")
+      .maybeSingle();
     
     console.log(`Payment linked by external reference`);
+    
+    // If payment is confirmed, send WhatsApp notification
+    if (["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(status) && updatedPayment?.guardian_id) {
+      const { data: guardian } = await supabase
+        .from("guardians")
+        .select("id, name, phone")
+        .eq("id", updatedPayment.guardian_id)
+        .single();
+      
+      if (guardian) {
+        await sendPaymentConfirmationWhatsApp(
+          supabase,
+          supabaseUrl,
+          supabaseKey,
+          guardian.id,
+          guardian.name,
+          guardian.phone,
+          payment.value,
+          payment.paymentDate || new Date().toISOString()
+        );
+      }
+    }
   }
   
   // Update carnê if applicable
