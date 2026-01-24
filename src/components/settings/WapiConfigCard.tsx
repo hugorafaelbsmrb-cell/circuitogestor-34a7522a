@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { MessageCircle, Eye, EyeOff, ExternalLink, CheckCircle, AlertCircle, Loader2, TestTube, QrCode, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { MessageCircle, Eye, EyeOff, ExternalLink, CheckCircle, AlertCircle, Loader2, TestTube, QrCode, RefreshCw, Power, Wifi, WifiOff } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,6 +25,8 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
   const [isLoadingQr, setIsLoadingQr] = useState(false);
   const [qrStatus, setQrStatus] = useState<'pending' | 'connected' | 'error'>('pending');
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [statusDetails, setStatusDetails] = useState<string | null>(null);
 
   const normalizeWapiUrl = (url?: string) => {
     const raw = (url || '').trim();
@@ -46,8 +48,6 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     base = base.replace(/\/api$/i, '');
     return base;
   };
-
-  const effectiveUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
 
   const isConfigured = !!(
     editedSettings['W_API_TOKEN'] &&
@@ -259,6 +259,105 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     setIsCheckingStatus(false);
   };
 
+  const handleDisconnect = async () => {
+    if (!editedSettings['W_API_TOKEN'] || !editedSettings['W_API_SESSION']) {
+      return;
+    }
+
+    setIsDisconnecting(true);
+
+    try {
+      const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
+      // Endpoint para desconectar/logout da instância
+      const logoutUrl = `${baseUrl}/v1/instance/logout?instanceId=${encodeURIComponent(
+        editedSettings['W_API_SESSION'] || ''
+      )}`;
+
+      const res = await fetch(logoutUrl, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${editedSettings['W_API_TOKEN'] || ''}`,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (res.ok) {
+        setConnectionStatus('unknown');
+        setQrStatus('pending');
+        setStatusDetails(null);
+        toast({
+          title: 'WhatsApp Desconectado',
+          description: 'A instância foi desconectada com sucesso.',
+        });
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        toast({
+          title: 'Erro ao desconectar',
+          description: errorData?.message || 'Não foi possível desconectar a instância.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Disconnect error:', error);
+      toast({
+        title: 'Erro ao desconectar',
+        description: 'Ocorreu um erro ao tentar desconectar.',
+        variant: 'destructive',
+      });
+    }
+
+    setIsDisconnecting(false);
+  };
+
+  // Verificar status silenciosamente ao carregar (se configurado)
+  const checkStatusSilently = async () => {
+    if (!editedSettings['W_API_TOKEN'] || !editedSettings['W_API_SESSION']) {
+      return;
+    }
+
+    try {
+      const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
+      const statusUrl = `${baseUrl}/v1/instance/status?instanceId=${encodeURIComponent(
+        editedSettings['W_API_SESSION'] || ''
+      )}`;
+
+      const res = await fetch(statusUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${editedSettings['W_API_TOKEN'] || ''}`,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const isConnected = 
+          data?.connected === true ||
+          data?.status === 'connected' ||
+          data?.state === 'CONNECTED' ||
+          data?.instance?.state === 'CONNECTED' ||
+          data?.data?.connected === true;
+
+        if (isConnected) {
+          setConnectionStatus('connected');
+          setStatusDetails(data?.phone || data?.number || data?.instance?.phone || null);
+        } else {
+          setConnectionStatus('unknown');
+          setStatusDetails(null);
+        }
+      }
+    } catch (error) {
+      console.error('Silent status check error:', error);
+    }
+  };
+
+  // Verificar status ao montar o componente
+  useEffect(() => {
+    if (isConfigured) {
+      checkStatusSilently();
+    }
+  }, [editedSettings['W_API_TOKEN'], editedSettings['W_API_SESSION']]);
+
   const handleTestConnection = async () => {
     if (!isConfigured) {
       toast({
@@ -428,33 +527,98 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
           </div>
         </div>
 
-        {/* QR Code Section */}
+        {/* Status Section */}
         <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
-          <h4 className="font-medium flex items-center gap-2">
-            <QrCode className="w-4 h-4" />
-            Conectar WhatsApp
-          </h4>
-          <p className="text-sm text-muted-foreground">
-            Gere o QR Code para conectar sua instância ao WhatsApp. Após preencher o ID e Token, clique no botão abaixo.
-          </p>
-          <Button
-            onClick={handleGetQrCode}
-            disabled={isLoadingQr || !editedSettings['W_API_TOKEN'] || !editedSettings['W_API_SESSION']}
-            variant="outline"
-            className="gap-2"
-          >
-            {isLoadingQr ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Gerando QR Code...
-              </>
-            ) : (
-              <>
-                <QrCode className="w-4 h-4" />
-                Gerar QR Code
-              </>
+          <div className="flex items-center justify-between">
+            <h4 className="font-medium flex items-center gap-2">
+              {connectionStatus === 'connected' ? (
+                <Wifi className="w-4 h-4 text-primary" />
+              ) : (
+                <WifiOff className="w-4 h-4 text-muted-foreground" />
+              )}
+              Status da Conexão
+            </h4>
+            <div className="flex items-center gap-2">
+              {connectionStatus === 'connected' ? (
+                <Badge variant="default">
+                  <CheckCircle className="w-3 h-3 mr-1" />
+                  Conectado
+                  {statusDetails && <span className="ml-1 opacity-80">({statusDetails})</span>}
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  <WifiOff className="w-3 h-3 mr-1" />
+                  Desconectado
+                </Badge>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              onClick={handleCheckStatus}
+              disabled={isCheckingStatus || !isConfigured}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              {isCheckingStatus ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Verificando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  Verificar Status
+                </>
+              )}
+            </Button>
+
+            {connectionStatus === 'connected' && (
+              <Button
+                onClick={handleDisconnect}
+                disabled={isDisconnecting}
+                variant="destructive"
+                size="sm"
+                className="gap-2"
+              >
+                {isDisconnecting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Desconectando...
+                  </>
+                ) : (
+                  <>
+                    <Power className="w-4 h-4" />
+                    Desconectar
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
+
+            {connectionStatus !== 'connected' && (
+              <Button
+                onClick={handleGetQrCode}
+                disabled={isLoadingQr || !editedSettings['W_API_TOKEN'] || !editedSettings['W_API_SESSION']}
+                variant="default"
+                size="sm"
+                className="gap-2"
+              >
+                {isLoadingQr ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Gerando QR Code...
+                  </>
+                ) : (
+                  <>
+                    <QrCode className="w-4 h-4" />
+                    Conectar WhatsApp
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Test Connection */}
