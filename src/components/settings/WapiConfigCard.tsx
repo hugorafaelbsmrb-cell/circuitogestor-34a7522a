@@ -24,6 +24,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
   const [qrCodeData, setQrCodeData] = useState<string | null>(null);
   const [isLoadingQr, setIsLoadingQr] = useState(false);
   const [qrStatus, setQrStatus] = useState<'pending' | 'connected' | 'error'>('pending');
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
 
   const normalizeWapiUrl = (url?: string) => {
     const raw = (url || '').trim();
@@ -203,6 +204,59 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     }
 
     setIsLoadingQr(false);
+  };
+
+  const handleCheckStatus = async () => {
+    if (!editedSettings['W_API_TOKEN'] || !editedSettings['W_API_SESSION']) {
+      return;
+    }
+
+    setIsCheckingStatus(true);
+
+    try {
+      const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
+      // Endpoint para verificar status da instância
+      const statusUrl = `${baseUrl}/v1/instance/status?instanceId=${encodeURIComponent(
+        editedSettings['W_API_SESSION'] || ''
+      )}`;
+
+      const res = await fetch(statusUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${editedSettings['W_API_TOKEN'] || ''}`,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Verificar se está conectado (diferentes formatos de resposta possíveis)
+        const isConnected = 
+          data?.connected === true ||
+          data?.status === 'connected' ||
+          data?.state === 'CONNECTED' ||
+          data?.instance?.state === 'CONNECTED' ||
+          data?.data?.connected === true;
+
+        if (isConnected) {
+          setQrStatus('connected');
+          setConnectionStatus('connected');
+          toast({
+            title: 'WhatsApp Conectado!',
+            description: 'Sua instância está conectada e pronta para uso.',
+          });
+        } else {
+          toast({
+            title: 'Aguardando conexão',
+            description: 'Escaneie o QR Code com seu WhatsApp para conectar.',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Status check error:', error);
+    }
+
+    setIsCheckingStatus(false);
   };
 
   const handleTestConnection = async () => {
@@ -512,10 +566,25 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
                 <p className="text-sm text-muted-foreground text-center">
                   Abra o WhatsApp no seu celular e escaneie este código.
                 </p>
-                <Button onClick={handleGetQrCode} variant="outline" size="sm" className="gap-2">
-                  <RefreshCw className="w-4 h-4" />
-                  Atualizar QR Code
-                </Button>
+                <div className="flex gap-2">
+                  <Button onClick={handleCheckStatus} variant="default" size="sm" className="gap-2" disabled={isCheckingStatus}>
+                    {isCheckingStatus ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Verificando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="w-4 h-4" />
+                        Já escaneei
+                      </>
+                    )}
+                  </Button>
+                  <Button onClick={handleGetQrCode} variant="outline" size="sm" className="gap-2">
+                    <RefreshCw className="w-4 h-4" />
+                    Atualizar QR
+                  </Button>
+                </div>
               </div>
             )}
           </div>
