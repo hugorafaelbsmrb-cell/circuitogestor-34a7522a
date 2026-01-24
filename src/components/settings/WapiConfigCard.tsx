@@ -29,17 +29,19 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     const raw = (url || '').trim();
     if (!raw) return '';
 
-    // Some docs mention app.wawp.net, but it fails DNS from our runtime; use wawp.net.
-    let base = raw.replace(/^https?:\/\/app\.wawp\.net/i, 'https://wawp.net');
+    let base = raw;
+    // Garantir HTTPS
     base = base.replace(/^http:\/\//i, 'https://');
+    // Remover barras finais duplicadas
     base = base.replace(/\/+$/, '');
-
-    // Ensure the value is the API base path.
-    if (!base.endsWith('/api')) base = `${base}/api`;
+    // Garantir que termina com /api (sem duplicar)
+    if (!base.endsWith('/api')) {
+      base = base.includes('/api') ? base : `${base}/api`;
+    }
     return `${base}/`;
   };
 
-  const effectiveUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://wawp.net/api/';
+  const effectiveUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://app.wawp.net/api/';
 
   const isConfigured = !!(
     effectiveUrl &&
@@ -48,7 +50,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
   );
 
   const saveSettings = async () => {
-    const normalizedUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://wawp.net/api/';
+    const normalizedUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://app.wawp.net/api/';
     const settingsToSave = [
       { key: 'W_API_URL', value: normalizedUrl },
       { key: 'W_API_TOKEN', value: editedSettings['W_API_TOKEN'] },
@@ -254,7 +256,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
               id="W_API_URL"
               value={effectiveUrl}
               onChange={(e) => setEditedSettings(prev => ({ ...prev, 'W_API_URL': e.target.value }))}
-              placeholder="https://wawp.net/api/"
+              placeholder="https://app.wawp.net/api/"
             />
             <p className="text-xs text-muted-foreground">
               URL base da sua instância W-API
