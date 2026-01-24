@@ -25,6 +25,7 @@ import Users from "./pages/Users";
 import Reports from "./pages/Reports";
 import StudentAllocation from "./pages/StudentAllocation";
 import WhatsAppConfig from "./pages/WhatsAppConfig";
+import BulkMessages from "./pages/BulkMessages";
 import Inventory from "./pages/Inventory";
 import LMSStudents from "./pages/LMSStudents";
 import SorobanStudents from "./pages/SorobanStudents";
@@ -81,6 +82,7 @@ function AppRoutes() {
                 <Route path="/soroban-alunos" element={<SorobanStudents />} />
                 <Route path="/usuarios" element={<Users />} />
                 <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
+                <Route path="/envio-massa" element={<BulkMessages />} />
                 <Route path="/configuracoes" element={<Settings />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
