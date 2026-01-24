@@ -44,6 +44,7 @@ const menuItems = [
   { icon: ClipboardCheck, label: 'Alocação Alunos', path: '/alocacao-alunos', permissionKey: 'reports', adminOnly: false },
   { icon: Package, label: 'Inventário', path: '/inventario', permissionKey: 'inventory', adminOnly: false },
   { icon: Monitor, label: 'Alunos LMS', path: '/lms-alunos', permissionKey: 'lms', adminOnly: false },
+  { icon: BookOpen, label: 'Alunos Soroban', path: '/soroban-alunos', permissionKey: 'soroban', adminOnly: false },
   { icon: FileText, label: 'Config. Contrato', path: '/contrato-config', permissionKey: 'contract_config', adminOnly: false },
   { icon: Shield, label: 'Usuários', path: '/usuarios', permissionKey: 'users', adminOnly: true },
   { icon: MessageSquare, label: 'WhatsApp', path: '/whatsapp-config', permissionKey: 'whatsapp', adminOnly: true },
