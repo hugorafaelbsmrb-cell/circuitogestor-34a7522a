@@ -94,66 +94,116 @@ Deno.serve(async (req) => {
     // Normalize base URL
     let wapiUrl = config.W_API_URL.replace(/\/$/, '');
     wapiUrl = wapiUrl.replace(/^http:\/\//i, 'https://');
+    wapiUrl = wapiUrl.replace(/\/api$/i, '');
     if (/\/\/(app\.)?wawp\.net\b/i.test(wapiUrl)) {
       wapiUrl = 'https://api.w-api.app';
     }
 
-    // Build endpoint - W-API docs use /v1/messages/send-text with instanceId as query param
-    const sendUrl = `${wapiUrl}/v1/messages/send-text?instanceId=${encodeURIComponent(config.W_API_SESSION)}`;
+    const session = config.W_API_SESSION;
+    const encoded = encodeURIComponent(session);
 
-    // Send message via W-API
-    const response = await fetch(sendUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.W_API_TOKEN}`,
-        'instanceId': config.W_API_SESSION,
+    // Multiple endpoint candidates - W-API has variations between plans/collections
+    const candidates: Array<{
+      url: string;
+      body: Record<string, unknown>;
+      extraHeaders?: Record<string, string>;
+    }> = [
+      // /v1/messages/send-text with query param (official docs)
+      {
+        url: `${wapiUrl}/v1/messages/send-text?instanceId=${encoded}`,
+        body: { phone: formattedPhone, message, isGroup },
       },
-      body: JSON.stringify({
-        phone: formattedPhone,
-        message: message,
-        isGroup: isGroup,
-      }),
-    });
+      // /v1/messages/send-text with header only
+      {
+        url: `${wapiUrl}/v1/messages/send-text`,
+        body: { phone: formattedPhone, message, isGroup },
+        extraHeaders: { instanceId: session },
+      },
+      // Legacy /message/send-text (some collections)
+      {
+        url: `${wapiUrl}/message/send-text?instanceId=${encoded}`,
+        body: { session, phone: formattedPhone, message, isGroup },
+      },
+      {
+        url: `${wapiUrl}/message/send-text`,
+        body: { session, phone: formattedPhone, message, isGroup },
+        extraHeaders: { instanceId: session },
+      },
+      // /v1/message/send-text singular
+      {
+        url: `${wapiUrl}/v1/message/send-text?instanceId=${encoded}`,
+        body: { phone: formattedPhone, message, isGroup },
+      },
+      // Some APIs use chatId instead of phone
+      {
+        url: `${wapiUrl}/v1/messages/send-text?instanceId=${encoded}`,
+        body: { chatId: `${formattedPhone}@c.us`, message, isGroup },
+      },
+    ];
 
-    const responseText = await response.text();
-    let responseData: any = null;
+    let lastError: string | null = null;
+    let lastStatus: number | null = null;
+    const attempts: Array<{ url: string; status: number | null; ok: boolean; error?: string }> = [];
 
-    // Try to parse JSON, handle HTML error pages gracefully
-    try {
-      responseData = JSON.parse(responseText);
-    } catch {
-      console.error('W-API returned non-JSON response:', responseText.substring(0, 500));
-      return new Response(
-        JSON.stringify({ 
-          error: 'W-API retornou resposta inválida (não JSON)',
-          status: response.status,
-          hint: 'Verifique se a URL da API e as credenciais estão corretas.',
-        }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    for (const c of candidates) {
+      try {
+        const res = await fetch(c.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.W_API_TOKEN}`,
+            'Accept': 'application/json',
+            ...(c.extraHeaders ?? {}),
+          },
+          body: JSON.stringify(c.body),
+        });
+
+        lastStatus = res.status;
+        const text = await res.text();
+        attempts.push({ url: c.url, status: res.status, ok: res.ok });
+
+        let parsed: any = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          // Not JSON - skip this endpoint
+          attempts[attempts.length - 1].error = 'Non-JSON response';
+          continue;
+        }
+
+        // Success case
+        if (res.ok) {
+          console.log('Message sent successfully via:', c.url, { phone: formattedPhone });
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: 'Mensagem enviada com sucesso',
+              data: parsed,
+              endpoint: c.url,
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // If we got a JSON error, store it for later
+        lastError = parsed?.message || parsed?.error || JSON.stringify(parsed);
+        attempts[attempts.length - 1].error = lastError || undefined;
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        attempts.push({ url: c.url, status: null, ok: false, error: errMsg });
+        lastError = errMsg;
+      }
     }
 
-    if (!response.ok) {
-      console.error('W-API error:', responseData);
-      return new Response(
-        JSON.stringify({ 
-          error: 'Erro ao enviar mensagem',
-          details: responseData 
-        }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('Message sent successfully:', { phone: formattedPhone, response: responseData });
-
+    console.error('All W-API send endpoints failed:', { attempts, lastStatus, lastError });
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'Mensagem enviada com sucesso',
-        data: responseData 
+      JSON.stringify({
+        error: 'Não foi possível enviar mensagem via W-API',
+        lastStatus,
+        details: lastError,
+        attempts,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: unknown) {
