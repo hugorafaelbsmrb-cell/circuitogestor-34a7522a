@@ -485,18 +485,26 @@ export default function GuardianSupport() {
 
       if (error) throw error;
 
-      if (!data?.success) {
+      // Check detected plan
+      if (data?.plan === 'LITE') {
         toast({
-          title: 'Sincronização indisponível',
-          description: data?.hint || data?.message || 'A W-API não liberou endpoints de histórico nesta conta.',
-          variant: 'destructive',
+          title: 'Plano LITE detectado',
+          description: 'O histórico de mensagens não está disponível neste plano. Mensagens novas são capturadas automaticamente via webhook.',
+        });
+        return;
+      }
+
+      if (!data?.success && data?.synced === 0) {
+        toast({
+          title: 'Nenhuma mensagem nova',
+          description: data?.message || 'Todas as mensagens já estão sincronizadas.',
         });
         return;
       }
 
       toast({
-        title: 'Sincronização concluída',
-        description: `${data.synced || 0} mensagens sincronizadas de ${data.chatsProcessed || 0} conversas.`,
+        title: `Sincronização concluída${data?.plan ? ` (${data.plan})` : ''}`,
+        description: `${data?.synced || 0} mensagens sincronizadas de ${data?.chatsProcessed || 0} conversas.`,
       });
 
       // Reload data to show new messages
