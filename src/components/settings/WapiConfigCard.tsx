@@ -34,6 +34,15 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     base = base.replace(/^http:\/\//i, 'https://');
     // Remover barras finais
     base = base.replace(/\/+$/, '');
+
+    // Compatibilidade: valores antigos (wawp.net/app.wawp.net) apontam para outro produto.
+    // A documentação atual usa https://api.w-api.app
+    if (/\/\/(app\.)?wawp\.net\b/i.test(base)) {
+      return 'https://api.w-api.app';
+    }
+
+    // Compatibilidade: remove /api caso o usuário tenha salvo assim no passado
+    base = base.replace(/\/api$/i, '');
     return base;
   };
 
