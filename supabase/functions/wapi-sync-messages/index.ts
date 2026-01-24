@@ -221,13 +221,18 @@ Deno.serve(async (req) => {
 
       for (const jid of jidCandidates) {
         const encodedJid = encodeURIComponent(jid);
+        
+        // Multiple endpoint patterns used by different W-API versions/gateways
         const endpoints = [
-          // Most common: fetch-messages with remoteJid
+          // W-API PRO standard endpoints
           `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
-          // Some gateways use chatId instead of remoteJid
-          `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&chatId=${encodedJid}&limit=50`,
-          // Fallback variant
           `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
+          // Alternative with chatId parameter
+          `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&chatId=${encodedJid}&limit=50`,
+          // Wawp.net style endpoints (wp-json path)
+          `${wapiUrl}/wp-json/awp/v1/chats/${encodedJid}/messages?instance_id=${encoded}&limit=50`,
+          // Alternative messaging endpoints
+          `${wapiUrl}/v1/message/list?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
         ];
 
         for (const endpoint of endpoints) {
@@ -251,7 +256,9 @@ Deno.serve(async (req) => {
               const msgs = Array.isArray(parsed)
                 ? parsed
                 : (Array.isArray(parsed.messages) ? parsed.messages : (Array.isArray(parsed.data) ? parsed.data : []));
-              return { messages: msgs, attempts };
+              if (msgs.length > 0) {
+                return { messages: msgs, attempts };
+              }
             } catch {
               // invalid json -> try next
               continue;
@@ -268,6 +275,13 @@ Deno.serve(async (req) => {
 
     for (const chat of allWapiChats) {
       const rawJid = (chat.jid || chat.id || '').toString();
+      
+      // Skip groups (@g.us) and broadcast lists (@lid, @broadcast)
+      if (rawJid.includes('@g.us') || rawJid.includes('@lid') || rawJid.includes('@broadcast')) {
+        console.log(`Skipping group/broadcast: ${rawJid.slice(-10)}`);
+        continue;
+      }
+      
       const extractedDigits = extractPhoneFromChat(chat);
       if (!extractedDigits || extractedDigits.length < 10) continue;
 
