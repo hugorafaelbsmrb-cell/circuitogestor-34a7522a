@@ -166,6 +166,12 @@ Deno.serve(async (req) => {
 
       for (const endpoint of priorityEndpoints) {
         const endpointBase = endpoint.split('?')[0];
+        
+        // Log full URL for first few attempts to debug
+        if (attempts.length < 2) {
+          console.log(`Trying endpoint: ${endpoint}`);
+        }
+        
         const res = await fetchWithTimeout(
           endpoint,
           {
@@ -184,12 +190,25 @@ Deno.serve(async (req) => {
           continue;
         }
 
+        // Log response body for non-OK responses to understand error
+        if (!res.ok && attempts.length < 2) {
+          try {
+            const errText = await res.clone().text();
+            console.log(`Response ${res.status} for ${endpoint}: ${errText.slice(0, 200)}`);
+          } catch { /* ignore */ }
+        }
+
         attempts.push({ endpoint: endpointBase, status: res.status, ok: res.ok });
         if (!res.ok) continue;
 
         try {
           const text = await res.text();
           const parsed = JSON.parse(text);
+          
+          // Log response structure for debugging
+          if (attempts.length < 3) {
+            console.log(`Response structure keys: ${Object.keys(parsed).join(', ')}`);
+          }
           
           // Extract messages from various possible response structures
           const msgs: WapiMessage[] = Array.isArray(parsed)
