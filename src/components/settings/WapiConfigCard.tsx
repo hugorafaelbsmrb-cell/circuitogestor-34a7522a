@@ -25,15 +25,32 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
   const [isLoadingQr, setIsLoadingQr] = useState(false);
   const [qrStatus, setQrStatus] = useState<'pending' | 'connected' | 'error'>('pending');
 
+  const normalizeWapiUrl = (url?: string) => {
+    const raw = (url || '').trim();
+    if (!raw) return '';
+
+    // Some docs mention app.wawp.net, but it fails DNS from our runtime; use wawp.net.
+    let base = raw.replace(/^https?:\/\/app\.wawp\.net/i, 'https://wawp.net');
+    base = base.replace(/^http:\/\//i, 'https://');
+    base = base.replace(/\/+$/, '');
+
+    // Ensure the value is the API base path.
+    if (!base.endsWith('/api')) base = `${base}/api`;
+    return `${base}/`;
+  };
+
+  const effectiveUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://wawp.net/api/';
+
   const isConfigured = !!(
-    editedSettings['W_API_URL'] && 
-    editedSettings['W_API_TOKEN'] && 
+    effectiveUrl &&
+    editedSettings['W_API_TOKEN'] &&
     editedSettings['W_API_SESSION']
   );
 
   const saveSettings = async () => {
+    const normalizedUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://wawp.net/api/';
     const settingsToSave = [
-      { key: 'W_API_URL', value: editedSettings['W_API_URL'] || 'https://app.wawp.net/api/' },
+      { key: 'W_API_URL', value: normalizedUrl },
       { key: 'W_API_TOKEN', value: editedSettings['W_API_TOKEN'] },
       { key: 'W_API_SESSION', value: editedSettings['W_API_SESSION'] },
     ];
@@ -45,7 +62,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
         .from('app_settings')
         .select('id')
         .eq('key', setting.key)
-        .single();
+        .maybeSingle();
 
       if (existing) {
         await supabase
@@ -193,12 +210,12 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-green-600" />
+            <MessageCircle className="w-5 h-5 text-primary" />
             <CardTitle>Integração WhatsApp (W-API)</CardTitle>
           </div>
           <div className="flex items-center gap-2">
             {connectionStatus === 'connected' && (
-              <Badge variant="default" className="bg-green-600">
+              <Badge variant="default">
                 <CheckCircle className="w-3 h-3 mr-1" />
                 Conectado
               </Badge>
@@ -235,7 +252,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
             </Label>
             <Input
               id="W_API_URL"
-              value={editedSettings['W_API_URL'] || 'https://wawp.net/api/'}
+              value={effectiveUrl}
               onChange={(e) => setEditedSettings(prev => ({ ...prev, 'W_API_URL': e.target.value }))}
               placeholder="https://wawp.net/api/"
             />
@@ -424,7 +441,7 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
             
             {!isLoadingQr && qrStatus === 'pending' && qrCodeData && (
               <div className="flex flex-col items-center gap-4">
-                <div className="p-4 bg-white rounded-lg">
+                <div className="p-4 bg-background rounded-lg border border-border">
                   {qrCodeData.startsWith('data:') || qrCodeData.startsWith('http') ? (
                     <img src={qrCodeData} alt="QR Code" className="w-64 h-64" />
                   ) : (
