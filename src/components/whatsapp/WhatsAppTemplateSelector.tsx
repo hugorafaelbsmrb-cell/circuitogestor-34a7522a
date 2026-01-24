@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageCircle, ChevronDown, AlertCircle, ExternalLink, Loader2, Clock } from 'lucide-react';
+import { MessageCircle, ChevronDown, AlertCircle, ExternalLink, Loader2, Clock, Send, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -8,9 +8,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { useWapiMessage } from '@/hooks/useWapiMessage';
 
 interface WhatsAppTemplate {
   id: string;
@@ -76,16 +80,25 @@ export default function WhatsAppTemplateSelector({
   const [paymentsDue48h, setPaymentsDue48h] = useState<PaymentDue48h[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [wapiConfigured, setWapiConfigured] = useState(false);
+  
+  const { sendMessage, isSending, checkConfig } = useWapiMessage();
 
   useEffect(() => {
     if (isOpen) {
       fetchTemplates();
+      checkWapiConfig();
       if (guardianId) {
         fetchOverduePayments(guardianId);
         fetchPaymentsDue48h(guardianId);
       }
     }
   }, [isOpen, guardianId]);
+
+  const checkWapiConfig = async () => {
+    const config = await checkConfig();
+    setWapiConfigured(config.isConfigured);
+  };
 
   const fetchTemplates = async () => {
     setIsLoading(true);
@@ -218,6 +231,18 @@ export default function WhatsAppTemplateSelector({
     setIsOpen(false);
   };
 
+  const sendViaWapi = async (template: WhatsAppTemplate, payment?: OverduePayment | PaymentDue48h) => {
+    const message = applyVariables(template.message, payment);
+    await sendMessage({ phone, message });
+    setIsOpen(false);
+  };
+
+  const sendDirectViaWapi = async () => {
+    const message = `Olá ${variables.nome_responsavel || ''}, tudo bem?`;
+    await sendMessage({ phone, message });
+    setIsOpen(false);
+  };
+
   const openWhatsAppDirect = () => {
     const formattedPhone = formatPhone(phone);
     const message = encodeURIComponent(`Olá ${variables.nome_responsavel || ''}, tudo bem?`);
@@ -259,13 +284,36 @@ export default function WhatsAppTemplateSelector({
           </div>
         ) : (
           <>
-            <DropdownMenuLabel>Enviar Mensagem</DropdownMenuLabel>
+            <DropdownMenuLabel className="flex items-center justify-between">
+              <span>Enviar Mensagem</span>
+              {isSending && <Loader2 className="w-3 h-3 animate-spin" />}
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             
-            <DropdownMenuItem onClick={openWhatsAppDirect}>
-              <MessageCircle className="w-4 h-4 mr-2" />
-              Mensagem Rápida
-            </DropdownMenuItem>
+            {/* Mensagem Rápida */}
+            {wapiConfigured ? (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Mensagem Rápida
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={openWhatsAppDirect}>
+                    <Globe className="w-4 h-4 mr-2" />
+                    Via WhatsApp Web
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={sendDirectViaWapi} disabled={isSending}>
+                    <Send className="w-4 h-4 mr-2" />
+                    Via W-API (Direto)
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            ) : (
+              <DropdownMenuItem onClick={openWhatsAppDirect}>
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Mensagem Rápida
+              </DropdownMenuItem>
+            )}
             
             {templates.length > 0 && (
               <>
@@ -274,17 +322,40 @@ export default function WhatsAppTemplateSelector({
                   Templates
                 </DropdownMenuLabel>
                 {templates.map((template) => (
-                  <DropdownMenuItem
-                    key={template.id}
-                    onClick={() => openWhatsApp(template)}
-                  >
-                    <div className="flex items-center gap-2 w-full">
-                      <span className="flex-1 truncate">{template.name}</span>
-                      <Badge variant="outline" className="text-xs shrink-0">
-                        {getCategoryLabel(template.category)}
-                      </Badge>
-                    </div>
-                  </DropdownMenuItem>
+                  wapiConfigured ? (
+                    <DropdownMenuSub key={template.id}>
+                      <DropdownMenuSubTrigger>
+                        <div className="flex items-center gap-2 w-full">
+                          <span className="flex-1 truncate">{template.name}</span>
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            {getCategoryLabel(template.category)}
+                          </Badge>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onClick={() => openWhatsApp(template)}>
+                          <Globe className="w-4 h-4 mr-2" />
+                          Via WhatsApp Web
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => sendViaWapi(template)} disabled={isSending}>
+                          <Send className="w-4 h-4 mr-2" />
+                          Via W-API (Direto)
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ) : (
+                    <DropdownMenuItem
+                      key={template.id}
+                      onClick={() => openWhatsApp(template)}
+                    >
+                      <div className="flex items-center gap-2 w-full">
+                        <span className="flex-1 truncate">{template.name}</span>
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          {getCategoryLabel(template.category)}
+                        </Badge>
+                      </div>
+                    </DropdownMenuItem>
+                  )
                 ))}
               </>
             )}
@@ -300,7 +371,28 @@ export default function WhatsAppTemplateSelector({
                   const reminderTemplate = templates.find(t => t.category === 'payment_due_48h' || t.category === 'payment_reminder');
                   if (!reminderTemplate) return null;
                   
-                  return (
+                  return wapiConfigured ? (
+                    <DropdownMenuSub key={payment.id}>
+                      <DropdownMenuSubTrigger className="text-warning">
+                        <div className="flex items-center gap-2 w-full">
+                          <span className="flex-1 truncate">
+                            {new Date(payment.due_date).toLocaleDateString('pt-BR')} - {' '}
+                            {payment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onClick={() => openWhatsApp(reminderTemplate, payment)}>
+                          <Globe className="w-4 h-4 mr-2" />
+                          Via WhatsApp Web
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => sendViaWapi(reminderTemplate, payment)} disabled={isSending}>
+                          <Send className="w-4 h-4 mr-2" />
+                          Via W-API (Direto)
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ) : (
                     <DropdownMenuItem
                       key={payment.id}
                       onClick={() => openWhatsApp(reminderTemplate, payment)}
@@ -332,7 +424,28 @@ export default function WhatsAppTemplateSelector({
                   const overdueTemplate = templates.find(t => t.category === 'payment_overdue');
                   if (!overdueTemplate) return null;
                   
-                  return (
+                  return wapiConfigured ? (
+                    <DropdownMenuSub key={payment.id}>
+                      <DropdownMenuSubTrigger className="text-destructive">
+                        <div className="flex items-center gap-2 w-full">
+                          <span className="flex-1 truncate">
+                            {new Date(payment.due_date).toLocaleDateString('pt-BR')} - {' '}
+                            {payment.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onClick={() => openWhatsApp(overdueTemplate, payment)}>
+                          <Globe className="w-4 h-4 mr-2" />
+                          Via WhatsApp Web
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => sendViaWapi(overdueTemplate, payment)} disabled={isSending}>
+                          <Send className="w-4 h-4 mr-2" />
+                          Via W-API (Direto)
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  ) : (
                     <DropdownMenuItem
                       key={payment.id}
                       onClick={() => openWhatsApp(overdueTemplate, payment)}
