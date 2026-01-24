@@ -485,6 +485,15 @@ export default function GuardianSupport() {
 
       if (error) throw error;
 
+      if (!data?.success) {
+        toast({
+          title: 'Sincronização indisponível',
+          description: data?.hint || data?.message || 'A W-API não liberou endpoints de histórico nesta conta.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       toast({
         title: 'Sincronização concluída',
         description: `${data.synced || 0} mensagens sincronizadas de ${data.chatsProcessed || 0} conversas.`,

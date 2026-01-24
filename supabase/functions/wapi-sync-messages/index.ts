@@ -82,98 +82,60 @@ Deno.serve(async (req) => {
     const session = config.W_API_SESSION;
     const encoded = encodeURIComponent(session);
 
-    // Fetch recent chats from W-API - try multiple endpoint patterns
-    const chatEndpoints = [
-      `${wapiUrl}/v1/chat/list?instanceId=${encoded}`,
-      `${wapiUrl}/v1/chats?instanceId=${encoded}`,
-      `${wapiUrl}/chat/list?instanceId=${encoded}`,
-      `${wapiUrl}/v1/chat/list/${encoded}`,
-      `${wapiUrl}/chat/list/${encoded}`,
-    ];
+    // Em algumas contas/plans a W-API não expõe o endpoint de listar chats.
+    // Para evitar dependência disso, sincronizamos mensagens diretamente para os telefones
+    // dos responsáveis cadastrados.
 
-    let chatsData: any = null;
-    let chatEndpointUsed: string | null = null;
+    const { data: guardians, error: guardiansError } = await supabase
+      .from('guardians')
+      .select('id, phone')
+      .limit(50);
 
-    for (const endpoint of chatEndpoints) {
-      try {
-        const res = await fetch(endpoint, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${config.W_API_TOKEN}`,
-            'Accept': 'application/json',
-            'instanceId': session,
-          },
-        });
-
-        const text = await res.text();
-        if (!res.ok) continue;
-
-        try {
-          chatsData = JSON.parse(text);
-          chatEndpointUsed = endpoint;
-          break;
-        } catch {
-          continue;
-        }
-      } catch {
-        continue;
-      }
-    }
-
-    if (!chatsData) {
-      console.error('All chat list endpoints failed');
+    if (guardiansError) {
+      console.error('Error fetching guardians:', guardiansError);
       return new Response(
-        JSON.stringify({ 
-          error: 'Não foi possível buscar conversas do W-API',
-          hint: 'Verifique se a instância está conectada e se o plano permite acesso a chats.',
-          triedEndpoints: chatEndpoints,
-        }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Erro ao buscar responsáveis para sincronização' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Chats fetched via:', chatEndpointUsed);
-
-    // Get all guardians for phone matching
-    const { data: guardians } = await supabase
-      .from('guardians')
-      .select('id, phone');
-
-    const guardianPhoneMap = new Map<string, string>();
-    guardians?.forEach(g => {
-      const cleanPhone = g.phone.replace(/\D/g, '');
-      const normalizedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-      guardianPhoneMap.set(normalizedPhone, g.id);
-    });
+    const normalizedGuardians = (guardians || [])
+      .map((g) => {
+        const clean = (g.phone || '').replace(/\D/g, '');
+        if (!clean) return null;
+        const phone = clean.startsWith('55') ? clean : `55${clean}`;
+        return { guardianId: g.id, phone };
+      })
+      .filter(Boolean) as Array<{ guardianId: string; phone: string }>;
 
     let syncedCount = 0;
     let errorCount = 0;
     const processedPhones = new Set<string>();
+    const debugFailures: Array<{
+      phone_mask: string;
+      attempts: Array<{ url: string; status: number | null; note?: string; snippet?: string }>;
+    }> = [];
 
-    // Process each chat and get messages
-    const chats = Array.isArray(chatsData) ? chatsData : (chatsData.chats || chatsData.data || []);
-    
-    // Message endpoints to try
-    const getMessageEndpoints = (phone: string) => [
-      `${wapiUrl}/v1/chat/messages?instanceId=${encoded}&phone=${phone}&limit=20`,
-      `${wapiUrl}/v1/messages?instanceId=${encoded}&phone=${phone}&limit=20`,
-      `${wapiUrl}/chat/messages?instanceId=${encoded}&phone=${phone}&limit=20`,
-      `${wapiUrl}/v1/chat/messages/${encoded}?phone=${phone}&limit=20`,
+    const getMessageEndpoints = (phone: string, limit = 20) => [
+      // Prefer /v1/chat/messages
+      `${wapiUrl}/v1/chat/messages?instanceId=${encoded}&phone=${phone}&limit=${limit}`,
+      // Some variants
+      `${wapiUrl}/chat/messages?instanceId=${encoded}&phone=${phone}&limit=${limit}`,
+      `${wapiUrl}/v1/messages?instanceId=${encoded}&phone=${phone}&limit=${limit}`,
+      // Some APIs use chatId
+      `${wapiUrl}/v1/chat/messages?instanceId=${encoded}&chatId=${phone}@c.us&limit=${limit}`,
     ];
 
-    for (const chat of chats.slice(0, 50)) { // Limit to 50 most recent chats
+    for (const g of normalizedGuardians) {
       try {
-        // Extract phone from chat id (format: 5511999999999@s.whatsapp.net)
-        const chatId = chat.id?._serialized || chat.id || chat.jid || '';
-        if (!chatId.includes('@s.whatsapp.net')) continue; // Skip groups
-        
-        const phone = chatId.replace('@s.whatsapp.net', '');
+        const phone = g.phone;
         if (processedPhones.has(phone)) continue;
         processedPhones.add(phone);
 
-        // Fetch messages for this chat - try multiple endpoints
+        // Fetch messages for this phone - try multiple endpoints
         let messagesData: any = null;
-        const messageEndpoints = getMessageEndpoints(phone);
+        const messageEndpoints = getMessageEndpoints(phone, 20);
+        const attempts: Array<{ url: string; status: number | null; note?: string; snippet?: string }> = [];
 
         for (const endpoint of messageEndpoints) {
           try {
@@ -187,21 +149,45 @@ Deno.serve(async (req) => {
             });
 
             const text = await res.text();
+
+            // Guardar diagnóstico (sem expor telefone completo)
+            if (debugFailures.length < 5) {
+              const sanitizedUrl = endpoint
+                .replace(/phone=\d+/g, 'phone=<redacted>')
+                .replace(/chatId=\d+@c\.us/g, 'chatId=<redacted>@c.us');
+              attempts.push({
+                url: sanitizedUrl,
+                status: res.status,
+                snippet: text?.slice(0, 160),
+              });
+            }
+
             if (!res.ok) continue;
 
             try {
               messagesData = JSON.parse(text);
               break;
             } catch {
+              if (debugFailures.length < 5) {
+                attempts[attempts.length - 1].note = 'Non-JSON';
+              }
               continue;
             }
           } catch {
+            if (debugFailures.length < 5) {
+              attempts.push({ url: endpoint, status: null, note: 'Fetch failed' });
+            }
             continue;
           }
         }
 
         if (!messagesData) {
-          console.error(`No working endpoint for messages of ${phone}`);
+          if (debugFailures.length < 5) {
+            debugFailures.push({
+              phone_mask: phone.slice(-4).padStart(phone.length, '*'),
+              attempts,
+            });
+          }
           errorCount++;
           continue;
         }
@@ -209,7 +195,7 @@ Deno.serve(async (req) => {
         const messages = Array.isArray(messagesData) ? messagesData : (messagesData.messages || messagesData.data || []);
 
         // Match to guardian
-        const guardianId = guardianPhoneMap.get(phone) || null;
+        const guardianId = g.guardianId || null;
 
         // Process each message
         for (const msg of messages) {
@@ -253,7 +239,7 @@ Deno.serve(async (req) => {
         }
 
         // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 120));
 
       } catch (chatError) {
         console.error('Error processing chat:', chatError);
@@ -263,15 +249,23 @@ Deno.serve(async (req) => {
 
     console.log(`Sync complete: ${syncedCount} messages synced, ${errorCount} errors`);
 
+    const allFailed = processedPhones.size > 0 && syncedCount === 0 && errorCount >= processedPhones.size;
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: `Sincronização concluída`,
+      JSON.stringify({
+        success: !allFailed,
+        message: allFailed
+          ? 'Sincronização indisponível: a W-API retornou 404 para endpoints de histórico (chats/mensagens).'
+          : 'Sincronização concluída',
+        hint: allFailed
+          ? 'Neste cenário, o sistema depende dos webhooks (mensagens recebidas) e do histórico passa a ser coletado apenas a partir de agora.'
+          : undefined,
         synced: syncedCount,
         errors: errorCount,
         chatsProcessed: processedPhones.size,
+        debug: debugFailures.length ? debugFailures : undefined,
       }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
 
   } catch (error: unknown) {
