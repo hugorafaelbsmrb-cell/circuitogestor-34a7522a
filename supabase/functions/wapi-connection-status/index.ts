@@ -110,26 +110,51 @@ Deno.serve(async (req) => {
 
     // Importante: existem variações de endpoint entre planos/coleções.
     // Tentamos em ordem até achar um que responda.
-    const candidates = [
-      `${baseUrl}/v1/instance/connectionState/${encodeURIComponent(session)}`,
-      `${baseUrl}/v1/instance/connectionState?instanceId=${encodeURIComponent(session)}`,
-      `${baseUrl}/v1/instance/status?instanceId=${encodeURIComponent(session)}`,
+    const encoded = encodeURIComponent(session);
+    const candidates: Array<{ url: string; extraHeaders?: Record<string, string> }> = [
+      // Alguns provedores aceitam instanceId apenas via header (sem path/query)
+      { url: `${baseUrl}/v1/instance/connectionState`, extraHeaders: { instanceId: session } },
+      { url: `${baseUrl}/instance/connectionState`, extraHeaders: { instanceId: session } },
+
+      // Sem /v1 (algumas coleções do Postman usam assim)
+      { url: `${baseUrl}/instance/connectionState/${encoded}` },
+      { url: `${baseUrl}/instance/connectionState?instanceId=${encoded}` },
+      { url: `${baseUrl}/instance/status?instanceId=${encoded}` },
+
+      // Com /v1 (QR Code geralmente usa /v1)
+      { url: `${baseUrl}/v1/instance/connectionState/${encoded}` },
+      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}` },
+      { url: `${baseUrl}/v1/instance/status?instanceId=${encoded}` },
+
+      // Variações com hífen
+      { url: `${baseUrl}/v1/instance/connection-state/${encoded}` },
+      { url: `${baseUrl}/v1/instance/connection-state?instanceId=${encoded}` },
+      { url: `${baseUrl}/instance/connection-state/${encoded}` },
+      { url: `${baseUrl}/instance/connection-state?instanceId=${encoded}` },
+
+      // Fallback: o endpoint de QR Code existe e costuma retornar status/estado.
+      // Evitamos image=enable para não baixar PNG.
+      { url: `${baseUrl}/v1/instance/qr-code?instanceId=${encoded}` },
     ];
+
+    const attempts: Array<{ url: string; status: number | null; ok: boolean; error?: string }> = [];
 
     let lastErr: unknown = null;
     let lastStatus: number | null = null;
 
-    for (const url of candidates) {
+    for (const c of candidates) {
       try {
-        const res = await fetch(url, {
+        const res = await fetch(c.url, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${config.W_API_TOKEN}`,
             Accept: 'application/json',
+            ...(c.extraHeaders ?? {}),
           },
         });
 
         lastStatus = res.status;
+        attempts.push({ url: c.url, status: res.status, ok: res.ok });
         const text = await res.text();
         const contentType = res.headers.get('content-type') || '';
 
@@ -156,7 +181,7 @@ Deno.serve(async (req) => {
             JSON.stringify({
               success: true,
               ...conn,
-              endpoint: url,
+              endpoint: c.url,
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
           );
@@ -171,7 +196,7 @@ Deno.serve(async (req) => {
               JSON.stringify({
                 success: true,
                 ...conn,
-                endpoint: url,
+                endpoint: c.url,
                 note: 'non-200 response parsed',
               }),
               { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -180,15 +205,22 @@ Deno.serve(async (req) => {
         }
       } catch (e) {
         lastErr = e;
+        attempts.push({
+          url: c.url,
+          status: null,
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     }
 
-    console.error('W-API status check failed', { lastErr, lastStatus });
+    console.error('W-API status check failed', { lastErr, lastStatus, attempts });
     return new Response(
       JSON.stringify({
         error: 'Não foi possível verificar o status na W-API',
         lastStatus,
         details: lastErr instanceof Error ? lastErr.message : String(lastErr),
+        attempts,
       }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
