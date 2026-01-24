@@ -11,7 +11,8 @@ import {
   UserX,
   Calculator,
   Wrench,
-  BookOpen
+  BookOpen,
+  RefreshCw
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -159,6 +160,7 @@ export default function GuardianSupport() {
   const [formPriority, setFormPriority] = useState<SupportTicket['priority']>('normal');
   const [formCourse, setFormCourse] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -476,6 +478,32 @@ export default function GuardianSupport() {
     return phone;
   };
 
+  const handleSyncMessages = async () => {
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('wapi-sync-messages');
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sincronização concluída',
+        description: `${data.synced || 0} mensagens sincronizadas de ${data.chatsProcessed || 0} conversas.`,
+      });
+
+      // Reload data to show new messages
+      loadData();
+    } catch (error) {
+      console.error('Error syncing messages:', error);
+      toast({
+        title: 'Erro na sincronização',
+        description: 'Não foi possível sincronizar as mensagens do WhatsApp.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -493,10 +521,20 @@ export default function GuardianSupport() {
           <p className="text-muted-foreground">Organizado por curso e categoria</p>
         </div>
 
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Atendimento
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleSyncMessages}
+            disabled={isSyncing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar WhatsApp'}
+          </Button>
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Atendimento
+          </Button>
+        </div>
       </div>
 
       {/* Kanban Board - Columns by Category */}
