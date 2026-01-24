@@ -42,7 +42,7 @@ import { useNavigate } from 'react-router-dom';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
 import { BulkMessageModal } from '@/components/bulk/BulkMessageModal';
 import { useAutomationSettings } from '@/hooks/useAutomationSettings';
-import { isValidEmail, formatPhone } from '@/utils/validators';
+import { isValidEmail, formatPhone, normalizePhoneToWAPI, formatPhoneFromNormalized } from '@/utils/validators';
 
 interface Lead {
   id: string;
@@ -163,7 +163,7 @@ export default function Leads() {
     const leadData = {
       name: form.name,
       email: form.email || null,
-      phone: form.phone,
+      phone: normalizePhoneToWAPI(form.phone),
       source: form.source,
       status: form.status,
       notes: form.notes || null,
@@ -221,7 +221,7 @@ export default function Leads() {
     setForm({
       name: lead.name,
       email: lead.email || '',
-      phone: lead.phone,
+      phone: formatPhoneFromNormalized(lead.phone),
       source: lead.source,
       status: lead.status,
       notes: lead.notes || '',

@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { DbGuardian } from '@/hooks/useSchoolData';
-import { isValidCPF, isValidEmail, formatCPF, formatPhone, formatCEP } from '@/utils/validators';
+import { isValidCPF, isValidEmail, formatCPF, formatPhone, formatCEP, normalizePhoneToWAPI, formatPhoneFromNormalized } from '@/utils/validators';
 
 interface EditGuardianModalProps {
   guardian: DbGuardian | null;
@@ -47,7 +47,7 @@ export default function EditGuardianModal({
         name: guardian.name || '',
         cpf: guardian.cpf || '',
         email: guardian.email || '',
-        phone: guardian.phone || '',
+        phone: formatPhoneFromNormalized(guardian.phone || ''),
         address: guardian.address || '',
         address_number: guardian.address_number || '',
         province: guardian.province || '',
@@ -82,7 +82,12 @@ export default function EditGuardianModal({
 
     setIsLoading(true);
     try {
-      await onSave(guardian.id, formData);
+      // Normalize phone before saving
+      const dataToSave = {
+        ...formData,
+        phone: normalizePhoneToWAPI(formData.phone),
+      };
+      await onSave(guardian.id, dataToSave);
       toast({
         title: 'Sucesso',
         description: 'Dados do responsável atualizados com sucesso.',

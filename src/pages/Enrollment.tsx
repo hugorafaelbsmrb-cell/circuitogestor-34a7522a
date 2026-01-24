@@ -16,7 +16,7 @@ import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { EnrollmentSummary } from '@/components/enrollment/EnrollmentSummary';
 import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
 import { supabase } from '@/integrations/supabase/client';
-import { isValidCPF, isValidEmail, formatCPF, formatPhone, formatCEP } from '@/utils/validators';
+import { isValidCPF, isValidEmail, formatCPF, formatPhone, formatCEP, normalizePhoneToWAPI } from '@/utils/validators';
 
 type Step = 'student' | 'guardian' | 'course' | 'schedule' | 'payment' | 'contract' | 'summary';
 
@@ -604,13 +604,14 @@ export default function Enrollment() {
     try {
       // 1. Check if Guardian already exists by CPF or use existing one for second course
       const cleanCpf = formData.guardian.cpf.replace(/\D/g, '');
+      const normalizedPhone = normalizePhoneToWAPI(formData.guardian.phone);
       let guardian = existingGuardian || getGuardianByCpf(cleanCpf);
       
       if (guardian && !isSecondCourseFlow) {
         await updateGuardian(guardian.id, {
           name: formData.guardian.name,
           email: formData.guardian.email,
-          phone: formData.guardian.phone,
+          phone: normalizedPhone,
           address: formData.guardian.address,
           address_number: formData.guardian.addressNumber || 'S/N',
           province: formData.guardian.province || 'Centro',
@@ -619,7 +620,7 @@ export default function Enrollment() {
         guardian = { ...guardian, ...{
           name: formData.guardian.name,
           email: formData.guardian.email,
-          phone: formData.guardian.phone,
+          phone: normalizedPhone,
           address: formData.guardian.address,
           address_number: formData.guardian.addressNumber || 'S/N',
           province: formData.guardian.province || 'Centro',
@@ -630,7 +631,7 @@ export default function Enrollment() {
           name: formData.guardian.name,
           cpf: cleanCpf,
           email: formData.guardian.email,
-          phone: formData.guardian.phone,
+          phone: normalizedPhone,
           address: formData.guardian.address,
           address_number: formData.guardian.addressNumber || 'S/N',
           province: formData.guardian.province || 'Centro',

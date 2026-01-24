@@ -77,7 +77,7 @@ export function formatCPF(value: string): string {
 }
 
 /**
- * Formats a phone number string with mask
+ * Formats a phone number string with mask for display
  * @param value - Raw phone string
  * @returns Formatted phone string
  */
@@ -87,6 +87,50 @@ export function formatPhone(value: string): string {
     .replace(/(\d{2})(\d)/, '($1) $2')
     .replace(/(\d{5})(\d)/, '$1-$2')
     .slice(0, 15);
+}
+
+/**
+ * Normalizes a phone number to W-API standard format (551199999999)
+ * Always includes country code 55, removes all non-numeric characters
+ * @param value - Raw phone string (any format)
+ * @returns Normalized phone string in format 551199999999
+ */
+export function normalizePhoneToWAPI(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  
+  // If already has country code 55 and valid length (12-13 digits)
+  if (digits.startsWith('55') && digits.length >= 12 && digits.length <= 13) {
+    return digits;
+  }
+  
+  // If it's a local number (10-11 digits), add country code
+  if (digits.length >= 10 && digits.length <= 11) {
+    return `55${digits}`;
+  }
+  
+  // For other cases, just return digits (might be partial input)
+  return digits.startsWith('55') ? digits : `55${digits}`;
+}
+
+/**
+ * Formats a normalized phone (551199999999) to display format
+ * @param value - Normalized phone string
+ * @returns Formatted phone string for display
+ */
+export function formatPhoneFromNormalized(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  
+  // Remove country code for display if present
+  const localDigits = digits.startsWith('55') ? digits.slice(2) : digits;
+  
+  if (localDigits.length === 11) {
+    return `(${localDigits.slice(0, 2)}) ${localDigits.slice(2, 7)}-${localDigits.slice(7)}`;
+  } else if (localDigits.length === 10) {
+    return `(${localDigits.slice(0, 2)}) ${localDigits.slice(2, 6)}-${localDigits.slice(6)}`;
+  }
+  
+  return formatPhone(localDigits);
 }
 
 /**
