@@ -107,6 +107,30 @@ export type Database = {
         }
         Relationships: []
       }
+      bulk_message_templates: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       carnes: {
         Row: {
           asaas_installment_id: string
@@ -901,6 +925,48 @@ export type Database = {
           id?: string
           permissions?: Json | null
           role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      scheduled_bulk_messages: {
+        Row: {
+          course_filter: string | null
+          created_at: string
+          error_count: number | null
+          id: string
+          message: string
+          processed_at: string | null
+          recipient_ids: string[]
+          scheduled_at: string
+          sent_count: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          course_filter?: string | null
+          created_at?: string
+          error_count?: number | null
+          id?: string
+          message: string
+          processed_at?: string | null
+          recipient_ids: string[]
+          scheduled_at: string
+          sent_count?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          course_filter?: string | null
+          created_at?: string
+          error_count?: number | null
+          id?: string
+          message?: string
+          processed_at?: string | null
+          recipient_ids?: string[]
+          scheduled_at?: string
+          sent_count?: number | null
+          status?: string
           updated_at?: string
         }
         Relationships: []
