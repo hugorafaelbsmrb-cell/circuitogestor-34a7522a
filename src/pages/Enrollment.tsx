@@ -694,7 +694,78 @@ export default function Enrollment() {
         // Non-blocking: don't fail the enrollment if LMS integration fails
       }
 
-      // 6. Generate Contract (with LMS credentials if available)
+      // 5b. Generate Soroban credentials for Soroban courses
+      let sorobanCredentials: { email: string; password: string; matricula: string; level: number } | null = null;
+      const isSorobanCourse = selectedCourse.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes('soroban');
+      
+      if (isSorobanCourse) {
+        try {
+          // Generate matricula using enrollment ID
+          const sorobanMatricula = `${new Date().getFullYear()}${enrollment.id.slice(-7).toUpperCase()}`;
+          
+          // Generate email (same pattern as LMS)
+          const generateSorobanEmail = (fullName: string): string => {
+            const normalized = fullName
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .trim();
+            const nameParts = normalized.split(' ').filter(part => part.length > 0);
+            if (nameParts.length === 0) return `aluno@circuitokids.com.br`;
+            const firstName = nameParts[0];
+            const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+            return lastName 
+              ? `${firstName}.${lastName}@circuitokids.com.br`
+              : `${firstName}@circuitokids.com.br`;
+          };
+          
+          // Generate password (same pattern as LMS)
+          const generateSorobanPassword = (name: string, birthDate: string): string => {
+            const firstName = name.split(' ')[0].toLowerCase();
+            const firstThree = firstName.substring(0, 3);
+            const year = birthDate.split('-')[0];
+            return `${firstThree}${year}`;
+          };
+          
+          const sorobanEmail = generateSorobanEmail(student.name);
+          const sorobanPassword = generateSorobanPassword(student.name, student.birth_date);
+          
+          // Save credentials to soroban_credentials table
+          const { error: sorobanError } = await supabase
+            .from('soroban_credentials')
+            .upsert({
+              student_id: student.id,
+              enrollment_id: enrollment.id,
+              email: sorobanEmail,
+              password: sorobanPassword,
+              matricula: sorobanMatricula,
+              current_level: 1,
+            }, {
+              onConflict: 'matricula',
+            });
+          
+          if (sorobanError) {
+            console.error('Error saving Soroban credentials:', sorobanError);
+          } else {
+            sorobanCredentials = {
+              email: sorobanEmail,
+              password: sorobanPassword,
+              matricula: sorobanMatricula,
+              level: 1,
+            };
+            console.log('Soroban credentials saved:', sorobanCredentials);
+            toast({
+              title: "Acesso Soroban criado!",
+              description: `Credenciais: ${sorobanEmail} / ${sorobanPassword}`,
+            });
+          }
+        } catch (sorobanError) {
+          console.error('Soroban credentials error (non-blocking):', sorobanError);
+          // Non-blocking: don't fail the enrollment if Soroban integration fails
+        }
+      }
+
+      // 6. Generate Contract (with LMS and/or Soroban credentials if available)
       const gradeLevelInfo = GRADE_LEVELS.find(g => g.id === selectedGradeLevel);
       const contractContent = {
         schoolName: contractConfig?.school_name || 'EduGestor',
@@ -736,6 +807,7 @@ export default function Enrollment() {
         })),
         createdAt: new Date().toISOString(),
         lmsCredentials: lmsCredentials,
+        sorobanCredentials: sorobanCredentials,
       };
 
       const contract = await createContract({
