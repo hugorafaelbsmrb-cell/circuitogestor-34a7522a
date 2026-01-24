@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageCircle, Eye, EyeOff, ExternalLink, CheckCircle, AlertCircle, Loader2, TestTube, QrCode, RefreshCw, Power, Wifi, WifiOff } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,12 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
   const [isCheckingStatus, setIsCheckingStatus] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [statusDetails, setStatusDetails] = useState<string | null>(null);
+  const [pollingTimeLeft, setPollingTimeLeft] = useState(0);
+  
+  // Refs para controle de polling
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const normalizeWapiUrl = (url?: string) => {
     const raw = (url || '').trim();
@@ -307,10 +313,10 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     setIsDisconnecting(false);
   };
 
-  // Verificar status silenciosamente ao carregar (se configurado)
-  const checkStatusSilently = async () => {
+  // Verificar status silenciosamente (retorna boolean indicando se conectou)
+  const checkStatusSilently = useCallback(async (): Promise<boolean> => {
     if (!editedSettings['W_API_TOKEN'] || !editedSettings['W_API_SESSION']) {
-      return;
+      return false;
     }
 
     try {
@@ -319,17 +325,87 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
       const phone = (data as any)?.phone || null;
       setConnectionStatus(isConnected ? 'connected' : 'unknown');
       setStatusDetails(isConnected ? phone : null);
+      return isConnected;
     } catch (error) {
       console.error('Silent status check error:', error);
+      return false;
     }
-  };
+  }, [editedSettings['W_API_TOKEN'], editedSettings['W_API_SESSION']]);
+
+  // Limpar todos os intervalos de polling
+  const clearPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+    setPollingTimeLeft(0);
+  }, []);
+
+  // Iniciar polling automático
+  const startPolling = useCallback(() => {
+    // Limpar polling anterior
+    clearPolling();
+
+    const POLLING_INTERVAL = 3000; // 3 segundos
+    const POLLING_DURATION = 60000; // 60 segundos total
+    const startTime = Date.now();
+
+    setPollingTimeLeft(60);
+
+    // Countdown visual
+    countdownIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, Math.ceil((POLLING_DURATION - elapsed) / 1000));
+      setPollingTimeLeft(remaining);
+    }, 1000);
+
+    // Polling de status
+    pollingIntervalRef.current = setInterval(async () => {
+      const isConnected = await checkStatusSilently();
+      if (isConnected) {
+        setQrStatus('connected');
+        clearPolling();
+        toast({
+          title: 'WhatsApp Conectado!',
+          description: 'Conexão detectada automaticamente.',
+        });
+      }
+    }, POLLING_INTERVAL);
+
+    // Timeout para parar o polling após 60s
+    pollingTimeoutRef.current = setTimeout(() => {
+      clearPolling();
+    }, POLLING_DURATION);
+  }, [checkStatusSilently, clearPolling, toast]);
+
+  // Iniciar polling quando o modal abre com QR Code pendente
+  useEffect(() => {
+    if (showQrModal && qrStatus === 'pending' && qrCodeData && !isLoadingQr) {
+      startPolling();
+    } else {
+      clearPolling();
+    }
+
+    // Cleanup ao desmontar ou fechar modal
+    return () => {
+      clearPolling();
+    };
+  }, [showQrModal, qrStatus, qrCodeData, isLoadingQr, startPolling, clearPolling]);
 
   // Verificar status ao montar o componente
   useEffect(() => {
     if (isConfigured) {
       checkStatusSilently();
     }
-  }, [editedSettings['W_API_TOKEN'], editedSettings['W_API_SESSION']]);
+  }, [isConfigured, checkStatusSilently]);
 
   const handleTestConnection = async () => {
     if (!isConfigured) {
@@ -700,9 +776,21 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
                     <img src={`data:image/png;base64,${qrCodeData}`} alt="QR Code" className="w-64 h-64" />
                   )}
                 </div>
+                
+                {/* Indicador de polling automático */}
+                {pollingTimeLeft > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span>Verificando automaticamente... ({pollingTimeLeft}s)</span>
+                  </div>
+                )}
+                
                 <p className="text-sm text-muted-foreground text-center">
-                  Abra o WhatsApp no seu celular e escaneie este código.
+                  {pollingTimeLeft > 0 
+                    ? 'Escaneie o QR Code. A conexão será detectada automaticamente.'
+                    : 'Abra o WhatsApp no seu celular e escaneie este código.'}
                 </p>
+                
                 <div className="flex gap-2">
                   <Button onClick={handleCheckStatus} variant="default" size="sm" className="gap-2" disabled={isCheckingStatus}>
                     {isCheckingStatus ? (
