@@ -20,7 +20,8 @@ import {
   ClipboardCheck,
   Package,
   Monitor,
-  Send
+  Send,
+  Kanban
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -50,6 +51,7 @@ const menuItems = [
   { icon: Shield, label: 'Usuários', path: '/usuarios', permissionKey: 'users', adminOnly: true },
   { icon: MessageSquare, label: 'WhatsApp', path: '/whatsapp-config', permissionKey: 'whatsapp', adminOnly: true },
   { icon: Send, label: 'Envio em Massa', path: '/envio-massa', permissionKey: 'whatsapp', adminOnly: true },
+  { icon: Kanban, label: 'Atendimento Pais', path: '/atendimento-pais', permissionKey: 'guardians', adminOnly: false },
   { icon: Settings, label: 'Configurações', path: '/configuracoes', permissionKey: 'settings', adminOnly: true },
 ];
 
