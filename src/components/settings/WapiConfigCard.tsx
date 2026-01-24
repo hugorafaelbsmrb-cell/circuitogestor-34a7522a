@@ -162,9 +162,9 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
             </Label>
             <Input
               id="W_API_URL"
-              value={editedSettings['W_API_URL'] || ''}
+              value={editedSettings['W_API_URL'] || 'https://app.wawp.net/api/'}
               onChange={(e) => setEditedSettings(prev => ({ ...prev, 'W_API_URL': e.target.value }))}
-              placeholder="https://api.l2msg.com/whatsapp"
+              placeholder="https://app.wawp.net/api/"
             />
             <p className="text-xs text-muted-foreground">
               URL base da sua instância W-API
