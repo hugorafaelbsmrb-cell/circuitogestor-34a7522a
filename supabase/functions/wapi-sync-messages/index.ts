@@ -306,6 +306,14 @@ Deno.serve(async (req) => {
     console.log(`Sync complete: ${syncedCount} messages synced, ${errorCount} errors`);
     console.log(`Guardians checked: ${processedPhones.size}, with messages: ${guardiansWithMessages}`);
 
+    if (syncedCount === 0) {
+      try {
+        console.log('Debug samples (first phones):', JSON.stringify(debugAttempts));
+      } catch {
+        // ignore
+      }
+    }
+
     // Derive a more precise message when nothing is returned
     const attemptStatuses = debugAttempts.flatMap((d) => d.attempts.map((a) => a.status).filter((s): s is number => typeof s === 'number'));
     const hasAuthError = attemptStatuses.some((s) => s === 401 || s === 403);
@@ -318,7 +326,8 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: syncedCount > 0 || errorCount === 0,
+        // Treat 0 synced as unsuccessful so the frontend can show the derivedMessage branch.
+        success: syncedCount > 0,
         plan: detectedPlan,
         message: syncedCount > 0 
           ? `Sincronização concluída: ${syncedCount} mensagens de ${guardiansWithMessages} responsáveis` 

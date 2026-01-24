@@ -493,10 +493,36 @@ export default function GuardianSupport() {
         return;
       }
 
-      if (!data?.success && data?.synced === 0) {
+      const debugSummary = (() => {
+        const samples = data?.debug?.samples as
+          | Array<{ phoneSuffix: string; attempts: Array<{ endpoint: string; status: number | null; ok: boolean; note?: string }> }>
+          | undefined;
+        if (!samples?.length) return '';
+
+        const shortEndpoint = (endpoint: string) => {
+          try {
+            return new URL(endpoint).pathname;
+          } catch {
+            return endpoint;
+          }
+        };
+
+        return samples
+          .map((s) => {
+            const parts = (s.attempts || [])
+              .slice(0, 4)
+              .map((a) => `${shortEndpoint(a.endpoint)}=${a.status ?? 'timeout'}`)
+              .join(', ');
+            return `${s.phoneSuffix}: ${parts}`;
+          })
+          .join(' | ');
+      })();
+
+      // Even if the backend returned success=true previously, 0 synced means we need to show the derived reason.
+      if ((data?.synced || 0) === 0) {
         toast({
-          title: 'Nenhuma mensagem nova',
-          description: data?.message || 'Todas as mensagens já estão sincronizadas.',
+          title: 'Nenhuma mensagem sincronizada',
+          description: `${data?.message || 'Não foi possível obter o histórico.'}${debugSummary ? `\n\nAmostra: ${debugSummary}` : ''}`,
         });
         return;
       }
