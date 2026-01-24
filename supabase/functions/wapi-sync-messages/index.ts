@@ -131,57 +131,60 @@ Deno.serve(async (req) => {
     // ========================================
     // STEP 2: Function to fetch messages for a phone number
     // ========================================
+    // Helper: fetch with timeout
+    const fetchWithTimeout = async (url: string, options: RequestInit, timeoutMs = 5000): Promise<Response | null> => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        clearTimeout(id);
+        return res;
+      } catch {
+        clearTimeout(id);
+        return null;
+      }
+    };
+
     const fetchMessagesForPhone = async (
       phone: string,
     ): Promise<{ messages: WapiMessage[]; success: boolean; workingEndpoint?: string }> => {
-      // Build JID candidates - try WITH country code first, then without
       const phoneWithCC = phone.startsWith('55') ? phone : `55${phone}`;
-      const phoneWithoutCC = phoneWithCC.replace(/^55/, '');
       
       const jidCandidates = [
         `${phoneWithCC}@c.us`,
         `${phoneWithCC}@s.whatsapp.net`,
-        `${phoneWithoutCC}@c.us`,
-        `${phoneWithoutCC}@s.whatsapp.net`,
       ];
 
+      // Try only the first 2 most common endpoints to be faster
       for (const jid of jidCandidates) {
         const encodedJid = encodeURIComponent(jid);
         
-        // Multiple endpoint patterns for different W-API versions
         const endpoints = [
-          `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
-          `${wapiUrl}/v1/chats/messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
-          `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&chatId=${encodedJid}&limit=50`,
-          `${wapiUrl}/v1/message/list?instanceId=${encoded}&remoteJid=${encodedJid}&limit=50`,
-          `${wapiUrl}/wp-json/awp/v1/chats/${encodedJid}/messages?instance_id=${encoded}&limit=50`,
+          `${wapiUrl}/v1/chats/fetch-messages?instanceId=${encoded}&remoteJid=${encodedJid}&limit=30`,
+          `${wapiUrl}/v1/message/list?instanceId=${encoded}&remoteJid=${encodedJid}&limit=30`,
         ];
 
         for (const endpoint of endpoints) {
+          const res = await fetchWithTimeout(endpoint, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${config.W_API_TOKEN}`,
+              'Accept': 'application/json',
+              'instanceId': session,
+            },
+          }, 4000);
+
+          if (!res || !res.ok) continue;
+
           try {
-            const res = await fetch(endpoint, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${config.W_API_TOKEN}`,
-                'Accept': 'application/json',
-                'instanceId': session,
-              },
-            });
-
-            if (!res.ok) continue;
-
             const text = await res.text();
-            try {
-              const parsed = JSON.parse(text);
-              const msgs: WapiMessage[] = Array.isArray(parsed)
-                ? parsed
-                : (Array.isArray(parsed.messages) ? parsed.messages : (Array.isArray(parsed.data) ? parsed.data : []));
-              
-              if (msgs.length > 0) {
-                return { messages: msgs, success: true, workingEndpoint: endpoint.split('?')[0] };
-              }
-            } catch {
-              continue;
+            const parsed = JSON.parse(text);
+            const msgs: WapiMessage[] = Array.isArray(parsed)
+              ? parsed
+              : (Array.isArray(parsed.messages) ? parsed.messages : (Array.isArray(parsed.data) ? parsed.data : []));
+            
+            if (msgs.length > 0) {
+              return { messages: msgs, success: true, workingEndpoint: endpoint.split('?')[0] };
             }
           } catch {
             continue;
@@ -192,38 +195,27 @@ Deno.serve(async (req) => {
       return { messages: [], success: false };
     };
 
-    // ========================================
-    // STEP 3: Process each guardian's phone directly
-    // ========================================
-    let guardiansWithMessages = 0;
-    let firstWorkingEndpoint = '';
-
-    for (const guardian of guardians) {
+    // Process a single guardian
+    const processGuardian = async (guardian: { id: string; phone: string; name: string | null }) => {
       const phone = normalizeToBR(guardian.phone);
-      if (!phone || phone.length < 12) continue; // Need at least 55 + DDD + number
+      if (!phone || phone.length < 12) return { synced: 0, errors: 0, hasMessages: false };
       
-      if (processedPhones.has(phone)) continue;
+      if (processedPhones.has(phone)) return { synced: 0, errors: 0, hasMessages: false };
       processedPhones.add(phone);
 
-      console.log(`Checking messages for guardian: ${guardian.name?.split(' ')[0]} (${phone.slice(-4)})`);
-
-      const { messages, success, workingEndpoint } = await fetchMessagesForPhone(phone);
+      const { messages, success } = await fetchMessagesForPhone(phone);
       
       if (!success || messages.length === 0) {
-        // No messages found - not necessarily an error, just no history
-        continue;
+        return { synced: 0, errors: 0, hasMessages: false };
       }
 
-      if (workingEndpoint && !firstWorkingEndpoint) {
-        firstWorkingEndpoint = workingEndpoint;
-        console.log(`Working endpoint found: ${workingEndpoint}`);
-      }
+      let localSynced = 0;
+      let localErrors = 0;
 
-      guardiansWithMessages++;
-      console.log(`Found ${messages.length} messages for ${guardian.name?.split(' ')[0]}`);
-
-      // Process each message
-      for (const msg of messages) {
+      // Process messages (limit to 20 most recent to be fast)
+      const recentMessages = messages.slice(0, 20);
+      
+      for (const msg of recentMessages) {
         const messageId = typeof msg.id === 'object' ? msg.id?._serialized : msg.id || msg.key?.id || null;
         const messageText = msg.body || msg.text || msg.message || '';
         const isFromMe = msg.fromMe || msg.key?.fromMe || false;
@@ -242,7 +234,6 @@ Deno.serve(async (req) => {
           if (existing) continue;
         }
 
-        // Insert the message
         const { error: insertError } = await supabase
           .from('whatsapp_messages')
           .insert({
@@ -256,20 +247,34 @@ Deno.serve(async (req) => {
           });
 
         if (insertError) {
-          console.error('Error inserting message:', insertError);
-          errorCount++;
+          localErrors++;
         } else {
-          syncedCount++;
+          localSynced++;
         }
       }
 
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 30));
-    }
+      return { synced: localSynced, errors: localErrors, hasMessages: true };
+    };
 
     // ========================================
-    // STEP 4: Return results
+    // STEP 3: Process guardians in parallel batches
     // ========================================
+    let guardiansWithMessages = 0;
+    const BATCH_SIZE = 5; // Process 5 guardians in parallel
+
+    for (let i = 0; i < guardians.length; i += BATCH_SIZE) {
+      const batch = guardians.slice(i, i + BATCH_SIZE);
+      console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.map(g => g.name?.split(' ')[0]).join(', ')}`);
+      
+      const results = await Promise.all(batch.map(g => processGuardian(g)));
+      
+      for (const result of results) {
+        syncedCount += result.synced;
+        errorCount += result.errors;
+        if (result.hasMessages) guardiansWithMessages++;
+      }
+    }
+
     console.log(`Sync complete: ${syncedCount} messages synced, ${errorCount} errors`);
     console.log(`Guardians checked: ${processedPhones.size}, with messages: ${guardiansWithMessages}`);
 
@@ -287,7 +292,7 @@ Deno.serve(async (req) => {
         chatsProcessed: processedPhones.size,
         guardiansProcessed: guardiansWithMessages,
         unknownContactsProcessed: 0,
-        workingEndpoint: firstWorkingEndpoint || null,
+        workingEndpoint: null,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
