@@ -1157,7 +1157,29 @@ export default function Enrollment() {
           </html>
         `);
         printWindow.document.close();
-        printWindow.print();
+        
+        // Aguarda todas as imagens carregarem antes de imprimir
+        const images = printWindow.document.images;
+        if (images.length > 0) {
+          let loadedCount = 0;
+          const checkAllLoaded = () => {
+            loadedCount++;
+            if (loadedCount >= images.length) {
+              setTimeout(() => printWindow.print(), 100);
+            }
+          };
+          
+          Array.from(images).forEach((img) => {
+            if (img.complete) {
+              checkAllLoaded();
+            } else {
+              img.onload = checkAllLoaded;
+              img.onerror = checkAllLoaded;
+            }
+          });
+        } else {
+          printWindow.print();
+        }
       }
     } else {
       setShowContractModal(true);
