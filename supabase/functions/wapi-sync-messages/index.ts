@@ -282,15 +282,24 @@ Deno.serve(async (req) => {
       if (guardianId) guardiansProcessedSet.add(guardianId);
       else unknownContactsProcessedSet.add(phone);
 
-      // Build JID candidates: prefer the jid from W-API; otherwise try a small set of common suffixes.
+      // Build JID candidates: prefer the jid from W-API; otherwise try common suffixes.
+      // W-API typically uses the full number WITH country code in JIDs.
       const jidCandidates: string[] = [];
       if (rawJid && rawJid.includes('@')) {
+        // Use the exact JID returned by W-API
         jidCandidates.push(rawJid);
-      } else {
-        jidCandidates.push(`${phone}@c.us`);
-        jidCandidates.push(`${phone.replace(/^55/, '')}@c.us`);
-        jidCandidates.push(`${phone}@s.whatsapp.net`);
       }
+      // Also try with country code (55) - this is the most common format
+      jidCandidates.push(`${phone}@c.us`);
+      jidCandidates.push(`${phone}@s.whatsapp.net`);
+      // Fallback: try without country code (some older instances)
+      const phoneWithoutCC = phone.replace(/^55/, '');
+      if (phoneWithoutCC !== phone) {
+        jidCandidates.push(`${phoneWithoutCC}@c.us`);
+        jidCandidates.push(`${phoneWithoutCC}@s.whatsapp.net`);
+      }
+      
+      console.log(`JID candidates for ${phone.slice(-4)}:`, jidCandidates.map(j => j.replace(/\d{6,}/, '***')));
 
       console.log(`Processing chat for phone: ${phone.slice(-4)} (guardian: ${guardianId ? 'yes' : 'no'})`);
 
