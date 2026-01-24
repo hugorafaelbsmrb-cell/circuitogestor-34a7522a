@@ -564,6 +564,70 @@ export type Database = {
         }
         Relationships: []
       }
+      guardian_support_tickets: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          course_id: string | null
+          created_at: string
+          guardian_id: string
+          id: string
+          notes: string | null
+          priority: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          course_id?: string | null
+          created_at?: string
+          guardian_id: string
+          id?: string
+          notes?: string | null
+          priority?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          course_id?: string | null
+          created_at?: string
+          guardian_id?: string
+          id?: string
+          notes?: string | null
+          priority?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guardian_support_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guardian_support_tickets_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guardian_support_tickets_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guardians: {
         Row: {
           address: string
