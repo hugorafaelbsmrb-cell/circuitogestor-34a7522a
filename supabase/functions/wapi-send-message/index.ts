@@ -91,23 +91,48 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
 
-    // Send message via W-API - using Bearer token authentication
-    const wapiUrl = config.W_API_URL.replace(/\/$/, ''); // Remove trailing slash
-    const response = await fetch(`${wapiUrl}/message/send-text`, {
+    // Normalize base URL
+    let wapiUrl = config.W_API_URL.replace(/\/$/, '');
+    wapiUrl = wapiUrl.replace(/^http:\/\//i, 'https://');
+    if (/\/\/(app\.)?wawp\.net\b/i.test(wapiUrl)) {
+      wapiUrl = 'https://api.w-api.app';
+    }
+
+    // Build endpoint - W-API docs use /v1/messages/send-text with instanceId as query param
+    const sendUrl = `${wapiUrl}/v1/messages/send-text?instanceId=${encodeURIComponent(config.W_API_SESSION)}`;
+
+    // Send message via W-API
+    const response = await fetch(sendUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.W_API_TOKEN}`,
+        'instanceId': config.W_API_SESSION,
       },
       body: JSON.stringify({
-        session: config.W_API_SESSION,
         phone: formattedPhone,
         message: message,
         isGroup: isGroup,
       }),
     });
 
-    const responseData = await response.json();
+    const responseText = await response.text();
+    let responseData: any = null;
+
+    // Try to parse JSON, handle HTML error pages gracefully
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      console.error('W-API returned non-JSON response:', responseText.substring(0, 500));
+      return new Response(
+        JSON.stringify({ 
+          error: 'W-API retornou resposta inválida (não JSON)',
+          status: response.status,
+          hint: 'Verifique se a URL da API e as credenciais estão corretas.',
+        }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!response.ok) {
       console.error('W-API error:', responseData);
