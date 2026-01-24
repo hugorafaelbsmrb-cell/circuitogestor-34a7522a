@@ -91,13 +91,13 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
 
-    // Send message via W-API
+    // Send message via W-API - using Bearer token authentication
     const wapiUrl = config.W_API_URL.replace(/\/$/, ''); // Remove trailing slash
     const response = await fetch(`${wapiUrl}/message/send-text`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': config.W_API_TOKEN,
+        'Authorization': `Bearer ${config.W_API_TOKEN}`,
       },
       body: JSON.stringify({
         session: config.W_API_SESSION,
