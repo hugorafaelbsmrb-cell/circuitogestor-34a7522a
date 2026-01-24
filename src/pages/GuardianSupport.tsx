@@ -193,7 +193,7 @@ export default function GuardianSupport() {
           subject: formSubject.trim(),
           notes: formNotes.trim() || null,
           priority: formPriority,
-          course_id: formCourse || null,
+          course_id: formCourse === 'none' ? null : formCourse || null,
           status: 'pending',
         });
 
@@ -227,7 +227,7 @@ export default function GuardianSupport() {
         subject: formSubject.trim(),
         notes: formNotes.trim() || null,
         priority: formPriority,
-        course_id: formCourse || null,
+        course_id: formCourse === 'none' ? null : formCourse || null,
       };
 
       const { error } = await supabase
@@ -309,7 +309,7 @@ export default function GuardianSupport() {
     setFormSubject(ticket.subject);
     setFormNotes(ticket.notes || '');
     setFormPriority(ticket.priority);
-    setFormCourse(ticket.course_id || '');
+    setFormCourse(ticket.course_id || 'none');
     setShowEditDialog(true);
   };
 
@@ -573,7 +573,7 @@ export default function GuardianSupport() {
                     <SelectValue placeholder="Opcional" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="none">Nenhum</SelectItem>
                     {courses.filter(c => c.is_active).map((course) => (
                       <SelectItem key={course.id} value={course.id}>
                         {course.name}
@@ -658,7 +658,7 @@ export default function GuardianSupport() {
                     <SelectValue placeholder="Opcional" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhum</SelectItem>
+                    <SelectItem value="none">Nenhum</SelectItem>
                     {courses.filter(c => c.is_active).map((course) => (
                       <SelectItem key={course.id} value={course.id}>
                         {course.name}
