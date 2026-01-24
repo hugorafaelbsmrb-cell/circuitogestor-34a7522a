@@ -13,7 +13,9 @@ import {
   Clock,
   Trash2,
   Calendar,
-  Loader2
+  Loader2,
+  Sparkles,
+  Wand2
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -106,6 +108,13 @@ export default function BulkMessages() {
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [isScheduling, setIsScheduling] = useState(false);
+
+  // AI generation state
+  const [showAIDialog, setShowAIDialog] = useState(false);
+  const [aiPurpose, setAiPurpose] = useState('');
+  const [aiTone, setAiTone] = useState('profissional e amigável');
+  const [aiContext, setAiContext] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Load templates and scheduled messages
   useEffect(() => {
@@ -501,6 +510,53 @@ export default function BulkMessages() {
     }
   };
 
+  // AI Generation function
+  const handleGenerateWithAI = async () => {
+    if (!aiPurpose.trim()) {
+      toast({
+        title: 'Propósito obrigatório',
+        description: 'Descreva o propósito da mensagem.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-message', {
+        body: {
+          purpose: aiPurpose,
+          tone: aiTone,
+          context: aiContext,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.message) {
+        setMessage(data.message);
+        setShowAIDialog(false);
+        setAiPurpose('');
+        setAiContext('');
+        toast({
+          title: 'Mensagem gerada',
+          description: 'A IA criou uma mensagem para você. Revise e edite se necessário.',
+        });
+      } else {
+        throw new Error('Nenhuma mensagem gerada');
+      }
+    } catch (error: any) {
+      console.error('Error generating message:', error);
+      toast({
+        title: 'Erro ao gerar',
+        description: error.message || 'Não foi possível gerar a mensagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const allSelected = filteredRecipients.length > 0 && 
     filteredRecipients.every(r => selectedRecipients.has(r.id));
   const someSelected = filteredRecipients.some(r => selectedRecipients.has(r.id)) && !allSelected;
@@ -560,6 +616,29 @@ export default function BulkMessages() {
               </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* AI Generator Button */}
+                <div className="p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-primary" />
+                      <div>
+                        <p className="text-sm font-medium">Gerar com IA</p>
+                        <p className="text-xs text-muted-foreground">Deixe a IA criar a mensagem para você</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setShowAIDialog(true)}
+                      disabled={sendStatus === 'sending'}
+                      className="gap-2"
+                    >
+                      <Wand2 className="w-4 h-4" />
+                      Criar
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="message">Mensagem</Label>
                   <Textarea
@@ -576,7 +655,7 @@ export default function BulkMessages() {
                 </div>
 
                 {/* Action buttons */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1006,6 +1085,80 @@ export default function BulkMessages() {
                 </>
               ) : (
                 'Agendar Envio'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Generation Dialog */}
+      <Dialog open={showAIDialog} onOpenChange={setShowAIDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              Gerar Mensagem com IA
+            </DialogTitle>
+            <DialogDescription>
+              Descreva o que você precisa e a IA criará uma mensagem personalizada.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="ai-purpose">Propósito da mensagem *</Label>
+              <Input
+                id="ai-purpose"
+                placeholder="Ex: lembrar sobre reunião de pais, avisar sobre aula cancelada..."
+                value={aiPurpose}
+                onChange={(e) => setAiPurpose(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ai-tone">Tom da mensagem</Label>
+              <Select value={aiTone} onValueChange={setAiTone}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="profissional e amigável">Profissional e Amigável</SelectItem>
+                  <SelectItem value="formal e respeitoso">Formal e Respeitoso</SelectItem>
+                  <SelectItem value="descontraído e caloroso">Descontraído e Caloroso</SelectItem>
+                  <SelectItem value="urgente e direto">Urgente e Direto</SelectItem>
+                  <SelectItem value="comemorativo e alegre">Comemorativo e Alegre</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ai-context">Contexto adicional (opcional)</Label>
+              <Textarea
+                id="ai-context"
+                placeholder="Ex: é uma mensagem para pais de alunos do curso de robótica, a reunião será dia 15..."
+                value={aiContext}
+                onChange={(e) => setAiContext(e.target.value)}
+                className="min-h-[80px] resize-none"
+              />
+            </div>
+            <div className="p-3 rounded-lg bg-secondary/30">
+              <p className="text-xs text-muted-foreground">
+                💡 A IA incluirá automaticamente as variáveis de personalização como {'{nome_responsavel}'} e {'{nome_aluno}'} quando apropriado.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAIDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGenerateWithAI} disabled={isGenerating} className="gap-2">
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Gerando...
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-4 h-4" />
+                  Gerar Mensagem
+                </>
               )}
             </Button>
           </DialogFooter>
