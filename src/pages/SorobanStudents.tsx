@@ -96,6 +96,8 @@ export default function SorobanStudents() {
   const [deleteConfirm, setDeleteConfirm] = useState<SorobanCredential | null>(null);
   const [editModal, setEditModal] = useState<SorobanCredential | null>(null);
   const [addModal, setAddModal] = useState(false);
+  const [levelModal, setLevelModal] = useState<SorobanCredential | null>(null);
+  const [newLevel, setNewLevel] = useState(1);
   const [formData, setFormData] = useState({
     matricula: '',
     email: '',
@@ -211,6 +213,39 @@ export default function SorobanStudents() {
         variant: 'destructive',
       });
     }
+  };
+
+  const handleLevelChange = async () => {
+    if (!levelModal) return;
+    
+    try {
+      const { error } = await supabase
+        .from('soroban_credentials')
+        .update({ current_level: newLevel })
+        .eq('id', levelModal.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Nível atualizado',
+        description: `Aluno promovido para o nível ${newLevel}.`,
+      });
+      
+      setLevelModal(null);
+      await fetchCredentials();
+    } catch (error) {
+      console.error('Error updating level:', error);
+      toast({
+        title: 'Erro ao atualizar',
+        description: 'Não foi possível atualizar o nível.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openLevelModal = (credential: SorobanCredential) => {
+    setNewLevel(credential.current_level || 1);
+    setLevelModal(credential);
   };
 
   const handleAdd = async () => {
@@ -580,6 +615,10 @@ export default function SorobanStudents() {
                             <Printer className="w-4 h-4 mr-2" />
                             Imprimir Credenciais
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openLevelModal(credential)}>
+                            <Trophy className="w-4 h-4 mr-2" />
+                            Alterar Nível
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openEditModal(credential)}>
                             <Pencil className="w-4 h-4 mr-2" />
                             Editar
@@ -752,6 +791,56 @@ export default function SorobanStudents() {
             </Button>
             <Button onClick={handleEdit}>
               Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Level Change Modal */}
+      <Dialog open={!!levelModal} onOpenChange={() => setLevelModal(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Alterar Nível do Aluno</DialogTitle>
+            <DialogDescription>
+              Atualize o nível de {levelModal?.student?.name || levelModal?.matricula}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-center gap-4">
+              <Badge className={getLevelBadgeColor(levelModal?.current_level || 1)}>
+                Nível Atual: {levelModal?.current_level || 1}
+              </Badge>
+              <span className="text-muted-foreground">→</span>
+              <Badge className={getLevelBadgeColor(newLevel)}>
+                Novo Nível: {newLevel}
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              <Label>Selecione o novo nível</Label>
+              <Select
+                value={String(newLevel)}
+                onValueChange={(value) => setNewLevel(Number(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(level => (
+                    <SelectItem key={level} value={String(level)}>
+                      Nível {level}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLevelModal(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleLevelChange}>
+              <Trophy className="w-4 h-4 mr-2" />
+              Atualizar Nível
             </Button>
           </DialogFooter>
         </DialogContent>
