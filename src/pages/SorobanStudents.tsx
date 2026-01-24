@@ -11,7 +11,8 @@ import {
   Printer,
   Plus,
   Pencil,
-  Trash2
+  Trash2,
+  Cloud
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -91,6 +92,7 @@ export default function SorobanStudents() {
   const { students } = useSchool();
   const [credentials, setCredentials] = useState<SorobanCredential[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   const [deleteConfirm, setDeleteConfirm] = useState<SorobanCredential | null>(null);
@@ -246,6 +248,33 @@ export default function SorobanStudents() {
   const openLevelModal = (credential: SorobanCredential) => {
     setNewLevel(credential.current_level || 1);
     setLevelModal(credential);
+  };
+
+  const syncWithExternalSystem = async () => {
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('soroban-sync', {
+        body: { action: 'syncAll' }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Sincronização concluída',
+        description: data?.message || 'Dados sincronizados com sucesso.',
+      });
+
+      await fetchCredentials();
+    } catch (error) {
+      console.error('Error syncing:', error);
+      toast({
+        title: 'Erro na sincronização',
+        description: 'Não foi possível sincronizar com o sistema Soroban.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleAdd = async () => {
@@ -452,6 +481,10 @@ export default function SorobanStudents() {
           <p className="text-muted-foreground">Gerenciamento de credenciais do sistema Soroban</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={syncWithExternalSystem} disabled={isSyncing}>
+            <Cloud className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-pulse' : ''}`} />
+            {isSyncing ? 'Sincronizando...' : 'Sincronizar'}
+          </Button>
           <Button variant="outline" onClick={printAllCredentials}>
             <Printer className="w-4 h-4 mr-2" />
             Imprimir Todos
