@@ -28,9 +28,10 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Verify user
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
+    // Verify user via JWT claims (signing-keys compatible)
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -72,7 +73,17 @@ Deno.serve(async (req) => {
     // Get QR Code from W-API
     // Per official docs: GET https://api.w-api.app/v1/instance/qr-code?instanceId={{INSTANCE_ID}}&image=enable
     // With Bearer token in Authorization header
-    const baseUrl = (config.W_API_URL || 'https://api.w-api.app').trim().replace(/\/+$/, '');
+    // Normalize base URL:
+    // - accept legacy values like https://wawp.net/api or https://app.wawp.net/api
+    // - remove trailing /api
+    // - default to official host https://api.w-api.app
+    let baseUrl = (config.W_API_URL || 'https://api.w-api.app').trim();
+    baseUrl = baseUrl.replace(/^http:\/\//i, 'https://');
+    baseUrl = baseUrl.replace(/\/+$/, '');
+    baseUrl = baseUrl.replace(/\/api$/i, '');
+    if (/\/\/(app\.)?wawp\.net\b/i.test(baseUrl)) {
+      baseUrl = 'https://api.w-api.app';
+    }
     
     const qrCodeUrl = `${baseUrl}/v1/instance/qr-code?instanceId=${encodeURIComponent(config.W_API_SESSION)}&image=enable`;
     
