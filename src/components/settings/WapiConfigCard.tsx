@@ -216,15 +216,18 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     try {
       const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
       const instanceId = editedSettings['W_API_SESSION'] || '';
+      const token = editedSettings['W_API_TOKEN'] || '';
       
-      // Endpoint correto: /v1/instance/connectionState/:instanceName (path parameter)
-      const statusUrl = `${baseUrl}/v1/instance/connectionState/${encodeURIComponent(instanceId)}`;
+      // W-API usa instanceId no header ou como parte da URL base
+      // Endpoint: GET /v1/instance/connectionState com instanceId no header
+      const statusUrl = `${baseUrl}/v1/instance/connectionState`;
 
       const res = await fetch(statusUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${editedSettings['W_API_TOKEN'] || ''}`,
+          'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
+          'instanceId': instanceId,
         },
       });
 
@@ -283,15 +286,17 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     try {
       const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
       const instanceId = editedSettings['W_API_SESSION'] || '';
+      const token = editedSettings['W_API_TOKEN'] || '';
       
-      // Endpoint correto: DELETE /v1/instance/logout/:instanceName (path parameter)
-      const logoutUrl = `${baseUrl}/v1/instance/logout/${encodeURIComponent(instanceId)}`;
+      // Endpoint: DELETE /v1/instance/logout com instanceId no header
+      const logoutUrl = `${baseUrl}/v1/instance/logout`;
 
       const res = await fetch(logoutUrl, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${editedSettings['W_API_TOKEN'] || ''}`,
+          'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
+          'instanceId': instanceId,
         },
       });
 
@@ -332,15 +337,17 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
     try {
       const baseUrl = normalizeWapiUrl(editedSettings['W_API_URL']) || 'https://api.w-api.app';
       const instanceId = editedSettings['W_API_SESSION'] || '';
+      const token = editedSettings['W_API_TOKEN'] || '';
       
-      // Endpoint correto: /v1/instance/connectionState/:instanceName
-      const statusUrl = `${baseUrl}/v1/instance/connectionState/${encodeURIComponent(instanceId)}`;
+      // Endpoint: GET /v1/instance/connectionState com instanceId no header
+      const statusUrl = `${baseUrl}/v1/instance/connectionState`;
 
       const res = await fetch(statusUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${editedSettings['W_API_TOKEN'] || ''}`,
+          'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
+          'instanceId': instanceId,
         },
       });
 
