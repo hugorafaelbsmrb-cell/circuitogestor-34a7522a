@@ -6,6 +6,13 @@ interface LMSCredentials {
   matricula: string;
 }
 
+interface SorobanCredentials {
+  email: string;
+  password: string;
+  matricula: string;
+  level?: number;
+}
+
 interface ContractContent {
   schoolName: string;
   schoolCnpj: string;
@@ -34,6 +41,7 @@ interface ContractContent {
   createdAt: string;
   city?: string;
   lmsCredentials?: LMSCredentials | null;
+  sorobanCredentials?: SorobanCredentials | null;
 }
 
 interface ContractPrintViewProps {
@@ -293,6 +301,35 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
                   <li style={{ marginBottom: '4px' }}><strong>Matrícula:</strong> {content.lmsCredentials.matricula}</li>
                   <li style={{ marginBottom: '4px' }}><strong>E-mail de acesso:</strong> {content.lmsCredentials.email}</li>
                   <li><strong>Senha inicial:</strong> {content.lmsCredentials.password}</li>
+                </ul>
+              </div>
+              <p style={{ fontSize: '9pt', marginTop: '8px', color: '#6b7280', fontStyle: 'italic' }}>
+                * Recomendamos alterar a senha no primeiro acesso. Guarde estas informações em local seguro.
+              </p>
+            </div>
+          )}
+
+          {/* Credenciais Soroban */}
+          {content.sorobanCredentials && (
+            <div style={{ 
+              marginBottom: '12px', 
+              padding: '12px', 
+              border: '2px solid #d97706', 
+              borderRadius: '4px',
+              backgroundColor: '#fffbeb'
+            }}>
+              <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '6px', color: '#b45309' }}>
+                🧮 ACESSO À PLATAFORMA SOROBAN
+              </h3>
+              <p style={{ fontSize: '10pt', marginBottom: '8px', color: '#374151' }}>
+                O aluno terá acesso à plataforma de Soroban (Ábaco Japonês) com os seguintes dados:
+              </p>
+              <div style={{ backgroundColor: 'white', padding: '8px', borderRadius: '4px', border: '1px solid #fcd34d' }}>
+                <ul style={{ fontSize: '10pt', listStyleType: 'none', margin: 0, padding: 0 }}>
+                  <li style={{ marginBottom: '4px' }}><strong>Matrícula:</strong> {content.sorobanCredentials.matricula}</li>
+                  <li style={{ marginBottom: '4px' }}><strong>E-mail de acesso:</strong> {content.sorobanCredentials.email}</li>
+                  <li style={{ marginBottom: '4px' }}><strong>Senha inicial:</strong> {content.sorobanCredentials.password}</li>
+                  <li><strong>Nível inicial:</strong> {content.sorobanCredentials.level || 1}</li>
                 </ul>
               </div>
               <p style={{ fontSize: '9pt', marginTop: '8px', color: '#6b7280', fontStyle: 'italic' }}>
