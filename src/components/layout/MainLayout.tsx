@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { useInactivityTimeout } from '@/hooks/useInactivityTimeout';
+import { WhatsAppNotificationListener } from '@/components/notifications/WhatsAppNotificationListener';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -12,6 +13,9 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Global WhatsApp message notifications */}
+      <WhatsAppNotificationListener />
+      
       <Sidebar />
       <main className="ml-64 p-8">
         {children}
