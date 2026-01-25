@@ -30,6 +30,7 @@ import GuardianSupport from "./pages/GuardianSupport";
 import Inventory from "./pages/Inventory";
 import LMSStudents from "./pages/LMSStudents";
 import SorobanStudents from "./pages/SorobanStudents";
+import Teachers from "./pages/Teachers";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -81,6 +82,7 @@ function AppRoutes() {
                 <Route path="/inventario" element={<Inventory />} />
                 <Route path="/lms-alunos" element={<LMSStudents />} />
                 <Route path="/soroban-alunos" element={<SorobanStudents />} />
+                <Route path="/professores" element={<Teachers />} />
                 <Route path="/usuarios" element={<Users />} />
                 <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
                 <Route path="/envio-massa" element={<BulkMessages />} />

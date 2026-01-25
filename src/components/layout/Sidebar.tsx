@@ -80,6 +80,7 @@ const menuSections: MenuSection[] = [
     items: [
       { icon: Monitor, label: 'Alunos LMS', path: '/lms-alunos', permissionKey: 'lms', adminOnly: false },
       { icon: BookOpen, label: 'Alunos Soroban', path: '/soroban-alunos', permissionKey: 'soroban', adminOnly: false },
+      { icon: GraduationCap, label: 'Professores', path: '/professores', permissionKey: 'teachers', adminOnly: true },
     ]
   },
   {

@@ -218,7 +218,7 @@ Deno.serve(async (req) => {
       }
 
       // Store the incoming message
-      const { error: insertError } = await supabase
+      const { data: insertedMessage, error: insertError } = await supabase
         .from("whatsapp_messages")
         .insert({
           guardian_id: guardianId,
@@ -229,7 +229,9 @@ Deno.serve(async (req) => {
           wapi_message_id: messageId || null,
           media_url: mediaUrl,
           media_type: mediaType,
-        });
+        })
+        .select('id')
+        .single();
 
       if (insertError) {
         console.error("Error inserting message:", insertError);
@@ -237,6 +239,31 @@ Deno.serve(async (req) => {
       }
 
       console.log(`Message stored from ${cleanPhone}, guardian: ${guardianId || "unknown"}, time: ${Date.now() - startTime}ms`);
+
+      // Trigger homework report processing for Reforço Escolar students
+      // Do this asynchronously to not delay the webhook response
+      if (guardianId && messageText) {
+        const edgeFunctionUrl = `${supabaseUrl}/functions/v1/process-homework-report`;
+        
+        // Fire and forget - don't await
+        fetch(edgeFunctionUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            messageId: insertedMessage?.id,
+            guardianId,
+            phone: cleanPhone,
+            message: messageText,
+          }),
+        }).then(res => {
+          console.log(`Homework report processing triggered, status: ${res.status}`);
+        }).catch(err => {
+          console.error("Error triggering homework report processing:", err);
+        });
+      }
 
       return new Response(
         JSON.stringify({ success: true, guardianId, phone: cleanPhone }),
