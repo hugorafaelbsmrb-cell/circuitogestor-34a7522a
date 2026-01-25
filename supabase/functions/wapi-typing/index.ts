@@ -76,37 +76,61 @@ Deno.serve(async (req) => {
 
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
     const instanceId = encodeURIComponent(config.W_API_SESSION);
-    
-    // W-API PRO usa /v1/chat/send-presence com presence: "composing"
-    const endpoint = `${baseUrl}/v1/chat/send-presence?instanceId=${instanceId}`;
 
     console.log(`=== W-API Typing Indicator ===`);
-    console.log(`Endpoint: ${endpoint}`);
     console.log(`Chat ID: ${chatId}`);
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.W_API_TOKEN}`,
-      },
-      body: JSON.stringify({ 
-        chatId,
-        presence: 'composing' // "composing" = typing, "recording" = recording audio
-      }),
-    });
+    // Tenta múltiplos endpoints possíveis para compatibilidade
+    const endpoints = [
+      { url: `${baseUrl}/v1/chat/presence?instanceId=${instanceId}`, body: { chatId, presence: 'composing' } },
+      { url: `${baseUrl}/v1/chat/start-typing?instanceId=${instanceId}`, body: { chatId } },
+      { url: `${baseUrl}/chat/presence/${instanceId}`, body: { chatId, presence: 'composing' } },
+    ];
 
-    const responseText = await response.text();
-    console.log(`Response ${response.status}: ${responseText.slice(0, 200)}`);
+    let success = false;
+    for (const { url, body } of endpoints) {
+      console.log(`Trying: ${url}`);
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.W_API_TOKEN}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (response.ok) {
+          console.log(`Success with endpoint: ${url}`);
+          success = true;
+          break;
+        }
+        
+        const status = response.status;
+        console.log(`Endpoint returned ${status}`);
+        
+        // Se não for 404, pode ser outro erro - não tentar mais
+        if (status !== 404) break;
+      } catch (err) {
+        console.log(`Endpoint error: ${err}`);
+      }
+    }
+
+    // Se nenhum endpoint funcionou, ainda consideramos sucesso
+    // pois typing indicator é uma feature opcional e não deve bloquear o fluxo
+    if (!success) {
+      console.log('No typing endpoint available - feature not supported by this W-API instance');
+    }
 
     // Wait for the specified duration to simulate typing
     if (duration > 0) {
       await new Promise(resolve => setTimeout(resolve, Math.min(duration, 5000)));
     }
 
+    // Sempre retorna sucesso para não bloquear o fluxo do usuário
     return new Response(
-      JSON.stringify({ success: response.ok, duration }),
-      { status: response.ok ? 200 : response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: true, duration, actualApiSuccess: success }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: unknown) {
