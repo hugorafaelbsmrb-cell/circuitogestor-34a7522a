@@ -440,8 +440,8 @@ export function LeadsBulkMessageModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-5xl h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5" />
             Envio em Massa - Leads
@@ -451,8 +451,10 @@ export function LeadsBulkMessageModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden py-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+        {/* Scroll do conteúdo inteiro do modal (entre header e footer) */}
+        <ScrollArea className="flex-1 min-h-0">
+          <div className="py-4 pr-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Message Composer */}
             <Card className="flex flex-col overflow-hidden">
               <CardHeader className="flex-shrink-0">
@@ -465,8 +467,7 @@ export function LeadsBulkMessageModal({
                 </CardDescription>
               </CardHeader>
 
-              <ScrollArea className="flex-1">
-                <CardContent className="space-y-4 pr-4">
+                <CardContent className="space-y-4">
                 {/* W-API warning */}
                 {!isWapiConfigured && (
                   <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
@@ -666,7 +667,6 @@ export function LeadsBulkMessageModal({
                   </div>
                 )}
               </CardContent>
-              </ScrollArea>
             </Card>
 
             {/* Recipients Selection */}
@@ -681,8 +681,7 @@ export function LeadsBulkMessageModal({
                 </CardDescription>
               </CardHeader>
 
-              <ScrollArea className="flex-1">
-                <CardContent className="space-y-4 pr-4">
+              <CardContent className="space-y-4">
                 {/* Filter by Course */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
@@ -731,7 +730,7 @@ export function LeadsBulkMessageModal({
                 </div>
 
                 {/* Leads List */}
-                <ScrollArea className="flex-1 rounded-lg border">
+                <ScrollArea className="h-[40vh] rounded-lg border">
                   <div className="p-2 space-y-1">
                     {filteredLeads.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -782,12 +781,12 @@ export function LeadsBulkMessageModal({
                   </div>
                 </ScrollArea>
               </CardContent>
-              </ScrollArea>
             </Card>
+            </div>
           </div>
-        </div>
+        </ScrollArea>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
             {sendResults.length > 0 ? 'Fechar' : 'Cancelar'}
           </Button>
