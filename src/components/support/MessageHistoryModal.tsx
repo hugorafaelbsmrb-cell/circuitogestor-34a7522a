@@ -29,6 +29,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useWapiMessage } from '@/hooks/useWapiMessage';
 import { useWapiAdvanced } from '@/hooks/useWapiAdvanced';
 import { useToast } from '@/hooks/use-toast';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
 
 interface WhatsAppMessage {
   id: string;
@@ -75,6 +76,7 @@ export function MessageHistoryModal({
   studentNames = [],
 }: MessageHistoryModalProps) {
   const { toast } = useToast();
+  const { branding } = useSystemBranding();
   const { sendMessage, checkConfig } = useWapiMessage();
   const { 
     reactToMessage, 
@@ -741,8 +743,18 @@ export function MessageHistoryModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg h-[600px] flex flex-col p-0">
           <DialogHeader className="p-4 border-b">
-            <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-green-600" />
+            <DialogTitle className="flex items-center gap-3">
+              {branding.logo ? (
+                <img 
+                  src={branding.logo} 
+                  alt={branding.name} 
+                  className="h-8 w-8 rounded-full object-cover"
+                />
+              ) : (
+                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
+                  <MessageSquare className="h-4 w-4 text-primary-foreground" />
+                </div>
+              )}
               <span>Conversa com {guardianName}</span>
             </DialogTitle>
             {studentNames.length > 0 && (
@@ -786,7 +798,7 @@ export function MessageHistoryModal({
                         <div
                           className={`max-w-[80%] rounded-lg px-3 py-2 ${
                             msg.direction === 'outgoing'
-                              ? 'bg-green-600 text-white rounded-br-none'
+                              ? 'bg-primary text-primary-foreground rounded-br-none'
                               : 'bg-muted text-foreground rounded-bl-none'
                           }`}
                         >
@@ -796,7 +808,7 @@ export function MessageHistoryModal({
                           )}
                           <div
                             className={`text-xs mt-1 ${
-                              msg.direction === 'outgoing' ? 'text-green-200' : 'text-muted-foreground'
+                              msg.direction === 'outgoing' ? 'text-primary-foreground/70' : 'text-muted-foreground'
                             }`}
                           >
                             {format(new Date(msg.created_at), "HH:mm", { locale: ptBR })}
