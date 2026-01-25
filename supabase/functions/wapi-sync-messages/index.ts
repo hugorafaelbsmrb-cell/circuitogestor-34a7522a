@@ -152,46 +152,40 @@ Deno.serve(async (req) => {
       }
     };
 
-    // Determine correct base URL
-    // Try to extract the correct provider domain, prioritize api.wapi.com.br
+    // Determine base URL candidates
+    // ALWAYS include the configured URL first (W_API_URL).
+    // Only add known alternatives as optional fallbacks.
     const getBaseUrls = (): string[] => {
-      const configuredUrl = wapiUrl.toLowerCase();
-      
-      // If user configured a specific URL that's NOT the generic w-api.app, use it
-      if (!configuredUrl.includes('w-api.app') && !configuredUrl.includes('wapi.app')) {
-        return [wapiUrl];
+      const list: string[] = [wapiUrl];
+
+      // Optional known fallbacks (only if different from configured)
+      const extras = ['https://api.wapi.com.br', 'https://v3.wapi.com.br'];
+      for (const extra of extras) {
+        if (extra !== wapiUrl) list.push(extra);
       }
-      
-      // Use the correct W-API PRO domains
-      return [
-        'https://api.wapi.com.br',
-        'https://v3.wapi.com.br',
-      ];
+
+      // De-dup
+      return Array.from(new Set(list));
     };
 
     const baseUrls = getBaseUrls();
     console.log(`Using base URLs: ${baseUrls.join(', ')}`);
 
-    // Quick connectivity test to avoid looping through guardians if provider is unreachable
-    // Using /all-messages endpoint as per W-API PRO documentation
+    // Quick connectivity test to avoid looping through guardians if provider is unreachable.
+    // Use a root request first (works regardless of provider paths).
     const connectivity: Array<{ baseUrl: string; ok: boolean; status?: number; error?: string }> = [];
     for (const baseUrl of baseUrls) {
-      // Test with all-messages (correct endpoint per W-API PRO docs)
-      const testUrl = `${baseUrl}/all-messages?chatId=${encodeURIComponent(`5511000000000@c.us`)}&limit=1`;
       try {
         const res = await fetchWithTimeout(
-          testUrl,
+          baseUrl,
           {
             method: 'GET',
             headers: {
-              apikey: apiToken,
-              instanceId: session,
-              'Content-Type': 'application/json',
               'Accept': 'application/json',
               'User-Agent': 'LovableCloud/1.0',
             },
           },
-          10000,
+          8000,
         );
         connectivity.push({ baseUrl, ok: true, status: res.status });
         // Consider any HTTP response as reachable (even 4xx), since it proves network connectivity
@@ -237,10 +231,10 @@ Deno.serve(async (req) => {
       const attempts: Attempt[] = [];
 
       // ========================================
-      // W-API PRO CORRECT ENDPOINTS (per documentation):
-      // 1. GET /all-messages?chatId=...&limit=50 - Forces fetch from device
-      // 2. GET /get-chat-by-id?chatId=... - Lighter, returns last message
-      // 3. GET /getMessages?chatId=...&count=50 - Fetches from local DB (may be empty)
+      // Endpoint candidates (support multiple W-API providers)
+      // - PRO-like: /all-messages, /get-chat-by-id
+      // - Legacy/other: /getMessages
+      // - w-api.app-like: /v1/chats/chat
       // ========================================
       const candidates: Array<{ url: string; headers: Record<string, string>; note: string }> = [];
 
@@ -277,6 +271,25 @@ Deno.serve(async (req) => {
         url: `${effectiveBaseUrl}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=30`,
         headers: { 'Authorization': `Bearer ${apiToken}`, 'instanceId': session, 'Content-Type': 'application/json' },
         note: '/all-messages (Bearer)',
+      });
+
+      // FALLBACK 5+: w-api.app style endpoints
+      candidates.push({
+        url: `${effectiveBaseUrl}/v1/chats/chat?chatId=${encodeURIComponent(chatId)}&limit=30`,
+        headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+        note: '/v1/chats/chat (Bearer)',
+      });
+
+      candidates.push({
+        url: `${effectiveBaseUrl}/v1/chats/chat?chatId=${encodeURIComponent(chatId)}&limit=30&instanceId=${encodeURIComponent(session)}`,
+        headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
+        note: '/v1/chats/chat (instanceId query)',
+      });
+
+      candidates.push({
+        url: `${effectiveBaseUrl}/v1/chats/chat?chatId=${encodeURIComponent(chatId)}&limit=30`,
+        headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
+        note: '/v1/chats/chat (apikey+instanceId)',
       });
 
       console.log(`Trying ${candidates.length} endpoints for chatId: ${chatId}`);
