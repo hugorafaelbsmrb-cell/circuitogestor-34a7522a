@@ -105,34 +105,48 @@ Deno.serve(async (req) => {
     console.log(`Instance ID: ${instanceId}`);
     console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
-    // W-API endpoints for connection status
-    // Using apikey header
-    const candidates: Array<{ url: string; method: 'GET' | 'POST' }> = [
-      { url: `${baseUrl}/connectionState?instanceId=${encoded}`, method: 'GET' },
-      { url: `${baseUrl}/instance/connectionState?instanceId=${encoded}`, method: 'GET' },
-      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}`, method: 'GET' },
-      { url: `${baseUrl}/status?instanceId=${encoded}`, method: 'GET' },
-      { url: `${baseUrl}/v1/instance/qr-code?instanceId=${encoded}`, method: 'GET' },
+    // W-API PRO endpoints for connection status
+    // Different authentication methods to try
+    const candidates: Array<{ url: string; method: 'GET' | 'POST'; authType: 'bearer' | 'apikey' | 'header' }> = [
+      // Bearer token auth
+      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}`, method: 'GET', authType: 'bearer' },
+      { url: `${baseUrl}/instance/connectionState?instanceId=${encoded}`, method: 'GET', authType: 'bearer' },
+      { url: `${baseUrl}/connectionState?instanceId=${encoded}`, method: 'GET', authType: 'bearer' },
+      // Apikey header auth
+      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}`, method: 'GET', authType: 'apikey' },
+      // Token in URL
+      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}&token=${apiKey}`, method: 'GET', authType: 'header' },
+      { url: `${baseUrl}/instance/connectionState?instanceId=${encoded}&token=${apiKey}`, method: 'GET', authType: 'header' },
     ];
 
-    const attempts: Array<{ url: string; status: number | null; ok: boolean; error?: string }> = [];
+    const attempts: Array<{ url: string; status: number | null; ok: boolean; error?: string; authType?: string }> = [];
 
     for (const c of candidates) {
       try {
-        console.log(`Trying: ${c.method} ${c.url}`);
+        console.log(`Trying: ${c.method} ${c.url} (auth: ${c.authType})`);
+        
+        // Build headers based on auth type
+        const headers: Record<string, string> = {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        };
+        
+        if (c.authType === 'bearer') {
+          headers['Authorization'] = `Bearer ${apiKey}`;
+        } else if (c.authType === 'apikey') {
+          headers['apikey'] = apiKey;
+        }
+        // 'header' type uses token in URL, no auth header needed
         
         const res = await fetch(c.url, {
           method: c.method,
-          headers: {
-            'apikey': apiKey,
-            'Accept': 'application/json',
-          },
+          headers,
         });
 
         const text = await res.text();
-        console.log(`Response ${res.status}: ${text.slice(0, 200)}`);
+        console.log(`Response ${res.status} (${c.authType}): ${text.slice(0, 200)}`);
         
-        attempts.push({ url: c.url, status: res.status, ok: res.ok });
+        attempts.push({ url: c.url, status: res.status, ok: res.ok, authType: c.authType });
 
         let parsed: any = null;
         try {
