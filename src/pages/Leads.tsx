@@ -15,7 +15,9 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
-  Send
+  Send,
+  FileText,
+  Users
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -24,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -39,6 +42,8 @@ import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
 import { LeadsBulkMessageModal } from '@/components/bulk/LeadsBulkMessageModal';
+import { ScheduledMessagesTab } from '@/components/leads/ScheduledMessagesTab';
+import { LeadTemplatesTab } from '@/components/leads/LeadTemplatesTab';
 import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { isValidEmail, formatPhone, normalizePhoneToWAPI, formatPhoneFromNormalized } from '@/utils/validators';
 
@@ -377,8 +382,26 @@ export default function Leads() {
         </Card>
       </div>
 
-      {/* Filters */}
-      <div className="bg-card rounded-xl border border-border/50 shadow-sm">
+      {/* Tabs */}
+      <Tabs defaultValue="leads" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="leads" className="gap-2">
+            <Users className="w-4 h-4" />
+            Leads
+          </TabsTrigger>
+          <TabsTrigger value="scheduled" className="gap-2">
+            <Calendar className="w-4 h-4" />
+            Agendamentos
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="gap-2">
+            <FileText className="w-4 h-4" />
+            Templates
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="leads">
+          {/* Filters */}
+          <div className="bg-card rounded-xl border border-border/50 shadow-sm">
         <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -529,7 +552,21 @@ export default function Leads() {
             )}
           </div>
         )}
-      </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="scheduled">
+          <div className="bg-card rounded-xl border border-border/50 shadow-sm p-6">
+            <ScheduledMessagesTab />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <div className="bg-card rounded-xl border border-border/50 shadow-sm p-6">
+            <LeadTemplatesTab />
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Modal */}
       <Dialog open={showModal} onOpenChange={handleCloseModal}>
