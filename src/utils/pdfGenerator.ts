@@ -49,28 +49,26 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   const margin = 15;
   let yPos = 15;
 
-  // Helper function to add logo at top of page
-  const addLogoToPage = async () => {
-    if (content.schoolLogo) {
-      try {
-        doc.addImage(content.schoolLogo, 'PNG', pageWidth / 2 - 25, yPos, 50, 15);
-        return 20;
-      } catch {
-        return 0;
-      }
+  // Add logo function - maintains aspect ratio and centers
+  const addLogo = (logoY: number): number => {
+    if (!content.schoolLogo) return 0;
+    
+    try {
+      // Logo dimensions: height fixed at 18mm, width proportional (typical 2:1 ratio)
+      const logoHeight = 18;
+      const logoWidth = 36;
+      const logoX = (pageWidth - logoWidth) / 2; // Center horizontally
+      
+      doc.addImage(content.schoolLogo, 'PNG', logoX, logoY, logoWidth, logoHeight);
+      return logoHeight + 4; // Return height plus spacing
+    } catch (e) {
+      console.warn('Failed to add logo to PDF:', e);
+      return 0;
     }
-    return 0;
   };
 
   // Add logo to first page
-  if (content.schoolLogo) {
-    try {
-      doc.addImage(content.schoolLogo, 'PNG', pageWidth / 2 - 25, yPos, 50, 15);
-      yPos += 20;
-    } catch {
-      // If logo fails, continue without it
-    }
-  }
+  yPos += addLogo(yPos);
 
   // Title - more compact
   doc.setFontSize(12);
@@ -252,15 +250,8 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   doc.addPage();
   yPos = 15;
 
-  // Add logo to annexes page
-  if (content.schoolLogo) {
-    try {
-      doc.addImage(content.schoolLogo, 'PNG', pageWidth / 2 - 25, yPos, 50, 15);
-      yPos += 20;
-    } catch {
-      // If logo fails, continue without it
-    }
-  }
+  // Add logo to annexes page using same function
+  yPos += addLogo(yPos);
 
   // Annex Header
   doc.setFontSize(14);
