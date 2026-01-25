@@ -231,7 +231,44 @@ export default function GuardianSupport() {
       .channel('whatsapp_messages_support')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'whatsapp_messages' },
+        { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' },
+        (payload) => {
+          loadData();
+          
+          // Show notification for incoming messages only
+          const newMessage = payload.new as { 
+            direction: string; 
+            message: string; 
+            phone: string;
+            guardian_id: string | null;
+          };
+          
+          if (newMessage.direction === 'incoming') {
+            // Find guardian name if exists
+            const guardian = guardians.find(g => 
+              phonesMatch(g.phone, newMessage.phone)
+            );
+            
+            const senderName = guardian 
+              ? getDisplayName(guardian.name)
+              : formatPhone(newMessage.phone);
+            
+            // Truncate message for preview
+            const messagePreview = newMessage.message.length > 100
+              ? newMessage.message.substring(0, 100) + '...'
+              : newMessage.message;
+            
+            toast({
+              title: `📱 Nova mensagem de ${senderName}`,
+              description: messagePreview,
+              duration: 8000,
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'whatsapp_messages' },
         () => loadData()
       )
       .subscribe();
@@ -240,7 +277,7 @@ export default function GuardianSupport() {
       supabase.removeChannel(ticketsChannel);
       supabase.removeChannel(messagesChannel);
     };
-  }, []);
+  }, [guardians]);
 
   const loadData = async () => {
     try {
