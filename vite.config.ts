@@ -17,8 +17,8 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "robots.txt", "pwa-192x192.png", "pwa-512x512.png"],
       manifest: {
-        name: "Circuito | Gestor",
-        short_name: "Circuito",
+        name: "Circuito Kids",
+        short_name: "Circuito Kids",
         description: "Sistema completo de gestão escolar",
         theme_color: "#f97316",
         background_color: "#0f172a",
@@ -27,11 +27,6 @@ export default defineConfig(({ mode }) => ({
         scope: "/",
         start_url: "/",
         icons: [
-          {
-            src: "/favicon.ico",
-            sizes: "64x64 32x32 24x24 16x16",
-            type: "image/x-icon",
-          },
           {
             src: "/pwa-192x192.png",
             sizes: "192x192",
