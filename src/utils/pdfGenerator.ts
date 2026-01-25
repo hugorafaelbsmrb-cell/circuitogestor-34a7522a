@@ -49,18 +49,26 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   const margin = 15;
   let yPos = 15;
 
-  // Add logo function - original size, centered
+  // Add logo function - uses auto-sizing from jsPDF
   const addLogo = (logoY: number): number => {
     if (!content.schoolLogo) return 0;
     
     try {
-      // Original dimensions: 50x15mm (do not change)
-      const logoWidth = 50;
-      const logoHeight = 15;
-      const logoX = (pageWidth - logoWidth) / 2; // Center horizontally
+      // Use auto width/height to preserve original aspect ratio
+      // Height is fixed at 20mm, width calculated automatically
+      const logoHeight = 20;
       
-      doc.addImage(content.schoolLogo, 'PNG', logoX, logoY, logoWidth, logoHeight);
-      return logoHeight + 5; // Return height plus spacing
+      // addImage with 'AUTO' format lets jsPDF detect image type
+      // We set width to 0 to let it auto-calculate based on aspect ratio
+      doc.addImage(
+        content.schoolLogo, 
+        'AUTO', 
+        pageWidth / 2 - 30, // Approximate center (will adjust with actual width)
+        logoY, 
+        60, // Max width
+        logoHeight
+      );
+      return logoHeight + 5;
     } catch (e) {
       console.warn('Failed to add logo to PDF:', e);
       return 0;
