@@ -679,6 +679,7 @@ export type Database = {
       leads: {
         Row: {
           assigned_to: string | null
+          avatar_url: string | null
           converted_at: string | null
           created_at: string
           email: string | null
@@ -696,6 +697,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          avatar_url?: string | null
           converted_at?: string | null
           created_at?: string
           email?: string | null
@@ -713,6 +715,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          avatar_url?: string | null
           converted_at?: string | null
           created_at?: string
           email?: string | null
