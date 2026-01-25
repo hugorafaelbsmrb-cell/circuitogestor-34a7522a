@@ -76,6 +76,9 @@ export default function ContractSign() {
   }, [addDebug]);
 
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: NodeJS.Timeout;
+    
     // Fetch branding in parallel (non-blocking)
     const fetchBranding = async () => {
       addDebug('Iniciando fetch de branding...');
@@ -85,6 +88,7 @@ export default function ContractSign() {
           .select('key, value')
           .in('key', ['system_name', 'system_logo']);
         
+        if (!isMounted) return;
         addDebug(`Branding recebido: ${data ? 'sim' : 'não'}`);
         
         if (data) {
@@ -98,7 +102,9 @@ export default function ContractSign() {
         }
       } catch (error) {
         // Fail silently - use defaults
-        addDebug(`ERRO Branding: ${error instanceof Error ? error.message : 'desconhecido'}`);
+        if (isMounted) {
+          addDebug(`ERRO Branding: ${error instanceof Error ? error.message : 'desconhecido'}`);
+        }
       }
     };
     
@@ -109,21 +115,22 @@ export default function ContractSign() {
     addDebug(`Token: ${token ? token.substring(0, 8) + '...' : 'nenhum'}`);
     
     // Timeout para evitar loading infinito no Safari
-    const timeoutId = setTimeout(() => {
-      addDebug('⏰ TIMEOUT - 10 segundos');
-      if (loading) {
-        setLoading(false);
-        if (!contract && !error) {
-          setError('Tempo esgotado ao carregar contrato. Por favor, recarregue a página.');
-        }
+    timeoutId = setTimeout(() => {
+      if (!isMounted) return;
+      addDebug('⏰ TIMEOUT - 15 segundos');
+      setLoading(false);
+      if (!contract && !error) {
+        setError('Tempo esgotado ao carregar contrato. Por favor, recarregue a página.');
       }
-    }, 10000); // 10 segundos
+    }, 15000); // 15 segundos
     
     const fetchContract = async () => {
       if (!token) {
         addDebug('ERRO: Token não fornecido');
-        setError('Token inválido');
-        setLoading(false);
+        if (isMounted) {
+          setError('Token inválido');
+          setLoading(false);
+        }
         clearTimeout(timeoutId);
         return;
       }
@@ -138,6 +145,8 @@ export default function ContractSign() {
           .eq('signature_token', token)
           .maybeSingle();
 
+        if (!isMounted) return;
+        
         addDebug(`Query completada: ${data ? 'dados recebidos' : 'sem dados'}, erro: ${fetchError?.message || 'nenhum'}`);
         
         if (fetchError || !data) {
@@ -148,9 +157,11 @@ export default function ContractSign() {
           return;
         }
 
+        // Primeiro define o contrato
+        setContract(data as ContractData);
+        
         if (data.signed_at) {
-          addDebug('Contrato já assinado');
-          setContract(data as ContractData);
+          addDebug('Contrato já assinado - mostrando confirmação');
           setSigned(true);
           setLoading(false);
           clearTimeout(timeoutId);
@@ -158,24 +169,25 @@ export default function ContractSign() {
         }
 
         addDebug('Registrando visualização...');
-        // Log view event
-        const { error: logError } = await supabase.from('contract_signature_logs').insert({
+        // Log view event - non-blocking
+        supabase.from('contract_signature_logs').insert({
           contract_id: data.id,
           action: 'viewed',
           ip_address: 'public',
           user_agent: navigator.userAgent,
+        }).then(({ error: logError }) => {
+          if (logError && isMounted) {
+            addDebug(`Aviso: Log falhou - ${logError.message}`);
+          }
         });
-        
-        if (logError) {
-          addDebug(`Aviso: Log falhou - ${logError.message}`);
-        }
 
         addDebug('Contrato carregado com sucesso!');
-        setContract(data as ContractData);
+        setLoading(false);
+        clearTimeout(timeoutId);
       } catch (err) {
+        if (!isMounted) return;
         addDebug(`ERRO CATCH: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
         setError('Erro ao carregar contrato.');
-      } finally {
         setLoading(false);
         clearTimeout(timeoutId);
       }
@@ -183,8 +195,11 @@ export default function ContractSign() {
 
     fetchContract();
     
-    return () => clearTimeout(timeoutId);
-  }, [token]);
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [token, addDebug]);
 
   const handleSign = async () => {
     if (!contract) return;
