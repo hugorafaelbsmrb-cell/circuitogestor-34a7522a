@@ -186,6 +186,8 @@ export default function GuardianSupport() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [useManualPhone, setUseManualPhone] = useState(false);
+  const [manualPhone, setManualPhone] = useState('');
 
   useEffect(() => {
     // Força uma atualização inicial dos dados escolares quando a página abre,
@@ -516,6 +518,32 @@ export default function GuardianSupport() {
     setFormNotes('');
     setFormPriority('normal');
     setFormCourse('');
+    setUseManualPhone(false);
+    setManualPhone('');
+  };
+
+  const openManualPhoneChat = () => {
+    const cleanPhone = manualPhone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      toast({
+        title: 'Número inválido',
+        description: 'Digite um número de telefone válido.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+    
+    setSelectedGuardianForMessages({
+      id: null,
+      name: formatPhone(formattedPhone),
+      phone: formattedPhone,
+      studentNames: [],
+    });
+    setShowMessagesModal(true);
+    setShowCreateDialog(false);
+    resetForm();
   };
 
   const openWhatsApp = (phone: string) => {
@@ -940,94 +968,151 @@ export default function GuardianSupport() {
       </div>
 
       {/* Create Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      <Dialog open={showCreateDialog} onOpenChange={(open) => {
+        setShowCreateDialog(open);
+        if (!open) resetForm();
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Novo Atendimento</DialogTitle>
             <DialogDescription>
-              Crie um ticket para acompanhar a comunicação com o responsável.
+              Crie um ticket ou envie mensagem para um número específico.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Responsável *</Label>
-              <Select value={formGuardian} onValueChange={setFormGuardian}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o responsável" />
-                </SelectTrigger>
-                <SelectContent>
-                  {guardians.map((guardian) => (
-                    <SelectItem key={guardian.id} value={guardian.id}>
-                      {guardian.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* Toggle: Responsável cadastrado ou Número manual */}
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+              <Button
+                type="button"
+                variant={!useManualPhone ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setUseManualPhone(false)}
+                className="flex-1"
+              >
+                Responsável Cadastrado
+              </Button>
+              <Button
+                type="button"
+                variant={useManualPhone ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setUseManualPhone(true)}
+                className="flex-1"
+              >
+                Número Manual
+              </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label>Assunto *</Label>
-              <Input
-                value={formSubject}
-                onChange={(e) => setFormSubject(e.target.value)}
-                placeholder="Ex: Dúvida sobre pagamento"
-              />
-            </div>
+            {useManualPhone ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Número do WhatsApp *</Label>
+                  <Input
+                    value={manualPhone}
+                    onChange={(e) => setManualPhone(e.target.value)}
+                    placeholder="Ex: 11999998888"
+                    type="tel"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Digite o número com DDD (sem o 55)
+                  </p>
+                </div>
 
-            <div className="space-y-2">
-              <Label>Observações</Label>
-              <Textarea
-                value={formNotes}
-                onChange={(e) => setFormNotes(e.target.value)}
-                placeholder="Detalhes adicionais..."
-                rows={3}
-              />
-            </div>
+                <DialogFooter className="sm:justify-between">
+                  <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                    Cancelar
+                  </Button>
+                  <Button 
+                    onClick={openManualPhoneChat} 
+                    disabled={!manualPhone.trim()}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Abrir Conversa
+                  </Button>
+                </DialogFooter>
+              </>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Responsável *</Label>
+                  <Select value={formGuardian} onValueChange={setFormGuardian}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o responsável" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {guardians.map((guardian) => (
+                        <SelectItem key={guardian.id} value={guardian.id}>
+                          {guardian.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Prioridade</Label>
-                <Select value={formPriority} onValueChange={(v) => setFormPriority(v as SupportTicket['priority'])}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Baixa</SelectItem>
-                    <SelectItem value="normal">Normal</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="urgent">Urgente</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label>Assunto *</Label>
+                  <Input
+                    value={formSubject}
+                    onChange={(e) => setFormSubject(e.target.value)}
+                    placeholder="Ex: Dúvida sobre pagamento"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label>Curso</Label>
-                <Select value={formCourse} onValueChange={setFormCourse}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Opcional" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {courses.filter(c => c.is_active).map((course) => (
-                      <SelectItem key={course.id} value={course.id}>
-                        {course.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                <div className="space-y-2">
+                  <Label>Observações</Label>
+                  <Textarea
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                    placeholder="Detalhes adicionais..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Prioridade</Label>
+                    <Select value={formPriority} onValueChange={(v) => setFormPriority(v as SupportTicket['priority'])}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Baixa</SelectItem>
+                        <SelectItem value="normal">Normal</SelectItem>
+                        <SelectItem value="high">Alta</SelectItem>
+                        <SelectItem value="urgent">Urgente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Curso</Label>
+                    <Select value={formCourse} onValueChange={setFormCourse}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Opcional" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {courses.filter(c => c.is_active).map((course) => (
+                          <SelectItem key={course.id} value={course.id}>
+                            {course.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleCreateTicket} disabled={isSaving}>
+                    {isSaving ? 'Criando...' : 'Criar Atendimento'}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleCreateTicket} disabled={isSaving}>
-              {isSaving ? 'Criando...' : 'Criar Atendimento'}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
