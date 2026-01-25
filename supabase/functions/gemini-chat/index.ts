@@ -139,12 +139,21 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
       console.error("Gemini API error:", response.status, errorText);
 
       if (response.status === 429) {
+        const retryAfter = response.headers.get("retry-after");
         return new Response(
           JSON.stringify({
             error: "Limite de requisições excedido. Tente novamente em alguns minutos.",
             status: 429,
+            retry_after_seconds: retryAfter ? Number(retryAfter) : undefined,
           }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              ...(retryAfter ? { "Retry-After": retryAfter } : {}),
+            },
+          }
         );
       }
 
