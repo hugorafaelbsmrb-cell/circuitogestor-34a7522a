@@ -94,13 +94,13 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
 
-    const apiKey = config.W_API_TOKEN;
+    const apiToken = config.W_API_TOKEN;
     const instanceId = config.W_API_SESSION;
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
 
     console.log('=== W-API Send Message ===');
     console.log(`Base URL: ${baseUrl}`);
-    console.log(`Session: ${instanceId}`);
+    console.log(`Instance ID: ${instanceId}`);
     console.log(`Phone: ${formattedPhone}`);
     console.log(`Media Type: ${mediaType || 'text'}`);
 
@@ -127,8 +127,11 @@ Deno.serve(async (req) => {
 
     const savedMsgId = savedMsg?.id;
 
-    // Build request - using the same pattern that works in asaas-webhook and scheduled-notifications
-    // Endpoint: /message/send-text with session in body and Bearer token auth
+    // Build request using the correct W-API format from documentation:
+    // URL: https://api.w-api.app/v1/message/send-text?instanceId={{INSTANCE_ID}}
+    // Headers: Authorization: Bearer {{TOKEN}}, Content-Type: application/json
+    const encodedInstanceId = encodeURIComponent(instanceId);
+    
     let endpoint: string;
     let requestBody: Record<string, unknown>;
     
@@ -137,9 +140,8 @@ Deno.serve(async (req) => {
       
       switch (mediaType) {
         case 'image':
-          endpoint = `${baseUrl}/message/send-image`;
+          endpoint = `${baseUrl}/v1/message/send-image?instanceId=${encodedInstanceId}`;
           requestBody = { 
-            session: instanceId, 
             phone: formattedPhone, 
             image: mediaUrl, 
             caption: mediaCaption,
@@ -147,9 +149,8 @@ Deno.serve(async (req) => {
           };
           break;
         case 'document':
-          endpoint = `${baseUrl}/message/send-document`;
+          endpoint = `${baseUrl}/v1/message/send-document?instanceId=${encodedInstanceId}`;
           requestBody = { 
-            session: instanceId, 
             phone: formattedPhone, 
             document: mediaUrl, 
             fileName: fileName || 'documento.pdf', 
@@ -158,9 +159,8 @@ Deno.serve(async (req) => {
           };
           break;
         case 'video':
-          endpoint = `${baseUrl}/message/send-video`;
+          endpoint = `${baseUrl}/v1/message/send-video?instanceId=${encodedInstanceId}`;
           requestBody = { 
-            session: instanceId, 
             phone: formattedPhone, 
             video: mediaUrl, 
             caption: mediaCaption,
@@ -168,28 +168,25 @@ Deno.serve(async (req) => {
           };
           break;
         case 'audio':
-          endpoint = `${baseUrl}/message/send-audio`;
+          endpoint = `${baseUrl}/v1/message/send-audio?instanceId=${encodedInstanceId}`;
           requestBody = { 
-            session: instanceId, 
             phone: formattedPhone, 
             audio: mediaUrl,
             isGroup 
           };
           break;
         default:
-          endpoint = `${baseUrl}/message/send-text`;
+          endpoint = `${baseUrl}/v1/message/send-text?instanceId=${encodedInstanceId}`;
           requestBody = { 
-            session: instanceId, 
             phone: formattedPhone, 
             message: message,
             isGroup 
           };
       }
     } else {
-      // Text message - use same format as asaas-webhook (proven working)
-      endpoint = `${baseUrl}/message/send-text`;
+      // Text message - use documented format
+      endpoint = `${baseUrl}/v1/message/send-text?instanceId=${encodedInstanceId}`;
       requestBody = { 
-        session: instanceId, 
         phone: formattedPhone, 
         message: message,
         isGroup 
@@ -203,7 +200,7 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${apiToken}`,
       },
       body: JSON.stringify(requestBody),
     });
