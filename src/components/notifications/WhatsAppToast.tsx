@@ -3,15 +3,28 @@ import { MessageCircle, X } from 'lucide-react';
 interface WhatsAppToastProps {
   senderName: string;
   message: string;
+  avatarUrl?: string | null;
   onClose?: () => void;
 }
 
-export function WhatsAppToast({ senderName, message, onClose }: WhatsAppToastProps) {
+export function WhatsAppToast({ senderName, message, avatarUrl, onClose }: WhatsAppToastProps) {
   return (
     <div className="flex items-start gap-3 p-4 bg-[#075E54] rounded-xl shadow-2xl border border-[#128C7E] min-w-[320px] max-w-[400px] animate-in slide-in-from-top-2">
-      {/* WhatsApp Icon */}
-      <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-[#25D366] shadow-md">
-        <MessageCircle className="w-5 h-5 text-white" />
+      {/* Avatar or WhatsApp Icon */}
+      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-[#25D366] shadow-md overflow-hidden flex items-center justify-center">
+        {avatarUrl ? (
+          <img 
+            src={avatarUrl} 
+            alt={senderName}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              // Fallback to icon if image fails to load
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+            }}
+          />
+        ) : null}
+        <MessageCircle className={`w-5 h-5 text-white ${avatarUrl ? 'hidden' : ''}`} />
       </div>
       
       {/* Content */}
