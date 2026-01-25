@@ -12,6 +12,21 @@ interface ProcessRequest {
   message: string;
 }
 
+async function getGoogleApiKey(supabase: any): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "GOOGLE_API_KEY")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching GOOGLE_API_KEY from app_settings:", error);
+    return null;
+  }
+
+  return data?.value || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -20,9 +35,11 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get Google API Key from database
+    const GOOGLE_API_KEY = await getGoogleApiKey(supabase);
 
     const { messageId, guardianId, phone: _phone, message }: ProcessRequest = await req.json();
 
@@ -79,9 +96,9 @@ Deno.serve(async (req) => {
     }
 
     // Step 3: Use AI to classify if this is a homework report
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
-      return new Response(JSON.stringify({ error: "AI not configured" }), {
+    if (!GOOGLE_API_KEY) {
+      console.error("GOOGLE_API_KEY not configured in app_settings");
+      return new Response(JSON.stringify({ error: "Chave da API do Google não configurada. Acesse Configurações > Inteligência Artificial." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -121,33 +138,50 @@ Responda em JSON com o formato:
   "parentNotes": "observações gerais do pai"
 }`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: "Você é um classificador de mensagens escolares. Responda apenas em JSON válido." },
-          { role: "user", content: classificationPrompt },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
+    // Call Google Gemini API directly
+    const aiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: `Você é um classificador de mensagens escolares. Responda apenas em JSON válido.\n\n${classificationPrompt}` }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 1024,
+          },
+        }),
+      }
+    );
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
       console.error("AI classification error:", aiResponse.status, errorText);
-      return new Response(JSON.stringify({ error: "AI classification failed" }), {
+      return new Response(JSON.stringify({ error: "AI classification failed", details: errorText }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const aiData = await aiResponse.json();
-    const classification = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+    const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    
+    // Extract JSON from response
+    let classification;
+    try {
+      const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
+      classification = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    } catch {
+      console.error("Failed to parse AI response:", aiContent);
+      classification = { isHomeworkReport: false, confidence: 0 };
+    }
 
     console.log("AI Classification result:", classification);
 
