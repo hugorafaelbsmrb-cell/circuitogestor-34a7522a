@@ -89,7 +89,7 @@ export default function Enrollment() {
     isLoading: isDataLoading
   } = useSchool();
   
-  const { isLoading: isAsaasLoading, createCustomer, createBoleto: createAsaasBoleto, createCarne: createAsaasCarne, getInstallmentBooklet } = useAsaasPayment();
+  const { isLoading: isAsaasLoading, createCustomer, createBoleto: createAsaasBoleto, createCarne: createAsaasCarne, getInstallmentBooklet, listInstallmentPayments } = useAsaasPayment();
   const { branding } = useSystemBranding();
   
   // Check if this is an enrollment for an existing student (second course flow)
@@ -1029,11 +1029,13 @@ export default function Enrollment() {
           
           if (asaasPayment) {
             const entryBoletoValue = useProRata ? proRataValue : regularValue;
+            const installmentId = asaasPayment.installment || asaasPayment.id;
+            
             const savedCarne = await createCarne({
               enrollment_id: enrollment.id,
               guardian_id: guardian.id,
               contract_id: contract.id,
-              asaas_installment_id: asaasPayment.installment || asaasPayment.id,
+              asaas_installment_id: installmentId,
               description,
               total_value: entryBoletoValue + totalRemainingValue,
               installment_count: installmentCount,
@@ -1042,8 +1044,33 @@ export default function Enrollment() {
 
             carneData = {
               id: savedCarne.id,
-              asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
+              asaasInstallmentId: installmentId,
             };
+
+            // Fetch and save all installment payments
+            try {
+              const installmentPayments = await listInstallmentPayments(installmentId);
+              for (const payment of installmentPayments) {
+                await createPayment({
+                  enrollment_id: enrollment.id,
+                  guardian_id: guardian.id,
+                  contract_id: contract.id,
+                  asaas_payment_id: payment.id,
+                  asaas_installment_id: installmentId,
+                  description: payment.description || `${description} - Parcela ${payment.installmentNumber || ''}`,
+                  value: payment.value,
+                  due_date: payment.dueDate,
+                  status: payment.status,
+                  invoice_url: payment.invoiceUrl || null,
+                  bank_slip_url: payment.bankSlipUrl || null,
+                  installment_number: payment.installmentNumber || null,
+                  external_reference: enrollment.id,
+                });
+              }
+            } catch (installmentError) {
+              console.error('Error saving installment payments:', installmentError);
+              // Non-blocking: carnê was created, payments will be synced via webhook
+            }
           }
         } else {
           // Standard flow: all installments equal, no entry boleto
@@ -1060,11 +1087,13 @@ export default function Enrollment() {
           });
 
           if (asaasPayment) {
+            const installmentId = asaasPayment.installment || asaasPayment.id;
+            
             const savedCarne = await createCarne({
               enrollment_id: enrollment.id,
               guardian_id: guardian.id,
               contract_id: contract.id,
-              asaas_installment_id: asaasPayment.installment || asaasPayment.id,
+              asaas_installment_id: installmentId,
               description,
               total_value: totalValue,
               installment_count: installmentCount,
@@ -1073,24 +1102,33 @@ export default function Enrollment() {
 
             carneData = {
               id: savedCarne.id,
-              asaasInstallmentId: asaasPayment.installment || asaasPayment.id,
+              asaasInstallmentId: installmentId,
             };
 
-            await createPayment({
-              enrollment_id: enrollment.id,
-              guardian_id: guardian.id,
-              contract_id: contract.id,
-              asaas_payment_id: asaasPayment.id,
-              asaas_installment_id: asaasPayment.installment || null,
-              description,
-              value: asaasPayment.value,
-              due_date: asaasPayment.dueDate,
-              status: asaasPayment.status,
-              invoice_url: asaasPayment.invoiceUrl,
-              bank_slip_url: asaasPayment.bankSlipUrl,
-              installment_number: 1,
-              external_reference: enrollment.id,
-            });
+            // Fetch and save all installment payments
+            try {
+              const installmentPayments = await listInstallmentPayments(installmentId);
+              for (const payment of installmentPayments) {
+                await createPayment({
+                  enrollment_id: enrollment.id,
+                  guardian_id: guardian.id,
+                  contract_id: contract.id,
+                  asaas_payment_id: payment.id,
+                  asaas_installment_id: installmentId,
+                  description: payment.description || `${description} - Parcela ${payment.installmentNumber || ''}`,
+                  value: payment.value,
+                  due_date: payment.dueDate,
+                  status: payment.status,
+                  invoice_url: payment.invoiceUrl || null,
+                  bank_slip_url: payment.bankSlipUrl || null,
+                  installment_number: payment.installmentNumber || null,
+                  external_reference: enrollment.id,
+                });
+              }
+            } catch (installmentError) {
+              console.error('Error saving installment payments:', installmentError);
+              // Non-blocking: carnê was created, payments will be synced via webhook
+            }
           }
         }
       } else if (!needsEntryBoleto) {
