@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { messageId, guardianId, phone, message }: ProcessRequest = await req.json();
+    const { messageId, guardianId, phone: _phone, message }: ProcessRequest = await req.json();
 
     if (!message || !guardianId) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -208,13 +208,25 @@ Responda em JSON com o formato:
     }
 
     // Step 5: Format the message for the teacher
-    const studentForReport = classification.studentName || studentNames[0] || "Aluno";
-    const classGroupName = classGroupNames[0] || "Turma";
+    const fullStudentName = classification.studentName || studentNames[0] || "Aluno";
+    // Extract first and second name for identification
+    const nameParts = fullStudentName.trim().split(/\s+/);
+    const studentDisplayName = nameParts.length >= 2 
+      ? `${nameParts[0]} ${nameParts[1]}` 
+      : nameParts[0];
     
-    let teacherMessage = `📚 *Roteiro de Atividades*\n\n`;
-    teacherMessage += `👨‍👩‍👧 *Responsável:* ${guardian.name}\n`;
-    teacherMessage += `🧒 *Aluno:* ${studentForReport}\n`;
-    teacherMessage += `📝 *Turma:* ${classGroupName}\n\n`;
+    // Motivational messages pool
+    const motivationalMessages = [
+      "Continue o excelente trabalho! Juntos fazemos a diferença na educação. 💪",
+      "Obrigado pelo acompanhamento! Seu apoio é essencial para o sucesso do aluno. ⭐",
+      "Parabéns pelo comprometimento com a educação! 🌟",
+      "Cada atividade é um passo rumo ao sucesso! Vamos em frente! 🚀",
+      "O esforço de hoje constrói o amanhã. Continue motivando! 📚",
+      "Seu acompanhamento faz toda a diferença. Obrigado! 🙏",
+    ];
+    const randomMotivation = motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)];
+    
+    let teacherMessage = `📚 *Roteiro de Atividades de ${studentDisplayName}*\n\n`;
     
     if (classification.summary) {
       teacherMessage += `📋 *Resumo:* ${classification.summary}\n\n`;
@@ -234,10 +246,11 @@ Responda em JSON com o formato:
     }
 
     if (classification.parentNotes) {
-      teacherMessage += `💬 *Obs. do responsável:* ${classification.parentNotes}\n`;
+      teacherMessage += `💬 *Obs. do responsável:* ${classification.parentNotes}\n\n`;
     }
 
-    teacherMessage += `\n_Recebido em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`;
+    teacherMessage += `_${randomMotivation}_\n\n`;
+    teacherMessage += `_Recebido em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`;
 
     // Step 6: Send message to teacher via W-API
     const { data: wapiSettings } = await supabase
@@ -305,7 +318,7 @@ Responda em JSON com o formato:
     return new Response(JSON.stringify({ 
       success, 
       teacherName: teacher.name,
-      studentName: studentForReport,
+      studentName: studentDisplayName,
       classification 
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
