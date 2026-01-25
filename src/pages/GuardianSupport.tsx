@@ -520,9 +520,19 @@ export default function GuardianSupport() {
 
       // Even if the backend returned success=true previously, 0 synced means we need to show the derived reason.
       if ((data?.synced || 0) === 0) {
+        // Check if all attempts failed with 404 - indicates endpoint not available
+        const allFailed404 = data?.debug?.samples?.every((s: any) => 
+          s.attempts?.every((a: any) => a.status === 404 || a.status === null)
+        );
+        
+        const message = allFailed404
+          ? 'Esta instância não suporta busca de histórico retroativo. Configure o webhook para captura em tempo real das novas mensagens.'
+          : (data?.message || 'Verifique se a instância está conectada e há histórico de conversa.');
+        
         toast({
-          title: 'Nenhuma mensagem sincronizada',
-          description: `${data?.message || 'Não foi possível obter o histórico.'}${debugSummary ? `\n\nAmostra: ${debugSummary}` : ''}`,
+          title: allFailed404 ? 'Histórico não disponível' : 'Nenhuma mensagem sincronizada',
+          description: message,
+          variant: allFailed404 ? 'default' : 'destructive',
         });
         return;
       }
