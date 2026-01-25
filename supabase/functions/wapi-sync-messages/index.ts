@@ -83,23 +83,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Normalize base URL (keep the configured provider host; do NOT force a specific domain)
-    let wapiUrl = (config.W_API_URL || '').trim().replace(/\/$/, '');
-    if (!/^https?:\/\//i.test(wapiUrl)) {
-      wapiUrl = `https://${wapiUrl}`;
+    // ========================================
+    // SIMPLIFIED W-API PRO CONFIGURATION
+    // Based on user documentation:
+    // - Base URL: https://api.wapi.com.br (PRO standard)
+    // - Endpoint: GET /all-messages?chatId=...&limit=20
+    // - Headers: apikey, Content-Type
+    // ========================================
+    
+    // Use api.wapi.com.br as primary (PRO standard)
+    // Fall back to configured URL only if different
+    const PRO_BASE_URL = 'https://api.wapi.com.br';
+    
+    // Normalize configured URL
+    let configuredUrl = (config.W_API_URL || '').trim().replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(configuredUrl)) {
+      configuredUrl = `https://${configuredUrl}`;
     }
-    wapiUrl = wapiUrl.replace(/^http:\/\//i, 'https://');
-
-    const session = config.W_API_SESSION;
-    const apiToken = config.W_API_TOKEN;
+    
+    const apiKey = config.W_API_TOKEN;
+    const instanceId = config.W_API_SESSION;
 
     let syncedCount = 0;
     let errorCount = 0;
     const processedPhones = new Set<string>();
 
-    // ========================================
-    // STEP 1: Load ALL guardians with their phones
-    // ========================================
+    // Load guardians
     const { data: guardians } = await supabase
       .from('guardians')
       .select('id, phone, name')
@@ -112,15 +121,14 @@ Deno.serve(async (req) => {
           message: 'Nenhum responsável cadastrado para sincronizar',
           synced: 0,
           errors: 0,
-          guardiansProcessed: 0,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    console.log(`Found ${guardians.length} guardians to check for messages`);
+    console.log(`Found ${guardians.length} guardians to sync`);
 
-    // Helper to normalize phone to BR format
+    // Normalize phone to BR format with country code
     const normalizeToBR = (raw: string) => {
       const digits = (raw || '').replace(/\D/g, '');
       if (!digits) return '';
@@ -128,267 +136,150 @@ Deno.serve(async (req) => {
     };
 
     // ========================================
-    // STEP 2: Function to fetch messages using correct W-API PRO format
-    // Based on documentation:
-    // - Main domain: https://api.wapi.com.br
-    // - Alternative (V3/PRO): https://v3.wapi.com.br
-    // - Format: GET /getMessages?chatId=5511999999999@c.us&count=50
-    // - Some versions need /{instanceId}/getMessages
-    // Headers: apikey, Content-Type
+    // SIMPLE FETCH FUNCTION (per W-API PRO docs)
     // ========================================
-    type Attempt = { endpoint: string; status: number | null; ok: boolean; note?: string };
-
-    const fetchWithTimeout = async (
-      url: string,
-      init: RequestInit,
-      timeoutMs = 12000,
-    ): Promise<Response> => {
-      const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        return await fetch(url, { ...init, signal: controller.signal });
-      } finally {
-        clearTimeout(id);
-      }
-    };
-
-    // Determine base URL candidates
-    // ALWAYS include the configured URL first (W_API_URL).
-    // Only add known alternatives as optional fallbacks.
-    const getBaseUrls = (): string[] => {
-      const list: string[] = [wapiUrl];
-
-      // Optional known fallbacks (only if different from configured)
-      const extras = ['https://api.wapi.com.br', 'https://v3.wapi.com.br'];
-      for (const extra of extras) {
-        if (extra !== wapiUrl) list.push(extra);
-      }
-
-      // De-dup
-      return Array.from(new Set(list));
-    };
-
-    const baseUrls = getBaseUrls();
-    console.log(`Using base URLs: ${baseUrls.join(', ')}`);
-
-    // Quick connectivity test to avoid looping through guardians if provider is unreachable.
-    // Use a root request first (works regardless of provider paths).
-    const connectivity: Array<{ baseUrl: string; ok: boolean; status?: number; error?: string }> = [];
-    for (const baseUrl of baseUrls) {
-      try {
-        const res = await fetchWithTimeout(
-          baseUrl,
-          {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-              'User-Agent': 'LovableCloud/1.0',
-            },
-          },
-          8000,
-        );
-        connectivity.push({ baseUrl, ok: true, status: res.status });
-        // Consider any HTTP response as reachable (even 4xx), since it proves network connectivity
-        break;
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-        connectivity.push({ baseUrl, ok: false, error: msg });
-      }
-    }
-
-    const reachableBaseUrl = connectivity.find((c) => c.ok)?.baseUrl ?? null;
-    if (!reachableBaseUrl) {
-      console.log(`Connectivity check failed: ${JSON.stringify(connectivity)}`);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          message:
-            'Falha de conexão com a W-API (timeout/DNS/TLS). Confirme o "API URL/Endpoint" exato no painel da W-API.',
-          synced: 0,
-          errors: 0,
-          guardiansProcessed: 0,
-          guardiansWithMessages: 0,
-          debug: {
-            configuredBaseUrl: wapiUrl,
-            triedBaseUrls: baseUrls,
-            connectivity,
-          },
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // Use the reachable base URL
-    const effectiveBaseUrl = reachableBaseUrl;
-    console.log(`Using reachable base URL: ${effectiveBaseUrl}`);
-
-    const fetchMessagesForPhone = async (
-      phone: string,
-    ): Promise<{ messages: WapiMessage[]; success: boolean; workingEndpoint?: string; attempts: Attempt[] }> => {
-      const phoneWithCC = phone.startsWith('55') ? phone : `55${phone}`;
-      const chatId = `${phoneWithCC}@c.us`;
+    const fetchWhatsAppHistory = async (chatId: string, baseUrl: string): Promise<WapiMessage[]> => {
+      const url = `${baseUrl}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=20`;
       
-      const attempts: Attempt[] = [];
-
-      // ========================================
-      // Endpoint candidates (support multiple W-API providers)
-      // - PRO-like: /all-messages, /get-chat-by-id
-      // - Legacy/other: /getMessages
-      // - w-api.app-like: /v1/chats/chat
-      // ========================================
-      const candidates: Array<{ url: string; headers: Record<string, string>; note: string }> = [];
-
-      // PRIMARY: /all-messages (forces device fetch, best for history)
-      candidates.push({
-        url: `${effectiveBaseUrl}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=30`,
-        headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
-        note: '/all-messages (primary)',
-      });
-
-      // FALLBACK 1: /all-messages with instance in path
-      candidates.push({
-        url: `${effectiveBaseUrl}/${session}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=30`,
-        headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
-        note: '/{instance}/all-messages',
-      });
-
-      // FALLBACK 2: /getMessages (local DB, may work if synced)
-      candidates.push({
-        url: `${effectiveBaseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=30`,
-        headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
-        note: '/getMessages',
-      });
-
-      // FALLBACK 3: /get-chat-by-id (lighter, for quick preview)
-      candidates.push({
-        url: `${effectiveBaseUrl}/get-chat-by-id?chatId=${encodeURIComponent(chatId)}`,
-        headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
-        note: '/get-chat-by-id',
-      });
-
-      // FALLBACK 4: Bearer token auth variant
-      candidates.push({
-        url: `${effectiveBaseUrl}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=30`,
-        headers: { 'Authorization': `Bearer ${apiToken}`, 'instanceId': session, 'Content-Type': 'application/json' },
-        note: '/all-messages (Bearer)',
-      });
-
-      // FALLBACK 5+: w-api.app style endpoints
-      candidates.push({
-        url: `${effectiveBaseUrl}/v1/chats/chat?chatId=${encodeURIComponent(chatId)}&limit=30`,
-        headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-        note: '/v1/chats/chat (Bearer)',
-      });
-
-      candidates.push({
-        url: `${effectiveBaseUrl}/v1/chats/chat?chatId=${encodeURIComponent(chatId)}&limit=30&instanceId=${encodeURIComponent(session)}`,
-        headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
-        note: '/v1/chats/chat (instanceId query)',
-      });
-
-      candidates.push({
-        url: `${effectiveBaseUrl}/v1/chats/chat?chatId=${encodeURIComponent(chatId)}&limit=30`,
-        headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
-        note: '/v1/chats/chat (apikey+instanceId)',
-      });
-
-      console.log(`Trying ${candidates.length} endpoints for chatId: ${chatId}`);
+      console.log(`Fetching: ${url}`);
       
-      for (const candidate of candidates) {
-        try {
-          const res = await fetchWithTimeout(
-            candidate.url,
-            {
-              method: 'GET',
-              headers: {
-                ...candidate.headers,
-                'Accept': 'application/json',
-                'User-Agent': 'LovableCloud/1.0',
-              },
-            },
-            15000, // Slightly longer timeout for all-messages which fetches from device
-          );
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
 
-          attempts.push({ endpoint: candidate.note, status: res.status, ok: res.ok });
-
-          if (res.ok) {
-            const text = await res.text();
-            console.log(`SUCCESS ${candidate.note}: ${text.slice(0, 300)}`);
-            
-            try {
-              const parsed = JSON.parse(text);
-              
-              // Extract messages from various possible response structures
-              let msgs: WapiMessage[] = [];
-              
-              if (Array.isArray(parsed)) {
-                msgs = parsed;
-              } else if (parsed.messages && Array.isArray(parsed.messages)) {
-                msgs = parsed.messages;
-              } else if (parsed.data?.messages && Array.isArray(parsed.data.messages)) {
-                msgs = parsed.data.messages;
-              } else if (parsed.data && Array.isArray(parsed.data)) {
-                msgs = parsed.data;
-              } else if (parsed.result && Array.isArray(parsed.result)) {
-                msgs = parsed.result;
-              } else if (parsed.lastMessage) {
-                // get-chat-by-id returns single chat with lastMessage
-                msgs = [parsed.lastMessage];
-              }
-
-              if (Array.isArray(msgs) && msgs.length > 0) {
-                console.log(`Found ${msgs.length} messages using: ${candidate.note}`);
-                return { messages: msgs.slice(0, 30), success: true, workingEndpoint: candidate.note, attempts };
-              }
-            } catch (parseError) {
-              console.log(`Parse error for ${candidate.note}: ${parseError}`);
-            }
-          } else {
-            const errText = await res.text();
-            console.log(`Error ${res.status} at ${candidate.note}: ${errText.slice(0, 150)}`);
-          }
-        } catch (fetchError: unknown) {
-          const msg = fetchError instanceof Error ? `${fetchError.name}: ${fetchError.message}` : String(fetchError);
-          console.log(`Fetch error at ${candidate.note}: ${msg}`);
-          attempts.push({ endpoint: candidate.note, status: null, ok: false, note: msg });
+        if (!response.ok) {
+          const errText = await response.text();
+          console.log(`Error ${response.status}: ${errText.slice(0, 200)}`);
+          return [];
         }
-      }
 
-      return { messages: [], success: false, attempts };
+        const data = await response.json();
+        console.log(`Response type: ${typeof data}, isArray: ${Array.isArray(data)}`);
+        
+        // Extract messages from response
+        let messages: WapiMessage[] = [];
+        
+        if (Array.isArray(data)) {
+          messages = data;
+        } else if (data.messages && Array.isArray(data.messages)) {
+          messages = data.messages;
+        } else if (data.data?.messages && Array.isArray(data.data.messages)) {
+          messages = data.data.messages;
+        } else if (data.data && Array.isArray(data.data)) {
+          messages = data.data;
+        } else if (data.result && Array.isArray(data.result)) {
+          messages = data.result;
+        }
+        
+        console.log(`Found ${messages.length} messages`);
+        return messages;
+        
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.log(`Fetch error: ${msg}`);
+        return [];
+      }
     };
 
-    // Process a single guardian
-    const debugAttempts: Array<{ phoneSuffix: string; chatId: string; attempts: Attempt[] }> = [];
-
-    const processGuardian = async (guardian: { id: string; phone: string; name: string | null }) => {
-      const phone = normalizeToBR(guardian.phone);
-      if (!phone || phone.length < 12) return { synced: 0, errors: 0, hasMessages: false };
+    // Try with /getMessages as fallback (legacy endpoint)
+    const fetchWithFallback = async (chatId: string, baseUrl: string): Promise<WapiMessage[]> => {
+      // Try primary endpoint first
+      let messages = await fetchWhatsAppHistory(chatId, baseUrl);
       
-      if (processedPhones.has(phone)) return { synced: 0, errors: 0, hasMessages: false };
+      if (messages.length > 0) return messages;
+      
+      // Fallback: try /getMessages (with capital M)
+      const fallbackUrl = `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=20`;
+      console.log(`Trying fallback: ${fallbackUrl}`);
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        
+        const response = await fetch(fallbackUrl, {
+          method: 'GET',
+          headers: {
+            'apikey': apiKey,
+            'Content-Type': 'application/json',
+          },
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!response.ok) return [];
+
+        const data = await response.json();
+        
+        if (Array.isArray(data)) return data;
+        if (data.messages && Array.isArray(data.messages)) return data.messages;
+        if (data.data && Array.isArray(data.data)) return data.data;
+        
+        return [];
+      } catch {
+        return [];
+      }
+    };
+
+    // ========================================
+    // PROCESS GUARDIANS
+    // ========================================
+    const debugInfo: Array<{ phone: string; chatId: string; messagesFound: number; baseUrl: string }> = [];
+    let guardiansWithMessages = 0;
+    
+    // Try PRO URL first, then configured URL
+    const baseUrlsToTry = [PRO_BASE_URL];
+    if (configuredUrl !== PRO_BASE_URL) {
+      baseUrlsToTry.push(configuredUrl);
+    }
+
+    for (const guardian of guardians) {
+      const phone = normalizeToBR(guardian.phone);
+      if (!phone || phone.length < 12) continue;
+      if (processedPhones.has(phone)) continue;
       processedPhones.add(phone);
 
-      const { messages, success, attempts } = await fetchMessagesForPhone(phone);
-
-      // Store debug info for first few phones
-      if (debugAttempts.length < 5) {
-        debugAttempts.push({ 
-          phoneSuffix: phone.slice(-4), 
-          chatId: `${phone}@c.us`,
-          attempts: attempts.slice(0, 10) 
+      const chatId = `${phone}@c.us`;
+      
+      let messages: WapiMessage[] = [];
+      let usedBaseUrl = '';
+      
+      // Try each base URL until we get messages
+      for (const baseUrl of baseUrlsToTry) {
+        messages = await fetchWithFallback(chatId, baseUrl);
+        if (messages.length > 0) {
+          usedBaseUrl = baseUrl;
+          break;
+        }
+      }
+      
+      // Store debug info for first 5 phones
+      if (debugInfo.length < 5) {
+        debugInfo.push({
+          phone: phone.slice(-4),
+          chatId,
+          messagesFound: messages.length,
+          baseUrl: usedBaseUrl || baseUrlsToTry[0],
         });
       }
-      
-      if (!success || messages.length === 0) {
-        return { synced: 0, errors: 0, hasMessages: false };
-      }
 
-      let localSynced = 0;
-      let localErrors = 0;
-
-      // Process messages (limit to 20 most recent)
-      const recentMessages = messages.slice(0, 20);
+      if (messages.length === 0) continue;
       
-      for (const msg of recentMessages) {
+      guardiansWithMessages++;
+
+      // Insert messages
+      for (const msg of messages.slice(0, 20)) {
         const messageId = typeof msg.id === 'object' ? msg.id?._serialized : msg.id || msg.key?.id || null;
         const messageText = msg.body || msg.text || msg.message || msg.content || '';
         const isFromMe = msg.fromMe || msg.key?.fromMe || false;
@@ -396,7 +287,7 @@ Deno.serve(async (req) => {
 
         if (!messageText && !msg.hasMedia) continue;
 
-        // Check if message already exists
+        // Check if already exists
         if (messageId) {
           const { data: existing } = await supabase
             .from('whatsapp_messages')
@@ -423,77 +314,46 @@ Deno.serve(async (req) => {
 
         if (insertError) {
           console.log(`Insert error: ${insertError.message}`);
-          localErrors++;
+          errorCount++;
         } else {
-          localSynced++;
+          syncedCount++;
         }
       }
-
-      return { synced: localSynced, errors: localErrors, hasMessages: true };
-    };
-
-    // ========================================
-    // STEP 3: Process guardians in parallel batches
-    // ========================================
-    let guardiansWithMessages = 0;
-    const BATCH_SIZE = 5;
-
-    for (let i = 0; i < guardians.length; i += BATCH_SIZE) {
-      const batch = guardians.slice(i, i + BATCH_SIZE);
-      console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.map(g => g.name?.split(' ')[0]).join(', ')}`);
-      
-      const results = await Promise.all(batch.map(g => processGuardian(g)));
-      
-      for (const result of results) {
-        syncedCount += result.synced;
-        errorCount += result.errors;
-        if (result.hasMessages) guardiansWithMessages++;
-      }
     }
 
-    console.log(`Sync complete: ${syncedCount} messages synced, ${errorCount} errors`);
-    console.log(`Guardians checked: ${processedPhones.size}, with messages: ${guardiansWithMessages}`);
+    console.log(`Sync complete: ${syncedCount} messages, ${errorCount} errors`);
+    console.log(`Guardians: ${processedPhones.size} checked, ${guardiansWithMessages} with messages`);
 
-    // Debug output when nothing synced
-    if (syncedCount === 0 && debugAttempts.length > 0) {
-      console.log('Debug samples:', JSON.stringify(debugAttempts.slice(0, 3)));
+    // Build response message
+    let message = `Sincronização concluída: ${syncedCount} mensagens importadas`;
+    if (guardiansWithMessages === 0 && syncedCount === 0) {
+      message = 'Nenhuma mensagem encontrada. Verifique se a instância está conectada e se há histórico de conversa com os contatos.';
     }
-
-    // Derive message based on attempt results
-    const attemptStatuses = debugAttempts.flatMap((d) => d.attempts.map((a) => a.status).filter((s): s is number => typeof s === 'number'));
-    const hasAuthError = attemptStatuses.some((s) => s === 401 || s === 403);
-    const allNotFound = attemptStatuses.length > 0 && attemptStatuses.every((s) => s === 404);
-    
-    const derivedMessage = hasAuthError
-      ? 'A API recusou acesso (401/403). Verifique se o token (apikey) está correto.'
-      : allNotFound
-        ? 'Endpoint /getMessages retornou 404. Verifique se sua instância W-API está no plano PRO com histórico habilitado.'
-        : syncedCount === 0
-          ? 'Nenhuma mensagem encontrada. Pode ser que não haja conversas recentes ou o endpoint não está correto.'
-          : `Sincronização concluída: ${syncedCount} mensagens de ${guardiansWithMessages} responsáveis`;
 
     return new Response(
       JSON.stringify({
-        success: syncedCount > 0,
-        message: derivedMessage,
+        success: true,
+        message,
         synced: syncedCount,
         errors: errorCount,
         guardiansProcessed: processedPhones.size,
         guardiansWithMessages,
-        debug: syncedCount === 0 ? { 
-          baseUrl: wapiUrl,
-          sampleChatId: debugAttempts[0]?.chatId || null,
-          samples: debugAttempts 
-        } : null,
+        debug: syncedCount === 0 ? {
+          proBaseUrl: PRO_BASE_URL,
+          configuredUrl,
+          samples: debugInfo,
+        } : undefined,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
 
-  } catch (error: unknown) {
-    console.error('Error in wapi-sync-messages:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro interno';
+  } catch (error) {
+    console.error('Sync error:', error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : 'Erro interno',
+        success: false,
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
