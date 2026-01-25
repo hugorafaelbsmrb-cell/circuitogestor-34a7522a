@@ -5,19 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-function normalizeBaseUrl(url?: string) {
-  const raw = (url || '').trim();
-  if (!raw) return 'https://api.w-api.app';
-
-  let base = raw;
-  base = base.replace(/^http:\/\//i, 'https://');
-  base = base.replace(/\/+$/, '');
-  base = base.replace(/\/api$/i, '');
-  if (/\/\/(app\.)?wawp\.net\b/i.test(base)) {
-    return 'https://api.w-api.app';
-  }
-  return base;
-}
+// W-API PRO uses api.wapi.com.br exclusively
+const PRO_BASE_URL = 'https://api.wapi.com.br';
 
 function parseConnection(data: any) {
   const stateRaw =
@@ -69,8 +58,8 @@ Deno.serve(async (req) => {
 
     // Verify user
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData?.user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -80,7 +69,7 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION']);
+      .in('key', ['W_API_TOKEN', 'W_API_SESSION']);
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
@@ -105,78 +94,53 @@ Deno.serve(async (req) => {
       );
     }
 
-    const baseUrl = normalizeBaseUrl(config.W_API_URL);
-    const session = config.W_API_SESSION;
+    const apiKey = config.W_API_TOKEN;
+    const instanceId = config.W_API_SESSION;
+    const encoded = encodeURIComponent(instanceId);
 
-    // Importante: existem variações de endpoint entre planos/coleções.
-    // Tentamos em ordem até achar um que responda.
-    const encoded = encodeURIComponent(session);
-    const candidates: Array<{ url: string; extraHeaders?: Record<string, string> }> = [
-      // Alguns provedores aceitam instanceId apenas via header (sem path/query)
-      { url: `${baseUrl}/v1/instance/connectionState`, extraHeaders: { instanceId: session } },
-      { url: `${baseUrl}/instance/connectionState`, extraHeaders: { instanceId: session } },
+    console.log('=== W-API PRO Connection Status ===');
+    console.log(`PRO Base URL: ${PRO_BASE_URL}`);
+    console.log(`Instance ID: ${instanceId}`);
+    console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
-      // Sem /v1 (algumas coleções do Postman usam assim)
-      { url: `${baseUrl}/instance/connectionState/${encoded}` },
-      { url: `${baseUrl}/instance/connectionState?instanceId=${encoded}` },
-      { url: `${baseUrl}/instance/status?instanceId=${encoded}` },
-
-      // Com /v1 (QR Code geralmente usa /v1)
-      { url: `${baseUrl}/v1/instance/connectionState/${encoded}` },
-      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}` },
-      { url: `${baseUrl}/v1/instance/status?instanceId=${encoded}` },
-
-      // Variações com hífen
-      { url: `${baseUrl}/v1/instance/connection-state/${encoded}` },
-      { url: `${baseUrl}/v1/instance/connection-state?instanceId=${encoded}` },
-      { url: `${baseUrl}/instance/connection-state/${encoded}` },
-      { url: `${baseUrl}/instance/connection-state?instanceId=${encoded}` },
-
-      // Fallback: o endpoint de QR Code existe e costuma retornar status/estado.
-      // Evitamos image=enable para não baixar PNG.
-      { url: `${baseUrl}/v1/instance/qr-code?instanceId=${encoded}` },
+    // W-API PRO endpoints for connection status
+    // Using apikey header (not Bearer Authorization)
+    const candidates: Array<{ url: string; method: 'GET' | 'POST' }> = [
+      { url: `${PRO_BASE_URL}/connectionState?instanceId=${encoded}`, method: 'GET' },
+      { url: `${PRO_BASE_URL}/instance/connectionState?instanceId=${encoded}`, method: 'GET' },
+      { url: `${PRO_BASE_URL}/v1/instance/connectionState?instanceId=${encoded}`, method: 'GET' },
+      { url: `${PRO_BASE_URL}/status?instanceId=${encoded}`, method: 'GET' },
+      { url: `${PRO_BASE_URL}/v1/instance/qr-code?instanceId=${encoded}`, method: 'GET' },
     ];
 
     const attempts: Array<{ url: string; status: number | null; ok: boolean; error?: string }> = [];
 
-    let lastErr: unknown = null;
-    let lastStatus: number | null = null;
-
     for (const c of candidates) {
       try {
+        console.log(`Trying: ${c.method} ${c.url}`);
+        
         const res = await fetch(c.url, {
-          method: 'GET',
+          method: c.method,
           headers: {
-            Authorization: `Bearer ${config.W_API_TOKEN}`,
-            Accept: 'application/json',
-            ...(c.extraHeaders ?? {}),
+            'apikey': apiKey,
+            'Accept': 'application/json',
           },
         });
 
-        lastStatus = res.status;
-        attempts.push({ url: c.url, status: res.status, ok: res.ok });
         const text = await res.text();
-        const contentType = res.headers.get('content-type') || '';
+        console.log(`Response ${res.status}: ${text.slice(0, 200)}`);
+        
+        attempts.push({ url: c.url, status: res.status, ok: res.ok });
 
         let parsed: any = null;
-        if (contentType.includes('application/json')) {
-          try {
-            parsed = JSON.parse(text);
-          } catch {
-            parsed = null;
-          }
-        } else {
-          // Alguns endpoints retornam texto/HTML no erro
-          try {
-            parsed = JSON.parse(text);
-          } catch {
-            parsed = null;
-          }
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = null;
         }
 
-        if (res.ok && (parsed || text)) {
-          const payload = parsed ?? { raw: text };
-          const conn = parseConnection(payload);
+        if (res.ok && parsed) {
+          const conn = parseConnection(parsed);
           return new Response(
             JSON.stringify({
               success: true,
@@ -187,10 +151,9 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Se não for OK, mas o endpoint existe e devolveu JSON de status, ainda tentamos extrair.
+        // Even non-200 responses might contain status info
         if (parsed && !res.ok) {
           const conn = parseConnection(parsed);
-          // Se a API devolve 4xx com payload indicando estado, usamos isso.
           if (conn.state || typeof parsed.connected !== 'undefined') {
             return new Response(
               JSON.stringify({
@@ -204,22 +167,21 @@ Deno.serve(async (req) => {
           }
         }
       } catch (e) {
-        lastErr = e;
+        const errMsg = e instanceof Error ? e.message : String(e);
+        console.error(`Error with ${c.url}:`, errMsg);
         attempts.push({
           url: c.url,
           status: null,
           ok: false,
-          error: e instanceof Error ? e.message : String(e),
+          error: errMsg,
         });
       }
     }
 
-    console.error('W-API status check failed', { lastErr, lastStatus, attempts });
+    console.error('W-API PRO status check failed', { attempts });
     return new Response(
       JSON.stringify({
-        error: 'Não foi possível verificar o status na W-API',
-        lastStatus,
-        details: lastErr instanceof Error ? lastErr.message : String(lastErr),
+        error: 'Não foi possível verificar o status na W-API PRO',
         attempts,
       }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

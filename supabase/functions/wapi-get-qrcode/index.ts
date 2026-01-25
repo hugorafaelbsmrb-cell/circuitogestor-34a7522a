@@ -5,14 +5,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// W-API PRO uses api.wapi.com.br exclusively
+const PRO_BASE_URL = 'https://api.wapi.com.br';
+
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
@@ -28,10 +29,10 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Verify user via JWT claims (signing-keys compatible)
+    // Verify user
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData?.user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION']);
+      .in('key', ['W_API_TOKEN', 'W_API_SESSION']);
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
@@ -70,29 +71,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get QR Code from W-API
-    // Per official docs: GET https://api.w-api.app/v1/instance/qr-code?instanceId={{INSTANCE_ID}}&image=enable
-    // With Bearer token in Authorization header
-    // Normalize base URL:
-    // - accept legacy values like https://wawp.net/api or https://app.wawp.net/api
-    // - remove trailing /api
-    // - default to official host https://api.w-api.app
-    let baseUrl = (config.W_API_URL || 'https://api.w-api.app').trim();
-    baseUrl = baseUrl.replace(/^http:\/\//i, 'https://');
-    baseUrl = baseUrl.replace(/\/+$/, '');
-    baseUrl = baseUrl.replace(/\/api$/i, '');
-    if (/\/\/(app\.)?wawp\.net\b/i.test(baseUrl)) {
-      baseUrl = 'https://api.w-api.app';
-    }
-    
-    const qrCodeUrl = `${baseUrl}/v1/instance/qr-code?instanceId=${encodeURIComponent(config.W_API_SESSION)}&image=enable`;
+    const apiKey = config.W_API_TOKEN;
+    const instanceId = config.W_API_SESSION;
+    const encoded = encodeURIComponent(instanceId);
+
+    console.log('=== W-API PRO QR Code ===');
+    console.log(`PRO Base URL: ${PRO_BASE_URL}`);
+    console.log(`Instance ID: ${instanceId}`);
+    console.log(`API Key: ${apiKey.slice(0, 8)}...`);
+
+    // W-API PRO QR Code endpoint
+    // Using apikey header (not Bearer Authorization)
+    const qrCodeUrl = `${PRO_BASE_URL}/qr-code?instanceId=${encoded}&image=enable`;
     
     console.log('Fetching QR Code from:', qrCodeUrl);
     
     const response = await fetch(qrCodeUrl, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${config.W_API_TOKEN}`,
+        'apikey': apiKey,
         'Accept': 'application/json, image/png, image/*, */*',
       },
     });
@@ -204,7 +201,6 @@ Deno.serve(async (req) => {
                    responseData.data?.qr ||
                    responseData.data?.base64;
 
-    // Return QR code data
     return new Response(
       JSON.stringify({ 
         success: true,

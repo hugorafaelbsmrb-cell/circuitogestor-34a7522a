@@ -5,19 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-function normalizeBaseUrl(url?: string) {
-  const raw = (url || '').trim();
-  if (!raw) return 'https://api.w-api.app';
-
-  let base = raw;
-  base = base.replace(/^http:\/\//i, 'https://');
-  base = base.replace(/\/+$/, '');
-  base = base.replace(/\/api$/i, '');
-  if (/\/\/(app\.)?wawp\.net\b/i.test(base)) {
-    return 'https://api.w-api.app';
-  }
-  return base;
-}
+// W-API PRO uses api.wapi.com.br exclusively
+const PRO_BASE_URL = 'https://api.wapi.com.br';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -40,7 +29,7 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Verify user using getUser instead of deprecated getClaims
+    // Verify user
     const token = authHeader.replace('Bearer ', '');
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData?.user) {
@@ -53,7 +42,7 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION']);
+      .in('key', ['W_API_TOKEN', 'W_API_SESSION']);
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
@@ -78,59 +67,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    const baseUrl = normalizeBaseUrl(config.W_API_URL);
-    const session = config.W_API_SESSION;
-    const encoded = encodeURIComponent(session);
+    const apiKey = config.W_API_TOKEN;
+    const instanceId = config.W_API_SESSION;
+    const encoded = encodeURIComponent(instanceId);
 
-    console.log('Attempting logout for instance:', session);
+    console.log('=== W-API PRO Logout ===');
+    console.log(`PRO Base URL: ${PRO_BASE_URL}`);
+    console.log(`Instance ID: ${instanceId}`);
+    console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
-    const tokenForQuery = encodeURIComponent(config.W_API_TOKEN);
-
-    // W-API has plan/provider variations. We try PRO-style first, then LITE-style (often GET + access_token).
-    const candidates: Array<{ method: 'DELETE' | 'POST' | 'GET'; url: string; note?: string }> = [
-      // PRO endpoints (prioritized based on documentation)
-      { method: 'DELETE', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
-      { method: 'POST', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
-      
-      // Alternative with instanceId in path
-      { method: 'DELETE', url: `${baseUrl}/v1/instance/logout/${encoded}` },
-      { method: 'POST', url: `${baseUrl}/v1/instance/logout/${encoded}` },
-      
-      // Without /v1 prefix
-      { method: 'DELETE', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
-      { method: 'POST', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
-
-      // LITE variants observed in some Postman collections: GET + access_token as query
-      { method: 'GET', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}&access_token=${tokenForQuery}`, note: 'lite_query' },
-      { method: 'GET', url: `${baseUrl}/instance/logout?instanceId=${encoded}&access_token=${tokenForQuery}`, note: 'lite_query_no_v1' },
+    // W-API PRO logout endpoints
+    // Using apikey header (not Bearer Authorization)
+    const candidates: Array<{ method: 'DELETE' | 'POST' | 'GET'; url: string }> = [
+      { method: 'DELETE', url: `${PRO_BASE_URL}/logout?instanceId=${encoded}` },
+      { method: 'POST', url: `${PRO_BASE_URL}/logout?instanceId=${encoded}` },
+      { method: 'DELETE', url: `${PRO_BASE_URL}/instance/logout?instanceId=${encoded}` },
+      { method: 'POST', url: `${PRO_BASE_URL}/instance/logout?instanceId=${encoded}` },
     ];
 
-    const attempts: Array<{ method: string; url: string; status: number | null; ok: boolean; error?: string; note?: string }> = [];
-
-    const sanitizeUrl = (url: string) =>
-      url
-        .replace(/access_token=[^&]+/gi, 'access_token=<redacted>')
-        .replace(/instanceId=[^&]+/gi, 'instanceId=<redacted>');
+    const attempts: Array<{ method: string; url: string; status: number | null; ok: boolean; error?: string }> = [];
 
     for (const c of candidates) {
       try {
-        console.log(`Trying ${c.method} ${c.url}`);
+        console.log(`Trying: ${c.method} ${c.url}`);
         
         const res = await fetch(c.url, {
           method: c.method,
           headers: {
-            'Authorization': `Bearer ${config.W_API_TOKEN}`,
+            'apikey': apiKey,
             'Accept': 'application/json',
             'Content-Type': 'application/json',
-            // Some variants require instanceId as a header
-            instanceId: session,
           },
         });
 
         const responseText = await res.text();
         console.log(`Response ${res.status}: ${responseText.slice(0, 200)}`);
         
-        attempts.push({ method: c.method, url: sanitizeUrl(c.url), status: res.status, ok: res.ok, note: c.note });
+        attempts.push({ method: c.method, url: c.url, status: res.status, ok: res.ok });
 
         if (!res.ok) continue;
 
@@ -144,7 +117,7 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: true,
-            endpoint: sanitizeUrl(c.url),
+            endpoint: c.url,
             data: parsed,
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
@@ -153,25 +126,21 @@ Deno.serve(async (req) => {
         console.error(`Error with ${c.method} ${c.url}:`, e);
         attempts.push({
           method: c.method,
-          url: sanitizeUrl(c.url),
+          url: c.url,
           status: null,
           ok: false,
           error: e instanceof Error ? e.message : String(e),
-          note: c.note,
         });
       }
     }
 
-    // All attempts failed
     console.error('All logout attempts failed:', attempts);
     
-    // IMPORTANT: return 200 so the frontend can show a friendly message (otherwise invoke() becomes an error).
-    // 404 across all candidates strongly suggests the provider/plan does not expose logout for this instance.
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'Não foi possível desconectar na W-API (endpoint não encontrado para esta instância/plano).',
-        hint: 'Se sua instância é LITE, pode ser necessário desconectar pelo painel do provedor. Se for PRO, confirme na coleção Postman o endpoint exato de logout para o seu gateway.',
+        error: 'Não foi possível desconectar na W-API PRO.',
+        hint: 'Verifique se o endpoint de logout está disponível para sua instância.',
         attempts,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

@@ -5,6 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// W-API PRO uses api.wapi.com.br exclusively
+const PRO_BASE_URL = 'https://api.wapi.com.br';
+
 interface WapiMessage {
   id?: { _serialized?: string } | string;
   key?: { id?: string; fromMe?: boolean };
@@ -42,8 +45,8 @@ Deno.serve(async (req) => {
     });
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getUser(token);
-    if (claimsError || !claimsData?.user) {
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData?.user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -54,7 +57,7 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION']);
+      .in('key', ['W_API_TOKEN', 'W_API_SESSION']);
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
@@ -82,16 +85,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ========================================
-    // W-API PRO - EXACT CONFIGURATION
-    // URL: https://api.wapi.com.br/getMessages
-    // Method: POST
-    // Headers: apikey, Content-Type: application/json
-    // Body: { chatId, count }
-    // ========================================
-    
-    // ALWAYS use PRO domain for getMessages
-    const PRO_BASE_URL = 'https://api.wapi.com.br';
     const apiKey = config.W_API_TOKEN;
     const instanceId = config.W_API_SESSION;
 
@@ -131,10 +124,8 @@ Deno.serve(async (req) => {
       return digits.startsWith('55') ? digits : `55${digits}`;
     };
 
-    // ========================================
-    // FETCH MESSAGES - W-API PRO EXACT IMPLEMENTATION
-    // Based on user-provided documentation
-    // ========================================
+    // W-API PRO getMessages endpoint
+    // POST /getMessages with apikey header and JSON body { chatId, count }
     const fetchMessagesForPhone = async (chatId: string): Promise<{ messages: WapiMessage[]; status: number; error?: string }> => {
       const url = `${PRO_BASE_URL}/getMessages`;
       
@@ -213,9 +204,7 @@ Deno.serve(async (req) => {
       }
     };
 
-    // ========================================
-    // PROCESS GUARDIANS
-    // ========================================
+    // Process guardians
     const debugInfo: Array<{ phoneSuffix: string; chatId: string; messagesFound: number; status: number; error?: string }> = [];
     let guardiansWithMessages = 0;
     let lastStatus = 0;
