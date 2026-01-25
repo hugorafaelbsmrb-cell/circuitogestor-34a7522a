@@ -15,18 +15,23 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "robots.txt"],
+      includeAssets: ["favicon.ico", "robots.txt", "pwa-192x192.png", "pwa-512x512.png"],
       manifest: {
-        name: "EduGestor - Sistema de Gestão Escolar",
-        short_name: "EduGestor",
+        name: "Circuito | Gestor",
+        short_name: "Circuito",
         description: "Sistema completo de gestão escolar",
-        theme_color: "#6366f1",
+        theme_color: "#f97316",
         background_color: "#0f172a",
         display: "standalone",
         orientation: "portrait-primary",
         scope: "/",
         start_url: "/",
         icons: [
+          {
+            src: "/favicon.ico",
+            sizes: "64x64 32x32 24x24 16x16",
+            type: "image/x-icon",
+          },
           {
             src: "/pwa-192x192.png",
             sizes: "192x192",
