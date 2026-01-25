@@ -98,6 +98,7 @@ export default function Enrollment() {
   const [currentStep, setCurrentStep] = useState<Step>('student');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCarne, setIsLoadingCarne] = useState(false);
+  const [isCheckingWhatsApp, setIsCheckingWhatsApp] = useState(false);
   const [showContractModal, setShowContractModal] = useState(false);
   const [selectedDiscountIds, setSelectedDiscountIds] = useState<string[]>([]);
   const [isSecondCourseFlow, setIsSecondCourseFlow] = useState(false);
@@ -547,10 +548,44 @@ export default function Enrollment() {
     return selectedSchedules.length > 0;
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = async () => {
     // Validate current step with feedback before proceeding
-    if (currentStep === 'guardian' && !validateGuardianWithFeedback()) {
-      return;
+    if (currentStep === 'guardian') {
+      if (!validateGuardianWithFeedback()) {
+        return;
+      }
+      
+      // Check if phone has WhatsApp
+      setIsCheckingWhatsApp(true);
+      try {
+        const normalizedPhone = normalizePhoneToWAPI(formData.guardian.phone);
+        const { data, error } = await supabase.functions.invoke('wapi-check-phone', {
+          body: { phone: normalizedPhone }
+        });
+        
+        if (error) {
+          console.error('Error checking WhatsApp:', error);
+          // Continue anyway if check fails
+        } else if (data?.hasWhatsApp === false) {
+          toast({
+            title: 'Número sem WhatsApp',
+            description: 'O número informado não possui WhatsApp. Verifique o número e tente novamente.',
+            variant: 'destructive',
+          });
+          setIsCheckingWhatsApp(false);
+          return;
+        } else if (data?.hasWhatsApp === true) {
+          toast({
+            title: 'WhatsApp verificado ✓',
+            description: 'O número possui WhatsApp.',
+          });
+        }
+        // If hasWhatsApp is null (API not configured), continue silently
+      } catch (err) {
+        console.error('Error checking WhatsApp:', err);
+        // Continue anyway if check fails
+      }
+      setIsCheckingWhatsApp(false);
     }
     goToNextStep();
   };
@@ -2369,14 +2404,24 @@ export default function Enrollment() {
               <Button
                 onClick={handleNextStep}
                 disabled={
+                  isCheckingWhatsApp ||
                   (currentStep === 'student' && !validateStudent()) ||
                   (currentStep === 'guardian' && !isGuardianValid()) ||
                   (currentStep === 'course' && !formData.courseId) ||
                   (currentStep === 'schedule' && !validateSchedule())
                 }
               >
-                Próximo
-                <ChevronRight className="w-4 h-4 ml-2" />
+                {isCheckingWhatsApp ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Verificando WhatsApp...
+                  </>
+                ) : (
+                  <>
+                    Próximo
+                    <ChevronRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
               </Button>
             )}
           </div>
