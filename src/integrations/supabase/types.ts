@@ -993,6 +993,36 @@ export type Database = {
         }
         Relationships: []
       }
+      quick_reply_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          message: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          message: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          message?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scheduled_bulk_messages: {
         Row: {
           course_filter: string | null
