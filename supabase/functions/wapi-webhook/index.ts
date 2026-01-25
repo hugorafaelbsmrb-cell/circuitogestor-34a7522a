@@ -31,6 +31,76 @@ Deno.serve(async (req) => {
     const isIncomingMessage = event === "message" || event === "messages.upsert" || event === "message-received" || 
         isProMessageEvent || (data.fromMe === false && data.body);
 
+    // ====== Handle BUTTON/LIST RESPONSE ======
+    const isButtonResponse = event === "button_response" || data.selectedButtonId || data.buttonReply;
+    const isListResponse = event === "list_response" || data.selectedRowId || data.listReply;
+
+    if (isButtonResponse || isListResponse) {
+      const phone = data.from || data.remoteJid || data.phone || payload.sender?.id || "";
+      const cleanPhone = phone.replace(/@.*$/, "").replace(/\D/g, "");
+      
+      let responseText = "";
+      if (isButtonResponse) {
+        responseText = data.selectedButtonText || data.buttonReply?.displayText || data.body || "[Botão selecionado]";
+      } else {
+        responseText = data.selectedRowTitle || data.listReply?.title || data.body || "[Opção selecionada]";
+      }
+
+      const messageId = data.id || data.key?.id || payload.messageId || "";
+
+      // Check for duplicate
+      if (messageId) {
+        const { data: existingMsg } = await supabase
+          .from("whatsapp_messages")
+          .select("id")
+          .eq("wapi_message_id", messageId)
+          .limit(1)
+          .single();
+
+        if (existingMsg) {
+          return new Response(JSON.stringify({ success: true, duplicate: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // Find guardian
+      let guardianId: string | null = null;
+      const phoneVariants = [cleanPhone, cleanPhone.startsWith("55") ? cleanPhone.slice(2) : `55${cleanPhone}`];
+      
+      for (const phoneVariant of phoneVariants) {
+        const { data: guardian } = await supabase
+          .from("guardians")
+          .select("id")
+          .or(`phone.eq.${phoneVariant},phone.ilike.%${phoneVariant.slice(-9)}`)
+          .limit(1)
+          .single();
+
+        if (guardian) {
+          guardianId = guardian.id;
+          break;
+        }
+      }
+
+      // Store the response
+      await supabase.from("whatsapp_messages").insert({
+        guardian_id: guardianId,
+        phone: cleanPhone,
+        message: responseText,
+        direction: "incoming",
+        status: "received",
+        wapi_message_id: messageId || null,
+        media_type: isButtonResponse ? "button_response" : "list_response",
+      });
+
+      console.log(`${isButtonResponse ? "Button" : "List"} response stored from ${cleanPhone}`);
+
+      return new Response(
+        JSON.stringify({ success: true, type: isButtonResponse ? "button_response" : "list_response" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ====== Handle MESSAGE RECEIVED ======
     if (isIncomingMessage && payload.fromMe !== true) {
       

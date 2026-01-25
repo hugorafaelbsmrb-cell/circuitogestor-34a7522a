@@ -10,7 +10,16 @@ import {
   UserPlus,
   Loader2,
   Settings,
-  Clock
+  Clock,
+  Keyboard,
+  Smile,
+  CheckCheck,
+  MousePointerClick,
+  List,
+  Link2,
+  Image as ImageIcon,
+  MapPin,
+  Contact,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -49,12 +58,13 @@ interface AutomationConfig {
   title: string;
   description: string;
   icon: React.ElementType;
-  category: 'payments' | 'enrollment' | 'students' | 'bulk';
+  category: 'payments' | 'enrollment' | 'students' | 'bulk' | 'whatsapp_features';
   hasConfig?: boolean;
   configFields?: { key: string; label: string; type: 'time' | 'select'; options?: { value: string; label: string }[] }[];
 }
 
 const automationConfigs: AutomationConfig[] = [
+  // Payment automations
   {
     key: 'auto_payment_confirmed',
     title: 'Confirmação de Pagamento',
@@ -84,6 +94,7 @@ const automationConfigs: AutomationConfig[] = [
       { key: 'send_time', label: 'Horário de envio', type: 'time' },
     ],
   },
+  // Enrollment automations
   {
     key: 'auto_enrollment_welcome',
     title: 'Boas-vindas Pós-Matrícula',
@@ -91,6 +102,7 @@ const automationConfigs: AutomationConfig[] = [
     icon: GraduationCap,
     category: 'enrollment',
   },
+  // Student automations
   {
     key: 'auto_birthday_greeting',
     title: 'Parabéns de Aniversário',
@@ -123,6 +135,7 @@ const automationConfigs: AutomationConfig[] = [
       ]},
     ],
   },
+  // Bulk messaging
   {
     key: 'bulk_leads_enabled',
     title: 'Envio em Massa para Leads',
@@ -137,13 +150,85 @@ const automationConfigs: AutomationConfig[] = [
     icon: Users,
     category: 'bulk',
   },
+  // WhatsApp PRO Features
+  {
+    key: 'wapi_feature_typing',
+    title: 'Indicador de Digitação',
+    description: 'Exibe "digitando..." antes de enviar mensagens automáticas',
+    icon: Keyboard,
+    category: 'whatsapp_features',
+  },
+  {
+    key: 'wapi_feature_reactions',
+    title: 'Reações com Emojis',
+    description: 'Permite reagir a mensagens recebidas',
+    icon: Smile,
+    category: 'whatsapp_features',
+  },
+  {
+    key: 'wapi_feature_mark_read',
+    title: 'Marcar como Lido',
+    description: 'Marca mensagens como lidas automaticamente',
+    icon: CheckCheck,
+    category: 'whatsapp_features',
+  },
+  {
+    key: 'wapi_feature_buttons',
+    title: 'Botões de Resposta',
+    description: 'Envia mensagens com até 3 botões de resposta rápida',
+    icon: MousePointerClick,
+    category: 'whatsapp_features',
+  },
+  {
+    key: 'wapi_feature_lists',
+    title: 'Listas de Opções',
+    description: 'Envia menus com até 10 opções para autoatendimento',
+    icon: List,
+    category: 'whatsapp_features',
+  },
+  {
+    key: 'wapi_feature_link_preview',
+    title: 'Preview de Links',
+    description: 'Envia links com pré-visualização automática',
+    icon: Link2,
+    category: 'whatsapp_features',
+  },
+  {
+    key: 'wapi_feature_stickers',
+    title: 'Stickers',
+    description: 'Permite envio de figurinhas',
+    icon: ImageIcon,
+    category: 'whatsapp_features',
+  },
+  {
+    key: 'wapi_feature_location',
+    title: 'Localização',
+    description: 'Permite compartilhar localização da escola',
+    icon: MapPin,
+    category: 'whatsapp_features',
+  },
+  {
+    key: 'wapi_feature_vcard',
+    title: 'Compartilhar Contatos',
+    description: 'Permite enviar cartões de contato (VCard)',
+    icon: Contact,
+    category: 'whatsapp_features',
+  },
+  {
+    key: 'wapi_feature_groups',
+    title: 'Gerenciamento de Grupos',
+    description: 'Criar e gerenciar grupos de WhatsApp',
+    icon: Users,
+    category: 'whatsapp_features',
+  },
 ];
 
-const categoryLabels = {
+const categoryLabels: Record<string, { title: string; icon: React.ElementType }> = {
   payments: { title: 'Pagamentos', icon: CreditCard },
   enrollment: { title: 'Matrículas', icon: GraduationCap },
   students: { title: 'Alunos', icon: Users },
   bulk: { title: 'Disparo em Massa', icon: MessageSquare },
+  whatsapp_features: { title: 'Recursos WhatsApp PRO', icon: Zap },
 };
 
 export function AutomationControlPanel() {
@@ -264,9 +349,12 @@ export function AutomationControlPanel() {
     return displays.length > 0 ? displays.join(' | ') : null;
   };
 
-  const renderCategory = (category: 'payments' | 'enrollment' | 'students' | 'bulk') => {
+  const renderCategory = (category: 'payments' | 'enrollment' | 'students' | 'bulk' | 'whatsapp_features') => {
     const configs = automationConfigs.filter(c => c.category === category);
-    const { title, icon: CategoryIcon } = categoryLabels[category];
+    const categoryInfo = categoryLabels[category];
+    if (!categoryInfo) return null;
+    
+    const { title, icon: CategoryIcon } = categoryInfo;
     
     return (
       <div key={category} className="space-y-3">
@@ -357,6 +445,7 @@ export function AutomationControlPanel() {
           {renderCategory('enrollment')}
           {renderCategory('students')}
           {renderCategory('bulk')}
+          {renderCategory('whatsapp_features')}
         </CardContent>
       </Card>
 
