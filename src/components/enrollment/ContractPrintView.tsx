@@ -428,21 +428,6 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
             </div>
           )}
 
-          {/* Assinaturas do Anexo */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px' }}>
-            <div style={{ textAlign: 'center', width: '45%' }}>
-              <div style={{ borderTop: '1px solid black', paddingTop: '4px' }}>
-                <p style={{ fontWeight: 'bold', fontSize: '10pt' }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
-                <p style={{ fontSize: '9pt' }}>(CONTRATADA)</p>
-              </div>
-            </div>
-            <div style={{ textAlign: 'center', width: '45%' }}>
-              <div style={{ borderTop: '1px solid black', paddingTop: '4px' }}>
-                <p style={{ fontWeight: 'bold', fontSize: '10pt' }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
-                <p style={{ fontSize: '9pt' }}>(CONTRATANTE)</p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* PÁGINA 3 - SYLLABUS SOROBAN (apenas para alunos Soroban) */}
