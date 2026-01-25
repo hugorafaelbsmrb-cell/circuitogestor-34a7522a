@@ -35,7 +35,8 @@ Deno.serve(async (req) => {
         *,
         student:students(name, birth_date),
         guardian:guardians(name, phone, cpf, address),
-        course:courses(name, duration, price)
+        course:courses(name, duration, price),
+        enrollment:enrollments(class_group:class_groups(name, schedule:schedules(day_of_week, start_time, end_time)))
       `)
       .eq('id', contractId)
       .single();
@@ -119,19 +120,31 @@ Deno.serve(async (req) => {
       .replace(/{hash}/g, contract.signature_hash?.substring(0, 16) + '...' || 'N/A')
       .replace(/\\n/g, '\n');
 
-    // Generate PDF content
-    const pdfBytes = generateContractPDFBytes({
+    // Generate comprehensive PDF content with clauses
+    const contractContent = contract.contract_content as any;
+    const pdfBytes = generateComprehensiveContractPDF({
       schoolName: contractConfig?.school_name || 'Circuito Kids',
       schoolCnpj: contractConfig?.school_cnpj || '',
       schoolAddress: contractConfig?.school_address || '',
+      schoolRepresentativeName: contractConfig?.representative_name || null,
       guardianName: contract.guardian?.name || '',
       guardianCpf: contract.guardian?.cpf || '',
+      guardianAddress: contract.guardian?.address || '',
       studentName: contract.student?.name || '',
+      studentBirthDate: contract.student?.birth_date || '',
       courseName: contract.course?.name || '',
+      courseDuration: contract.course?.duration || '',
+      coursePrice: contract.course?.price || 0,
+      classGroupName: contractContent?.classGroupName || '',
+      schedule: contractContent?.schedule || '',
       totalValue: contract.total_value || 0,
       installments: contract.installment_count || 1,
+      installmentValue: (contract.total_value || 0) / (contract.installment_count || 1),
+      clauses: contractContent?.clauses || [],
+      createdAt: contract.created_at,
       signedAt: contract.signed_at,
       signatureHash: contract.signature_hash,
+      signatureImage: contract.signature_image,
     });
 
     // Upload PDF to Supabase Storage
@@ -252,18 +265,29 @@ interface ContractPDFContent {
   schoolName: string;
   schoolCnpj: string;
   schoolAddress: string;
+  schoolRepresentativeName: string | null;
   guardianName: string;
   guardianCpf: string;
+  guardianAddress: string;
   studentName: string;
+  studentBirthDate: string;
   courseName: string;
+  courseDuration: string;
+  coursePrice: number;
+  classGroupName: string;
+  schedule: string;
   totalValue: number;
   installments: number;
+  installmentValue: number;
+  clauses: Array<{ title: string; content: string }>;
+  createdAt: string;
   signedAt?: string | null;
   signatureHash?: string | null;
+  signatureImage?: string | null;
 }
 
-// Generate a valid PDF using raw PDF syntax
-function generateContractPDFBytes(content: ContractPDFContent): Uint8Array {
+// Generate comprehensive PDF with all clauses
+function generateComprehensiveContractPDF(content: ContractPDFContent): Uint8Array {
   const signedDateStr = content.signedAt 
     ? new Date(content.signedAt).toLocaleDateString('pt-BR', {
         day: '2-digit',
@@ -274,34 +298,85 @@ function generateContractPDFBytes(content: ContractPDFContent): Uint8Array {
       })
     : new Date().toLocaleDateString('pt-BR');
 
-  const installmentValue = content.installments > 0 
-    ? (content.totalValue / content.installments).toFixed(2).replace('.', ',')
-    : '0,00';
+  const installmentValue = content.installmentValue.toFixed(2).replace('.', ',');
+  
+  // Format city and date
+  const city = extractCity(content.schoolAddress);
+  const contractDate = content.signedAt ? new Date(content.signedAt) : new Date(content.createdAt);
+  const formattedDate = contractDate.toLocaleDateString('pt-BR', { 
+    day: '2-digit', 
+    month: 'long', 
+    year: 'numeric' 
+  });
 
-  // Build content stream with proper text positioning
+  // Build comprehensive content stream with all clauses
   const lines = [
-    { text: 'CONTRATO DE PRESTACAO DE SERVICOS EDUCACIONAIS', x: 50, y: 750, size: 16, bold: true },
-    { text: escapeText(content.schoolName), x: 50, y: 720, size: 12, bold: false },
-    { text: `CNPJ: ${escapeText(content.schoolCnpj)}`, x: 50, y: 700, size: 10, bold: false },
-    { text: escapeText(content.schoolAddress), x: 50, y: 680, size: 10, bold: false },
-    { text: '', x: 50, y: 660, size: 10, bold: false },
-    { text: 'DADOS DO CONTRATANTE', x: 50, y: 640, size: 12, bold: true },
-    { text: `Responsavel: ${escapeText(content.guardianName)}`, x: 50, y: 620, size: 10, bold: false },
-    { text: `CPF: ${escapeText(content.guardianCpf)}`, x: 50, y: 600, size: 10, bold: false },
-    { text: '', x: 50, y: 580, size: 10, bold: false },
-    { text: 'DADOS DO ALUNO E CURSO', x: 50, y: 560, size: 12, bold: true },
-    { text: `Aluno(a): ${escapeText(content.studentName)}`, x: 50, y: 540, size: 10, bold: false },
-    { text: `Curso: ${escapeText(content.courseName)}`, x: 50, y: 520, size: 10, bold: false },
-    { text: `Valor Total: R$ ${content.totalValue.toFixed(2).replace('.', ',')}`, x: 50, y: 500, size: 10, bold: false },
-    { text: `Parcelas: ${content.installments}x de R$ ${installmentValue}`, x: 50, y: 480, size: 10, bold: false },
-    { text: '', x: 50, y: 460, size: 10, bold: false },
-    { text: 'ASSINATURA DIGITAL', x: 50, y: 440, size: 12, bold: true },
-    { text: `Data da Assinatura: ${signedDateStr}`, x: 50, y: 420, size: 10, bold: false },
-    { text: `Hash de Verificacao: ${escapeText(content.signatureHash?.substring(0, 32) || 'N/A')}...`, x: 50, y: 400, size: 9, bold: false },
-    { text: '', x: 50, y: 380, size: 10, bold: false },
-    { text: 'Este documento foi assinado eletronicamente conforme', x: 50, y: 360, size: 8, bold: false },
-    { text: 'MP 2.200-2/2001 e Lei 14.063/2020, possuindo validade juridica.', x: 50, y: 345, size: 8, bold: false },
+    { text: 'CONTRATO DE PRESTACAO DE SERVICOS EDUCACIONAIS', x: 50, y: 750, size: 14 },
+    { text: escapeText(content.schoolName), x: 50, y: 730, size: 11 },
+    { text: '', x: 50, y: 720, size: 1 },
+    { text: 'Pelo presente instrumento particular, de um lado:', x: 50, y: 710, size: 9 },
+    { text: '', x: 50, y: 700, size: 1 },
+    { text: `CONTRATADA: ${escapeText(content.schoolName)}, CNPJ ${escapeText(content.schoolCnpj)},`, x: 50, y: 690, size: 9 },
+    { text: escapeText(content.schoolAddress), x: 50, y: 680, size: 9 },
+    { text: '', x: 50, y: 670, size: 1 },
+    { text: `CONTRATANTE: ${escapeText(content.guardianName)}, responsavel pelo(a) aluno(a)`, x: 50, y: 660, size: 9 },
+    { text: `${escapeText(content.studentName)}, CPF ${escapeText(content.guardianCpf)}.`, x: 50, y: 650, size: 9 },
+    { text: '', x: 50, y: 640, size: 1 },
+    { text: 'As partes celebram o presente contrato nos termos do ECA e da LGPD:', x: 50, y: 630, size: 9 },
+    { text: '', x: 50, y: 620, size: 1 },
   ];
+
+  // Add all contract clauses
+  let yPosition = 610;
+  if (content.clauses && content.clauses.length > 0) {
+    content.clauses.forEach((clause: any, index: number) => {
+      if (yPosition > 100) {
+        lines.push({ text: `CLAUSULA ${index + 1} - ${escapeText(clause.title?.toUpperCase() || '')}`, x: 50, y: yPosition, size: 9 });
+        yPosition -= 10;
+        
+        // Split clause content into multiple lines (max 90 chars per line)
+        const clauseText = escapeText(clause.content || '');
+        const maxChars = 85;
+        let startIdx = 0;
+        while (startIdx < clauseText.length && yPosition > 100) {
+          const endIdx = Math.min(startIdx + maxChars, clauseText.length);
+          let line = clauseText.substring(startIdx, endIdx);
+          
+          // Try to break at word boundary if not at end
+          if (endIdx < clauseText.length && line.lastIndexOf(' ') > maxChars * 0.7) {
+            const lastSpace = line.lastIndexOf(' ');
+            line = clauseText.substring(startIdx, startIdx + lastSpace);
+            startIdx += lastSpace + 1;
+          } else {
+            startIdx = endIdx;
+          }
+          
+          lines.push({ text: line, x: 50, y: yPosition, size: 8 });
+          yPosition -= 8;
+        }
+        yPosition -= 4;
+      }
+    });
+  }
+
+  // Add signature section
+  if (yPosition > 150) {
+    lines.push({ text: '', x: 50, y: yPosition, size: 1 });
+    yPosition -= 10;
+    lines.push({ text: `${city}, ${formattedDate}.`, x: 50, y: yPosition, size: 9 });
+    yPosition -= 20;
+    lines.push({ text: '_______________________________     _______________________________', x: 50, y: yPosition, size: 9 });
+    yPosition -= 10;
+    lines.push({ text: `${escapeText(content.schoolRepresentativeName || content.schoolName)}`, x: 80, y: yPosition, size: 9 });
+    lines.push({ text: escapeText(content.guardianName), x: 350, y: yPosition, size: 9 });
+    yPosition -= 8;
+    lines.push({ text: '(CONTRATADA)', x: 120, y: yPosition, size: 8 });
+    lines.push({ text: '(CONTRATANTE)', x: 380, y: yPosition, size: 8 });
+    yPosition -= 10;
+    lines.push({ text: `Assinado digitalmente em ${signedDateStr}`, x: 350, y: yPosition, size: 7 });
+    yPosition -= 10;
+    lines.push({ text: `Codigo de verificacao: ${escapeText(content.signatureHash?.substring(0, 32) || 'N/A')}`, x: 50, y: yPosition, size: 7 });
+  }
 
   // Build content stream
   let contentStream = 'BT\n';
@@ -356,6 +431,20 @@ ${400 + streamLength}
 %%EOF`;
 
   return new TextEncoder().encode(pdf);
+}
+
+function extractCity(address: string): string {
+  if (!address) return 'Maraba - PA';
+  const parts = address.split('-').map(p => p.trim());
+  if (parts.length >= 2) {
+    const lastPart = parts[parts.length - 1];
+    const secondLastPart = parts[parts.length - 2];
+    if (lastPart.length === 2 || lastPart.match(/^[A-Z]{2}$/i)) {
+      return `${secondLastPart} - ${lastPart.toUpperCase()}`;
+    }
+    return lastPart;
+  }
+  return 'Maraba - PA';
 }
 
 function escapeText(text: string | null | undefined): string {
