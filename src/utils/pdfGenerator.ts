@@ -332,52 +332,60 @@ export function generateContractPDF(content: ContractContent): jsPDF {
 
   // Course selected highlight - MODALIDADE CONTRATADA
   if (content.courseName) {
-    // Calculate dynamic height based on content (7 lines + title + padding)
-    const modalidadeBoxHeight = 8 + (7 * 6) + 8; // title + 7 lines * 6mm + bottom padding = 58mm
+    const modalidadeBoxHeight = 50; // Fixed height for consistency
     
-    // IMPORTANT: Set fill and draw colors BEFORE drawing the rectangle
-    doc.setFillColor(230, 230, 235);     // Light gray background (RGB)
-    doc.setDrawColor(55, 65, 81);        // Dark gray border (RGB)
-    doc.setLineWidth(0.5);
+    // Save graphics state to isolate this block
+    (doc as any).saveGraphicsState?.() || null;
+    
+    // ALWAYS reset ALL graphics properties before drawing
+    doc.setFillColor(220, 220, 225);     // Slightly darker gray for visibility
+    doc.setDrawColor(55, 65, 81);        // Dark gray border
+    doc.setLineWidth(0.8);               // Thicker border for visibility
     
     // Draw the rounded rectangle with fill and stroke
     doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, modalidadeBoxHeight, 2, 2, 'FD');
     
-    // Reset text color to black before writing
+    // Reset text properties
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('MODALIDADE CONTRATADA:', margin, yPos);
-    yPos += 8;
-
+    doc.text('MODALIDADE CONTRATADA:', margin, yPos + 2);
+    
+    let textY = yPos + 10;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`• Curso: ${content.courseName}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• Turma: ${content.classGroupName || '-'}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• Horário: ${content.schedule || '-'}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• Duração do Contrato: ${content.contractDurationLabel || `${content.installments} meses`}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• Valor Mensal: R$ ${content.installmentValue?.toFixed(2).replace('.', ',') || '-'}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• Número de Parcelas: ${content.installments}x`, margin, yPos);
-    yPos += 6;
-    doc.text(`• Valor Total: R$ ${content.totalValue?.toFixed(2).replace('.', ',') || '-'}`, margin, yPos);
-    yPos += 10;
+    doc.text(`Curso: ${content.courseName}`, margin, textY);
+    textY += 6;
+    doc.text(`Turma: ${content.classGroupName || '-'}`, margin, textY);
+    textY += 6;
+    doc.text(`Horario: ${content.schedule || '-'}`, margin, textY);
+    textY += 6;
+    doc.text(`Duracao do Contrato: ${content.contractDurationLabel || `${content.installments} meses`}`, margin, textY);
+    textY += 6;
+    doc.text(`Valor Mensal: R$ ${content.installmentValue?.toFixed(2).replace('.', ',') || '-'}`, margin, textY);
+    textY += 6;
+    doc.text(`Numero de Parcelas: ${content.installments}x`, margin, textY);
+    textY += 6;
+    doc.text(`Valor Total: R$ ${content.totalValue?.toFixed(2).replace('.', ',') || '-'}`, margin, textY);
+    
+    // Restore graphics state
+    (doc as any).restoreGraphicsState?.() || null;
+    
+    // CRITICAL: Update yPos to move past this block
+    yPos += modalidadeBoxHeight + 8;
   }
 
   // LMS Credentials section
   if (content.lmsCredentials) {
-    yPos += 5;
-    // Calculate dynamic height: title + 3 credentials + note + padding
-    const lmsBoxHeight = 8 + (3 * 6) + 8 + 6 + 4; // = 44mm
+    const lmsBoxHeight = 42; // Fixed height for consistency
     
-    // IMPORTANT: Set fill and draw colors BEFORE drawing
-    doc.setFillColor(200, 220, 255);     // Light blue background (RGB)
-    doc.setDrawColor(37, 99, 235);       // Blue border (RGB)
-    doc.setLineWidth(0.5);
+    // Save graphics state
+    (doc as any).saveGraphicsState?.() || null;
+    
+    // Reset ALL graphics properties
+    doc.setFillColor(180, 210, 255);     // More visible blue background
+    doc.setDrawColor(37, 99, 235);       // Blue border
+    doc.setLineWidth(0.8);
     
     // Draw the rounded rectangle
     doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, lmsBoxHeight, 2, 2, 'FD');
@@ -386,38 +394,46 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     doc.setTextColor(30, 64, 175);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('ACESSO A PLATAFORMA DE ENSINO (LMS)', margin, yPos);
-    yPos += 8;
-
-    // Reset to black for content
+    doc.text('ACESSO A PLATAFORMA DE ENSINO (LMS)', margin, yPos + 2);
+    
+    // Content in black
+    let textY = yPos + 10;
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`• Matricula: ${content.lmsCredentials.matricula}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• E-mail de acesso: ${content.lmsCredentials.email}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• Senha inicial: ${content.lmsCredentials.password}`, margin, yPos);
-    yPos += 8;
+    doc.text(`Matricula: ${content.lmsCredentials.matricula}`, margin, textY);
+    textY += 6;
+    doc.text(`E-mail de acesso: ${content.lmsCredentials.email}`, margin, textY);
+    textY += 6;
+    doc.text(`Senha inicial: ${content.lmsCredentials.password}`, margin, textY);
+    textY += 8;
     
     // Note in gray
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text('* Recomendamos alterar a senha no primeiro acesso.', margin, yPos);
+    doc.text('* Recomendamos alterar a senha no primeiro acesso.', margin, textY);
+    
+    // Restore graphics state
+    (doc as any).restoreGraphicsState?.() || null;
+    
+    // Reset to default colors
     doc.setTextColor(0, 0, 0);
-    yPos += 10;
+    
+    // CRITICAL: Update yPos
+    yPos += lmsBoxHeight + 8;
   }
 
   // Soroban Credentials section
   if (content.sorobanCredentials) {
-    yPos += 5;
-    // Calculate dynamic height: title + 4 credentials + note + padding
-    const sorobanBoxHeight = 8 + (4 * 6) + 8 + 6 + 4; // = 50mm
+    const sorobanBoxHeight = 48; // Fixed height for consistency
     
-    // IMPORTANT: Set fill and draw colors BEFORE drawing
-    doc.setFillColor(255, 230, 180);     // Light orange/amber background (RGB)
-    doc.setDrawColor(217, 119, 6);       // Orange border (RGB)
-    doc.setLineWidth(0.5);
+    // Save graphics state
+    (doc as any).saveGraphicsState?.() || null;
+    
+    // Reset ALL graphics properties
+    doc.setFillColor(255, 220, 150);     // More visible orange/amber background
+    doc.setDrawColor(217, 119, 6);       // Orange border
+    doc.setLineWidth(0.8);
     
     // Draw the rounded rectangle
     doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, sorobanBoxHeight, 2, 2, 'FD');
@@ -426,26 +442,31 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     doc.setTextColor(180, 83, 9);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('ACESSO A PLATAFORMA SOROBAN', margin, yPos);
-    yPos += 8;
-
-    // Reset to black for content
+    doc.text('ACESSO A PLATAFORMA SOROBAN', margin, yPos + 2);
+    
+    // Content in black
+    let textY = yPos + 10;
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`• Matricula: ${content.sorobanCredentials.matricula}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• E-mail de acesso: ${content.sorobanCredentials.email}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• Senha inicial: ${content.sorobanCredentials.password}`, margin, yPos);
-    yPos += 6;
-    doc.text(`• Nivel inicial: ${content.sorobanCredentials.level || 1}`, margin, yPos);
-    yPos += 8;
+    doc.text(`Matricula: ${content.sorobanCredentials.matricula}`, margin, textY);
+    textY += 6;
+    doc.text(`E-mail de acesso: ${content.sorobanCredentials.email}`, margin, textY);
+    textY += 6;
+    doc.text(`Senha inicial: ${content.sorobanCredentials.password}`, margin, textY);
+    textY += 6;
+    doc.text(`Nivel inicial: ${content.sorobanCredentials.level || 1}`, margin, textY);
+    textY += 8;
     
     // Note in gray
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    doc.text('* Recomendamos alterar a senha no primeiro acesso.', margin, yPos);
+    doc.text('* Recomendamos alterar a senha no primeiro acesso.', margin, textY);
+    
+    // Restore graphics state
+    (doc as any).restoreGraphicsState?.() || null;
+    
+    // Reset to default colors
     doc.setTextColor(0, 0, 0);
   }
 
