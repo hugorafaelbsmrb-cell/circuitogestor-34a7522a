@@ -73,25 +73,22 @@ Deno.serve(async (req) => {
 
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-    const chatId = `${formattedPhone}@c.us`;
 
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
     const instanceId = encodeURIComponent(config.W_API_SESSION);
 
-    // Endpoint oficial da W-API PRO: /v1/chats/get-profile-picture
-    const endpoint = `${baseUrl}/v1/chats/get-profile-picture?instanceId=${instanceId}`;
+    // Endpoint oficial da W-API PRO: GET /v1/contacts/profile-picture
+    const endpoint = `${baseUrl}/v1/contacts/profile-picture?instanceId=${instanceId}&phoneNumber=${formattedPhone}`;
 
     console.log(`=== W-API Get Profile Picture ===`);
     console.log(`Endpoint: ${endpoint}`);
-    console.log(`Chat ID: ${chatId}`);
+    console.log(`Phone: ${formattedPhone}`);
 
     const response = await fetch(endpoint, {
-      method: 'POST',
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.W_API_TOKEN}`,
       },
-      body: JSON.stringify({ chatId }),
     });
 
     const responseText = await response.text();
