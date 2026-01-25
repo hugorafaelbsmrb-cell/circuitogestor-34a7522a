@@ -80,7 +80,7 @@ Regras:
     }
 
     const response = await fetch(
-      "https://router.huggingface.co/hf-inference/models/zai-org/GLM-4.7-Flash/v1/chat/completions",
+      "https://api-inference.huggingface.co/models/THUDM/glm-4-9b-chat/v1/chat/completions",
       {
         method: "POST",
         headers: {
@@ -88,7 +88,7 @@ Regras:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "zai-org/GLM-4.7-Flash",
+          model: "THUDM/glm-4-9b-chat",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
