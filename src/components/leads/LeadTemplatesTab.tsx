@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { 
   FileText, 
-  Plus, 
   Edit, 
   Trash2, 
   Loader2,
   Save,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -45,7 +45,6 @@ export function LeadTemplatesTab() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
   const [form, setForm] = useState({
@@ -95,15 +94,8 @@ export function LeadTemplatesTab() {
     setIsLoading(false);
   };
 
-  const handleCreate = () => {
-    setIsCreating(true);
-    setEditingId(null);
-    setForm({ name: '', category: 'lead', message: '' });
-  };
-
   const handleEdit = (template: Template) => {
     setEditingId(template.id);
-    setIsCreating(false);
     setForm({
       name: template.name,
       category: template.category,
@@ -112,7 +104,6 @@ export function LeadTemplatesTab() {
   };
 
   const handleCancel = () => {
-    setIsCreating(false);
     setEditingId(null);
     setForm({ name: '', category: 'lead', message: '' });
   };
@@ -127,6 +118,8 @@ export function LeadTemplatesTab() {
       return;
     }
 
+    if (!editingId) return;
+
     setIsSaving(true);
 
     const templateValue = JSON.stringify({
@@ -135,51 +128,24 @@ export function LeadTemplatesTab() {
       message: form.message,
     });
 
-    if (isCreating) {
-      const key = `whatsapp_template_${form.name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
-      
-      const { error } = await supabase
-        .from('app_settings')
-        .insert({
-          key,
-          value: templateValue,
-          description: `Template de mensagem: ${form.name}`,
-        });
+    const { error } = await supabase
+      .from('app_settings')
+      .update({ value: templateValue })
+      .eq('id', editingId);
 
-      if (error) {
-        toast({
-          title: 'Erro ao criar template',
-          description: error.message,
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Template criado',
-          description: 'O template foi salvo com sucesso.',
-        });
-        fetchTemplates();
-        handleCancel();
-      }
-    } else if (editingId) {
-      const { error } = await supabase
-        .from('app_settings')
-        .update({ value: templateValue })
-        .eq('id', editingId);
-
-      if (error) {
-        toast({
-          title: 'Erro ao atualizar template',
-          description: error.message,
-          variant: 'destructive',
-        });
-      } else {
-        toast({
-          title: 'Template atualizado',
-          description: 'As alterações foram salvas.',
-        });
-        fetchTemplates();
-        handleCancel();
-      }
+    if (error) {
+      toast({
+        title: 'Erro ao atualizar template',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Template atualizado',
+        description: 'As alterações foram salvas.',
+      });
+      fetchTemplates();
+      handleCancel();
     }
 
     setIsSaving(false);
@@ -228,16 +194,18 @@ export function LeadTemplatesTab() {
           <FileText className="w-5 h-5 text-primary" />
           Templates de Mensagem ({templates.length})
         </h3>
-        {!isCreating && !editingId && (
-          <Button onClick={handleCreate} size="sm" className="gap-2">
-            <Plus className="w-4 h-4" />
-            Novo Template
-          </Button>
-        )}
       </div>
 
-      {/* Create/Edit Form */}
-      {(isCreating || editingId) && (
+      {/* Info message about creating templates */}
+      <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg border">
+        <MessageSquare className="w-4 h-4 text-muted-foreground mt-0.5" />
+        <div className="text-sm text-muted-foreground">
+          <p>Para criar novos templates, use o modal de <strong>Envio em Massa</strong> e clique em "Salvar como Template" após compor sua mensagem.</p>
+        </div>
+      </div>
+
+      {/* Edit Form */}
+      {editingId && (
         <Card className="border-primary/50">
           <CardContent className="p-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -296,12 +264,12 @@ export function LeadTemplatesTab() {
       )}
 
       {/* Templates List */}
-      {templates.length === 0 && !isCreating ? (
+      {templates.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="p-6 text-center text-muted-foreground">
             <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p>Nenhum template criado</p>
-            <p className="text-sm">Crie templates para agilizar o envio de mensagens</p>
+            <p className="text-sm">Use o modal de Envio em Massa para criar templates</p>
           </CardContent>
         </Card>
       ) : (
