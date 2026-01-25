@@ -16,7 +16,8 @@ import {
   AlertCircle,
   Send,
   FileText,
-  Users
+  Users,
+  Link2
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -57,17 +58,24 @@ interface Lead {
   notes: string | null;
   student_name: string | null;
   student_birth_date: string | null;
+  student_sex: string | null;
   interested_course_id: string | null;
   assigned_to: string | null;
   converted_at: string | null;
   enrollment_id: string | null;
   avatar_url: string | null;
+  guardian_cpf: string | null;
+  guardian_address: string | null;
+  guardian_address_number: string | null;
+  guardian_province: string | null;
+  guardian_postal_code: string | null;
   created_at: string;
   updated_at: string;
 }
 
 const statusOptions = [
   { value: 'new', label: 'Novo', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
+  { value: 'pre_enrollment', label: 'Pré-Matrícula', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
   { value: 'contacted', label: 'Contatado', color: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' },
   { value: 'interested', label: 'Interessado', color: 'bg-purple-500/10 text-purple-500 border-purple-500/20' },
   { value: 'scheduled', label: 'Agendado', color: 'bg-orange-500/10 text-orange-500 border-orange-500/20' },
@@ -77,6 +85,7 @@ const statusOptions = [
 
 const sourceOptions = [
   { value: 'website', label: 'Website' },
+  { value: 'external_form', label: 'Formulário Externo' },
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'phone', label: 'Telefone' },
   { value: 'instagram', label: 'Instagram' },
@@ -260,8 +269,35 @@ export default function Leads() {
   };
 
   const handleConvert = (lead: Lead) => {
-    // Navigate to enrollment page with lead data
-    navigate(`/matricula?leadId=${lead.id}&name=${encodeURIComponent(lead.student_name || lead.name)}&phone=${encodeURIComponent(lead.phone)}&email=${encodeURIComponent(lead.email || '')}`);
+    // Build query params with all available lead data for pre-filling enrollment
+    const params = new URLSearchParams();
+    params.set('leadId', lead.id);
+    
+    if (lead.student_name) params.set('studentName', lead.student_name);
+    if (lead.student_birth_date) params.set('studentBirthDate', lead.student_birth_date);
+    if (lead.student_sex) params.set('studentSex', lead.student_sex);
+    
+    params.set('guardianName', lead.name);
+    if (lead.guardian_cpf) params.set('guardianCpf', lead.guardian_cpf);
+    if (lead.email) params.set('guardianEmail', lead.email);
+    if (lead.phone) params.set('guardianPhone', lead.phone);
+    if (lead.guardian_address) params.set('guardianAddress', lead.guardian_address);
+    if (lead.guardian_address_number) params.set('guardianAddressNumber', lead.guardian_address_number);
+    if (lead.guardian_province) params.set('guardianProvince', lead.guardian_province);
+    if (lead.guardian_postal_code) params.set('guardianPostalCode', lead.guardian_postal_code);
+    
+    if (lead.interested_course_id) params.set('courseId', lead.interested_course_id);
+
+    navigate(`/matricula?${params.toString()}`);
+  };
+
+  const handleCopyFormLink = () => {
+    const formUrl = `${window.location.origin}/pre-matricula`;
+    navigator.clipboard.writeText(formUrl);
+    toast({
+      title: 'Link copiado!',
+      description: 'O link do formulário foi copiado para a área de transferência.',
+    });
   };
 
   const handleCloseModal = () => {
@@ -314,6 +350,10 @@ export default function Leads() {
           <p className="page-subtitle">Gerencie seus leads e acompanhe o funil de vendas</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleCopyFormLink} className="gap-2">
+            <Link2 className="w-4 h-4" />
+            Link Pré-Matrícula
+          </Button>
           {isBulkEnabled && (
             <Button variant="outline" onClick={() => setShowBulkModal(true)} className="gap-2">
               <Send className="w-4 h-4" />

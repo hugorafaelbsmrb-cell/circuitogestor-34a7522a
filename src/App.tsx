@@ -9,6 +9,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Enrollment from "./pages/Enrollment";
+import PreEnrollmentForm from "./pages/PreEnrollmentForm";
 import Students from "./pages/Students";
 import Guardians from "./pages/Guardians";
 import Classes from "./pages/Classes";
@@ -58,6 +59,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />
+      <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
       <Route
         path="/*"
         element={
