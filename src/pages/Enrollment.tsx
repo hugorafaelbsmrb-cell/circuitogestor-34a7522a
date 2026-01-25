@@ -1097,6 +1097,29 @@ export default function Enrollment() {
         description: toastDescription,
       });
 
+      // 9. Send enrollment welcome message (non-blocking)
+      try {
+        const welcomeResponse = await supabase.functions.invoke('send-enrollment-welcome', {
+          body: {
+            guardianId: guardian.id,
+            guardianName: guardian.name,
+            guardianPhone: guardian.phone,
+            studentName: student.name,
+            courseName: selectedCourse.name,
+          },
+        });
+        
+        if (welcomeResponse.data?.sent) {
+          console.log('Enrollment welcome message sent successfully');
+        } else if (welcomeResponse.data?.skipped) {
+          console.log('Enrollment welcome skipped:', welcomeResponse.data.reason);
+        } else if (welcomeResponse.error) {
+          console.warn('Enrollment welcome error:', welcomeResponse.error);
+        }
+      } catch (welcomeError) {
+        console.warn('Failed to send enrollment welcome (non-blocking):', welcomeError);
+      }
+
       setCurrentStep('summary');
     } catch (error) {
       console.error('Enrollment error:', error);
