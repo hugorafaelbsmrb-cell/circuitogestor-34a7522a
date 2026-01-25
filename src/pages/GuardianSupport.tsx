@@ -724,6 +724,21 @@ export default function GuardianSupport() {
                           </DropdownMenu>
                         </div>
 
+                        {/* Student Names - show first and second name only */}
+                        {(() => {
+                          const guardianStudents = students.filter(s => s.guardian_id === guardian.id);
+                          if (guardianStudents.length === 0) return null;
+                          const getFirstTwoNames = (name: string) => {
+                            const parts = name.split(' ');
+                            return parts.slice(0, 2).join(' ');
+                          };
+                          return (
+                            <p className="text-xs text-muted-foreground mt-1 ml-6">
+                              {guardianStudents.map(s => getFirstTwoNames(s.name)).join(', ')}
+                            </p>
+                          );
+                        })()}
+
                         {/* VIP Info */}
                         {guardian.category === 'vip' && (
                           <div className="flex flex-wrap gap-1 mt-2">
