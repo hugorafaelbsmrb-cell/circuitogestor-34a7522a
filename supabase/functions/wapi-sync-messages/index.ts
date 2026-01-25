@@ -85,24 +85,35 @@ Deno.serve(async (req) => {
 
     // ========================================
     // W-API PRO CONFIGURATION
-    // Correct endpoint: POST /getMessages with apikey header
-    // Body: { chatId, count }
+    // IMPORTANT: api.w-api.app = LITE version (no history retrieval)
+    //            api.wapi.com.br = PRO version (supports getMessages)
     // ========================================
     
-    // Normalize configured URL - remove /v1 suffix if present (PRO doesn't use it)
-    let baseUrl = (config.W_API_URL || 'https://api.w-api.app').trim().replace(/\/+$/, '');
-    if (!/^https?:\/\//i.test(baseUrl)) {
-      baseUrl = `https://${baseUrl}`;
+    // Normalize configured URL
+    let configuredUrl = (config.W_API_URL || '').trim().replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(configuredUrl) && configuredUrl) {
+      configuredUrl = `https://${configuredUrl}`;
     }
-    // Remove /v1 suffix - W-API PRO uses root path
-    baseUrl = baseUrl.replace(/\/v1\/?$/, '');
+    // Remove /v1 suffix if present
+    configuredUrl = configuredUrl.replace(/\/v1\/?$/, '');
+    
+    // Detect if user configured LITE domain instead of PRO
+    const isLiteDomain = configuredUrl.includes('w-api.app');
+    
+    // PRO domain - this is what supports getMessages API
+    const proBaseUrl = 'https://api.wapi.com.br';
+    
+    // Use PRO domain as primary, fall back to configured
+    const baseUrl = isLiteDomain ? proBaseUrl : (configuredUrl || proBaseUrl);
     
     const apiToken = config.W_API_TOKEN;
     const instanceId = config.W_API_SESSION;
 
-    console.log(`W-API PRO - Base URL: ${baseUrl}`);
-    console.log(`W-API PRO - Instance ID: ${instanceId}`);
-    console.log(`W-API PRO - Using POST /getMessages with apikey header`);
+    console.log(`W-API Config URL: ${configuredUrl}`);
+    console.log(`W-API Is LITE domain: ${isLiteDomain}`);
+    console.log(`W-API Using Base URL: ${baseUrl}`);
+    console.log(`W-API Instance ID: ${instanceId}`);
+    console.log(`W-API Using POST /getMessages with apikey header`);
 
     let syncedCount = 0;
     let errorCount = 0;
