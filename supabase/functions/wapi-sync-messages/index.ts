@@ -95,29 +95,9 @@ Deno.serve(async (req) => {
     let detectedPlan: 'PRO' | 'LITE' | 'UNKNOWN' = 'PRO'; // Assume PRO since we have credentials
     const processedPhones = new Set<string>();
 
-    // ========================================
-    // DIAGNOSTIC: Test with a known working phone first
-    // ========================================
-    const testPhone = '5594999345048';
-    console.log(`Testing W-API with known phone: ${testPhone}`);
-    const testUrl = `${wapiUrl}/v1/chats/chat?instanceId=${encoded}&phoneNumber=${testPhone}`;
-    console.log(`Test URL: ${testUrl}`);
-    
-    try {
-      const testRes = await fetch(testUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${config.W_API_TOKEN}`,
-          'Accept': 'application/json',
-          'instanceId': session,
-        },
-      });
-      const testText = await testRes.text();
-      console.log(`Test response status: ${testRes.status}`);
-      console.log(`Test response body: ${testText.slice(0, 500)}`);
-    } catch (e) {
-      console.log(`Test error: ${e}`);
-    }
+    // Note: W-API history endpoints return 404 for all numbers.
+    // This means the W-API instance does NOT support chat history retrieval.
+    // Messages will only be captured via webhook for new incoming/outgoing messages.
 
     // ========================================
     // STEP 1: Load ALL guardians with their phones
