@@ -1,9 +1,35 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+async function getGoogleApiKey(): Promise<string | null> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Supabase credentials not configured");
+    return null;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "GOOGLE_API_KEY")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching GOOGLE_API_KEY from app_settings:", error);
+    return null;
+  }
+
+  return data?.value || null;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -24,10 +50,18 @@ serve(async (req) => {
       }
     }
     
-    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
+    // Fetch API key dynamically from database
+    const GOOGLE_API_KEY = await getGoogleApiKey();
 
     if (!GOOGLE_API_KEY) {
-      throw new Error("GOOGLE_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({
+          error: "Chave da API do Google não configurada. Acesse Configurações > Inteligência Artificial para adicionar sua chave.",
+          status: 400,
+          requires_api_key: true,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     let systemPrompt = "";
@@ -182,7 +216,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
       if (response.status === 403) {
         return new Response(
           JSON.stringify({
-            error: "Chave de API inválida ou sem permissão.",
+            error: "Chave de API inválida ou sem permissão. Verifique sua chave nas configurações.",
             status: 403,
             details: errorText,
           }),
