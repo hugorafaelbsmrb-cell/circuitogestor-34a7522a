@@ -116,6 +116,19 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
             margin: 0;
             padding: 0;
           }
+          /* Quebra de página para visualização */
+          .contract-page {
+            min-height: 297mm;
+            box-sizing: border-box;
+            padding-bottom: 10mm;
+            border-bottom: 2px dashed #ccc;
+            margin-bottom: 10mm;
+          }
+          .annex-page {
+            min-height: 297mm;
+            box-sizing: border-box;
+            padding-top: 5mm;
+          }
           @media print {
             @page {
               size: A4;
@@ -131,9 +144,14 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
             }
             .contract-page {
               page-break-after: always;
+              min-height: auto;
+              border-bottom: none;
+              margin-bottom: 0;
             }
             .annex-page {
               page-break-before: always;
+              min-height: auto;
+              padding-top: 0;
             }
             /* Desativa estilos globais de print.css para contratos */
             .contract-print-container p {
