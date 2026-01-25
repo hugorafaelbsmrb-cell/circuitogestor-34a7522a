@@ -273,27 +273,26 @@ export default function GuardianSupport() {
     };
 
     guardians.forEach(guardian => {
-      // Get all students of this guardian
-      const guardianStudents = students.filter(s => s.guardian_id === guardian.id);
-      
-      // Get all active enrollments and their courses
+      // Alunos desse responsável
+      const guardianStudents = students.filter((s) => s.guardian_id === guardian.id);
+
+      // Matrículas ativas desse responsável (caminho mais confiável do que inferir via aluno)
+      const activeEnrollments = enrollments.filter(
+        (e) => e.guardian_id === guardian.id && e.status === 'active'
+      );
+
+      // Cursos derivados das matrículas ativas
       const courseIds = new Set<string>();
       const courseNames: string[] = [];
-      
-      guardianStudents.forEach(student => {
-        const studentEnrollments = enrollments.filter(
-          e => e.student_id === student.id && e.status === 'active'
-        );
-        studentEnrollments.forEach(enrollment => {
-          const classGroup = classGroups.find(cg => cg.id === enrollment.class_group_id);
-          if (classGroup) {
-            courseIds.add(classGroup.course_id);
-            const course = courses.find(c => c.id === classGroup.course_id);
-            if (course && !courseNames.includes(course.name)) {
-              courseNames.push(course.name);
-            }
-          }
-        });
+      activeEnrollments.forEach((enrollment) => {
+        const classGroup = classGroups.find((cg) => cg.id === enrollment.class_group_id);
+        if (!classGroup) return;
+
+        courseIds.add(classGroup.course_id);
+        const course = courses.find((c) => c.id === classGroup.course_id);
+        if (course && !courseNames.includes(course.name)) {
+          courseNames.push(course.name);
+        }
       });
 
       const studentCount = guardianStudents.length;
