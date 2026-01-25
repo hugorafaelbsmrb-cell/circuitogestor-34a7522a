@@ -46,6 +46,7 @@ import { WapiConfigCard } from '@/components/settings/WapiConfigCard';
 import { AutomationControlPanel } from '@/components/settings/AutomationControlPanel';
 import { MessageLogsViewer } from '@/components/settings/MessageLogsViewer';
 import { QuickRepliesConfigCard } from '@/components/settings/QuickRepliesConfigCard';
+import { AIProviderConfigCard } from '@/components/settings/AIProviderConfigCard';
 import { cn } from '@/lib/utils';
 
 interface AppSetting {
@@ -67,6 +68,7 @@ interface SettingsSection {
 
 const settingsSections: SettingsSection[] = [
   { id: 'branding', label: 'Identidade', icon: Building2, description: 'Nome, logo e favicon' },
+  { id: 'ai', label: 'Inteligência Artificial', icon: Zap, description: 'Provedor de IA' },
   { id: 'api', label: 'APIs', icon: Key, description: 'Chaves de integração' },
   { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, description: 'Configuração W-API' },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook, description: 'URLs de notificação' },
@@ -623,6 +625,9 @@ export default function Settings() {
             </CardContent>
           </Card>
         );
+
+      case 'ai':
+        return <AIProviderConfigCard />;
 
       case 'api':
         return (
