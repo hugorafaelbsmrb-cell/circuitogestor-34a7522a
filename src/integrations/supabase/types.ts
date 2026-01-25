@@ -481,6 +481,41 @@ export type Database = {
         }
         Relationships: []
       }
+      contract_signature_logs: {
+        Row: {
+          action: string
+          contract_id: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          contract_id: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          contract_id?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_signature_logs_contract_id_fkey"
+            columns: ["contract_id"]
+            isOneToOne: false
+            referencedRelation: "contracts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contracts: {
         Row: {
           contract_content: Json
@@ -490,7 +525,12 @@ export type Database = {
           guardian_id: string
           id: string
           installment_count: number | null
+          signature_hash: string | null
+          signature_image: string | null
+          signature_token: string | null
           signed_at: string | null
+          signed_ip: string | null
+          signed_user_agent: string | null
           status: string
           student_id: string
           total_value: number
@@ -503,7 +543,12 @@ export type Database = {
           guardian_id: string
           id?: string
           installment_count?: number | null
+          signature_hash?: string | null
+          signature_image?: string | null
+          signature_token?: string | null
           signed_at?: string | null
+          signed_ip?: string | null
+          signed_user_agent?: string | null
           status?: string
           student_id: string
           total_value: number
@@ -516,7 +561,12 @@ export type Database = {
           guardian_id?: string
           id?: string
           installment_count?: number | null
+          signature_hash?: string | null
+          signature_image?: string | null
+          signature_token?: string | null
           signed_at?: string | null
+          signed_ip?: string | null
+          signed_user_agent?: string | null
           status?: string
           student_id?: string
           total_value?: number

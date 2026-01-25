@@ -18,6 +18,7 @@ import Classes from "./pages/Classes";
 import Courses from "./pages/Courses";
 import Schedules from "./pages/Schedules";
 import Contracts from "./pages/Contracts";
+import ContractSign from "./pages/ContractSign";
 import ContractConfig from "./pages/ContractConfig";
 import Carnes from "./pages/Carnes";
 import Financial from "./pages/Financial";
@@ -67,6 +68,7 @@ function AppRoutes() {
       <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
       <Route path="/campanha" element={<CampaignLanding />} />
       <Route path="/cantina" element={<CanteenPublic />} />
+      <Route path="/assinar/:token" element={<ContractSign />} />
       <Route path="/instalar" element={<InstallApp />} />
       <Route
         path="/*"
