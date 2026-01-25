@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Send, Loader2, MessageSquare, Image, FileText, Video, Paperclip, X, Smile, MapPin, Contact, MousePointerClick, List, Zap, Link2, Receipt, ExternalLink } from 'lucide-react';
+import { Send, Loader2, MessageSquare, Image, FileText, Video, Paperclip, X, Smile, MapPin, Contact, MousePointerClick, List, Zap, Link2, Receipt, ExternalLink, UserPlus } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
@@ -964,6 +964,19 @@ export function MessageHistoryModal({
                   
                   {/* Advanced features */}
                   <DropdownMenuSeparator />
+                  {/* Pre-enrollment Form Link */}
+                  <DropdownMenuItem onClick={() => {
+                    const formUrl = `${window.location.origin}/pre-matricula`;
+                    const message = `Olá ${guardianName.split(' ')[0]}! 👋\n\nPara agilizar o processo de matrícula, preencha o formulário abaixo com os dados:\n\n📋 ${formUrl}\n\nQualquer dúvida, estamos à disposição!`;
+                    setNewMessage(message);
+                    toast({
+                      title: 'Mensagem preparada',
+                      description: 'A mensagem com o link foi inserida. Clique em enviar.',
+                    });
+                  }}>
+                    <UserPlus className="h-4 w-4 mr-2 text-primary" />
+                    Link Pré-Matrícula
+                  </DropdownMenuItem>
                   {/* Boleto Link - Always show for all guardians */}
                   <DropdownMenuItem onClick={handleOpenBoletoModal}>
                     <Receipt className="h-4 w-4 mr-2 text-emerald-500" />
