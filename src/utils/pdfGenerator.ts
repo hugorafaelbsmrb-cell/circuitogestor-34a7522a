@@ -327,10 +327,11 @@ export function generateContractPDF(content: ContractContent): jsPDF {
 
   // Course selected highlight
   if (content.courseName) {
-    // Draw box around contracted modality
-    doc.setDrawColor(55, 65, 81);
+    // Draw box around contracted modality with background
+    doc.setDrawColor(55, 65, 81);        // Borda cinza escuro (#374151)
+    doc.setFillColor(249, 250, 251);     // Fundo cinza claro (#f9fafb)
     doc.setLineWidth(0.5);
-    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 56, 2, 2);
+    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 56, 2, 2, 'FD');
     
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
@@ -358,9 +359,10 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   // LMS Credentials section
   if (content.lmsCredentials) {
     yPos += 5;
-    doc.setDrawColor(37, 99, 235);
+    doc.setDrawColor(37, 99, 235);       // Borda azul (#2563eb)
+    doc.setFillColor(239, 246, 255);     // Fundo azul claro (#eff6ff)
     doc.setLineWidth(0.5);
-    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 42, 2, 2);
+    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 42, 2, 2, 'FD');
     
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
@@ -388,9 +390,10 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   // Soroban Credentials section
   if (content.sorobanCredentials) {
     yPos += 5;
-    doc.setDrawColor(217, 119, 6);
+    doc.setDrawColor(217, 119, 6);       // Borda laranja (#d97706)
+    doc.setFillColor(255, 251, 235);     // Fundo laranja claro (#fffbeb)
     doc.setLineWidth(0.5);
-    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 48, 2, 2);
+    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 48, 2, 2, 'FD');
     
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
