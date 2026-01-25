@@ -11,7 +11,8 @@ import {
   Calculator,
   Wrench,
   BookOpen,
-  RefreshCw
+  RefreshCw,
+  UserPlus
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -100,10 +101,10 @@ const COLUMN_CONFIG: Record<ColumnType, {
     description: '+1 aluno ou curso'
   },
   unknown: { 
-    label: 'Não Cadastrados', 
+    label: 'Não Matriculados', 
     color: 'bg-gray-500/10 text-gray-600 border-gray-200',
     icon: <UserX className="h-4 w-4" />,
-    description: 'Números sem cadastro'
+    description: 'Contatos sem matrícula'
   },
 };
 
@@ -151,9 +152,19 @@ interface GuardianWithCategory {
 
 interface UnknownContact {
   phone: string;
+  name: string | null;
+  pushName: string | null;
+  profilePicUrl: string | null;
   lastMessage: string;
   lastMessageAt: string;
   messageCount: number;
+}
+
+interface WhatsAppContact {
+  phone: string;
+  name: string | null;
+  pushName: string | null;
+  profilePicUrl: string | null;
 }
 
 export default function GuardianSupport() {
@@ -162,6 +173,7 @@ export default function GuardianSupport() {
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [unknownMessages, setUnknownMessages] = useState<WhatsAppMessage[]>([]);
+  const [whatsappContactsMap, setWhatsappContactsMap] = useState<Map<string, WhatsAppContact>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -223,7 +235,7 @@ export default function GuardianSupport() {
 
   const loadData = async () => {
     try {
-        const [ticketsResult, messagesResult] = await Promise.all([
+      const [ticketsResult, messagesResult] = await Promise.all([
         supabase
           .from('guardian_support_tickets')
           .select('*')
@@ -240,6 +252,9 @@ export default function GuardianSupport() {
 
       setTickets((ticketsResult.data || []) as SupportTicket[]);
       setUnknownMessages((messagesResult.data || []) as WhatsAppMessage[]);
+      
+      // Fetch WhatsApp contacts to enrich unknown contacts with names
+      fetchWhatsAppContacts();
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -249,6 +264,33 @@ export default function GuardianSupport() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchWhatsAppContacts = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('wapi-fetch-contacts', {
+        body: { perPage: 500 }
+      });
+
+      if (error) {
+        console.error('Error fetching WhatsApp contacts:', error);
+        return;
+      }
+
+      if (data?.contacts && Array.isArray(data.contacts)) {
+        const contactsMap = new Map<string, WhatsAppContact>();
+        data.contacts.forEach((c: WhatsAppContact) => {
+          if (c.phone) {
+            // Normalize phone for matching
+            const normalizedPhone = normalizePhone(c.phone);
+            contactsMap.set(normalizedPhone, c);
+          }
+        });
+        setWhatsappContactsMap(contactsMap);
+      }
+    } catch (error) {
+      console.error('Error fetching WhatsApp contacts:', error);
     }
   };
 
@@ -363,6 +405,7 @@ export default function GuardianSupport() {
   }, [guardians, students, enrollments, classGroups, courses, tickets]);
 
   // Group unknown phone numbers - excluding those that match a registered guardian
+  // and enrich with WhatsApp contact info (name, pushName, profilePic)
   const unknownContacts = useMemo(() => {
     const phoneMap = new Map<string, UnknownContact>();
     
@@ -382,8 +425,15 @@ export default function GuardianSupport() {
           existing.lastMessageAt = msg.created_at;
         }
       } else {
+        // Try to find WhatsApp contact info
+        const normalizedPhone = normalizePhone(msg.phone);
+        const whatsappContact = whatsappContactsMap.get(normalizedPhone);
+        
         phoneMap.set(msg.phone, {
           phone: msg.phone,
+          name: whatsappContact?.name || null,
+          pushName: whatsappContact?.pushName || null,
+          profilePicUrl: whatsappContact?.profilePicUrl || null,
           lastMessage: msg.message,
           lastMessageAt: msg.created_at,
           messageCount: 1,
@@ -394,7 +444,7 @@ export default function GuardianSupport() {
     return Array.from(phoneMap.values()).sort(
       (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
     );
-  }, [unknownMessages, guardians]);
+  }, [unknownMessages, guardians, whatsappContactsMap]);
 
   const handleCreateTicket = async () => {
     if (!formGuardian || !formSubject.trim()) {
@@ -563,6 +613,55 @@ export default function GuardianSupport() {
     return phone;
   };
 
+  const handleMarkAsLead = async (contact: UnknownContact) => {
+    try {
+      const displayName = contact.pushName || contact.name || formatPhone(contact.phone);
+      
+      // Check if lead already exists with this phone
+      const { data: existingLead } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('phone', contact.phone)
+        .maybeSingle();
+      
+      if (existingLead) {
+        toast({
+          title: 'Lead já existe',
+          description: `Já existe um lead cadastrado com este telefone.`,
+        });
+        return;
+      }
+      
+      // Create new lead
+      const { error } = await supabase
+        .from('leads')
+        .insert({
+          name: displayName,
+          phone: contact.phone,
+          source: 'whatsapp',
+          status: 'new',
+          notes: `Criado automaticamente a partir do Atendimento aos Pais. Última mensagem: ${contact.lastMessage.substring(0, 100)}`,
+        });
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'Lead criado',
+        description: `${displayName} foi adicionado à lista de leads.`,
+      });
+      
+      // Reload data to update the UI
+      loadData();
+    } catch (error) {
+      console.error('Error creating lead:', error);
+      toast({
+        title: 'Erro ao criar lead',
+        description: 'Não foi possível criar o lead. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleSyncMessages = async () => {
     setIsSyncing(true);
     try {
@@ -713,77 +812,115 @@ export default function GuardianSupport() {
               <ScrollArea className="flex-1 border-x border-b rounded-b-lg bg-muted/30">
                 <div className="p-2 space-y-2">
                   {/* Unknown Contacts Column */}
-                  {isUnknownColumn && unknownContacts.map((contact) => (
-                    <Card key={contact.phone} className="hover:shadow-md transition-shadow">
-                      <CardContent className="p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <UserX className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium text-sm">
-                              {formatPhone(contact.phone)}
+                  {isUnknownColumn && unknownContacts.map((contact) => {
+                    // Get display name: pushName > name > formatted phone
+                    const displayName = contact.pushName || contact.name || formatPhone(contact.phone);
+                    const hasName = !!(contact.pushName || contact.name);
+                    
+                    return (
+                      <Card key={contact.phone} className="hover:shadow-md transition-shadow">
+                        <CardContent className="p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Avatar className="h-8 w-8 shrink-0">
+                                {contact.profilePicUrl ? (
+                                  <AvatarImage src={contact.profilePicUrl} alt={displayName} />
+                                ) : null}
+                                <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+                                  {hasName 
+                                    ? displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                                    : <UserX className="h-4 w-4" />
+                                  }
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0 flex-1">
+                                <span className="font-medium text-sm block truncate">
+                                  {displayName}
+                                </span>
+                                {hasName && (
+                                  <span className="text-xs text-muted-foreground block truncate">
+                                    {formatPhone(contact.phone)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="bg-popover">
+                                <DropdownMenuItem onClick={() => {
+                                  setSelectedGuardianForMessages({
+                                    id: null,
+                                    name: displayName,
+                                    phone: contact.phone,
+                                    studentNames: [],
+                                  });
+                                  setShowMessagesModal(true);
+                                }}>
+                                  <MessageSquare className="h-4 w-4 mr-2" />
+                                  Ver Mensagens
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openWhatsApp(contact.phone)}>
+                                  <Phone className="h-4 w-4 mr-2" />
+                                  Abrir WhatsApp
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleMarkAsLead(contact)}>
+                                  <UserPlus className="h-4 w-4 mr-2" />
+                                  Marcar como Lead
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+
+                          <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                            {contact.lastMessage}
+                          </p>
+
+                          <div className="flex items-center justify-between mt-2">
+                            <Badge variant="outline" className="text-xs">
+                              {contact.messageCount} msg
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(contact.lastMessageAt), "dd/MM HH:mm", { locale: ptBR })}
                             </span>
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-6 w-6">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="bg-popover">
-                              <DropdownMenuItem onClick={() => {
+
+                          {/* Action Buttons */}
+                          <div className="flex gap-2 mt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 text-xs h-7"
+                              onClick={() => {
                                 setSelectedGuardianForMessages({
                                   id: null,
-                                  name: formatPhone(contact.phone),
+                                  name: displayName,
                                   phone: contact.phone,
                                   studentNames: [],
                                 });
                                 setShowMessagesModal(true);
-                              }}>
-                                <MessageSquare className="h-4 w-4 mr-2" />
-                                Ver Mensagens
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openWhatsApp(contact.phone)}>
-                                <Phone className="h-4 w-4 mr-2" />
-                                Abrir WhatsApp
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-
-                        <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                          {contact.lastMessage}
-                        </p>
-
-                        <div className="flex items-center justify-between mt-2">
-                          <Badge variant="outline" className="text-xs">
-                            {contact.messageCount} msg
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {format(new Date(contact.lastMessageAt), "dd/MM HH:mm", { locale: ptBR })}
-                          </span>
-                        </div>
-
-                        {/* Ver Mensagens Button */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full mt-2 text-xs h-7"
-                          onClick={() => {
-                            setSelectedGuardianForMessages({
-                              id: null,
-                              name: formatPhone(contact.phone),
-                              phone: contact.phone,
-                              studentNames: [],
-                            });
-                            setShowMessagesModal(true);
-                          }}
-                        >
-                          <MessageSquare className="h-3 w-3 mr-1" />
-                          Ver Mensagens
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
+                              }}
+                            >
+                              <MessageSquare className="h-3 w-3 mr-1" />
+                              Mensagens
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="flex-1 text-xs h-7"
+                              onClick={() => handleMarkAsLead(contact)}
+                            >
+                              <UserPlus className="h-3 w-3 mr-1" />
+                              Lead
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
 
                   {/* Guardians in Category */}
                   {!isUnknownColumn && guardiansInColumn.map((guardian) => (
