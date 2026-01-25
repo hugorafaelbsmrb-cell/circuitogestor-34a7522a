@@ -633,6 +633,7 @@ export type Database = {
           address: string
           address_number: string | null
           asaas_customer_id: string | null
+          avatar_url: string | null
           cpf: string
           created_at: string
           email: string
@@ -647,6 +648,7 @@ export type Database = {
           address: string
           address_number?: string | null
           asaas_customer_id?: string | null
+          avatar_url?: string | null
           cpf: string
           created_at?: string
           email: string
@@ -661,6 +663,7 @@ export type Database = {
           address?: string
           address_number?: string | null
           asaas_customer_id?: string | null
+          avatar_url?: string | null
           cpf?: string
           created_at?: string
           email?: string

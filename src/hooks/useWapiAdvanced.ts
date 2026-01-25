@@ -394,6 +394,24 @@ export function useWapiAdvanced() {
     }
   }, [isEnabled, sendTypingIndicator, toast]);
 
+  const fetchProfilePicture = useCallback(async (phone: string, guardianId?: string, updateDatabase = false): Promise<string | null> => {
+    try {
+      const response = await supabase.functions.invoke('wapi-get-profile-picture', {
+        body: { phone, guardianId, updateDatabase },
+      });
+
+      if (response.error) {
+        console.error('Error fetching profile picture:', response.error);
+        return null;
+      }
+
+      return response.data?.profilePictureUrl || null;
+    } catch (error) {
+      console.error('Error fetching profile picture:', error);
+      return null;
+    }
+  }, []);
+
   return {
     isLoading,
     sendTypingIndicator,
@@ -405,6 +423,7 @@ export function useWapiAdvanced() {
     sendSticker,
     sendLocation,
     sendContact,
+    fetchProfilePicture,
     // Feature check helpers
     isButtonsEnabled: () => isEnabled('wapi_feature_buttons'),
     isListsEnabled: () => isEnabled('wapi_feature_lists'),
