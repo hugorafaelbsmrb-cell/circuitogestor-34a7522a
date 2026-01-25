@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Format phone number
+    // Format phone number - clean and ensure 55 prefix
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
 
@@ -98,10 +98,14 @@ Deno.serve(async (req) => {
     const instanceId = config.W_API_SESSION;
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
 
+    // Build chatId in W-API format
+    const chatId = `${formattedPhone}@${isGroup ? 'g.us' : 'c.us'}`;
+
     console.log('=== W-API Send Message ===');
     console.log(`Base URL: ${baseUrl}`);
     console.log(`Instance ID: ${instanceId}`);
     console.log(`Phone: ${formattedPhone}`);
+    console.log(`ChatId: ${chatId}`);
     console.log(`Media Type: ${mediaType || 'text'}`);
 
     const messageContent = message || caption || `[${mediaType || 'media'}]`;
@@ -127,203 +131,94 @@ Deno.serve(async (req) => {
 
     const savedMsgId = savedMsg?.id;
 
-    const candidates: Array<{
-      url: string;
-      body: Record<string, unknown>;
-      description: string;
-    }> = [];
-
-    const chatId = `${formattedPhone}@${isGroup ? 'g.us' : 'c.us'}`;
-
+    // Build the correct W-API PRO endpoint: /{instanceId}/send-text
+    const sendUrl = `${baseUrl}/${instanceId}/send-text`;
+    
+    // Build request body based on message type
+    let requestBody: Record<string, unknown>;
+    let endpoint = sendUrl;
+    
     if (mediaUrl && mediaType) {
+      // For media, use the appropriate endpoint
       const mediaCaption = caption || message || '';
-
-      // NOTE: Media endpoints vary a lot between W-API vendors/versions.
-      // We keep the legacy candidates below (and can extend once you confirm the provider's media route).
-
-      // Legacy fallbacks that some deployments expose
+      
       switch (mediaType) {
         case 'image':
-          candidates.push(
-            {
-              url: `${baseUrl}/v1/messages/image?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, image: mediaUrl, caption: mediaCaption, isGroup },
-              description: 'legacy v1/messages/image',
-            },
-            {
-              url: `${baseUrl}/messages/image?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, image: mediaUrl, caption: mediaCaption },
-              description: 'legacy messages/image',
-            }
-          );
+          endpoint = `${baseUrl}/${instanceId}/send-image`;
+          requestBody = { chatId, image: mediaUrl, caption: mediaCaption };
           break;
         case 'document':
-          candidates.push(
-            {
-              url: `${baseUrl}/v1/messages/document?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, document: mediaUrl, fileName: fileName || 'documento.pdf', caption: mediaCaption },
-              description: 'legacy v1/messages/document',
-            },
-            {
-              url: `${baseUrl}/messages/document?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, document: mediaUrl, fileName: fileName || 'documento.pdf', caption: mediaCaption },
-              description: 'legacy messages/document',
-            }
-          );
+          endpoint = `${baseUrl}/${instanceId}/send-document`;
+          requestBody = { chatId, document: mediaUrl, fileName: fileName || 'documento.pdf', caption: mediaCaption };
           break;
         case 'video':
-          candidates.push(
-            {
-              url: `${baseUrl}/v1/messages/video?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, video: mediaUrl, caption: mediaCaption },
-              description: 'legacy v1/messages/video',
-            },
-            {
-              url: `${baseUrl}/messages/video?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, video: mediaUrl, caption: mediaCaption },
-              description: 'legacy messages/video',
-            }
-          );
+          endpoint = `${baseUrl}/${instanceId}/send-video`;
+          requestBody = { chatId, video: mediaUrl, caption: mediaCaption };
           break;
         case 'audio':
-          candidates.push(
-            {
-              url: `${baseUrl}/v1/messages/audio?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, audio: mediaUrl },
-              description: 'legacy v1/messages/audio',
-            },
-            {
-              url: `${baseUrl}/messages/audio?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, audio: mediaUrl },
-              description: 'legacy messages/audio',
-            }
-          );
+          endpoint = `${baseUrl}/${instanceId}/send-audio`;
+          requestBody = { chatId, audio: mediaUrl };
           break;
+        default:
+          endpoint = sendUrl;
+          requestBody = { chatId, text: message };
       }
     } else {
-      // Primary (known-working in this repo): /message/send-text with Bearer token + session in body
-      candidates.push(
-        {
-          url: `${baseUrl}/message/send-text`,
-          body: { session: instanceId, phone: formattedPhone, message, isGroup },
-          description: 'message/send-text (repo-proven)',
-        },
-        // Common variants
-        {
-          url: `${baseUrl}/message/sendText`,
-          body: { session: instanceId, phone: formattedPhone, message, isGroup },
-          description: 'message/sendText',
-        },
-        {
-          url: `${baseUrl}/message/sendText/${encodeURIComponent(instanceId)}`,
-          body: { phone: formattedPhone, message, isGroup },
-          description: 'message/sendText/:session',
-        },
-        {
-          url: `${baseUrl}/message/send-text`,
-          body: { session: instanceId, phone: formattedPhone, text: message, isGroup },
-          description: 'message/send-text (text field)',
-        }
-      );
-
-      // Other fallbacks (older W-API shapes)
-      candidates.push(
-        {
-          url: `${baseUrl}/v1/messages/text?instanceId=${instanceId}`,
-          body: { phone: formattedPhone, message, isGroup },
-          description: 'legacy v1/messages/text phone',
-        },
-        {
-          url: `${baseUrl}/v1/messages/text?instanceId=${instanceId}`,
-          body: { chatId, message },
-          description: 'legacy v1/messages/text chatId',
-        },
-        {
-          url: `${baseUrl}/messages/text?instanceId=${instanceId}`,
-          body: { phone: formattedPhone, message, isGroup },
-          description: 'legacy messages/text',
-        },
-        {
-          url: `${baseUrl}/sendText?instanceId=${instanceId}`,
-          body: { phone: formattedPhone, message, isGroup },
-          description: 'legacy sendText',
-        }
-      );
+      // Text message - use chatId and text as per W-API PRO docs
+      requestBody = { chatId, text: message };
     }
 
-    let lastError: string | null = null;
-    let lastStatus: number | null = null;
-    const attempts: Array<{ url: string; status: number | null; ok: boolean; error?: string }> = [];
+    console.log(`Calling: POST ${endpoint}`);
+    console.log(`Body: ${JSON.stringify(requestBody)}`);
 
-    for (const c of candidates) {
-      try {
-        console.log(`Trying: POST ${c.url}`);
-        console.log(`Body: ${JSON.stringify(c.body)}`);
-        
-        const res = await fetch(c.url, {
-          method: 'POST',
-          headers: {
-            // This project already uses Bearer auth for W-API in other backend functions.
-            // We also include apikey for compatibility with older variants.
-            'Authorization': `Bearer ${apiKey}`,
-            'apikey': apiKey,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify(c.body),
-        });
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': apiKey,
+      },
+      body: JSON.stringify(requestBody),
+    });
 
-        lastStatus = res.status;
-        const text = await res.text();
-        console.log(`Response ${res.status}: ${text.slice(0, 500)}`);
-        
-        attempts.push({ url: c.url, status: res.status, ok: res.ok });
+    const responseText = await response.text();
+    console.log(`Response ${response.status}: ${responseText.slice(0, 500)}`);
 
-        // deno-lint-ignore no-explicit-any
-        let parsed: any = {};
-        try {
-          parsed = JSON.parse(text);
-        } catch {
-          attempts[attempts.length - 1].error = 'Non-JSON response';
-          continue;
-        }
+    // deno-lint-ignore no-explicit-any
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      console.error('Non-JSON response from W-API');
+    }
 
-        if (res.ok) {
-          console.log('Message sent successfully via:', c.url);
-          
-          const wapiMessageId = (parsed?.id || parsed?.key?.id || parsed?.messageId || null) as string | null;
-          if (savedMsgId) {
-            await supabase
-              .from('whatsapp_messages')
-              .update({ 
-                status: 'sent',
-                wapi_message_id: wapiMessageId,
-              })
-              .eq('id', savedMsgId);
-          }
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              message: 'Mensagem enviada com sucesso',
-              data: parsed,
-              endpoint: c.url,
-              messageId: savedMsgId,
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        lastError = (parsed?.message || parsed?.error || JSON.stringify(parsed)) as string;
-        attempts[attempts.length - 1].error = lastError || undefined;
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : String(e);
-        attempts.push({ url: c.url, status: null, ok: false, error: errMsg });
-        lastError = errMsg;
+    if (response.ok) {
+      console.log('Message sent successfully');
+      
+      const wapiMessageId = (parsed?.id || parsed?.key?.id || parsed?.messageId || null) as string | null;
+      if (savedMsgId) {
+        await supabase
+          .from('whatsapp_messages')
+          .update({ 
+            status: 'sent',
+            wapi_message_id: wapiMessageId,
+          })
+          .eq('id', savedMsgId);
       }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Mensagem enviada com sucesso',
+          data: parsed,
+          endpoint,
+          messageId: savedMsgId,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    console.error('All W-API send endpoints failed:', { attempts, lastStatus, lastError });
+    // Request failed
+    console.error('W-API request failed:', { status: response.status, body: parsed });
     
     if (savedMsgId) {
       await supabase
@@ -334,13 +229,13 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        error: 'Não foi possível enviar mensagem via W-API',
-        lastStatus,
-        details: lastError,
-        attempts,
+        error: 'Erro na W-API',
+        status: response.status,
+        details: parsed,
+        endpoint,
         messageId: savedMsgId,
       }),
-      { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: response.status >= 400 && response.status < 600 ? response.status : 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: unknown) {
