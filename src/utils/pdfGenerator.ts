@@ -335,11 +335,13 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);  // Ensure text is black
     doc.text('✓ MODALIDADE CONTRATADA:', margin, yPos);
     yPos += 8;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);  // Ensure text is black
     doc.text(`• Curso: ${content.courseName}`, margin, yPos);
     yPos += 6;
     doc.text(`• Turma: ${content.classGroupName || '-'}`, margin, yPos);

@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { generateContractPDF } from '@/utils/pdfGenerator';
+import { preloadContractImages } from '@/utils/imageLoader';
 import { useToast } from '@/hooks/use-toast';
 import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
 import { SignatureModal } from '@/components/contracts/SignatureModal';
@@ -337,12 +338,30 @@ export default function Contracts() {
     setIsGenerating(true);
     
     try {
-      const content = getContractContent(enrollmentId) as ContractContentType | null;
+      const content = getContractContent(enrollmentId) as (ContractContentType & {
+        schoolLogo?: string;
+        schoolSignatureUrl?: string | null;
+        signatureImage?: string | null;
+      }) | null;
       if (!content) {
         throw new Error('Contrato não encontrado');
       }
 
-      const doc = generateContractPDF(content);
+      // Pre-load all images as base64 to ensure they're embedded in the PDF
+      const preloadedImages = await preloadContractImages({
+        schoolLogo: content.schoolLogo,
+        schoolSignatureUrl: content.schoolSignatureUrl,
+        signatureImage: content.signatureImage,
+      });
+
+      // Generate PDF with pre-loaded images
+      const doc = generateContractPDF({
+        ...content,
+        schoolLogo: preloadedImages.schoolLogo || undefined,
+        schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
+        signatureImage: preloadedImages.signatureImage,
+      });
+      
       const studentName = content.studentName || 'contrato';
       doc.save(`contrato_${studentName.replace(/\s+/g, '_')}.pdf`);
 
@@ -351,6 +370,7 @@ export default function Contracts() {
         description: 'O contrato foi baixado com sucesso.',
       });
     } catch (error) {
+      console.error('Error generating PDF:', error);
       toast({
         title: 'Erro ao gerar PDF',
         description: 'Não foi possível gerar o contrato em PDF.',

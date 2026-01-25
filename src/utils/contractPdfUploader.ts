@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { generateContractPDF } from './pdfGenerator';
+import { preloadContractImages } from './imageLoader';
 
 interface ContractPDFData {
   contractId: string;
@@ -36,19 +37,28 @@ interface ContractPDFData {
 }
 
 /**
- * Generates a contract PDF using jsPDF (reliable programmatic generation),
+ * Generates a contract PDF using jsPDF with pre-loaded images (reliable programmatic generation),
  * uploads it to Supabase Storage, and returns the public URL.
  */
 export async function generateAndUploadContractPDF(data: ContractPDFData): Promise<string> {
   console.log('Starting PDF generation with jsPDF...');
   
-  // Generate PDF using the robust jsPDF implementation
+  // Pre-load all images as base64 to ensure they're embedded in the PDF
+  const preloadedImages = await preloadContractImages({
+    schoolLogo: data.schoolLogo,
+    schoolSignatureUrl: data.schoolSignatureUrl,
+    signatureImage: data.signatureImage,
+  });
+  
+  console.log('Images preloaded for PDF generation');
+  
+  // Generate PDF using the robust jsPDF implementation with pre-loaded images
   const doc = generateContractPDF({
     schoolName: data.schoolName,
     schoolCnpj: data.schoolCnpj,
     schoolAddress: data.schoolAddress,
-    schoolLogo: data.schoolLogo,
-    schoolSignatureUrl: data.schoolSignatureUrl,
+    schoolLogo: preloadedImages.schoolLogo || undefined,
+    schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
     schoolRepresentativeName: data.schoolRepresentativeName,
     guardianName: data.guardianName,
     guardianCpf: data.guardianCpf,
@@ -72,7 +82,7 @@ export async function generateAndUploadContractPDF(data: ContractPDFData): Promi
     contractDurationLabel: data.contractDurationLabel,
     lmsCredentials: data.lmsCredentials,
     sorobanCredentials: data.sorobanCredentials,
-    signatureImage: data.signatureImage,
+    signatureImage: preloadedImages.signatureImage,
     signedAt: data.signedAt,
     signatureHash: data.signatureHash,
   });
