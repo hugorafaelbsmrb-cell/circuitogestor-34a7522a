@@ -9,7 +9,8 @@ import {
   AlertCircle,
   Filter,
   Sparkles,
-  Calendar
+  Calendar,
+  Save
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -126,6 +127,11 @@ export function LeadsBulkMessageModal({
 
   // Current tab
   const [activeTab, setActiveTab] = useState('compose');
+
+  // Save as template states
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -612,9 +618,88 @@ export function LeadsBulkMessageModal({
                     value={selectedTemplateId && selectedTemplateId !== 'custom' ? selectedTemplate?.message || '' : customMessage}
                     onChange={(e) => setCustomMessage(e.target.value)}
                     placeholder="Digite sua mensagem ou use a IA para gerar..."
-                    className="min-h-[120px]"
+                    className="min-h-[100px]"
                     disabled={selectedTemplateId !== 'custom' && selectedTemplateId !== ''}
                   />
+
+                  {/* Save as template section */}
+                  {(selectedTemplateId === 'custom' || !selectedTemplateId) && customMessage.trim() && (
+                    <div className="mt-3 p-3 border rounded-lg bg-muted/30 space-y-2">
+                      {!showSaveTemplate ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-2"
+                          onClick={() => setShowSaveTemplate(true)}
+                        >
+                          <Save className="w-4 h-4" />
+                          Salvar como Template
+                        </Button>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <Input
+                              value={templateName}
+                              onChange={(e) => setTemplateName(e.target.value)}
+                              placeholder="Nome do template..."
+                              className="h-8"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={!templateName.trim() || isSavingTemplate}
+                              onClick={async () => {
+                                setIsSavingTemplate(true);
+                                const key = `whatsapp_template_${templateName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
+                                const templateValue = JSON.stringify({
+                                  name: templateName,
+                                  category: selectedCategory,
+                                  message: customMessage,
+                                });
+                                
+                                const { error } = await supabase
+                                  .from('app_settings')
+                                  .insert({
+                                    key,
+                                    value: templateValue,
+                                    description: `Template de mensagem: ${templateName}`,
+                                  });
+                                
+                                if (error) {
+                                  toast({
+                                    title: 'Erro ao salvar template',
+                                    description: error.message,
+                                    variant: 'destructive',
+                                  });
+                                } else {
+                                  toast({
+                                    title: 'Template salvo!',
+                                    description: 'O template foi salvo e está disponível para uso.',
+                                  });
+                                  fetchTemplates();
+                                  setTemplateName('');
+                                  setShowSaveTemplate(false);
+                                }
+                                setIsSavingTemplate(false);
+                              }}
+                              className="gap-1 h-8"
+                            >
+                              {isSavingTemplate ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Save className="w-3 h-3" />
+                              )}
+                              Salvar
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Será salvo na categoria: {categoryOptions.find(c => c.value === selectedCategory)?.label}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Variáveis: {'{nome_responsavel}'} = primeiro nome, {'{nome_aluno}'} = nome do aluno, {'{nome_curso}'} = curso de interesse
                   </p>
