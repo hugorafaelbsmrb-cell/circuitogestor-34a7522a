@@ -34,6 +34,10 @@ interface SystemBranding {
 const DEFAULT_NAME = 'Circuito Kids';
 
 export default function ContractSign() {
+  // Log imediato - primeira coisa que executa
+  console.log('🔴 SAFARI DEBUG: ContractSign component mounted');
+  console.log('🔴 Token from URL:', window.location.pathname);
+  
   const { token } = useParams<{ token: string }>();
   const { toast } = useToast();
   const signatureRef = useRef<SignaturePadRef>(null);
@@ -45,7 +49,7 @@ export default function ContractSign() {
   const [hasDrawn, setHasDrawn] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [signed, setSigned] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [debugInfo, setDebugInfo] = useState<string[]>(['🚀 Página iniciada']);
   const [branding, setBranding] = useState<SystemBranding>({ name: DEFAULT_NAME, logo: null });
   
   const addDebug = (msg: string) => {
@@ -53,14 +57,24 @@ export default function ContractSign() {
     setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
   };
 
+  // Show debug immediately on mount
+  useEffect(() => {
+    addDebug('useEffect executado');
+    addDebug(`Navigator: ${navigator.userAgent.substring(0, 50)}...`);
+    addDebug(`URL atual: ${window.location.href}`);
+  }, []);
+
   useEffect(() => {
     // Fetch branding in parallel (non-blocking)
     const fetchBranding = async () => {
+      addDebug('Iniciando fetch de branding...');
       try {
         const { data } = await supabase
           .from('app_settings')
           .select('key, value')
           .in('key', ['system_name', 'system_logo']);
+        
+        addDebug(`Branding recebido: ${data ? 'sim' : 'não'}`);
         
         if (data) {
           const nameEntry = data.find(d => d.key === 'system_name');
@@ -71,27 +85,28 @@ export default function ContractSign() {
             logo: logoEntry?.value || null,
           });
         }
-      } catch (err) {
+      } catch (error) {
         // Fail silently - use defaults
-        addDebug('Aviso: Não foi possível carregar branding, usando padrão');
+        addDebug(`ERRO Branding: ${error instanceof Error ? error.message : 'desconhecido'}`);
       }
     };
     
-    fetchBranding();
+    // Don't wait for branding to load contract
+    fetchBranding().catch(() => {});
     
-    addDebug('Iniciando carregamento...');
+    addDebug('Iniciando carregamento do contrato...');
     addDebug(`Token: ${token ? token.substring(0, 8) + '...' : 'nenhum'}`);
     
     // Timeout para evitar loading infinito no Safari
     const timeoutId = setTimeout(() => {
+      addDebug('⏰ TIMEOUT - 10 segundos');
       if (loading) {
-        addDebug('TIMEOUT - Loading demorou mais que 10s');
         setLoading(false);
         if (!contract && !error) {
           setError('Tempo esgotado ao carregar contrato. Por favor, recarregue a página.');
         }
       }
-    }, 10000);
+    }, 10000); // 10 segundos
     
     const fetchContract = async () => {
       if (!token) {
