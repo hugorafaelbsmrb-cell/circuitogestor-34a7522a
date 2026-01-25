@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Send, Loader2, MessageSquare, Image, FileText, Video, Paperclip, X, Smile, MapPin, Contact, MousePointerClick, List, Zap } from 'lucide-react';
+import { Send, Loader2, MessageSquare, Image, FileText, Video, Paperclip, X, Smile, MapPin, Contact, MousePointerClick, List, Zap, Link2, Receipt, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -90,6 +90,8 @@ export function MessageHistoryModal({
     isLocationEnabled,
     isVcardEnabled,
     isTypingEnabled,
+    isLinkPreviewEnabled,
+    sendLink,
   } = useWapiAdvanced();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -116,6 +118,23 @@ export function MessageHistoryModal({
   const [showListModal, setShowListModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
+  const [showBoletoModal, setShowBoletoModal] = useState(false);
+
+  // Boleto selection state
+  interface PendingPayment {
+    id: string;
+    description: string;
+    due_date: string;
+    value: number;
+    bank_slip_url: string | null;
+    invoice_url: string | null;
+    status: string;
+    installment_number: number | null;
+  }
+  const [pendingPayments, setPendingPayments] = useState<PendingPayment[]>([]);
+  const [isLoadingPayments, setIsLoadingPayments] = useState(false);
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(null);
+  const [boletoMessage, setBoletoMessage] = useState('');
 
   // Buttons form state
   const [buttonsForm, setButtonsForm] = useState({
@@ -524,6 +543,92 @@ export function MessageHistoryModal({
     setIsSending(false);
   };
 
+  // Load pending payments for the guardian
+  const loadPendingPayments = async () => {
+    if (!guardianId) return;
+    
+    setIsLoadingPayments(true);
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('id, description, due_date, value, bank_slip_url, invoice_url, status, installment_number')
+        .eq('guardian_id', guardianId)
+        .in('status', ['PENDING', 'OVERDUE'])
+        .not('bank_slip_url', 'is', null)
+        .order('due_date', { ascending: true });
+
+      if (error) throw error;
+      
+      setPendingPayments(data || []);
+    } catch (error) {
+      console.error('Error loading payments:', error);
+      toast({
+        title: 'Erro ao carregar boletos',
+        description: 'Não foi possível buscar os boletos pendentes.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingPayments(false);
+    }
+  };
+
+  const handleOpenBoletoModal = async () => {
+    setShowBoletoModal(true);
+    await loadPendingPayments();
+  };
+
+  const handleSendBoleto = async () => {
+    const selectedPayment = pendingPayments.find(p => p.id === selectedPaymentId);
+    if (!selectedPayment) {
+      toast({
+        title: 'Selecione um boleto',
+        description: 'Escolha um boleto para enviar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const boletoUrl = selectedPayment.bank_slip_url || selectedPayment.invoice_url;
+    if (!boletoUrl) {
+      toast({
+        title: 'Link não disponível',
+        description: 'Este boleto não possui um link para envio.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSending(true);
+    
+    // Get school name from config for the title
+    const { data: configData } = await supabase
+      .from('contract_config')
+      .select('school_name')
+      .single();
+    
+    const schoolName = configData?.school_name || 'Escola';
+    const formattedValue = `R$ ${selectedPayment.value.toFixed(2).replace('.', ',')}`;
+    const formattedDate = format(new Date(selectedPayment.due_date), 'dd/MM/yyyy', { locale: ptBR });
+    
+    const messageText = boletoMessage.trim() || 
+      `Olá! Segue o boleto de ${selectedPayment.description || 'mensalidade'} no valor de ${formattedValue} com vencimento em ${formattedDate}.`;
+
+    const success = await sendLink({
+      phone: guardianPhone,
+      url: boletoUrl,
+      title: `📄 Boleto ${schoolName}`,
+      description: messageText,
+    });
+
+    if (success) {
+      setShowBoletoModal(false);
+      setSelectedPaymentId(null);
+      setBoletoMessage('');
+      await loadMessages();
+    }
+    setIsSending(false);
+  };
+
   const renderMediaPreview = (msg: WhatsAppMessage) => {
     if (!msg.media_url) return null;
 
@@ -768,34 +873,37 @@ export function MessageHistoryModal({
                   </DropdownMenuItem>
                   
                   {/* Advanced features */}
-                  {(isButtonsEnabled() || isListsEnabled() || isLocationEnabled() || isVcardEnabled()) && (
-                    <>
-                      <DropdownMenuSeparator />
-                      {isButtonsEnabled() && (
-                        <DropdownMenuItem onClick={() => setShowButtonsModal(true)}>
-                          <MousePointerClick className="h-4 w-4 mr-2 text-green-500" />
-                          Botões de Resposta
-                        </DropdownMenuItem>
-                      )}
-                      {isListsEnabled() && (
-                        <DropdownMenuItem onClick={() => setShowListModal(true)}>
-                          <List className="h-4 w-4 mr-2 text-cyan-500" />
-                          Lista de Opções
-                        </DropdownMenuItem>
-                      )}
-                      {isLocationEnabled() && (
-                        <DropdownMenuItem onClick={() => setShowLocationModal(true)}>
-                          <MapPin className="h-4 w-4 mr-2 text-red-500" />
-                          Localização
-                        </DropdownMenuItem>
-                      )}
-                      {isVcardEnabled() && (
-                        <DropdownMenuItem onClick={() => setShowContactModal(true)}>
-                          <Contact className="h-4 w-4 mr-2 text-indigo-500" />
-                          Contato
-                        </DropdownMenuItem>
-                      )}
-                    </>
+                  <DropdownMenuSeparator />
+                  {/* Boleto Link - Always show if guardian has payments */}
+                  {isLinkPreviewEnabled() && (
+                    <DropdownMenuItem onClick={handleOpenBoletoModal}>
+                      <Link2 className="h-4 w-4 mr-2 text-emerald-500" />
+                      Mensagem com Link/Boleto
+                    </DropdownMenuItem>
+                  )}
+                  {isButtonsEnabled() && (
+                    <DropdownMenuItem onClick={() => setShowButtonsModal(true)}>
+                      <MousePointerClick className="h-4 w-4 mr-2 text-green-500" />
+                      Botões de Resposta
+                    </DropdownMenuItem>
+                  )}
+                  {isListsEnabled() && (
+                    <DropdownMenuItem onClick={() => setShowListModal(true)}>
+                      <List className="h-4 w-4 mr-2 text-cyan-500" />
+                      Lista de Opções
+                    </DropdownMenuItem>
+                  )}
+                  {isLocationEnabled() && (
+                    <DropdownMenuItem onClick={() => setShowLocationModal(true)}>
+                      <MapPin className="h-4 w-4 mr-2 text-red-500" />
+                      Localização
+                    </DropdownMenuItem>
+                  )}
+                  {isVcardEnabled() && (
+                    <DropdownMenuItem onClick={() => setShowContactModal(true)}>
+                      <Contact className="h-4 w-4 mr-2 text-indigo-500" />
+                      Contato
+                    </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -1081,6 +1189,113 @@ export function MessageHistoryModal({
               <Button onClick={handleSendContact} disabled={isSending}>
                 {isSending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Enviar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Boleto Modal */}
+      <Dialog open={showBoletoModal} onOpenChange={setShowBoletoModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5" />
+              Enviar Link de Boleto
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {isLoadingPayments ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : pendingPayments.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Receipt className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>Nenhum boleto pendente</p>
+                <p className="text-sm">Este responsável não possui boletos pendentes com link disponível.</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Selecione o boleto</Label>
+                  <ScrollArea className="h-[200px]">
+                    <div className="space-y-2 pr-4">
+                      {pendingPayments.map((payment) => {
+                        const isSelected = selectedPaymentId === payment.id;
+                        const formattedValue = `R$ ${payment.value.toFixed(2).replace('.', ',')}`;
+                        const formattedDate = format(new Date(payment.due_date), 'dd/MM/yyyy', { locale: ptBR });
+                        const isOverdue = new Date(payment.due_date) < new Date();
+
+                        return (
+                          <div
+                            key={payment.id}
+                            onClick={() => setSelectedPaymentId(payment.id)}
+                            className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                              isSelected 
+                                ? 'border-primary bg-primary/10' 
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1">
+                                <p className="font-medium text-sm">
+                                  {payment.description || 'Mensalidade'}
+                                  {payment.installment_number && ` - Parcela ${payment.installment_number}`}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Vencimento: {formattedDate}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold text-sm">{formattedValue}</p>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                  isOverdue 
+                                    ? 'bg-destructive/10 text-destructive' 
+                                    : 'bg-amber-500/10 text-amber-700'
+                                }`}>
+                                  {isOverdue ? 'Vencido' : 'Pendente'}
+                                </span>
+                              </div>
+                            </div>
+                            {(payment.bank_slip_url || payment.invoice_url) && (
+                              <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                                <ExternalLink className="h-3 w-3" />
+                                <span>Link disponível</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                <div>
+                  <Label>Mensagem (opcional)</Label>
+                  <Textarea
+                    value={boletoMessage}
+                    onChange={(e) => setBoletoMessage(e.target.value)}
+                    placeholder="Olá! Segue o boleto de mensalidade..."
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Deixe em branco para usar a mensagem padrão.
+                  </p>
+                </div>
+              </>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowBoletoModal(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleSendBoleto} 
+                disabled={isSending || !selectedPaymentId || pendingPayments.length === 0}
+              >
+                {isSending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Enviar Boleto
               </Button>
             </div>
           </div>
