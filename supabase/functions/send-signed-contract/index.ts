@@ -55,24 +55,24 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get W-API configuration
+    // Get W-API configuration (keys are uppercase in database)
     const { data: settings } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['w_api_url', 'w_api_token', 'w_api_instance_id', 'whatsapp_template_contract_signed']);
+      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION', 'whatsapp_template_contract_signed']);
 
     const getSettingValue = (key: string) => settings?.find(s => s.key === key)?.value || '';
     
-    const wapiUrl = getSettingValue('w_api_url') || 'https://api.w-api.app';
-    const wapiToken = getSettingValue('w_api_token');
-    const wapiInstanceId = getSettingValue('w_api_instance_id');
-    let template = getSettingValue('whatsapp_template_contract_signed') || 
+    const wapiUrl = getSettingValue('W_API_URL') || 'https://api.w-api.app';
+    const wapiToken = getSettingValue('W_API_TOKEN');
+    const wapiInstanceId = getSettingValue('W_API_SESSION');
+    const template = getSettingValue('whatsapp_template_contract_signed') || 
       'Olá {nome}! 🎉\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* foi assinado com sucesso!\n\n✅ *Data da assinatura:* {data_assinatura}\n📄 *Hash de verificação:* {hash}\n\nO documento possui validade jurídica conforme MP 2.200-2/2001.\n\nAgradecemos pela confiança! 🙂';
 
     if (!wapiToken || !wapiInstanceId) {
-      console.error('W-API not configured');
+      console.error('W-API not configured - Token:', !!wapiToken, 'InstanceId:', !!wapiInstanceId);
       return new Response(
-        JSON.stringify({ error: 'WhatsApp not configured' }),
+        JSON.stringify({ error: 'WhatsApp not configured', details: { hasToken: !!wapiToken, hasInstance: !!wapiInstanceId } }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
