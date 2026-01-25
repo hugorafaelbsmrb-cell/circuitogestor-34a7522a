@@ -132,18 +132,37 @@ Deno.serve(async (req) => {
       .replace(/{hash}/g, contract.signature_hash?.substring(0, 16) + '...' || 'N/A')
       .replace(/\\n/g, '\n');
 
-    // Use pre-generated PDF URL if provided
-    const pdfUrl = preGeneratedPdfUrl;
+    // Use pre-generated PDF URL if provided, otherwise try to find existing one in storage
+    let pdfUrl = preGeneratedPdfUrl;
     
     if (!pdfUrl) {
-      console.log('No PDF URL provided, skipping document send');
-      return new Response(
-        JSON.stringify({ error: 'PDF URL is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+      // Try to find existing PDF in storage
+      const studentNameSafe = (contract.student?.name || 'contrato')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9 ]/g, '')
+        .replace(/\s+/g, '_')
+        .substring(0, 30);
+      
+      // List files in contracts folder to find matching PDF
+      const { data: files } = await supabase
+        .storage
+        .from('system-branding')
+        .list('contratos', {
+          search: `contrato_${studentNameSafe}`,
+          sortBy: { column: 'created_at', order: 'desc' },
+          limit: 1
+        });
 
-    console.log('Using pre-generated PDF:', pdfUrl);
+      if (files && files.length > 0) {
+        const { data: urlData } = supabase
+          .storage
+          .from('system-branding')
+          .getPublicUrl(`contratos/${files[0].name}`);
+        pdfUrl = urlData?.publicUrl;
+        console.log('Found existing PDF in storage:', pdfUrl);
+      }
+    }
 
     // Create safe filename
     const studentNameSafe = (contract.student?.name || 'contrato')
@@ -152,6 +171,76 @@ Deno.serve(async (req) => {
       .replace(/[^a-zA-Z0-9 ]/g, '')
       .replace(/\s+/g, '_')
       .substring(0, 30);
+
+    // If no PDF available, send text message only
+    if (!pdfUrl) {
+      console.log('No PDF URL available, sending text message only');
+      
+      // Save message to database
+      const { data: messageRecord, error: messageError } = await supabase
+        .from('whatsapp_messages')
+        .insert({
+          phone: formattedPhone,
+          message,
+          direction: 'outgoing',
+          guardian_id: contract.guardian_id,
+          status: 'pending',
+        })
+        .select()
+        .single();
+
+      if (messageError) {
+        console.error('Error saving message:', messageError);
+      }
+
+      // Send text message via W-API
+      const sendResponse = await fetch(
+        `${wapiUrl}/v1/message/send-text?instanceId=${wapiInstanceId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${wapiToken}`,
+          },
+          body: JSON.stringify({
+            phone: formattedPhone,
+            message,
+            isGroup: false,
+          }),
+        }
+      );
+
+      const sendResult = await sendResponse.json();
+      console.log('W-API text response:', sendResult);
+
+      // Update message status
+      if (messageRecord) {
+        await supabase
+          .from('whatsapp_messages')
+          .update({
+            status: sendResponse.ok ? 'sent' : 'failed',
+            wapi_message_id: sendResult?.id || sendResult?.messageId || null,
+          })
+          .eq('id', messageRecord.id);
+      }
+
+      // Log the message
+      await supabase.from('message_logs').insert({
+        phone: formattedPhone,
+        guardian_id: contract.guardian_id,
+        message_preview: `Contrato assinado - ${contract.student?.name}`,
+        status: sendResponse.ok ? 'sent' : 'failed',
+        automation_key: 'auto_contract_signed_notify',
+        template_category: 'contract_signed',
+      });
+
+      return new Response(
+        JSON.stringify({ success: sendResponse.ok, messageId: sendResult?.id || sendResult?.messageId, note: 'Sent as text only (no PDF)' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Using PDF:', pdfUrl);
 
     // Save message to database first
     const { data: messageRecord, error: messageError } = await supabase
