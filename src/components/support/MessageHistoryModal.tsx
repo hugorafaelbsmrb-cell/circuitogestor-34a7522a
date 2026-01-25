@@ -58,14 +58,13 @@ const REACTION_EMOJIS = ['👍', '❤️', '✅', '🙏', '👏', '🔥'];
 
 const MESSAGE_EMOJIS = ['😀', '😊', '🙂', '😄', '😁', '😆', '🥰', '😍', '🤗', '👋', '👍', '👏', '🙌', '🎉', '✨', '💪', '🙏', '❤️', '💙', '💚', '✅', '⭐', '🎯', '📚', '📝', '🎓', '🏆', '🥇', '👨‍🏫', '👩‍🎓'];
 
-const QUICK_REPLIES = [
-  { label: 'Saudação', text: 'Olá! Tudo bem? Em que posso ajudar?' },
-  { label: 'Confirmação', text: 'Perfeito! Confirmado. ✅' },
-  { label: 'Agradecimento', text: 'Muito obrigado pelo contato! 🙏' },
-  { label: 'Aguardar', text: 'Aguarde um momento, por favor. Já retorno!' },
-  { label: 'Até logo', text: 'Foi um prazer atendê-lo! Qualquer dúvida, estamos à disposição. 👋' },
-  { label: 'Horário', text: 'Nosso horário de atendimento é de segunda a sexta, das 8h às 18h.' },
-];
+interface QuickReplyTemplate {
+  id: string;
+  label: string;
+  message: string;
+  sort_order: number;
+  is_active: boolean;
+}
 
 export function MessageHistoryModal({
   open,
@@ -105,7 +104,7 @@ export function MessageHistoryModal({
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  
+  const [quickReplies, setQuickReplies] = useState<QuickReplyTemplate[]>([]);
   // Media attachment state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedMediaType, setSelectedMediaType] = useState<MediaType | null>(null);
@@ -144,6 +143,27 @@ export function MessageHistoryModal({
     contactName: '',
     contactPhone: '',
   });
+
+  // Load quick replies on mount
+  useEffect(() => {
+    const loadQuickReplies = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('quick_reply_templates')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+
+        if (!error && data) {
+          setQuickReplies(data);
+        }
+      } catch (error) {
+        console.error('Error loading quick replies:', error);
+      }
+    };
+    
+    loadQuickReplies();
+  }, []);
 
   useEffect(() => {
     if (open && (guardianId || guardianPhone)) {
@@ -705,23 +725,25 @@ export function MessageHistoryModal({
           {/* Input Area */}
           <div className="p-4 border-t bg-muted/30 space-y-2">
             {/* Quick Replies Row */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              <span className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
-                <Zap className="h-3 w-3" />
-                Rápidas:
-              </span>
-              {QUICK_REPLIES.map((reply, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs shrink-0"
-                  onClick={() => setNewMessage(reply.text)}
-                >
-                  {reply.label}
-                </Button>
-              ))}
-            </div>
+            {quickReplies.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <span className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
+                  <Zap className="h-3 w-3" />
+                  Rápidas:
+                </span>
+                {quickReplies.map((reply) => (
+                  <Button
+                    key={reply.id}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => setNewMessage(reply.message)}
+                  >
+                    {reply.label}
+                  </Button>
+                ))}
+              </div>
+            )}
 
             <div className="flex gap-2">
               {/* Attachment Menu */}

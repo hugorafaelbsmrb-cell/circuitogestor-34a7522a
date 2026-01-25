@@ -45,6 +45,7 @@ import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { WapiConfigCard } from '@/components/settings/WapiConfigCard';
 import { AutomationControlPanel } from '@/components/settings/AutomationControlPanel';
 import { MessageLogsViewer } from '@/components/settings/MessageLogsViewer';
+import { QuickRepliesConfigCard } from '@/components/settings/QuickRepliesConfigCard';
 import { cn } from '@/lib/utils';
 
 interface AppSetting {
@@ -707,10 +708,13 @@ export default function Settings() {
 
       case 'whatsapp':
         return (
-          <WapiConfigCard 
-            editedSettings={editedSettings} 
-            setEditedSettings={setEditedSettings} 
-          />
+          <div className="space-y-6">
+            <WapiConfigCard 
+              editedSettings={editedSettings} 
+              setEditedSettings={setEditedSettings} 
+            />
+            <QuickRepliesConfigCard />
+          </div>
         );
 
       case 'webhooks':
