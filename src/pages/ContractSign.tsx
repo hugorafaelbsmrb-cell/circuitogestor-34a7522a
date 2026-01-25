@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -34,10 +34,6 @@ interface SystemBranding {
 const DEFAULT_NAME = 'Circuito Kids';
 
 export default function ContractSign() {
-  // Log imediato - primeira coisa que executa
-  console.log('🔴 SAFARI DEBUG: ContractSign component mounted');
-  console.log('🔴 Token from URL:', window.location.pathname);
-  
   const { token } = useParams<{ token: string }>();
   const { toast } = useToast();
   const signatureRef = useRef<SignaturePadRef>(null);
@@ -52,17 +48,33 @@ export default function ContractSign() {
   const [debugInfo, setDebugInfo] = useState<string[]>(['🚀 Página iniciada']);
   const [branding, setBranding] = useState<SystemBranding>({ name: DEFAULT_NAME, logo: null });
   
-  const addDebug = (msg: string) => {
+  const addDebug = useCallback((msg: string) => {
     console.log('[ContractSign]', msg);
     setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
-  };
-
-  // Show debug immediately on mount
-  useEffect(() => {
-    addDebug('useEffect executado');
-    addDebug(`Navigator: ${navigator.userAgent.substring(0, 50)}...`);
-    addDebug(`URL atual: ${window.location.href}`);
   }, []);
+
+  // Detect browser and log on mount
+  useEffect(() => {
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    
+    console.log('🔴 [ContractSign] Component mounted');
+    console.log('🔴 [ContractSign] Browser:', { isSafari, isIOS, userAgent: navigator.userAgent });
+    console.log('🔴 [ContractSign] Token from URL:', window.location.pathname);
+    console.log('🔴 [ContractSign] Viewport:', { width: window.innerWidth, height: window.innerHeight });
+    
+    addDebug('useEffect executado');
+    addDebug(`Browser: ${isSafari ? 'Safari' : 'Outro'} ${isIOS ? '(iOS)' : ''}`);
+    addDebug(`URL atual: ${window.location.href}`);
+    
+    // Test crypto API availability (Safari compatibility)
+    if (typeof crypto === 'undefined' || !crypto.subtle) {
+      console.error('🔴 [ContractSign] Crypto API not available!');
+      addDebug('❌ ERRO: Crypto API não disponível neste navegador');
+    } else {
+      addDebug('✅ Crypto API disponível');
+    }
+  }, [addDebug]);
 
   useEffect(() => {
     // Fetch branding in parallel (non-blocking)
@@ -257,7 +269,7 @@ export default function ContractSign() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-4">
         <div className="text-center space-y-4 max-w-md">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground">Carregando contrato...</p>
@@ -280,7 +292,7 @@ export default function ContractSign() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-card rounded-xl border border-border shadow-lg p-8 text-center">
           <XCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
           <h1 className="text-xl font-bold text-foreground mb-2">Link Inválido</h1>
@@ -304,7 +316,7 @@ export default function ContractSign() {
 
   if (signed) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-4">
+      <div className="min-h-dvh bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-card rounded-xl border border-border shadow-lg p-8 text-center">
           <CheckCircle2 className="w-16 h-16 text-success mx-auto mb-4" />
           <h1 className="text-xl font-bold text-foreground mb-2">Contrato Assinado!</h1>
@@ -324,7 +336,7 @@ export default function ContractSign() {
   const content = contract?.contract_content;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30">
+    <div className="min-h-dvh bg-gradient-to-br from-background to-secondary/30">
       {/* Header */}
       <header className="bg-card border-b border-border py-4">
         <div className="container mx-auto px-4 flex items-center justify-center">
