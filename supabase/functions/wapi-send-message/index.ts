@@ -134,34 +134,52 @@ Deno.serve(async (req) => {
     const savedMsgId = savedMsg?.id;
 
     // Build candidates based on message type
+    // W-API uses /api/send with instance_id and access_token in body
     const candidates: Array<{
       url: string;
       body: Record<string, unknown>;
       description: string;
     }> = [];
 
+    const chatId = `${formattedPhone}@c.us`;
+
     if (mediaUrl && mediaType) {
       // MEDIA MESSAGE ENDPOINTS
-      const chatId = `${formattedPhone}@c.us`;
       const mediaCaption = caption || message || '';
 
       switch (mediaType) {
         case 'image':
           candidates.push(
+            // W-API unified /api/send endpoint with type
+            {
+              url: `${baseUrl}/api/send`,
+              body: { 
+                instance_id: instanceId, 
+                access_token: apiKey, 
+                number: formattedPhone, 
+                type: 'image',
+                message: mediaCaption,
+                media_url: mediaUrl,
+              },
+              description: 'api/send image',
+            },
+            // Alternative with chatId
+            {
+              url: `${baseUrl}/send`,
+              body: { 
+                instance_id: instanceId, 
+                access_token: apiKey, 
+                chatId,
+                text: mediaCaption,
+                file: { url: mediaUrl },
+              },
+              description: 'send with file object',
+            },
+            // Legacy sendImage
             {
               url: `${baseUrl}/sendImage?instanceId=${encoded}`,
               body: { phone: formattedPhone, image: mediaUrl, caption: mediaCaption, isGroup },
-              description: 'sendImage with phone',
-            },
-            {
-              url: `${baseUrl}/sendImage?instanceId=${encoded}`,
-              body: { chatId, image: mediaUrl, caption: mediaCaption, isGroup },
-              description: 'sendImage with chatId',
-            },
-            {
-              url: `${baseUrl}/message/send-image?instanceId=${encoded}`,
-              body: { phone: formattedPhone, image: mediaUrl, caption: mediaCaption },
-              description: 'legacy send-image',
+              description: 'sendImage legacy',
             }
           );
           break;
@@ -170,19 +188,33 @@ Deno.serve(async (req) => {
           const docFileName = fileName || 'documento.pdf';
           candidates.push(
             {
-              url: `${baseUrl}/sendDocument?instanceId=${encoded}`,
-              body: { phone: formattedPhone, document: mediaUrl, fileName: docFileName, caption: mediaCaption, isGroup },
-              description: 'sendDocument with phone',
+              url: `${baseUrl}/api/send`,
+              body: { 
+                instance_id: instanceId, 
+                access_token: apiKey, 
+                number: formattedPhone, 
+                type: 'document',
+                message: mediaCaption,
+                media_url: mediaUrl,
+                filename: docFileName,
+              },
+              description: 'api/send document',
+            },
+            {
+              url: `${baseUrl}/send`,
+              body: { 
+                instance_id: instanceId, 
+                access_token: apiKey, 
+                chatId,
+                text: mediaCaption,
+                file: { url: mediaUrl },
+              },
+              description: 'send with file object',
             },
             {
               url: `${baseUrl}/sendDocument?instanceId=${encoded}`,
-              body: { chatId, document: mediaUrl, fileName: docFileName, caption: mediaCaption, isGroup },
-              description: 'sendDocument with chatId',
-            },
-            {
-              url: `${baseUrl}/message/send-document?instanceId=${encoded}`,
               body: { phone: formattedPhone, document: mediaUrl, fileName: docFileName, caption: mediaCaption },
-              description: 'legacy send-document',
+              description: 'sendDocument legacy',
             }
           );
           break;
@@ -190,19 +222,32 @@ Deno.serve(async (req) => {
         case 'video':
           candidates.push(
             {
-              url: `${baseUrl}/sendVideo?instanceId=${encoded}`,
-              body: { phone: formattedPhone, video: mediaUrl, caption: mediaCaption, isGroup },
-              description: 'sendVideo with phone',
+              url: `${baseUrl}/api/send`,
+              body: { 
+                instance_id: instanceId, 
+                access_token: apiKey, 
+                number: formattedPhone, 
+                type: 'video',
+                message: mediaCaption,
+                media_url: mediaUrl,
+              },
+              description: 'api/send video',
+            },
+            {
+              url: `${baseUrl}/send`,
+              body: { 
+                instance_id: instanceId, 
+                access_token: apiKey, 
+                chatId,
+                text: mediaCaption,
+                file: { url: mediaUrl },
+              },
+              description: 'send with file object',
             },
             {
               url: `${baseUrl}/sendVideo?instanceId=${encoded}`,
-              body: { chatId, video: mediaUrl, caption: mediaCaption, isGroup },
-              description: 'sendVideo with chatId',
-            },
-            {
-              url: `${baseUrl}/message/send-video?instanceId=${encoded}`,
               body: { phone: formattedPhone, video: mediaUrl, caption: mediaCaption },
-              description: 'legacy send-video',
+              description: 'sendVideo legacy',
             }
           );
           break;
@@ -210,43 +255,77 @@ Deno.serve(async (req) => {
         case 'audio':
           candidates.push(
             {
-              url: `${baseUrl}/sendAudio?instanceId=${encoded}`,
-              body: { phone: formattedPhone, audio: mediaUrl, isGroup },
-              description: 'sendAudio with phone',
+              url: `${baseUrl}/api/send`,
+              body: { 
+                instance_id: instanceId, 
+                access_token: apiKey, 
+                number: formattedPhone, 
+                type: 'audio',
+                media_url: mediaUrl,
+              },
+              description: 'api/send audio',
+            },
+            {
+              url: `${baseUrl}/send`,
+              body: { 
+                instance_id: instanceId, 
+                access_token: apiKey, 
+                chatId,
+                file: { url: mediaUrl },
+              },
+              description: 'send with file object',
             },
             {
               url: `${baseUrl}/sendAudio?instanceId=${encoded}`,
-              body: { chatId, audio: mediaUrl, isGroup },
-              description: 'sendAudio with chatId',
-            },
-            {
-              url: `${baseUrl}/message/send-audio?instanceId=${encoded}`,
               body: { phone: formattedPhone, audio: mediaUrl },
-              description: 'legacy send-audio',
+              description: 'sendAudio legacy',
             }
           );
           break;
       }
     } else {
       // TEXT MESSAGE ENDPOINTS
+      // W-API unified /api/send endpoint
       candidates.push(
-        // POST /sendText with phone + message in body
+        {
+          url: `${baseUrl}/api/send`,
+          body: { 
+            instance_id: instanceId, 
+            access_token: apiKey, 
+            number: formattedPhone, 
+            type: 'text',
+            message: message,
+          },
+          description: 'api/send text',
+        },
+        // Alternative /send endpoint
+        {
+          url: `${baseUrl}/send`,
+          body: { 
+            instance_id: instanceId, 
+            access_token: apiKey, 
+            chatId,
+            text: message,
+          },
+          description: 'send with chatId',
+        },
+        // V1 api/send
+        {
+          url: `${baseUrl}/v1/api/send`,
+          body: { 
+            instance_id: instanceId, 
+            access_token: apiKey, 
+            number: formattedPhone, 
+            type: 'text',
+            message: message,
+          },
+          description: 'v1/api/send text',
+        },
+        // Legacy sendText with instanceId in query
         {
           url: `${baseUrl}/sendText?instanceId=${encoded}`,
           body: { phone: formattedPhone, message, isGroup },
-          description: 'sendText with phone',
-        },
-        // Alternative: chatId format
-        {
-          url: `${baseUrl}/sendText?instanceId=${encoded}`,
-          body: { chatId: `${formattedPhone}@c.us`, message, isGroup },
-          description: 'sendText with chatId',
-        },
-        // Legacy: /message/send-text
-        {
-          url: `${baseUrl}/message/send-text?instanceId=${encoded}`,
-          body: { phone: formattedPhone, message, isGroup },
-          description: 'legacy send-text',
+          description: 'sendText legacy',
         }
       );
     }
