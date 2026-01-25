@@ -53,6 +53,7 @@ interface MessageHistoryModalProps {
   guardianPhone: string;
   studentNames?: string[];
   avatarUrl?: string | null;
+  courseNames?: string[];
 }
 
 type MediaType = 'image' | 'document' | 'video' | 'audio';
@@ -77,6 +78,7 @@ export function MessageHistoryModal({
   guardianPhone,
   studentNames = [],
   avatarUrl,
+  courseNames = [],
 }: MessageHistoryModalProps) {
   const { toast } = useToast();
   const { branding } = useSystemBranding();
@@ -774,7 +776,13 @@ export function MessageHistoryModal({
                 {studentNames.join(', ')}
               </p>
             )}
-            <p className="text-sm text-muted-foreground">{guardianPhone}</p>
+            {courseNames.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {courseNames.length === 1 ? 'Curso: ' : 'Cursos: '}
+                {courseNames.join(', ')}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">{guardianPhone}</p>
           </DialogHeader>
 
           {/* Hidden file input */}
