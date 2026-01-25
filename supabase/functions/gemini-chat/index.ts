@@ -134,6 +134,16 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
       const errorText = await response.text();
       console.error("Gemini API error:", response.status, errorText);
 
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({
+            error: "Créditos de IA esgotados. Adicione créditos em Settings → Workspace → Usage.",
+            status: 402,
+          }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       if (response.status === 429) {
         const retryAfter = response.headers.get("retry-after");
         return new Response(
