@@ -36,7 +36,13 @@ Deno.serve(async (req) => {
         student:students(name, birth_date),
         guardian:guardians(name, phone, cpf, address),
         course:courses(name, duration, price),
-        enrollment:enrollments(class_group:class_groups(name, schedule:schedules(day_of_week, start_time, end_time)))
+        enrollment:enrollments(
+          id,
+          class_group:class_groups(
+            name, 
+            schedule:schedules(day_of_week, start_time, end_time)
+          )
+        )
       `)
       .eq('id', contractId)
       .single();
@@ -54,6 +60,38 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Contract is not signed yet' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Fetch LMS and Soroban credentials for this enrollment
+    const { data: lmsCredentials } = await supabase
+      .from('lms_credentials')
+      .select('email, password, matricula')
+      .eq('enrollment_id', contract.enrollment.id)
+      .maybeSingle();
+
+    const { data: sorobanCredentials } = await supabase
+      .from('soroban_credentials')
+      .select('email, password, matricula, current_level')
+      .eq('enrollment_id', contract.enrollment.id)
+      .maybeSingle();
+
+    // Get contract config with school branding
+    const { data: brandingData } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'system_branding')
+      .maybeSingle();
+
+    let schoolLogoUrl = null;
+    if (brandingData?.value) {
+      try {
+        const branding = typeof brandingData.value === 'string' 
+          ? JSON.parse(brandingData.value) 
+          : brandingData.value;
+        schoolLogoUrl = branding?.logo || null;
+      } catch (e) {
+        console.error('Error parsing branding:', e);
+      }
     }
 
     // Get W-API configuration and contract config
@@ -120,13 +158,17 @@ Deno.serve(async (req) => {
       .replace(/{hash}/g, contract.signature_hash?.substring(0, 16) + '...' || 'N/A')
       .replace(/\\n/g, '\n');
 
-    // Generate comprehensive PDF content with clauses
+    // Use saved contract content or generate from database
     const contractContent = contract.contract_content as any;
-    const pdfBytes = generateComprehensiveContractPDF({
+    
+    // Prepare content for PDF matching ContractPrintView
+    const pdfContent = {
       schoolName: contractConfig?.school_name || 'Circuito Kids',
       schoolCnpj: contractConfig?.school_cnpj || '',
       schoolAddress: contractConfig?.school_address || '',
+      schoolLogo: schoolLogoUrl,
       schoolRepresentativeName: contractConfig?.representative_name || null,
+      schoolSignatureUrl: (contractConfig as any)?.representative_signature_url || null,
       guardianName: contract.guardian?.name || '',
       guardianCpf: contract.guardian?.cpf || '',
       guardianAddress: contract.guardian?.address || '',
@@ -145,7 +187,11 @@ Deno.serve(async (req) => {
       signedAt: contract.signed_at,
       signatureHash: contract.signature_hash,
       signatureImage: contract.signature_image,
-    });
+      lmsCredentials: lmsCredentials || null,
+      sorobanCredentials: sorobanCredentials || null,
+    };
+
+    const pdfBytes = generateComprehensiveContractPDF(pdfContent);
 
     // Upload PDF to Supabase Storage
     const studentNameSafe = (contract.student?.name || 'contrato').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
@@ -265,7 +311,9 @@ interface ContractPDFContent {
   schoolName: string;
   schoolCnpj: string;
   schoolAddress: string;
+  schoolLogo: string | null;
   schoolRepresentativeName: string | null;
+  schoolSignatureUrl: string | null;
   guardianName: string;
   guardianCpf: string;
   guardianAddress: string;
@@ -284,6 +332,8 @@ interface ContractPDFContent {
   signedAt?: string | null;
   signatureHash?: string | null;
   signatureImage?: string | null;
+  lmsCredentials?: { email: string; password: string; matricula: string } | null;
+  sorobanCredentials?: { email: string; password: string; matricula: string; current_level?: number } | null;
 }
 
 // Generate comprehensive PDF with all clauses
@@ -299,6 +349,7 @@ function generateComprehensiveContractPDF(content: ContractPDFContent): Uint8Arr
     : new Date().toLocaleDateString('pt-BR');
 
   const installmentValue = content.installmentValue.toFixed(2).replace('.', ',');
+  const totalValue = content.totalValue.toFixed(2).replace('.', ',');
   
   // Format city and date
   const city = extractCity(content.schoolAddress);
@@ -309,28 +360,28 @@ function generateComprehensiveContractPDF(content: ContractPDFContent): Uint8Arr
     year: 'numeric' 
   });
 
-  // Build comprehensive content stream with all clauses
+  // Build PAGE 1 - CONTRACT with clauses
   const lines = [
-    { text: 'CONTRATO DE PRESTACAO DE SERVICOS EDUCACIONAIS', x: 50, y: 750, size: 14 },
-    { text: escapeText(content.schoolName), x: 50, y: 730, size: 11 },
-    { text: '', x: 50, y: 720, size: 1 },
-    { text: 'Pelo presente instrumento particular, de um lado:', x: 50, y: 710, size: 9 },
+    { text: 'CONTRATO DE PRESTACAO DE SERVICOS EDUCACIONAIS', x: 50, y: 770, size: 13 },
+    { text: escapeText(content.schoolName.toUpperCase()), x: 50, y: 755, size: 10 },
+    { text: '', x: 50, y: 745, size: 1 },
+    { text: 'Pelo presente instrumento particular, de um lado:', x: 50, y: 735, size: 9 },
+    { text: '', x: 50, y: 730, size: 1 },
+    { text: `CONTRATADA: ${escapeText(content.schoolName)}, CNPJ ${escapeText(content.schoolCnpj)},`, x: 50, y: 720, size: 9 },
+    { text: escapeText(content.schoolAddress), x: 50, y: 710, size: 9 },
     { text: '', x: 50, y: 700, size: 1 },
-    { text: `CONTRATADA: ${escapeText(content.schoolName)}, CNPJ ${escapeText(content.schoolCnpj)},`, x: 50, y: 690, size: 9 },
-    { text: escapeText(content.schoolAddress), x: 50, y: 680, size: 9 },
+    { text: `CONTRATANTE: ${escapeText(content.guardianName)}, responsavel pelo(a) aluno(a)`, x: 50, y: 690, size: 9 },
+    { text: `${escapeText(content.studentName)}, CPF ${escapeText(content.guardianCpf)}.`, x: 50, y: 680, size: 9 },
     { text: '', x: 50, y: 670, size: 1 },
-    { text: `CONTRATANTE: ${escapeText(content.guardianName)}, responsavel pelo(a) aluno(a)`, x: 50, y: 660, size: 9 },
-    { text: `${escapeText(content.studentName)}, CPF ${escapeText(content.guardianCpf)}.`, x: 50, y: 650, size: 9 },
-    { text: '', x: 50, y: 640, size: 1 },
-    { text: 'As partes celebram o presente contrato nos termos do ECA e da LGPD:', x: 50, y: 630, size: 9 },
-    { text: '', x: 50, y: 620, size: 1 },
+    { text: 'As partes celebram o presente contrato nos termos do ECA e da LGPD:', x: 50, y: 660, size: 9 },
+    { text: '', x: 50, y: 650, size: 1 },
   ];
 
   // Add all contract clauses
-  let yPosition = 610;
+  let yPosition = 640;
   if (content.clauses && content.clauses.length > 0) {
     content.clauses.forEach((clause: any, index: number) => {
-      if (yPosition > 100) {
+      if (yPosition > 120) {
         lines.push({ text: `CLAUSULA ${index + 1} - ${escapeText(clause.title?.toUpperCase() || '')}`, x: 50, y: yPosition, size: 9 });
         yPosition -= 10;
         
@@ -338,7 +389,7 @@ function generateComprehensiveContractPDF(content: ContractPDFContent): Uint8Arr
         const clauseText = escapeText(clause.content || '');
         const maxChars = 85;
         let startIdx = 0;
-        while (startIdx < clauseText.length && yPosition > 100) {
+        while (startIdx < clauseText.length && yPosition > 120) {
           const endIdx = Math.min(startIdx + maxChars, clauseText.length);
           let line = clauseText.substring(startIdx, endIdx);
           
@@ -360,7 +411,7 @@ function generateComprehensiveContractPDF(content: ContractPDFContent): Uint8Arr
   }
 
   // Add signature section
-  if (yPosition > 150) {
+  if (yPosition > 180) {
     lines.push({ text: '', x: 50, y: yPosition, size: 1 });
     yPosition -= 10;
     lines.push({ text: `${city}, ${formattedDate}.`, x: 50, y: yPosition, size: 9 });
@@ -373,13 +424,72 @@ function generateComprehensiveContractPDF(content: ContractPDFContent): Uint8Arr
     lines.push({ text: '(CONTRATADA)', x: 120, y: yPosition, size: 8 });
     lines.push({ text: '(CONTRATANTE)', x: 380, y: yPosition, size: 8 });
     yPosition -= 10;
-    lines.push({ text: `Assinado digitalmente em ${signedDateStr}`, x: 350, y: yPosition, size: 7 });
-    yPosition -= 10;
-    lines.push({ text: `Codigo de verificacao: ${escapeText(content.signatureHash?.substring(0, 32) || 'N/A')}`, x: 50, y: yPosition, size: 7 });
+    if (content.signedAt) {
+      lines.push({ text: `Assinado digitalmente em ${signedDateStr}`, x: 350, y: yPosition, size: 7 });
+      yPosition -= 8;
+    }
+  }
+  if (content.signatureHash && yPosition > 120) {
+    lines.push({ text: `Hash: ${escapeText(content.signatureHash.substring(0, 40))}...`, x: 50, y: yPosition, size: 6 });
+  }
+
+  // Build PAGE 2 - ANNEXES
+  const annexLines = [
+    { text: 'ANEXOS DO CONTRATO', x: 50, y: 770, size: 13 },
+    { text: '', x: 50, y: 755, size: 1 },
+    { text: 'ANEXO I - REFORCO ESCOLAR (1 A 5 ANO)', x: 50, y: 745, size: 10 },
+    { text: '- Modalidade: Plano Semestral (06 meses)', x: 60, y: 735, size: 9 },
+    { text: '- 2x na semana: R$ 200,00 | 3x na semana: R$ 250,00 | 5x na semana: R$ 300,00', x: 60, y: 725, size: 9 },
+    { text: '', x: 50, y: 715, size: 1 },
+    { text: 'ANEXO II - ROBOTICA EDUCACIONAL', x: 50, y: 705, size: 10 },
+    { text: '- Frequencia: 02 vezes na semana | Plano: Anual (12 meses)', x: 60, y: 695, size: 9 },
+    { text: '- Valor Mensal: R$ 250,00', x: 60, y: 685, size: 9 },
+    { text: '', x: 50, y: 675, size: 1 },
+    { text: 'ANEXO III - SOROBAN (ABACO JAPONES)', x: 50, y: 665, size: 10 },
+    { text: '- Frequencia: 02 vezes na semana | Duracao: 18 meses (10 niveis)', x: 60, y: 655, size: 9 },
+    { text: '- Valor Mensal: R$ 250,00 + Material Didatico', x: 60, y: 645, size: 9 },
+    { text: '', x: 50, y: 635, size: 1 },
+    { text: '*** MODALIDADE CONTRATADA ***', x: 50, y: 620, size: 11 },
+    { text: `Curso: ${escapeText(content.courseName)}`, x: 60, y: 605, size: 9 },
+    { text: `Turma: ${escapeText(content.classGroupName)} | Horario: ${escapeText(content.schedule)}`, x: 60, y: 595, size: 9 },
+    { text: `Duracao do Contrato: ${content.installments} meses`, x: 60, y: 585, size: 9 },
+    { text: `Valor Mensal: R$ ${installmentValue} | Numero de Parcelas: ${content.installments}x`, x: 60, y: 575, size: 9 },
+    { text: `Valor Total: R$ ${totalValue}`, x: 60, y: 565, size: 9 },
+    { text: '', x: 50, y: 550, size: 1 },
+  ];
+
+  let annexYPosition = 535;
+
+  // Add LMS credentials if available
+  if (content.lmsCredentials) {
+    annexLines.push({ text: '*** ACESSO A PLATAFORMA DE ENSINO (LMS) ***', x: 50, y: annexYPosition, size: 10 });
+    annexYPosition -= 12;
+    annexLines.push({ text: `Matricula: ${escapeText(content.lmsCredentials.matricula)}`, x: 60, y: annexYPosition, size: 9 });
+    annexYPosition -= 10;
+    annexLines.push({ text: `E-mail: ${escapeText(content.lmsCredentials.email)}`, x: 60, y: annexYPosition, size: 9 });
+    annexYPosition -= 10;
+    annexLines.push({ text: `Senha: ${escapeText(content.lmsCredentials.password)}`, x: 60, y: annexYPosition, size: 9 });
+    annexYPosition -= 15;
+  }
+
+  // Add Soroban credentials if available
+  if (content.sorobanCredentials) {
+    annexLines.push({ text: '*** ACESSO AO SOROBAN ONLINE ***', x: 50, y: annexYPosition, size: 10 });
+    annexYPosition -= 12;
+    annexLines.push({ text: `Matricula: ${escapeText(content.sorobanCredentials.matricula)}`, x: 60, y: annexYPosition, size: 9 });
+    annexYPosition -= 10;
+    annexLines.push({ text: `E-mail: ${escapeText(content.sorobanCredentials.email)}`, x: 60, y: annexYPosition, size: 9 });
+    annexYPosition -= 10;
+    annexLines.push({ text: `Senha: ${escapeText(content.sorobanCredentials.password)}`, x: 60, y: annexYPosition, size: 9 });
+    if (content.sorobanCredentials.current_level) {
+      annexYPosition -= 10;
+      annexLines.push({ text: `Nivel Atual: ${content.sorobanCredentials.current_level}`, x: 60, y: annexYPosition, size: 9 });
+    }
+    annexYPosition -= 15;
   }
 
   // Build content stream
-  let contentStream = 'BT\n';
+  let contentStream = 'BT\n/F1 12 Tf\n';
   for (const line of lines) {
     contentStream += `/F1 ${line.size} Tf\n`;
     contentStream += `${line.x} ${line.y} Td\n`;
@@ -388,16 +498,27 @@ function generateComprehensiveContractPDF(content: ContractPDFContent): Uint8Arr
   }
   contentStream += 'ET';
 
-  const streamLength = contentStream.length;
+  // Build annex content stream
+  let annexStream = 'BT\n/F1 12 Tf\n';
+  for (const line of annexLines) {
+    annexStream += `/F1 ${line.size} Tf\n`;
+    annexStream += `${line.x} ${line.y} Td\n`;
+    annexStream += `(${line.text}) Tj\n`;
+    annexStream += `${-line.x} ${-line.y} Td\n`;
+  }
+  annexStream += 'ET';
 
-  // Build PDF structure
+  const streamLength = contentStream.length;
+  const annexStreamLength = annexStream.length;
+
+  // Build PDF structure with 2 pages
   const pdf = `%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
 endobj
 
 2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>
 endobj
 
 3 0 obj
@@ -415,19 +536,32 @@ endobj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
 endobj
 
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+
+7 0 obj
+<< /Length ${annexStreamLength} >>
+stream
+${annexStream}
+endstream
+endobj
+
 xref
-0 6
+0 8
 0000000000 65535 f 
 0000000009 00000 n 
 0000000058 00000 n 
-0000000115 00000 n 
-0000000266 00000 n 
-0000000${(300 + streamLength).toString().padStart(3, '0')} 00000 n 
+0000000121 00000 n 
+0000000272 00000 n 
+0000000${(310 + streamLength).toString().padStart(3, '0')} 00000 n 
+0000000${(410 + streamLength).toString().padStart(3, '0')} 00000 n 
+0000000${(561 + streamLength).toString().padStart(3, '0')} 00000 n 
 
 trailer
-<< /Size 6 /Root 1 0 R >>
+<< /Size 8 /Root 1 0 R >>
 startxref
-${400 + streamLength}
+${600 + streamLength + annexStreamLength}
 %%EOF`;
 
   return new TextEncoder().encode(pdf);
