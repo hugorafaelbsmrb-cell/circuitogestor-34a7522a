@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// W-API PRO uses api.wapi.com.br exclusively
-const PRO_BASE_URL = 'https://api.wapi.com.br';
+// Default W-API URL (can be overridden by app_settings)
+const DEFAULT_WAPI_URL = 'https://api.w-api.app';
 
 interface SendMessageRequest {
   phone: string;
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_TOKEN', 'W_API_SESSION']);
+      .in('key', ['W_API_TOKEN', 'W_API_SESSION', 'W_API_URL']);
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
@@ -93,10 +93,12 @@ Deno.serve(async (req) => {
 
     const apiKey = config.W_API_TOKEN;
     const instanceId = config.W_API_SESSION;
+    // Use W_API_URL from database or default to api.w-api.app
+    const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
     const encoded = encodeURIComponent(instanceId);
 
-    console.log('=== W-API PRO Send Message ===');
-    console.log(`PRO Base URL: ${PRO_BASE_URL}`);
+    console.log('=== W-API Send Message ===');
+    console.log(`Base URL: ${baseUrl}`);
     console.log(`Instance ID: ${instanceId}`);
     console.log(`Phone: ${formattedPhone}`);
     console.log(`API Key: ${apiKey.slice(0, 8)}...`);
@@ -119,25 +121,25 @@ Deno.serve(async (req) => {
 
     const savedMsgId = savedMsg?.id;
 
-    // W-API PRO send message endpoints
-    // Using apikey header (not Bearer Authorization)
+    // W-API send message endpoints
+    // Using apikey header
     const candidates: Array<{
       url: string;
       body: Record<string, unknown>;
     }> = [
       // POST /sendText with phone + message in body
       {
-        url: `${PRO_BASE_URL}/sendText?instanceId=${encoded}`,
+        url: `${baseUrl}/sendText?instanceId=${encoded}`,
         body: { phone: formattedPhone, message, isGroup },
       },
       // Alternative: chatId format
       {
-        url: `${PRO_BASE_URL}/sendText?instanceId=${encoded}`,
+        url: `${baseUrl}/sendText?instanceId=${encoded}`,
         body: { chatId: `${formattedPhone}@c.us`, message, isGroup },
       },
       // Legacy: /message/send-text
       {
-        url: `${PRO_BASE_URL}/message/send-text?instanceId=${encoded}`,
+        url: `${baseUrl}/message/send-text?instanceId=${encoded}`,
         body: { phone: formattedPhone, message, isGroup },
       },
     ];
@@ -210,7 +212,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.error('All W-API PRO send endpoints failed:', { attempts, lastStatus, lastError });
+    console.error('All W-API send endpoints failed:', { attempts, lastStatus, lastError });
     
     // Update message status to 'failed'
     if (savedMsgId) {
@@ -222,7 +224,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        error: 'Não foi possível enviar mensagem via W-API PRO',
+        error: 'Não foi possível enviar mensagem via W-API',
         lastStatus,
         details: lastError,
         attempts,
