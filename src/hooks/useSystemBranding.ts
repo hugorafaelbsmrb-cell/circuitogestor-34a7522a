@@ -8,8 +8,9 @@ interface SystemBranding {
   browserTitle: string | null;
 }
 
-const DEFAULT_NAME = 'EduGestor';
-const DEFAULT_BROWSER_TITLE = 'EduGestor';
+const DEFAULT_NAME = 'Circuito Kids';
+const DEFAULT_BROWSER_TITLE = 'Circuito Kids';
+const DEFAULT_FAVICON = '/favicon.png';
 
 export function useSystemBranding() {
   const [branding, setBranding] = useState<SystemBranding>({
@@ -30,16 +31,16 @@ export function useSystemBranding() {
     const title = branding.browserTitle || branding.name || DEFAULT_BROWSER_TITLE;
     document.title = title;
 
-    // Update favicon
-    if (branding.favicon) {
-      let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.head.appendChild(link);
-      }
-      link.href = branding.favicon;
+    // Update favicon - always set one
+    const faviconUrl = branding.favicon || DEFAULT_FAVICON;
+    let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.head.appendChild(link);
     }
+    link.type = 'image/png';
+    link.href = faviconUrl;
   }, [branding.favicon, branding.browserTitle, branding.name]);
 
   const fetchBranding = async () => {
