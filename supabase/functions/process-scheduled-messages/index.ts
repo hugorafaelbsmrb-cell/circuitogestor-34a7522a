@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SEND_DELAY_MS = 2500;
+const SEND_DELAY_MS = 3500;
 
 interface ScheduledMessage {
   id: string;

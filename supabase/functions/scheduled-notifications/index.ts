@@ -194,7 +194,7 @@ async function processPaymentReminders48h(supabase: any, supabaseUrl: string, su
     );
     
     // Small delay between sends
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 3500));
   }
 }
 
@@ -242,7 +242,7 @@ async function processOverduePayments(supabase: any, supabaseUrl: string, supaba
       'auto_payment_overdue', 'payment_overdue'
     );
     
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 3500));
   }
 }
 
@@ -289,7 +289,7 @@ async function processBirthdayGreetings(supabase: any, supabaseUrl: string, supa
       'auto_birthday_greeting', 'birthday'
     );
     
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 3500));
   }
 }
 

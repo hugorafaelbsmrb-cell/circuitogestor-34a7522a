@@ -82,7 +82,7 @@ interface SendResult {
   error?: string;
 }
 
-const SEND_DELAY_MS = 2500;
+const SEND_DELAY_MS = 3500;
 
 export default function BulkMessages() {
   const { guardians, students, courses, enrollments, classGroups } = useSchool();
