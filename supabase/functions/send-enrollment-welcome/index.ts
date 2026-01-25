@@ -90,14 +90,14 @@ Deno.serve(async (req) => {
     const { data: wapiSettings } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION']);
+      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_INSTANCE_ID']);
     
     const config: Record<string, string> = {};
     wapiSettings?.forEach((s: { key: string; value: string | null }) => {
       if (s.value) config[s.key] = s.value;
     });
     
-    if (!config.W_API_URL || !config.W_API_TOKEN || !config.W_API_SESSION) {
+    if (!config.W_API_TOKEN || !config.W_API_INSTANCE_ID) {
       console.log('W-API not configured');
       return new Response(
         JSON.stringify({ success: false, error: 'W-API not configured' }),
@@ -119,16 +119,17 @@ Deno.serve(async (req) => {
     
     console.log('Sending welcome message to:', formattedPhone);
     
-    // Send via W-API
-    const wapiUrl = config.W_API_URL.replace(/\/$/, '');
-    const response = await fetch(`${wapiUrl}/message/send-text`, {
+    // Send via W-API PRO
+    const baseUrl = (config.W_API_URL || 'https://api.w-api.app').replace(/\/$/, '');
+    const instanceId = config.W_API_INSTANCE_ID;
+    
+    const response = await fetch(`${baseUrl}/v1/message/send-text?instanceId=${instanceId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.W_API_TOKEN}`,
       },
       body: JSON.stringify({
-        session: config.W_API_SESSION,
         phone: formattedPhone,
         message: message,
         isGroup: false,
