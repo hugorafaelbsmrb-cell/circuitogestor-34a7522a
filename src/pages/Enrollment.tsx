@@ -98,7 +98,7 @@ export default function Enrollment() {
   const [currentStep, setCurrentStep] = useState<Step>('student');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingCarne, setIsLoadingCarne] = useState(false);
-  const [isCheckingWhatsApp, setIsCheckingWhatsApp] = useState(false);
+  const [whatsAppStatus, setWhatsAppStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid' | 'error'>('idle');
   const [showContractModal, setShowContractModal] = useState(false);
   const [selectedDiscountIds, setSelectedDiscountIds] = useState<string[]>([]);
   const [isSecondCourseFlow, setIsSecondCourseFlow] = useState(false);
@@ -192,6 +192,44 @@ export default function Enrollment() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingStudentId, isDataLoading, students.length > 0]);
+
+  // Check WhatsApp when phone number changes (debounced)
+  useEffect(() => {
+    const phone = formData.guardian.phone.replace(/\D/g, '');
+    
+    // Only check if phone has at least 10 digits (DDD + number)
+    if (phone.length < 10) {
+      setWhatsAppStatus('idle');
+      return;
+    }
+    
+    const timer = setTimeout(async () => {
+      setWhatsAppStatus('checking');
+      try {
+        const normalizedPhone = normalizePhoneToWAPI(formData.guardian.phone);
+        const { data, error } = await supabase.functions.invoke('wapi-check-phone', {
+          body: { phone: normalizedPhone }
+        });
+        
+        if (error) {
+          console.error('Error checking WhatsApp:', error);
+          setWhatsAppStatus('error');
+        } else if (data?.hasWhatsApp === true) {
+          setWhatsAppStatus('valid');
+        } else if (data?.hasWhatsApp === false) {
+          setWhatsAppStatus('invalid');
+        } else {
+          // API not configured or null response
+          setWhatsAppStatus('idle');
+        }
+      } catch (err) {
+        console.error('Error checking WhatsApp:', err);
+        setWhatsAppStatus('error');
+      }
+    }, 800); // Debounce 800ms
+    
+    return () => clearTimeout(timer);
+  }, [formData.guardian.phone]);
 
   // Selected course
   const selectedCourse = getCourseById(formData.courseId);
@@ -555,37 +593,15 @@ export default function Enrollment() {
         return;
       }
       
-      // Check if phone has WhatsApp
-      setIsCheckingWhatsApp(true);
-      try {
-        const normalizedPhone = normalizePhoneToWAPI(formData.guardian.phone);
-        const { data, error } = await supabase.functions.invoke('wapi-check-phone', {
-          body: { phone: normalizedPhone }
+      // Block if WhatsApp status is invalid
+      if (whatsAppStatus === 'invalid') {
+        toast({
+          title: 'Número sem WhatsApp',
+          description: 'O número informado não possui WhatsApp. Verifique o número e tente novamente.',
+          variant: 'destructive',
         });
-        
-        if (error) {
-          console.error('Error checking WhatsApp:', error);
-          // Continue anyway if check fails
-        } else if (data?.hasWhatsApp === false) {
-          toast({
-            title: 'Número sem WhatsApp',
-            description: 'O número informado não possui WhatsApp. Verifique o número e tente novamente.',
-            variant: 'destructive',
-          });
-          setIsCheckingWhatsApp(false);
-          return;
-        } else if (data?.hasWhatsApp === true) {
-          toast({
-            title: 'WhatsApp verificado ✓',
-            description: 'O número possui WhatsApp.',
-          });
-        }
-        // If hasWhatsApp is null (API not configured), continue silently
-      } catch (err) {
-        console.error('Error checking WhatsApp:', err);
-        // Continue anyway if check fails
+        return;
       }
-      setIsCheckingWhatsApp(false);
     }
     goToNextStep();
   };
@@ -1622,12 +1638,37 @@ export default function Enrollment() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
-                <Input
-                  id="phone"
-                  placeholder="(00) 00000-0000"
-                  value={formData.guardian.phone}
-                  onChange={(e) => handleGuardianChange('phone', e.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="phone"
+                    placeholder="(00) 00000-0000"
+                    value={formData.guardian.phone}
+                    onChange={(e) => handleGuardianChange('phone', e.target.value)}
+                    className={cn(
+                      whatsAppStatus === 'valid' && 'border-green-500 pr-10',
+                      whatsAppStatus === 'invalid' && 'border-destructive pr-10'
+                    )}
+                  />
+                  {whatsAppStatus === 'checking' && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                  {whatsAppStatus === 'valid' && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Check className="w-4 h-4 text-green-500" />
+                    </div>
+                  )}
+                </div>
+                {whatsAppStatus === 'valid' && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    Número possui WhatsApp
+                  </p>
+                )}
+                {whatsAppStatus === 'invalid' && (
+                  <p className="text-xs text-destructive">Número não possui WhatsApp</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="address">Endereço</Label>
@@ -2404,17 +2445,17 @@ export default function Enrollment() {
               <Button
                 onClick={handleNextStep}
                 disabled={
-                  isCheckingWhatsApp ||
+                  whatsAppStatus === 'checking' ||
                   (currentStep === 'student' && !validateStudent()) ||
-                  (currentStep === 'guardian' && !isGuardianValid()) ||
+                  (currentStep === 'guardian' && (!isGuardianValid() || whatsAppStatus === 'invalid')) ||
                   (currentStep === 'course' && !formData.courseId) ||
                   (currentStep === 'schedule' && !validateSchedule())
                 }
               >
-                {isCheckingWhatsApp ? (
+                {whatsAppStatus === 'checking' && currentStep === 'guardian' ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Verificando WhatsApp...
+                    Verificando...
                   </>
                 ) : (
                   <>
