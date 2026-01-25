@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { SignaturePad, SignaturePadRef } from '@/components/contracts/SignaturePad';
 import { FileText, PenLine, Loader2, AlertTriangle, CheckCircle2, Shield, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useSystemBranding } from '@/hooks/useSystemBranding';
 
 interface ContractData {
   id: string;
@@ -27,10 +26,16 @@ interface ContractData {
   };
 }
 
+interface SystemBranding {
+  name: string;
+  logo: string | null;
+}
+
+const DEFAULT_NAME = 'Circuito Kids';
+
 export default function ContractSign() {
   const { token } = useParams<{ token: string }>();
   const { toast } = useToast();
-  const { branding } = useSystemBranding();
   const signatureRef = useRef<SignaturePadRef>(null);
 
   const [loading, setLoading] = useState(true);
@@ -41,6 +46,7 @@ export default function ContractSign() {
   const [isSigning, setIsSigning] = useState(false);
   const [signed, setSigned] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [branding, setBranding] = useState<SystemBranding>({ name: DEFAULT_NAME, logo: null });
   
   const addDebug = (msg: string) => {
     console.log('[ContractSign]', msg);
@@ -48,6 +54,31 @@ export default function ContractSign() {
   };
 
   useEffect(() => {
+    // Fetch branding in parallel (non-blocking)
+    const fetchBranding = async () => {
+      try {
+        const { data } = await supabase
+          .from('app_settings')
+          .select('key, value')
+          .in('key', ['system_name', 'system_logo']);
+        
+        if (data) {
+          const nameEntry = data.find(d => d.key === 'system_name');
+          const logoEntry = data.find(d => d.key === 'system_logo');
+          
+          setBranding({
+            name: nameEntry?.value || DEFAULT_NAME,
+            logo: logoEntry?.value || null,
+          });
+        }
+      } catch (err) {
+        // Fail silently - use defaults
+        addDebug('Aviso: Não foi possível carregar branding, usando padrão');
+      }
+    };
+    
+    fetchBranding();
+    
     addDebug('Iniciando carregamento...');
     addDebug(`Token: ${token ? token.substring(0, 8) + '...' : 'nenhum'}`);
     

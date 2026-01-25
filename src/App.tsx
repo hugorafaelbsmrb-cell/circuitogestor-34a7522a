@@ -61,69 +61,66 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function AppRoutes() {
-  return (
-    <Routes>
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
-      <Route path="/campanha" element={<CampaignLanding />} />
-      <Route path="/cantina" element={<CanteenPublic />} />
-      <Route path="/instalar" element={<InstallApp />} />
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <MainLayout>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/matricula" element={<Enrollment />} />
-                <Route path="/alunos" element={<Students />} />
-                <Route path="/responsaveis" element={<Guardians />} />
-                <Route path="/turmas" element={<Classes />} />
-                <Route path="/cursos" element={<Courses />} />
-                <Route path="/horarios" element={<Schedules />} />
-                <Route path="/financeiro" element={<Financial />} />
-                <Route path="/carnes" element={<Carnes />} />
-                <Route path="/contratos" element={<Contracts />} />
-                <Route path="/contrato-config" element={<ContractConfig />} />
-                <Route path="/leads" element={<Leads />} />
-                <Route path="/descontos" element={<Discounts />} />
-                <Route path="/relatorios" element={<Reports />} />
-                <Route path="/alocacao-alunos" element={<StudentAllocation />} />
-                <Route path="/inventario" element={<Inventory />} />
-                <Route path="/lms-alunos" element={<LMSStudents />} />
-                <Route path="/soroban-alunos" element={<SorobanStudents />} />
-                <Route path="/professores" element={<Teachers />} />
-                <Route path="/usuarios" element={<Users />} />
-                <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
-                <Route path="/envio-massa" element={<BulkMessages />} />
-                <Route path="/atendimento-pais" element={<GuardianSupport />} />
-                <Route path="/cantina-admin" element={<CanteenAdminPage />} />
-                <Route path="/campanhas-admin" element={<CampaignAdmin />} />
-                <Route path="/configuracoes" element={<Settings />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </MainLayout>
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
-  );
-}
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        {/* Public route without auth context */}
         <Routes>
+          {/* Public routes - no authentication required */}
           <Route path="/assinar/:token" element={<ContractSign />} />
-          <Route path="*" element={
+          <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
+          <Route path="/campanha" element={<CampaignLanding />} />
+          <Route path="/cantina" element={<CanteenPublic />} />
+          <Route path="/instalar" element={<InstallApp />} />
+          
+          {/* Auth route */}
+          <Route path="/auth" element={
             <AuthProvider>
               <SchoolProvider>
-                <AppRoutes />
+                <Auth />
+              </SchoolProvider>
+            </AuthProvider>
+          } />
+          
+          {/* Protected routes - require authentication */}
+          <Route path="/*" element={
+            <AuthProvider>
+              <SchoolProvider>
+                <ProtectedRoute>
+                  <MainLayout>
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route path="/matricula" element={<Enrollment />} />
+                      <Route path="/alunos" element={<Students />} />
+                      <Route path="/responsaveis" element={<Guardians />} />
+                      <Route path="/turmas" element={<Classes />} />
+                      <Route path="/cursos" element={<Courses />} />
+                      <Route path="/horarios" element={<Schedules />} />
+                      <Route path="/financeiro" element={<Financial />} />
+                      <Route path="/carnes" element={<Carnes />} />
+                      <Route path="/contratos" element={<Contracts />} />
+                      <Route path="/contrato-config" element={<ContractConfig />} />
+                      <Route path="/leads" element={<Leads />} />
+                      <Route path="/descontos" element={<Discounts />} />
+                      <Route path="/relatorios" element={<Reports />} />
+                      <Route path="/alocacao-alunos" element={<StudentAllocation />} />
+                      <Route path="/inventario" element={<Inventory />} />
+                      <Route path="/lms-alunos" element={<LMSStudents />} />
+                      <Route path="/soroban-alunos" element={<SorobanStudents />} />
+                      <Route path="/professores" element={<Teachers />} />
+                      <Route path="/usuarios" element={<Users />} />
+                      <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
+                      <Route path="/envio-massa" element={<BulkMessages />} />
+                      <Route path="/atendimento-pais" element={<GuardianSupport />} />
+                      <Route path="/cantina-admin" element={<CanteenAdminPage />} />
+                      <Route path="/campanhas-admin" element={<CampaignAdmin />} />
+                      <Route path="/configuracoes" element={<Settings />} />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </MainLayout>
+                </ProtectedRoute>
               </SchoolProvider>
             </AuthProvider>
           } />
