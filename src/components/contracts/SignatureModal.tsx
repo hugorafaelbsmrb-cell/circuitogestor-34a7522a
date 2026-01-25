@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -7,6 +7,7 @@ import { SignaturePad, SignaturePadRef } from './SignaturePad';
 import { FileText, PenLine, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 
 interface ContractSummary {
   id: string;
@@ -26,6 +27,7 @@ interface SignatureModalProps {
 
 export function SignatureModal({ open, onOpenChange, contract, onSignatureComplete }: SignatureModalProps) {
   const { toast } = useToast();
+  const { isEnabled } = useAutomationSettings();
   const signatureRef = useRef<SignaturePadRef>(null);
   const [accepted, setAccepted] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
@@ -93,6 +95,22 @@ export function SignatureModal({ open, onOpenChange, contract, onSignatureComple
         title: 'Contrato assinado!',
         description: 'A assinatura digital foi registrada com sucesso.',
       });
+
+      // Auto-send notification if automation is enabled
+      if (isEnabled('auto_contract_signed_notify')) {
+        try {
+          await supabase.functions.invoke('send-signed-contract', {
+            body: { contractId: contract.id },
+          });
+          toast({
+            title: 'Notificação enviada!',
+            description: 'O responsável foi notificado via WhatsApp.',
+          });
+        } catch (autoSendError) {
+          console.error('Auto-send failed:', autoSendError);
+          // Don't show error - signing was successful
+        }
+      }
 
       onSignatureComplete();
       onOpenChange(false);

@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Calendar, User, FileText, Shield, Download, Printer, Clock } from 'lucide-react';
+import { CheckCircle2, Calendar, User, FileText, Shield, Download, Printer, Clock, MessageCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface SignedContractData {
   id: string;
@@ -34,6 +37,8 @@ export function SignedContractModal({
   onPrint,
   onDownload
 }: SignedContractModalProps) {
+  const { toast } = useToast();
+  const [isSending, setIsSending] = useState(false);
   if (!contract) return null;
 
   const signedDate = new Date(contract.signedAt);
@@ -171,7 +176,20 @@ export function SignedContractModal({
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-2 mt-2">
+        <div className="flex justify-end gap-2 mt-2 flex-wrap">
+          <Button 
+            variant="outline" 
+            onClick={handleSendWhatsApp} 
+            disabled={isSending}
+            className="gap-2 text-success hover:text-success hover:bg-success/10"
+          >
+            {isSending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <MessageCircle className="w-4 h-4" />
+            )}
+            Enviar via WhatsApp
+          </Button>
           {onPrint && (
             <Button variant="outline" onClick={onPrint} className="gap-2">
               <Printer className="w-4 h-4" />
@@ -188,4 +206,31 @@ export function SignedContractModal({
       </DialogContent>
     </Dialog>
   );
+
+  async function handleSendWhatsApp() {
+    if (!contract) return;
+    
+    setIsSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-signed-contract', {
+        body: { contractId: contract.id },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Mensagem enviada!',
+        description: `Notificação de contrato assinado enviada para ${contract.guardianName}.`,
+      });
+    } catch (error) {
+      console.error('Error sending WhatsApp:', error);
+      toast({
+        title: 'Erro ao enviar',
+        description: 'Não foi possível enviar a mensagem. Verifique a configuração do WhatsApp.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSending(false);
+    }
+  }
 }

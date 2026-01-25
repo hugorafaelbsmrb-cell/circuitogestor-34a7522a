@@ -22,6 +22,7 @@ import {
   Contact,
   Edit,
   Info,
+  FileText,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -115,6 +116,15 @@ const automationConfigs: AutomationConfig[] = [
     category: 'enrollment',
     hasTemplate: true,
     templateCategory: 'enrollment',
+  },
+  {
+    key: 'auto_contract_signed_notify',
+    title: 'Notificação de Contrato Assinado',
+    description: 'Envia mensagem ao responsável após assinar o contrato digitalmente',
+    icon: FileText,
+    category: 'enrollment',
+    hasTemplate: true,
+    templateCategory: 'contract_signed',
   },
   // Student automations
   {
