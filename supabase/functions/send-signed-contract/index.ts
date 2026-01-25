@@ -193,9 +193,10 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           phone: formattedPhone,
           document: pdfUrl,
-      filename: `Contrato_${studentNameSafe}.pdf`,
+          filename: `Contrato_${studentNameSafe}.pdf`,
+          extension: 'pdf',
           caption: message,
-      isGroup: false,
+          isGroup: false,
         }),
       }
     );
