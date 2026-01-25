@@ -84,26 +84,25 @@ Deno.serve(async (req) => {
     }
 
     // ========================================
-    // W-API CONFIGURATION
-    // Base URL: https://api.w-api.app/v1/
-    // Documented endpoints for W-API PRO
+    // W-API PRO CONFIGURATION
+    // Correct endpoint: POST /getMessages with apikey header
+    // Body: { chatId, count }
     // ========================================
     
-    // Normalize configured URL - ensure /v1 suffix
-    let baseUrl = (config.W_API_URL || 'https://api.w-api.app/v1').trim().replace(/\/+$/, '');
+    // Normalize configured URL - remove /v1 suffix if present (PRO doesn't use it)
+    let baseUrl = (config.W_API_URL || 'https://api.w-api.app').trim().replace(/\/+$/, '');
     if (!/^https?:\/\//i.test(baseUrl)) {
       baseUrl = `https://${baseUrl}`;
     }
-    // Ensure /v1 is present
-    if (!baseUrl.includes('/v1')) {
-      baseUrl = baseUrl + '/v1';
-    }
+    // Remove /v1 suffix - W-API PRO uses root path
+    baseUrl = baseUrl.replace(/\/v1\/?$/, '');
     
     const apiToken = config.W_API_TOKEN;
     const instanceId = config.W_API_SESSION;
 
-    console.log(`Using base URL: ${baseUrl}`);
-    console.log(`Instance ID: ${instanceId}`);
+    console.log(`W-API PRO - Base URL: ${baseUrl}`);
+    console.log(`W-API PRO - Instance ID: ${instanceId}`);
+    console.log(`W-API PRO - Using POST /getMessages with apikey header`);
 
     let syncedCount = 0;
     let errorCount = 0;
@@ -137,8 +136,9 @@ Deno.serve(async (req) => {
     };
 
     // ========================================
-    // FETCH MESSAGES - W-API v1 endpoints
-    // Documentation: https://api.w-api.app/v1/
+    // FETCH MESSAGES - W-API PRO
+    // Primary: POST /getMessages with apikey header and JSON body
+    // Fallbacks for different W-API versions
     // ========================================
     type EndpointCandidate = {
       url: string;
@@ -149,88 +149,80 @@ Deno.serve(async (req) => {
     };
 
     const fetchMessagesForPhone = async (chatId: string): Promise<{ messages: WapiMessage[]; workingEndpoint?: string }> => {
-      // Build list of endpoint candidates based on W-API v1 documentation
       const candidates: EndpointCandidate[] = [];
 
-      // Pattern 1: POST /chat/send/getMessages (W-API v1 documented)
+      // ===== PRIMARY: W-API PRO documented endpoint =====
+      // POST /getMessages with apikey header and body { chatId, count }
       candidates.push({
-        url: `${baseUrl}/chat/send/getMessages/${instanceId}`,
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, count: 20 }),
-        note: 'POST /chat/send/getMessages/{instance}',
-      });
-
-      // Pattern 2: GET /chat/messages/{instance}
-      candidates.push({
-        url: `${baseUrl}/chat/messages/${instanceId}?chatId=${encodeURIComponent(chatId)}&count=20`,
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        note: 'GET /chat/messages/{instance}',
-      });
-
-      // Pattern 3: POST /messages/getMessages/{instance}
-      candidates.push({
-        url: `${baseUrl}/messages/getMessages/${instanceId}`,
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, count: 20 }),
-        note: 'POST /messages/getMessages/{instance}',
-      });
-
-      // Pattern 4: GET /chats/list/{instance} - to get chat list first
-      candidates.push({
-        url: `${baseUrl}/chats/${instanceId}?chatId=${encodeURIComponent(chatId)}`,
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        note: 'GET /chats/{instance}',
-      });
-
-      // Pattern 5: POST /chat/getMessages (alternative path)
-      candidates.push({
-        url: `${baseUrl}/chat/getMessages/${instanceId}`,
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, count: 20 }),
-        note: 'POST /chat/getMessages/{instance}',
-      });
-
-      // Pattern 6: GET with all params in query
-      candidates.push({
-        url: `${baseUrl}/messages/${instanceId}?chatId=${encodeURIComponent(chatId)}&limit=20`,
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        note: 'GET /messages/{instance}',
-      });
-
-      // Pattern 7: Alternative with apikey header instead of Bearer
-      candidates.push({
-        url: `${baseUrl}/chat/send/getMessages/${instanceId}`,
+        url: `${baseUrl}/getMessages`,
         method: 'POST',
         headers: {
           'apikey': apiToken,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ chatId, count: 20 }),
-        note: 'POST /chat/send/getMessages (apikey header)',
+        note: 'POST /getMessages (apikey header) [PRIMARY]',
+      });
+
+      // ===== FALLBACK 1: With instanceId in body =====
+      candidates.push({
+        url: `${baseUrl}/getMessages`,
+        method: 'POST',
+        headers: {
+          'apikey': apiToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chatId, count: 20, instanceId }),
+        note: 'POST /getMessages (with instanceId in body)',
+      });
+
+      // ===== FALLBACK 2: Instance in path =====
+      candidates.push({
+        url: `${baseUrl}/${instanceId}/getMessages`,
+        method: 'POST',
+        headers: {
+          'apikey': apiToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chatId, count: 20 }),
+        note: 'POST /{instance}/getMessages',
+      });
+
+      // ===== FALLBACK 3: With Bearer token instead =====
+      candidates.push({
+        url: `${baseUrl}/getMessages`,
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chatId, count: 20 }),
+        note: 'POST /getMessages (Bearer token)',
+      });
+
+      // ===== FALLBACK 4: api.wapi.com.br domain =====
+      candidates.push({
+        url: `https://api.wapi.com.br/getMessages`,
+        method: 'POST',
+        headers: {
+          'apikey': apiToken,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chatId, count: 20 }),
+        note: 'POST api.wapi.com.br/getMessages',
+      });
+
+      // ===== FALLBACK 5: Instance header instead of body =====
+      candidates.push({
+        url: `${baseUrl}/getMessages`,
+        method: 'POST',
+        headers: {
+          'apikey': apiToken,
+          'instanceId': instanceId,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ chatId, count: 20 }),
+        note: 'POST /getMessages (instanceId header)',
       });
 
       for (const candidate of candidates) {
