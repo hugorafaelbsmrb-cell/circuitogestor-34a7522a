@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer } from 'lucide-react';
+import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Link as LinkIcon, Copy } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
@@ -9,9 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { generateContractPDF } from '@/utils/pdfGenerator';
 import { useToast } from '@/hooks/use-toast';
 import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
+import { SignatureModal } from '@/components/contracts/SignatureModal';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function Contracts() {
@@ -45,7 +47,17 @@ export default function Contracts() {
   const [carneInstallments, setCarneInstallments] = useState('6');
   const [carneDueDay, setCarneDueDay] = useState('10');
   const [isGeneratingCarne, setIsGeneratingCarne] = useState(false);
-
+  
+  // Signature modal state
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [selectedContractForSignature, setSelectedContractForSignature] = useState<{
+    id: string;
+    studentName: string;
+    courseName: string;
+    guardianName: string;
+    totalValue: number;
+    installments: number;
+  } | null>(null);
   interface ContractContentType {
     schoolName: string;
     schoolCnpj: string;
@@ -77,6 +89,74 @@ export default function Contracts() {
   // Get contract for enrollment
   const getContractForEnrollment = (enrollmentId: string) => {
     return contracts.find(c => c.enrollment_id === enrollmentId);
+  };
+
+  // Check if contract is signed
+  const isContractSigned = (enrollmentId: string) => {
+    const contract = getContractForEnrollment(enrollmentId);
+    return contract?.signed_at !== null;
+  };
+
+  // Get signature link for contract
+  const getSignatureLink = (enrollmentId: string) => {
+    const contract = getContractForEnrollment(enrollmentId);
+    if (!contract) return '';
+    const token = (contract as any).signature_token;
+    return token ? `${window.location.origin}/assinar/${token}` : '';
+  };
+
+  // Copy signature link to clipboard
+  const copySignatureLink = async (enrollmentId: string) => {
+    const link = getSignatureLink(enrollmentId);
+    if (!link) return;
+    
+    try {
+      await navigator.clipboard.writeText(link);
+      toast({
+        title: 'Link copiado!',
+        description: 'O link de assinatura foi copiado para a área de transferência.',
+      });
+    } catch {
+      toast({
+        title: 'Erro ao copiar',
+        description: 'Não foi possível copiar o link.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Open signature modal
+  const handleOpenSignatureModal = (enrollment: typeof enrollments[0]) => {
+    const contract = getContractForEnrollment(enrollment.id);
+    const student = getStudentById(enrollment.student_id);
+    const guardian = getGuardianById(enrollment.guardian_id);
+    const classGroup = getClassGroupById(enrollment.class_group_id);
+    const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
+
+    if (!contract || !student || !guardian || !course) {
+      toast({
+        title: 'Erro',
+        description: 'Dados incompletos para assinatura.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSelectedContractForSignature({
+      id: contract.id,
+      studentName: student.name,
+      courseName: course.name,
+      guardianName: guardian.name,
+      totalValue: Number(contract.total_value),
+      installments: contract.installment_count || 1,
+    });
+    setShowSignatureModal(true);
+  };
+
+  // Refetch contracts after signature
+  const handleSignatureComplete = async () => {
+    // Refetch to update the UI
+    window.location.reload();
   };
 
   const getContractContent = (enrollmentId: string) => {
@@ -346,19 +426,35 @@ export default function Contracts() {
               const classGroup = getClassGroupById(enrollment.class_group_id);
               const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
               const hasCarne = enrollmentHasCarne(enrollment.id);
+              const isSigned = isContractSigned(enrollment.id);
+              const signatureLink = getSignatureLink(enrollment.id);
 
               return (
                 <div key={enrollment.id} className="p-6 hover:bg-secondary/30 transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-primary" />
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isSigned ? 'bg-success/10' : 'bg-primary/10'}`}>
+                        {isSigned ? (
+                          <CheckCircle2 className="w-6 h-6 text-success" />
+                        ) : (
+                          <FileText className="w-6 h-6 text-primary" />
+                        )}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-foreground">
                             Contrato - {student?.name}
                           </h3>
+                          {isSigned ? (
+                            <Badge className="bg-success/10 text-success border-success/30">
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Assinado
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              Pendente Assinatura
+                            </Badge>
+                          )}
                           {!hasCarne && (
                             <Badge variant="outline" className="text-warning border-warning/30">
                               Sem Carnê
@@ -380,7 +476,36 @@ export default function Contracts() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                      {!isSigned && (
+                        <>
+                          <Button 
+                            variant="default" 
+                            size="sm" 
+                            className="gap-2"
+                            onClick={() => handleOpenSignatureModal(enrollment)}
+                          >
+                            <PenLine className="w-4 h-4" />
+                            Assinar
+                          </Button>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="gap-2"
+                                onClick={() => copySignatureLink(enrollment.id)}
+                              >
+                                <LinkIcon className="w-4 h-4" />
+                                Link
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Copiar link de assinatura para enviar ao responsável</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </>
+                      )}
                       {!hasCarne && (
                         <Button 
                           variant="default" 
@@ -606,6 +731,14 @@ export default function Contracts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Signature Modal */}
+      <SignatureModal
+        open={showSignatureModal}
+        onOpenChange={setShowSignatureModal}
+        contract={selectedContractForSignature}
+        onSignatureComplete={handleSignatureComplete}
+      />
     </div>
   );
 }

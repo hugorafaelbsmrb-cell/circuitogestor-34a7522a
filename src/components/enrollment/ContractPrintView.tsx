@@ -43,6 +43,10 @@ interface ContractContent {
   city?: string;
   lmsCredentials?: LMSCredentials | null;
   sorobanCredentials?: SorobanCredentials | null;
+  // Digital signature fields
+  signatureImage?: string | null;
+  signedAt?: string | null;
+  signatureHash?: string | null;
 }
 
 interface ContractPrintViewProps {
@@ -185,12 +189,43 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
                 </div>
               </div>
               <div style={{ textAlign: 'center', width: '45%' }}>
-                <div style={{ borderTop: '1px solid black', paddingTop: '3px' }}>
-                  <p style={{ fontWeight: 'bold', fontSize: '9pt', margin: 0 }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
-                  <p style={{ fontSize: '8pt', margin: 0 }}>(CONTRATANTE)</p>
-                </div>
+                {content.signatureImage ? (
+                  <div>
+                    <img 
+                      src={content.signatureImage} 
+                      alt="Assinatura digital" 
+                      style={{ 
+                        maxHeight: '60px', 
+                        maxWidth: '200px', 
+                        margin: '0 auto 4px',
+                        display: 'block'
+                      }} 
+                    />
+                    <div style={{ borderTop: '1px solid black', paddingTop: '3px' }}>
+                      <p style={{ fontWeight: 'bold', fontSize: '9pt', margin: 0 }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                      <p style={{ fontSize: '8pt', margin: 0 }}>(CONTRATANTE)</p>
+                      {content.signedAt && (
+                        <p style={{ fontSize: '7pt', margin: '2px 0 0', color: '#666' }}>
+                          Assinado digitalmente em {new Date(content.signedAt).toLocaleString('pt-BR')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ borderTop: '1px solid black', paddingTop: '3px' }}>
+                    <p style={{ fontWeight: 'bold', fontSize: '9pt', margin: 0 }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                    <p style={{ fontSize: '8pt', margin: 0 }}>(CONTRATANTE)</p>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Hash de verificação do documento */}
+            {content.signatureHash && (
+              <div style={{ marginTop: '16px', fontSize: '7pt', color: '#888', textAlign: 'center' }}>
+                <p style={{ margin: 0 }}>Código de verificação: {content.signatureHash.substring(0, 16)}...</p>
+              </div>
+            )}
           </div>
         </div>
 

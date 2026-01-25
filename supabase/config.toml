@@ -36,3 +36,6 @@ verify_jwt = false
 
 [functions.campaign-lead]
 verify_jwt = false
+
+[functions.contract-sign]
+verify_jwt = false
