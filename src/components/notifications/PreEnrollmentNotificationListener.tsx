@@ -44,18 +44,24 @@ export function PreEnrollmentNotificationListener({ enabled = true }: PreEnrollm
             status: string;
           };
           
-          // Only show for external form submissions with pre_enrollment status
-          if (newLead.source === 'external_form' && newLead.status === 'pre_enrollment') {
+          // Show for external form submissions with pre_enrollment status
+          // OR for landing page leads
+          if (
+            (newLead.source === 'external_form' && newLead.status === 'pre_enrollment') ||
+            newLead.source === 'landing_page'
+          ) {
             const guardianName = getFirstName(newLead.name);
             const studentName = newLead.student_name 
               ? getFirstAndSecondName(newLead.student_name)
               : 'Não informado';
             
+            const isFromCampaign = newLead.source === 'landing_page';
+            
             // Show custom toast
             sonnerToast.custom((toastId) => (
               <PreEnrollmentToast
                 guardianName={guardianName}
-                studentName={studentName}
+                studentName={isFromCampaign ? 'Lead da Campanha' : studentName}
                 onClose={() => sonnerToast.dismiss(toastId)}
               />
             ), {

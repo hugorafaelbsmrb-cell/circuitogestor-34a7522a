@@ -131,6 +131,50 @@ export type Database = {
         }
         Relationships: []
       }
+      campaign_images: {
+        Row: {
+          course_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          sort_order: number
+          title: string | null
+          type: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title?: string | null
+          type?: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          course_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          sort_order?: number
+          title?: string | null
+          type?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_images_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       canteen_consumptions: {
         Row: {
           consumed_at: string

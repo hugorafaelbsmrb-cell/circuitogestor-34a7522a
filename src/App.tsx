@@ -10,6 +10,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Enrollment from "./pages/Enrollment";
 import PreEnrollmentForm from "./pages/PreEnrollmentForm";
+import CampaignLanding from "./pages/CampaignLanding";
+import CampaignAdmin from "./pages/CampaignAdmin";
 import Students from "./pages/Students";
 import Guardians from "./pages/Guardians";
 import Classes from "./pages/Classes";
@@ -33,7 +35,7 @@ import LMSStudents from "./pages/LMSStudents";
 import SorobanStudents from "./pages/SorobanStudents";
 import Teachers from "./pages/Teachers";
 import CanteenPublic from "./pages/CanteenPublic";
-import CanteenAdmin from "./pages/CanteenAdmin";
+import CanteenAdminPage from "./pages/CanteenAdmin";
 import InstallApp from "./pages/InstallApp";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
@@ -63,6 +65,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/auth" element={<Auth />} />
       <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
+      <Route path="/campanha" element={<CampaignLanding />} />
       <Route path="/cantina" element={<CanteenPublic />} />
       <Route path="/instalar" element={<InstallApp />} />
       <Route
@@ -94,7 +97,8 @@ function AppRoutes() {
                 <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
                 <Route path="/envio-massa" element={<BulkMessages />} />
                 <Route path="/atendimento-pais" element={<GuardianSupport />} />
-                <Route path="/cantina-admin" element={<CanteenAdmin />} />
+                <Route path="/cantina-admin" element={<CanteenAdminPage />} />
+                <Route path="/campanhas-admin" element={<CampaignAdmin />} />
                 <Route path="/configuracoes" element={<Settings />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
