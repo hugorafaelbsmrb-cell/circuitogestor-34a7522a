@@ -15,7 +15,8 @@ import {
   Calendar,
   Loader2,
   Sparkles,
-  Wand2
+  Wand2,
+  Settings2
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ import {
 } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { WhatsAppStatusPanel } from '@/components/whatsapp/WhatsAppStatusPanel';
 
 interface Recipient {
   id: string;
@@ -600,7 +602,7 @@ export default function BulkMessages() {
       </div>
 
       <Tabs defaultValue="compose" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="grid w-full grid-cols-4 max-w-lg">
           <TabsTrigger value="compose" className="gap-2">
             <MessageSquare className="w-4 h-4" />
             Compor
@@ -612,6 +614,10 @@ export default function BulkMessages() {
           <TabsTrigger value="scheduled" className="gap-2">
             <Clock className="w-4 h-4" />
             Agendados
+          </TabsTrigger>
+          <TabsTrigger value="config" className="gap-2">
+            <Settings2 className="w-4 h-4" />
+            Conexão
           </TabsTrigger>
         </TabsList>
 
@@ -998,6 +1004,13 @@ export default function BulkMessages() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Connection/Config Tab */}
+        <TabsContent value="config" className="mt-6">
+          <div className="max-w-2xl">
+            <WhatsAppStatusPanel />
+          </div>
         </TabsContent>
       </Tabs>
 
