@@ -7,11 +7,17 @@ import {
   XCircle,
   Users,
   AlertCircle,
-  Filter
+  Filter,
+  Sparkles,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -69,6 +75,13 @@ const categoryOptions = [
   { value: 'general', label: 'Geral' },
 ];
 
+const toneOptions = [
+  { value: 'profissional e amigável', label: 'Profissional e Amigável' },
+  { value: 'formal e respeitoso', label: 'Formal e Respeitoso' },
+  { value: 'casual e descontraído', label: 'Casual e Descontraído' },
+  { value: 'urgente e direto', label: 'Urgente e Direto' },
+];
+
 const SEND_DELAY_MS = 3500;
 
 export function LeadsBulkMessageModal({ 
@@ -86,11 +99,20 @@ export function LeadsBulkMessageModal({
   
   // Filter states
   const [courseFilter, setCourseFilter] = useState<string>('all');
+
+  // Recipient selection
+  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
   
   // Message states
   const [selectedCategory, setSelectedCategory] = useState('lead');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [customMessage, setCustomMessage] = useState('');
+
+  // AI states (inline, like Envio em Massa)
+  const [aiPurpose, setAiPurpose] = useState('');
+  const [aiTone, setAiTone] = useState('profissional e amigável');
+  const [aiContext, setAiContext] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
   
   // Send states
   const [isSending, setIsSending] = useState(false);
@@ -106,6 +128,7 @@ export function LeadsBulkMessageModal({
       checkWapiConfig();
       setSendResults([]);
       setSendProgress(0);
+      setSelectedRecipients(new Set());
     }
   }, [open]);
 
@@ -167,7 +190,16 @@ export function LeadsBulkMessageModal({
     return leads.filter(l => l.interested_course_id === courseFilter);
   }, [leads, courseFilter]);
 
-  const recipients = filteredLeads;
+  // Default: keep everyone selected for current filter
+  useEffect(() => {
+    if (!open) return;
+    setSelectedRecipients(new Set(filteredLeads.map(l => l.id)));
+  }, [open, filteredLeads]);
+
+  const recipientsToSend = useMemo(
+    () => filteredLeads.filter(l => selectedRecipients.has(l.id)),
+    [filteredLeads, selectedRecipients]
+  );
 
   const filteredTemplates = templates.filter(t => t.category === selectedCategory);
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
@@ -182,6 +214,99 @@ export function LeadsBulkMessageModal({
     return leads.filter(l => l.interested_course_id === courseId).length;
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedRecipients(new Set(filteredLeads.map(l => l.id)));
+    } else {
+      setSelectedRecipients(new Set());
+    }
+  };
+
+  const handleSelectRecipient = (id: string, checked: boolean) => {
+    setSelectedRecipients(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const insertVariable = (variable: string) => {
+    const textarea = document.getElementById('lead-bulk-message') as HTMLTextAreaElement | null;
+    const baseMessage = (selectedTemplateId && selectedTemplateId !== 'custom')
+      ? (selectedTemplate?.message || '')
+      : (customMessage || '');
+
+    // If a template is selected, switch to custom and append variable (cursor insertion isn't reliable on a disabled textarea)
+    if (selectedTemplateId && selectedTemplateId !== 'custom') {
+      setSelectedTemplateId('custom');
+      setCustomMessage(baseMessage + variable);
+      return;
+    }
+
+    if (!textarea) {
+      setCustomMessage(baseMessage + variable);
+      setSelectedTemplateId('custom');
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const next = baseMessage.substring(0, start) + variable + baseMessage.substring(end);
+    setCustomMessage(next);
+    setSelectedTemplateId('custom');
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + variable.length, start + variable.length);
+    }, 0);
+  };
+
+  const handleGenerateWithAI = async () => {
+    if (!aiPurpose.trim()) {
+      toast({
+        title: 'Propósito obrigatório',
+        description: 'Descreva o propósito da mensagem.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-message', {
+        body: {
+          purpose: aiPurpose,
+          tone: aiTone,
+          context: aiContext || 'mensagem para leads interessados em cursos',
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.message) {
+        setCustomMessage(data.message);
+        setSelectedTemplateId('custom');
+        setAiPurpose('');
+        setAiContext('');
+        toast({
+          title: 'Mensagem gerada',
+          description: 'A IA criou uma mensagem. Revise e edite se necessário.',
+        });
+      } else {
+        throw new Error('Nenhuma mensagem gerada');
+      }
+    } catch (error: any) {
+      console.error('Error generating message:', error);
+      toast({
+        title: 'Erro ao gerar',
+        description: error?.message || 'Não foi possível gerar a mensagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const handleSendViaWapi = async () => {
     const message = getMessage();
     if (!message) {
@@ -193,10 +318,10 @@ export function LeadsBulkMessageModal({
       return;
     }
 
-    if (recipients.length === 0) {
+    if (recipientsToSend.length === 0) {
       toast({
         title: 'Nenhum destinatário',
-        description: 'Nenhum lead encontrado com o filtro atual.',
+        description: 'Selecione pelo menos um lead para enviar.',
         variant: 'destructive',
       });
       return;
@@ -208,8 +333,8 @@ export function LeadsBulkMessageModal({
 
     const results: SendResult[] = [];
     
-    for (let i = 0; i < recipients.length; i++) {
-      const recipient = recipients[i];
+    for (let i = 0; i < recipientsToSend.length; i++) {
+      const recipient = recipientsToSend[i];
       
       try {
         const courseName = recipient.interested_course_id 
@@ -248,9 +373,9 @@ export function LeadsBulkMessageModal({
       }
       
       setSendResults([...results]);
-      setSendProgress(((i + 1) / recipients.length) * 100);
+      setSendProgress(((i + 1) / recipientsToSend.length) * 100);
       
-      if (i < recipients.length - 1) {
+      if (i < recipientsToSend.length - 1) {
         await new Promise(resolve => setTimeout(resolve, SEND_DELAY_MS));
       }
     }
@@ -260,7 +385,7 @@ export function LeadsBulkMessageModal({
     const successCount = results.filter(r => r.success).length;
     toast({
       title: 'Envio concluído',
-      description: `${successCount} de ${recipients.length} mensagens enviadas com sucesso.`,
+      description: `${successCount} de ${recipientsToSend.length} mensagens enviadas com sucesso.`,
     });
   };
 
@@ -275,16 +400,16 @@ export function LeadsBulkMessageModal({
       return;
     }
 
-    if (recipients.length === 0) {
+    if (recipientsToSend.length === 0) {
       toast({
         title: 'Nenhum destinatário',
-        description: 'Nenhum lead encontrado com o filtro atual.',
+        description: 'Selecione pelo menos um lead para enviar.',
         variant: 'destructive',
       });
       return;
     }
 
-    recipients.forEach((recipient, index) => {
+    recipientsToSend.forEach((recipient, index) => {
       const courseName = recipient.interested_course_id 
         ? courses.find(c => c.id === recipient.interested_course_id)?.name || ''
         : '';
@@ -305,7 +430,7 @@ export function LeadsBulkMessageModal({
 
     toast({
       title: 'Abas abertas',
-      description: `${recipients.length} abas do WhatsApp Web foram abertas.`,
+      description: `${recipientsToSend.length} abas do WhatsApp Web foram abertas.`,
     });
     
     onOpenChange(false);
@@ -314,170 +439,367 @@ export function LeadsBulkMessageModal({
   const successCount = sendResults.filter(r => r.success).length;
   const errorCount = sendResults.filter(r => !r.success).length;
 
+  const allSelected = filteredLeads.length > 0 && filteredLeads.every(l => selectedRecipients.has(l.id));
+  const someSelected = filteredLeads.some(l => selectedRecipients.has(l.id)) && !allSelected;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5" />
-            Envio em Massa - {recipients.length} leads
+            Envio em Massa - Leads
           </DialogTitle>
           <DialogDescription>
             Envie mensagens WhatsApp para múltiplos leads de uma vez
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4 py-4">
-          {/* Course Filter */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              Filtrar por Curso de Interesse
-            </Label>
-            <Select value={courseFilter} onValueChange={setCourseFilter}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  Todos os leads ({getCourseLeadCount('all')})
-                </SelectItem>
-                <SelectItem value="none">
-                  Sem curso definido ({getCourseLeadCount('none')})
-                </SelectItem>
-                {courses.filter(c => c.is_active).map(course => (
-                  <SelectItem key={course.id} value={course.id}>
-                    {course.name} ({getCourseLeadCount(course.id)})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <div className="flex-1 overflow-hidden py-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+            {/* Message Composer */}
+            <Card className="flex flex-col overflow-hidden">
+              <CardHeader className="flex-shrink-0">
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Compor Mensagem
+                </CardTitle>
+                <CardDescription>
+                  Clique nas variáveis para inserir na mensagem
+                </CardDescription>
+              </CardHeader>
 
-          {/* Recipients summary */}
-          <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">
-            <Users className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm">
-              {isLoadingLeads ? 'Carregando...' : `${recipients.length} leads selecionados`}
-            </span>
-          </div>
-
-          {/* W-API warning */}
-          {!isWapiConfigured && (
-            <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
-              <AlertCircle className="w-4 h-4 text-warning mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-warning">W-API não configurada</p>
-                <p className="text-muted-foreground">O envio será feito via WhatsApp Web (abrirá abas no navegador).</p>
-              </div>
-            </div>
-          )}
-
-          {/* Send mode selection */}
-          {isWapiConfigured && (
-            <div className="space-y-2">
-              <Label>Modo de envio</Label>
-              <Select value={sendMode} onValueChange={(v) => setSendMode(v as 'wapi' | 'web')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="wapi">Via W-API (automático)</SelectItem>
-                  <SelectItem value="web">Via WhatsApp Web (manual)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Template selection */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Categoria</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categoryOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Template</Label>
-              <Select 
-                value={selectedTemplateId} 
-                onValueChange={setSelectedTemplateId}
-                disabled={isLoadingTemplates}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um template" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="custom">Mensagem personalizada</SelectItem>
-                  {filteredTemplates.map(t => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Custom message or template preview */}
-          <div className="space-y-2">
-            <Label>{selectedTemplateId === 'custom' || !selectedTemplateId ? 'Mensagem' : 'Preview'}</Label>
-            <Textarea
-              value={selectedTemplateId && selectedTemplateId !== 'custom' ? selectedTemplate?.message || '' : customMessage}
-              onChange={(e) => setCustomMessage(e.target.value)}
-              placeholder="Digite sua mensagem..."
-              className="min-h-[100px]"
-              disabled={selectedTemplateId !== 'custom' && selectedTemplateId !== ''}
-            />
-            <p className="text-xs text-muted-foreground">
-              Variáveis disponíveis: {'{nome_responsavel}'}, {'{nome_aluno}'}, {'{nome_curso}'}
-            </p>
-          </div>
-
-          {/* Progress and results */}
-          {(isSending || sendResults.length > 0) && (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Progresso</span>
-                  <span>{Math.round(sendProgress)}%</span>
-                </div>
-                <Progress value={sendProgress} />
-              </div>
-              
-              {sendResults.length > 0 && (
-                <div className="flex gap-4 text-sm">
-                  <div className="flex items-center gap-1 text-success">
-                    <CheckCircle className="w-4 h-4" />
-                    {successCount} enviados
-                  </div>
-                  {errorCount > 0 && (
-                    <div className="flex items-center gap-1 text-destructive">
-                      <XCircle className="w-4 h-4" />
-                      {errorCount} erros
+              <CardContent className="flex-1 overflow-hidden flex flex-col gap-4">
+                {/* W-API warning */}
+                {!isWapiConfigured && (
+                  <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+                    <AlertCircle className="w-4 h-4 text-warning mt-0.5" />
+                    <div className="text-sm">
+                      <p className="font-medium text-warning">W-API não configurada</p>
+                      <p className="text-muted-foreground">O envio será feito via WhatsApp Web (abrirá abas no navegador).</p>
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
 
-              {errorCount > 0 && (
-                <ScrollArea className="h-[100px] border rounded-md p-2">
-                  <div className="space-y-1">
-                    {sendResults.filter(r => !r.success).map(r => (
-                      <div key={r.id} className="text-xs text-destructive">
-                        {r.name}: {r.error || 'Falha no envio'}
-                      </div>
+                {/* Send mode selection */}
+                {isWapiConfigured && (
+                  <div className="space-y-2">
+                    <Label>Modo de envio</Label>
+                    <Select value={sendMode} onValueChange={(v) => setSendMode(v as 'wapi' | 'web')}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="wapi">Via W-API (automático)</SelectItem>
+                        <SelectItem value="web">Via WhatsApp Web (manual)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Template selection */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Categoria</Label>
+                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categoryOptions.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Template</Label>
+                    <Select
+                      value={selectedTemplateId}
+                      onValueChange={setSelectedTemplateId}
+                      disabled={isLoadingTemplates}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="custom">Mensagem personalizada</SelectItem>
+                        {filteredTemplates.map(t => (
+                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Clickable Variables */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Variáveis de personalização</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { variable: '{nome_responsavel}', label: 'Nome Responsável', description: 'Primeiro nome do responsável' },
+                      { variable: '{nome_aluno}', label: 'Nome Aluno', description: 'Nome do aluno (se informado)' },
+                      { variable: '{nome_curso}', label: 'Curso', description: 'Curso de interesse do lead' },
+                    ].map((item) => (
+                      <Button
+                        key={item.variable}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => insertVariable(item.variable)}
+                        disabled={isSending}
+                        className="text-xs h-7 px-2 gap-1 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
+                        title={item.description}
+                      >
+                        <Zap className="w-3 h-3" />
+                        {item.label}
+                      </Button>
                     ))}
                   </div>
+                </div>
+
+                {/* AI Generator (inline) */}
+                <div className="p-3 rounded-lg bg-secondary/30 border border-border/50 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium">Gerar com IA</p>
+                      <p className="text-xs text-muted-foreground">Descreva o objetivo e a IA cria a mensagem</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Propósito *</Label>
+                      <Input
+                        value={aiPurpose}
+                        onChange={(e) => setAiPurpose(e.target.value)}
+                        placeholder="Ex: convidar para uma visita"
+                        disabled={isGenerating || isSending}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tom</Label>
+                      <Select value={aiTone} onValueChange={setAiTone}>
+                        <SelectTrigger disabled={isGenerating || isSending}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {toneOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Contexto (opcional)</Label>
+                    <Textarea
+                      value={aiContext}
+                      onChange={(e) => setAiContext(e.target.value)}
+                      placeholder="Ex: lead pediu informações sobre valores e horários"
+                      rows={2}
+                      disabled={isGenerating || isSending}
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleGenerateWithAI}
+                    disabled={isGenerating || isSending || !aiPurpose.trim()}
+                    className="gap-2"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Gerando...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Gerar Mensagem
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {/* Message */}
+                <div className="space-y-2">
+                  <Label>{selectedTemplateId === 'custom' || !selectedTemplateId ? 'Mensagem' : 'Preview'}</Label>
+                  <Textarea
+                    id="lead-bulk-message"
+                    value={selectedTemplateId && selectedTemplateId !== 'custom' ? selectedTemplate?.message || '' : customMessage}
+                    onChange={(e) => {
+                      setSelectedTemplateId('custom');
+                      setCustomMessage(e.target.value);
+                    }}
+                    placeholder="Olá {nome_responsavel}, ..."
+                    className="min-h-[180px] resize-none"
+                    disabled={isSending || (selectedTemplateId !== 'custom' && selectedTemplateId !== '')}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Variáveis: {'{nome_responsavel}'}, {'{nome_aluno}'}, {'{nome_curso}'}
+                  </p>
+                </div>
+
+                {/* Progress and results */}
+                {(isSending || sendResults.length > 0) && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Progresso</span>
+                        <span>{Math.round(sendProgress)}%</span>
+                      </div>
+                      <Progress value={sendProgress} />
+                    </div>
+
+                    {sendResults.length > 0 && (
+                      <div className="flex gap-4 text-sm">
+                        <div className="flex items-center gap-1 text-success">
+                          <CheckCircle className="w-4 h-4" />
+                          {successCount} enviados
+                        </div>
+                        {errorCount > 0 && (
+                          <div className="flex items-center gap-1 text-destructive">
+                            <XCircle className="w-4 h-4" />
+                            {errorCount} erros
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {errorCount > 0 && (
+                      <ScrollArea className="h-[100px] border rounded-md p-2">
+                        <div className="space-y-1">
+                          {sendResults.filter(r => !r.success).map(r => (
+                            <div key={r.id} className="text-xs text-destructive">
+                              {r.name}: {r.error || 'Falha no envio'}
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Recipients Selection */}
+            <Card className="flex flex-col overflow-hidden">
+              <CardHeader className="flex-shrink-0">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  Destinatários
+                </CardTitle>
+                <CardDescription>
+                  Filtre e selecione os leads para enviar
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="flex-1 overflow-hidden flex flex-col gap-4">
+                {/* Filter by Course */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    Filtrar por Curso de Interesse
+                  </Label>
+                  <Select
+                    value={courseFilter}
+                    onValueChange={(value) => {
+                      setCourseFilter(value);
+                      setSendResults([]);
+                      setSendProgress(0);
+                    }}
+                    disabled={isSending}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os leads ({getCourseLeadCount('all')})</SelectItem>
+                      <SelectItem value="none">Sem curso definido ({getCourseLeadCount('none')})</SelectItem>
+                      {courses.filter(c => c.is_active).map(course => (
+                        <SelectItem key={course.id} value={course.id}>
+                          {course.name} ({getCourseLeadCount(course.id)})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Select All */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="select-all-leads"
+                      checked={allSelected}
+                      onCheckedChange={(checked) => handleSelectAll(checked === true)}
+                      disabled={isSending}
+                      className={someSelected ? 'data-[state=checked]:bg-primary/50' : ''}
+                    />
+                    <Label htmlFor="select-all-leads" className="text-sm font-medium cursor-pointer">
+                      {isLoadingLeads ? 'Carregando...' : `Selecionar todos (${filteredLeads.length})`}
+                    </Label>
+                  </div>
+                  <Badge variant="secondary">{selectedRecipients.size} selecionados</Badge>
+                </div>
+
+                {/* Leads List */}
+                <ScrollArea className="flex-1 rounded-lg border">
+                  <div className="p-2 space-y-1">
+                    {filteredLeads.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                        <AlertCircle className="w-8 h-8 mb-2" />
+                        <p className="text-sm">Nenhum lead encontrado</p>
+                      </div>
+                    ) : (
+                      filteredLeads.map((lead) => {
+                        const result = sendResults.find(r => r.id === lead.id);
+                        const isSelected = selectedRecipients.has(lead.id);
+                        const courseName = lead.interested_course_id
+                          ? courses.find(c => c.id === lead.interested_course_id)?.name
+                          : null;
+
+                        return (
+                          <div
+                            key={lead.id}
+                            className={`flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/50 transition-colors ${
+                              result?.success ? 'bg-primary/10' :
+                              result?.success === false ? 'bg-destructive/10' :
+                              ''
+                            }`}
+                          >
+                            <Checkbox
+                              id={`lead-${lead.id}`}
+                              checked={isSelected}
+                              onCheckedChange={(checked) => handleSelectRecipient(lead.id, checked === true)}
+                              disabled={isSending}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{lead.name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{lead.phone}</p>
+                              {courseName && (
+                                <p className="text-xs text-muted-foreground truncate">Interesse: {courseName}</p>
+                              )}
+                            </div>
+                            {result && (
+                              result.success ? (
+                                <CheckCircle className="w-4 h-4 text-primary shrink-0" />
+                              ) : (
+                                <XCircle className="w-4 h-4 text-destructive shrink-0" />
+                              )
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </ScrollArea>
-              )}
-            </div>
-          )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         <DialogFooter>
@@ -487,7 +809,7 @@ export function LeadsBulkMessageModal({
           {sendResults.length === 0 && (
             <Button 
               onClick={sendMode === 'wapi' && isWapiConfigured ? handleSendViaWapi : handleSendViaWeb}
-              disabled={isSending || (!getMessage()) || recipients.length === 0}
+              disabled={isSending || (!getMessage()) || selectedRecipients.size === 0}
               className="gap-2"
             >
               {isSending ? (
@@ -498,7 +820,7 @@ export function LeadsBulkMessageModal({
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  Enviar para {recipients.length}
+                  Enviar para {selectedRecipients.size}
                 </>
               )}
             </Button>
