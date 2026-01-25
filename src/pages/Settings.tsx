@@ -17,7 +17,9 @@ import {
   Upload,
   Building2,
   Zap,
-  MessageSquare as MessageSquareIcon
+  MessageSquare as MessageSquareIcon,
+  DollarSign,
+  MessageCircle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -27,6 +29,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import {
   Dialog,
   DialogContent,
@@ -42,6 +45,7 @@ import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { WapiConfigCard } from '@/components/settings/WapiConfigCard';
 import { AutomationControlPanel } from '@/components/settings/AutomationControlPanel';
 import { MessageLogsViewer } from '@/components/settings/MessageLogsViewer';
+import { cn } from '@/lib/utils';
 
 interface AppSetting {
   id: string;
@@ -53,10 +57,26 @@ interface AppSetting {
   updated_at: string;
 }
 
+interface SettingsSection {
+  id: string;
+  label: string;
+  icon: typeof SettingsIcon;
+  description: string;
+}
+
+const settingsSections: SettingsSection[] = [
+  { id: 'branding', label: 'Identidade', icon: Building2, description: 'Nome, logo e favicon' },
+  { id: 'api', label: 'APIs', icon: Key, description: 'Chaves de integração' },
+  { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, description: 'Configuração W-API' },
+  { id: 'webhooks', label: 'Webhooks', icon: Webhook, description: 'URLs de notificação' },
+  { id: 'financial', label: 'Financeiro', icon: DollarSign, description: 'Juros, multas e descontos' },
+  { id: 'other', label: 'Outras', icon: SettingsIcon, description: 'Configurações gerais' },
+];
+
 export default function Settings() {
   const { toast } = useToast();
   const { profile } = useAuthContext();
-  const { branding, updateBranding, refetch: refetchBranding } = useSystemBranding();
+  const { branding, updateBranding } = useSystemBranding();
   
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,6 +84,7 @@ export default function Settings() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [editedSettings, setEditedSettings] = useState<Record<string, string>>({});
   const [showAddModal, setShowAddModal] = useState(false);
+  const [activeSection, setActiveSection] = useState('branding');
   const [newSetting, setNewSetting] = useState({
     key: '',
     value: '',
@@ -106,7 +127,6 @@ export default function Settings() {
       });
     } else {
       setSettings(data || []);
-      // Initialize edited settings
       const initial: Record<string, string> = {};
       data?.forEach(s => {
         initial[s.key] = s.value || '';
@@ -395,14 +415,15 @@ export default function Settings() {
   // Group settings
   const apiSettings = settings.filter(s => s.key.includes('API') || s.key.includes('KEY'));
   const asaasDiscountSettings = settings.filter(s => s.key.startsWith('asaas_discount'));
-  const asaasPenaltySettings = settings.filter(s => s.key.startsWith('asaas_interest') || s.key.startsWith('asaas_fine'));
+  
   const otherSettings = settings.filter(s => 
     !s.key.includes('API') && 
     !s.key.includes('KEY') && 
     !s.key.startsWith('asaas_discount') &&
     !s.key.startsWith('asaas_interest') &&
     !s.key.startsWith('asaas_fine') &&
-    !s.key.startsWith('login_')
+    !s.key.startsWith('login_') &&
+    !s.key.startsWith('W_API')
   );
 
   // Check if current user is admin
@@ -417,59 +438,11 @@ export default function Settings() {
     );
   }
 
-  return (
-    <div className="animate-fade-in">
-      <div className="page-header flex items-center justify-between">
-        <div>
-          <h1 className="page-title">Configurações</h1>
-          <p className="page-subtitle">Gerencie as configurações do sistema</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowAddModal(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Configuração
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving || !hasChanges}>
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Salvando...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Salvar Alterações
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
-
-      <Tabs defaultValue="general" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="general" className="gap-2">
-            <SettingsIcon className="w-4 h-4" />
-            Geral
-          </TabsTrigger>
-          <TabsTrigger value="automations" className="gap-2">
-            <Zap className="w-4 h-4" />
-            Automações
-          </TabsTrigger>
-          <TabsTrigger value="logs" className="gap-2">
-            <MessageSquareIcon className="w-4 h-4" />
-            Histórico
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="general">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* System Branding Card */}
-              <Card className="border-border/50">
+  const renderSectionContent = () => {
+    switch (activeSection) {
+      case 'branding':
+        return (
+          <Card className="border-border/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Building2 className="w-5 h-5" />
@@ -480,9 +453,7 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Row 1: Name and Browser Title */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* System Name */}
                 <div className="space-y-2">
                   <Label htmlFor="system-name" className="font-medium">
                     Nome do Sistema
@@ -498,7 +469,6 @@ export default function Settings() {
                   </p>
                 </div>
 
-                {/* Browser Title */}
                 <div className="space-y-2">
                   <Label htmlFor="browser-title" className="font-medium">
                     Título na Aba do Navegador
@@ -510,12 +480,11 @@ export default function Settings() {
                     placeholder={systemName || 'EduGestor'}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Texto exibido na aba do navegador (deixe vazio para usar o nome do sistema)
+                    Texto exibido na aba do navegador
                   </p>
                 </div>
               </div>
 
-              {/* Save Name/Title Button */}
               <div className="flex justify-end">
                 <Button 
                   onClick={handleSaveBranding} 
@@ -535,9 +504,7 @@ export default function Settings() {
                 </Button>
               </div>
 
-              {/* Row 2: Logo and Favicon */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-border/50">
-                {/* System Logo */}
                 <div className="space-y-2">
                   <Label className="font-medium">Logo do Sistema</Label>
                   <div className="flex items-center gap-4">
@@ -595,7 +562,6 @@ export default function Settings() {
                   </div>
                 </div>
 
-                {/* Favicon */}
                 <div className="space-y-2">
                   <Label className="font-medium">Favicon (Ícone da Aba)</Label>
                   <div className="flex items-center gap-4">
@@ -655,8 +621,10 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        );
 
-          {/* API Keys Card */}
+      case 'api':
+        return (
           <Card className="border-border/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -735,14 +703,18 @@ export default function Settings() {
               )}
             </CardContent>
           </Card>
+        );
 
-          {/* W-API WhatsApp Integration Card */}
+      case 'whatsapp':
+        return (
           <WapiConfigCard 
             editedSettings={editedSettings} 
             setEditedSettings={setEditedSettings} 
           />
+        );
 
-          {/* Webhook URL Card */}
+      case 'webhooks':
+        return (
           <Card className="border-border/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -750,7 +722,7 @@ export default function Settings() {
                 Webhook de Pagamentos
               </CardTitle>
               <CardDescription>
-                Configure esta URL no painel do seu gateway de pagamento (Asaas) para receber notificações automáticas sobre o status dos pagamentos
+                Configure esta URL no painel do seu gateway de pagamento (Asaas)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -783,7 +755,7 @@ export default function Settings() {
               
               <div className="p-4 rounded-lg bg-muted/50 border border-border">
                 <h4 className="font-medium mb-2 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-success" />
+                  <CheckCircle className="w-4 h-4 text-green-500" />
                   Eventos suportados
                 </h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
@@ -795,210 +767,197 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        );
 
-          {/* Asaas Discount Card */}
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Percent className="w-5 h-5" />
-                Desconto por Antecipação (Asaas)
-              </CardTitle>
-              <CardDescription>
-                Configure o desconto que será aplicado automaticamente para pagamentos antecipados. 
-                Este desconto é gerenciado diretamente pela API Asaas.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {asaasDiscountSettings.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">
-                  Configurações de desconto não encontradas
-                </p>
-              ) : (
-                <>
-                  {/* Enabled toggle */}
-                  {asaasDiscountSettings.find(s => s.key === 'asaas_discount_enabled') && (
-                    <div className="flex items-center justify-between p-4 rounded-lg border border-border">
-                      <div>
-                        <Label className="font-medium">Habilitar Desconto por Antecipação</Label>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          Quando habilitado, os boletos terão desconto se pagos antes do vencimento
-                        </p>
-                      </div>
-                      <Switch
-                        checked={editedSettings['asaas_discount_enabled'] === 'true'}
-                        onCheckedChange={(checked) => 
-                          setEditedSettings(prev => ({ ...prev, 'asaas_discount_enabled': checked ? 'true' : 'false' }))
-                        }
-                      />
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Discount value */}
-                    {asaasDiscountSettings.find(s => s.key === 'asaas_discount_value') && (
-                      <div className="space-y-2">
-                        <Label htmlFor="asaas_discount_value" className="font-medium">
-                          Valor do Desconto (%)
-                        </Label>
-                        <div className="relative">
-                          <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            id="asaas_discount_value"
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.5"
-                            className="pl-10"
-                            value={editedSettings['asaas_discount_value'] || '0'}
-                            onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_discount_value': e.target.value }))}
-                            placeholder="0"
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Percentual de desconto aplicado ao boleto
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Days before */}
-                    {asaasDiscountSettings.find(s => s.key === 'asaas_discount_days_before') && (
-                      <div className="space-y-2">
-                        <Label htmlFor="asaas_discount_days_before" className="font-medium">
-                          Dias de Antecedência
-                        </Label>
-                        <div className="relative">
-                          <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            id="asaas_discount_days_before"
-                            type="number"
-                            min="0"
-                            max="30"
-                            step="1"
-                            className="pl-10"
-                            value={editedSettings['asaas_discount_days_before'] || '0'}
-                            onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_discount_days_before': e.target.value }))}
-                            placeholder="0"
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Até quantos dias antes do vencimento o desconto é válido
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {editedSettings['asaas_discount_enabled'] === 'true' && (
-                    <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                      <p className="text-sm">
-                        <strong>Resumo:</strong> Desconto de{' '}
-                        <span className="font-bold text-primary">
-                          {editedSettings['asaas_discount_value'] || '0'}%
-                        </span>{' '}
-                        para pagamentos realizados até{' '}
-                        <span className="font-bold text-primary">
-                          {editedSettings['asaas_discount_days_before'] || '0'} dias
-                        </span>{' '}
-                        antes do vencimento.
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Asaas Interest/Fine Card */}
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5" />
-                Juros e Multa por Atraso (Asaas)
-              </CardTitle>
-              <CardDescription>
-                Configure os juros e multa que serão aplicados automaticamente em pagamentos atrasados. 
-                Estes valores são gerenciados diretamente pela API Asaas.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Interest value */}
-                <div className="space-y-2">
-                  <Label htmlFor="asaas_interest_value" className="font-medium">
-                    Juros ao Mês (%)
-                  </Label>
-                  <div className="relative">
-                    <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="asaas_interest_value"
-                      type="number"
-                      min="0"
-                      max="10"
-                      step="0.1"
-                      className="pl-10"
-                      value={editedSettings['asaas_interest_value'] || '1'}
-                      onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_interest_value': e.target.value }))}
-                      placeholder="1"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Percentual de juros cobrado ao mês após o vencimento
-                  </p>
-                </div>
-
-                {/* Fine value */}
-                <div className="space-y-2">
-                  <Label htmlFor="asaas_fine_value" className="font-medium">
-                    Multa por Atraso (%)
-                  </Label>
-                  <div className="relative">
-                    <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="asaas_fine_value"
-                      type="number"
-                      min="0"
-                      max="10"
-                      step="0.1"
-                      className="pl-10"
-                      value={editedSettings['asaas_fine_value'] || '2'}
-                      onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_fine_value': e.target.value }))}
-                      placeholder="2"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Percentual de multa aplicado após o vencimento (máximo legal: 2%)
-                  </p>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-                <p className="text-sm">
-                  <strong>Resumo:</strong> Pagamentos em atraso terão{' '}
-                  <span className="font-bold text-destructive">
-                    {editedSettings['asaas_fine_value'] || '2'}% de multa
-                  </span>{' '}
-                  mais{' '}
-                  <span className="font-bold text-destructive">
-                    {editedSettings['asaas_interest_value'] || '1'}% de juros ao mês
-                  </span>.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Other Settings Card */}
-          {otherSettings.length > 0 && (
+      case 'financial':
+        return (
+          <div className="space-y-6">
+            {/* Discount Card */}
             <Card className="border-border/50">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <SettingsIcon className="w-5 h-5" />
-                  Outras Configurações
+                  <Percent className="w-5 h-5" />
+                  Desconto por Antecipação
                 </CardTitle>
                 <CardDescription>
-                  Configurações gerais do sistema
+                  Configure o desconto para pagamentos antecipados (Asaas)
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {otherSettings.map((setting) => (
+                {asaasDiscountSettings.find(s => s.key === 'asaas_discount_enabled') && (
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                    <div>
+                      <Label className="font-medium">Habilitar Desconto por Antecipação</Label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Quando habilitado, os boletos terão desconto se pagos antes do vencimento
+                      </p>
+                    </div>
+                    <Switch
+                      checked={editedSettings['asaas_discount_enabled'] === 'true'}
+                      onCheckedChange={(checked) => 
+                        setEditedSettings(prev => ({ ...prev, 'asaas_discount_enabled': checked ? 'true' : 'false' }))
+                      }
+                    />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {asaasDiscountSettings.find(s => s.key === 'asaas_discount_value') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="asaas_discount_value" className="font-medium">
+                        Valor do Desconto (%)
+                      </Label>
+                      <div className="relative">
+                        <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="asaas_discount_value"
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          className="pl-10"
+                          value={editedSettings['asaas_discount_value'] || '0'}
+                          onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_discount_value': e.target.value }))}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {asaasDiscountSettings.find(s => s.key === 'asaas_discount_days_before') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="asaas_discount_days_before" className="font-medium">
+                        Dias de Antecedência
+                      </Label>
+                      <div className="relative">
+                        <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="asaas_discount_days_before"
+                          type="number"
+                          min="0"
+                          max="30"
+                          step="1"
+                          className="pl-10"
+                          value={editedSettings['asaas_discount_days_before'] || '0'}
+                          onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_discount_days_before': e.target.value }))}
+                          placeholder="0"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {editedSettings['asaas_discount_enabled'] === 'true' && (
+                  <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
+                    <p className="text-sm">
+                      <strong>Resumo:</strong> Desconto de{' '}
+                      <span className="font-bold text-primary">
+                        {editedSettings['asaas_discount_value'] || '0'}%
+                      </span>{' '}
+                      para pagamentos realizados até{' '}
+                      <span className="font-bold text-primary">
+                        {editedSettings['asaas_discount_days_before'] || '0'} dias
+                      </span>{' '}
+                      antes do vencimento.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Interest/Fine Card */}
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" />
+                  Juros e Multa por Atraso
+                </CardTitle>
+                <CardDescription>
+                  Configure os juros e multa para pagamentos atrasados (Asaas)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="asaas_interest_value" className="font-medium">
+                      Juros ao Mês (%)
+                    </Label>
+                    <div className="relative">
+                      <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="asaas_interest_value"
+                        type="number"
+                        min="0"
+                        max="10"
+                        step="0.1"
+                        className="pl-10"
+                        value={editedSettings['asaas_interest_value'] || '1'}
+                        onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_interest_value': e.target.value }))}
+                        placeholder="1"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="asaas_fine_value" className="font-medium">
+                      Multa por Atraso (%)
+                    </Label>
+                    <div className="relative">
+                      <Percent className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="asaas_fine_value"
+                        type="number"
+                        min="0"
+                        max="10"
+                        step="0.1"
+                        className="pl-10"
+                        value={editedSettings['asaas_fine_value'] || '2'}
+                        onChange={(e) => setEditedSettings(prev => ({ ...prev, 'asaas_fine_value': e.target.value }))}
+                        placeholder="2"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Máximo legal: 2%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-lg bg-destructive/5 border border-destructive/20">
+                  <p className="text-sm">
+                    <strong>Resumo:</strong> Pagamentos em atraso terão{' '}
+                    <span className="font-bold text-destructive">
+                      {editedSettings['asaas_fine_value'] || '2'}% de multa
+                    </span>{' '}
+                    mais{' '}
+                    <span className="font-bold text-destructive">
+                      {editedSettings['asaas_interest_value'] || '1'}% de juros ao mês
+                    </span>.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 'other':
+        return (
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <SettingsIcon className="w-5 h-5" />
+                Outras Configurações
+              </CardTitle>
+              <CardDescription>
+                Configurações gerais do sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {otherSettings.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  Nenhuma configuração adicional
+                </p>
+              ) : (
+                otherSettings.map((setting) => (
                   <div key={setting.id} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor={setting.key} className="font-medium">
@@ -1038,83 +997,103 @@ export default function Settings() {
                       />
                     )}
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+                ))
+              )}
+            </CardContent>
+          </Card>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="animate-fade-in">
+      <div className="page-header flex items-center justify-between">
+        <div>
+          <h1 className="page-title">Configurações</h1>
+          <p className="page-subtitle">Gerencie as configurações do sistema</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowAddModal(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Configuração
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving || !hasChanges}>
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Salvar Alterações
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      <Tabs defaultValue="general" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="general" className="gap-2">
+            <SettingsIcon className="w-4 h-4" />
+            Geral
+          </TabsTrigger>
+          <TabsTrigger value="automations" className="gap-2">
+            <Zap className="w-4 h-4" />
+            Automações
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="gap-2">
+            <MessageSquareIcon className="w-4 h-4" />
+            Histórico
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="flex gap-6">
+              {/* Sidebar Navigation */}
+              <div className="w-56 shrink-0">
+                <nav className="space-y-1 sticky top-4">
+                  {settingsSections.map((section) => (
+                    <button
+                      key={section.id}
+                      onClick={() => setActiveSection(section.id)}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors',
+                        activeSection === section.id
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      <section.icon className="w-4 h-4 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{section.label}</p>
+                        <p className={cn(
+                          "text-xs truncate",
+                          activeSection === section.id ? "text-primary-foreground/70" : "text-muted-foreground"
+                        )}>
+                          {section.description}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              {/* Main Content */}
+              <div className="flex-1 min-w-0">
+                {renderSectionContent()}
+              </div>
             </div>
           )}
-
-          {/* Add Setting Modal */}
-          <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Nova Configuração</DialogTitle>
-                <DialogDescription>
-                  Adicione uma nova configuração ao sistema
-                </DialogDescription>
-              </DialogHeader>
-              
-              <form onSubmit={handleAddSetting} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="new-key">Chave *</Label>
-                  <Input
-                    id="new-key"
-                    value={newSetting.key}
-                    onChange={(e) => setNewSetting(prev => ({ ...prev, key: e.target.value }))}
-                    placeholder="Ex: API_KEY, CONFIG_NAME"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    A chave será convertida para maiúsculas
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="new-value">Valor</Label>
-                  <Input
-                    id="new-value"
-                    type={newSetting.is_secret ? 'password' : 'text'}
-                    value={newSetting.value}
-                    onChange={(e) => setNewSetting(prev => ({ ...prev, value: e.target.value }))}
-                    placeholder="Valor da configuração"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="new-description">Descrição</Label>
-                  <Input
-                    id="new-description"
-                    value={newSetting.description}
-                    onChange={(e) => setNewSetting(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Descrição da configuração"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="new-is-secret">Valor secreto</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Valores secretos são ocultados na interface
-                    </p>
-                  </div>
-                  <Switch
-                    id="new-is-secret"
-                    checked={newSetting.is_secret}
-                    onCheckedChange={(checked) => setNewSetting(prev => ({ ...prev, is_secret: checked }))}
-                  />
-                </div>
-
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit">
-                    Criar Configuração
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
         </TabsContent>
 
         <TabsContent value="automations">
@@ -1125,6 +1104,77 @@ export default function Settings() {
           <MessageLogsViewer />
         </TabsContent>
       </Tabs>
+
+      {/* Add Setting Modal */}
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova Configuração</DialogTitle>
+            <DialogDescription>
+              Adicione uma nova configuração ao sistema
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleAddSetting} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-key">Chave *</Label>
+              <Input
+                id="new-key"
+                value={newSetting.key}
+                onChange={(e) => setNewSetting(prev => ({ ...prev, key: e.target.value }))}
+                placeholder="Ex: API_KEY, CONFIG_NAME"
+              />
+              <p className="text-xs text-muted-foreground">
+                A chave será convertida para maiúsculas
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-value">Valor</Label>
+              <Input
+                id="new-value"
+                type={newSetting.is_secret ? 'password' : 'text'}
+                value={newSetting.value}
+                onChange={(e) => setNewSetting(prev => ({ ...prev, value: e.target.value }))}
+                placeholder="Valor da configuração"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-description">Descrição</Label>
+              <Input
+                id="new-description"
+                value={newSetting.description}
+                onChange={(e) => setNewSetting(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Descrição da configuração"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="new-is-secret">Valor secreto</Label>
+                <p className="text-xs text-muted-foreground">
+                  Valores secretos são ocultados na interface
+                </p>
+              </div>
+              <Switch
+                id="new-is-secret"
+                checked={newSetting.is_secret}
+                onCheckedChange={(checked) => setNewSetting(prev => ({ ...prev, is_secret: checked }))}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowAddModal(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit">
+                Criar Configuração
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
