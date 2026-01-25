@@ -9,21 +9,6 @@ interface RequestBody {
   contractId: string;
 }
 
-interface ContractContent {
-  schoolName: string;
-  schoolCnpj: string;
-  schoolAddress: string;
-  guardianName: string;
-  guardianCpf: string;
-  studentName: string;
-  courseName: string;
-  totalValue: number;
-  installments: number;
-  signatureImage?: string | null;
-  signedAt?: string | null;
-  signatureHash?: string | null;
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -50,13 +35,7 @@ Deno.serve(async (req) => {
         *,
         student:students(name, birth_date),
         guardian:guardians(name, phone, cpf, address),
-        course:courses(name, duration, price),
-        enrollment:enrollments(
-          class_group:class_groups(
-            name,
-            schedule:schedules(day_of_week, start_time, end_time)
-          )
-        )
+        course:courses(name, duration, price)
       `)
       .eq('id', contractId)
       .single();
@@ -140,8 +119,8 @@ Deno.serve(async (req) => {
       .replace(/{hash}/g, contract.signature_hash?.substring(0, 16) + '...' || 'N/A')
       .replace(/\\n/g, '\n');
 
-    // Generate PDF using jsPDF via CDN
-    const pdfBase64 = await generateContractPDF({
+    // Generate PDF content
+    const pdfBytes = generateContractPDFBytes({
       schoolName: contractConfig?.school_name || 'Circuito Kids',
       schoolCnpj: contractConfig?.school_cnpj || '',
       schoolAddress: contractConfig?.school_address || '',
@@ -151,10 +130,37 @@ Deno.serve(async (req) => {
       courseName: contract.course?.name || '',
       totalValue: contract.total_value || 0,
       installments: contract.installment_count || 1,
-      signatureImage: contract.signature_image,
       signedAt: contract.signed_at,
       signatureHash: contract.signature_hash,
     });
+
+    // Upload PDF to Supabase Storage
+    const studentNameSafe = (contract.student?.name || 'contrato').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+    const timestamp = Date.now();
+    const fileName = `contratos/contrato_${studentNameSafe}_${timestamp}.pdf`;
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('system-branding')
+      .upload(fileName, pdfBytes, {
+        contentType: 'application/pdf',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('Error uploading PDF:', uploadError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to upload PDF', details: uploadError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('system-branding')
+      .getPublicUrl(fileName);
+
+    const pdfUrl = urlData?.publicUrl;
+    console.log('PDF uploaded to:', pdfUrl);
 
     // Save message to database first
     const { data: messageRecord, error: messageError } = await supabase
@@ -166,6 +172,7 @@ Deno.serve(async (req) => {
         guardian_id: contract.guardian_id,
         status: 'pending',
         media_type: 'document',
+        media_url: pdfUrl,
       })
       .select()
       .single();
@@ -174,10 +181,7 @@ Deno.serve(async (req) => {
       console.error('Error saving message:', messageError);
     }
 
-    // Send PDF document via W-API
-    const studentNameSafe = (contract.student?.name || 'contrato').replace(/\s+/g, '_').substring(0, 30);
-    const fileName = `Contrato_${studentNameSafe}.pdf`;
-    
+    // Send PDF document via W-API using URL
     const sendResponse = await fetch(
       `${wapiUrl}/v1/message/send-document?instanceId=${wapiInstanceId}`,
       {
@@ -188,8 +192,8 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           phone: formattedPhone,
-          document: `data:application/pdf;base64,${pdfBase64}`,
-          fileName: fileName,
+          document: pdfUrl,
+          fileName: `Contrato_${studentNameSafe}.pdf`,
           caption: message,
         }),
       }
@@ -228,7 +232,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, messageId: sendResult?.id || sendResult?.messageId }),
+      JSON.stringify({ success: true, messageId: sendResult?.id || sendResult?.messageId, pdfUrl }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -242,97 +246,114 @@ Deno.serve(async (req) => {
   }
 });
 
-// Simplified PDF generation for edge function (text-based contract summary)
-async function generateContractPDF(content: ContractContent): Promise<string> {
-  // Since jsPDF doesn't work well in Deno edge functions,
-  // we'll create a simple text-based PDF using a minimal approach
-  
+interface ContractPDFContent {
+  schoolName: string;
+  schoolCnpj: string;
+  schoolAddress: string;
+  guardianName: string;
+  guardianCpf: string;
+  studentName: string;
+  courseName: string;
+  totalValue: number;
+  installments: number;
+  signedAt?: string | null;
+  signatureHash?: string | null;
+}
+
+// Generate a valid PDF using raw PDF syntax
+function generateContractPDFBytes(content: ContractPDFContent): Uint8Array {
   const signedDateStr = content.signedAt 
     ? new Date(content.signedAt).toLocaleDateString('pt-BR', {
         day: '2-digit',
-        month: 'long',
+        month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
       })
     : new Date().toLocaleDateString('pt-BR');
 
-  // Create a simple PDF structure
-  // Using a basic PDF text template that can be generated without external libs
-  const pdfContent = `
-%PDF-1.4
+  const installmentValue = content.installments > 0 
+    ? (content.totalValue / content.installments).toFixed(2).replace('.', ',')
+    : '0,00';
+
+  // Build content stream with proper text positioning
+  const lines = [
+    { text: 'CONTRATO DE PRESTACAO DE SERVICOS EDUCACIONAIS', x: 50, y: 750, size: 16, bold: true },
+    { text: escapeText(content.schoolName), x: 50, y: 720, size: 12, bold: false },
+    { text: `CNPJ: ${escapeText(content.schoolCnpj)}`, x: 50, y: 700, size: 10, bold: false },
+    { text: escapeText(content.schoolAddress), x: 50, y: 680, size: 10, bold: false },
+    { text: '', x: 50, y: 660, size: 10, bold: false },
+    { text: 'DADOS DO CONTRATANTE', x: 50, y: 640, size: 12, bold: true },
+    { text: `Responsavel: ${escapeText(content.guardianName)}`, x: 50, y: 620, size: 10, bold: false },
+    { text: `CPF: ${escapeText(content.guardianCpf)}`, x: 50, y: 600, size: 10, bold: false },
+    { text: '', x: 50, y: 580, size: 10, bold: false },
+    { text: 'DADOS DO ALUNO E CURSO', x: 50, y: 560, size: 12, bold: true },
+    { text: `Aluno(a): ${escapeText(content.studentName)}`, x: 50, y: 540, size: 10, bold: false },
+    { text: `Curso: ${escapeText(content.courseName)}`, x: 50, y: 520, size: 10, bold: false },
+    { text: `Valor Total: R$ ${content.totalValue.toFixed(2).replace('.', ',')}`, x: 50, y: 500, size: 10, bold: false },
+    { text: `Parcelas: ${content.installments}x de R$ ${installmentValue}`, x: 50, y: 480, size: 10, bold: false },
+    { text: '', x: 50, y: 460, size: 10, bold: false },
+    { text: 'ASSINATURA DIGITAL', x: 50, y: 440, size: 12, bold: true },
+    { text: `Data da Assinatura: ${signedDateStr}`, x: 50, y: 420, size: 10, bold: false },
+    { text: `Hash de Verificacao: ${escapeText(content.signatureHash?.substring(0, 32) || 'N/A')}...`, x: 50, y: 400, size: 9, bold: false },
+    { text: '', x: 50, y: 380, size: 10, bold: false },
+    { text: 'Este documento foi assinado eletronicamente conforme', x: 50, y: 360, size: 8, bold: false },
+    { text: 'MP 2.200-2/2001 e Lei 14.063/2020, possuindo validade juridica.', x: 50, y: 345, size: 8, bold: false },
+  ];
+
+  // Build content stream
+  let contentStream = 'BT\n';
+  for (const line of lines) {
+    contentStream += `/F1 ${line.size} Tf\n`;
+    contentStream += `${line.x} ${line.y} Td\n`;
+    contentStream += `(${line.text}) Tj\n`;
+    contentStream += `${-line.x} ${-line.y} Td\n`; // Reset position
+  }
+  contentStream += 'ET';
+
+  const streamLength = contentStream.length;
+
+  // Build PDF structure
+  const pdf = `%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
 endobj
+
 2 0 obj
 << /Type /Pages /Kids [3 0 R] /Count 1 >>
 endobj
+
 3 0 obj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
 endobj
+
 4 0 obj
-<< /Length 6 0 R >>
+<< /Length ${streamLength} >>
 stream
-BT
-/F1 16 Tf
-50 750 Td
-(CONTRATO DE PRESTACAO DE SERVICOS EDUCACIONAIS) Tj
-/F1 12 Tf
-0 -30 Td
-(${escapeText(content.schoolName)}) Tj
-0 -25 Td
-(CNPJ: ${escapeText(content.schoolCnpj)}) Tj
-0 -20 Td
-(${escapeText(content.schoolAddress)}) Tj
-0 -35 Td
-/F1 11 Tf
-(CONTRATANTE: ${escapeText(content.guardianName)}) Tj
-0 -18 Td
-(CPF: ${escapeText(content.guardianCpf)}) Tj
-0 -30 Td
-(ALUNO\\(A\\): ${escapeText(content.studentName)}) Tj
-0 -18 Td
-(CURSO: ${escapeText(content.courseName)}) Tj
-0 -18 Td
-(VALOR TOTAL: R$ ${content.totalValue.toFixed(2).replace('.', ',')}) Tj
-0 -18 Td
-(PARCELAS: ${content.installments}x de R$ ${(content.totalValue / content.installments).toFixed(2).replace('.', ',')}) Tj
-0 -40 Td
-/F1 10 Tf
-(ASSINATURA DIGITAL) Tj
-0 -18 Td
-(Data: ${escapeText(signedDateStr)}) Tj
-0 -18 Td
-(Hash de Verificacao: ${escapeText(content.signatureHash?.substring(0, 32) || 'N/A')}...) Tj
-0 -30 Td
-/F1 8 Tf
-(Documento assinado eletronicamente conforme MP 2.200-2/2001 e Lei 14.063/2020.) Tj
-ET
+${contentStream}
 endstream
 endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-6 0 obj
-${getPDFStreamLength(content, signedDateStr)}
-endobj
-xref
-0 7
-0000000000 65535 f
-0000000009 00000 n
-0000000058 00000 n
-0000000115 00000 n
-0000000266 00000 n
-trailer
-<< /Size 7 /Root 1 0 R >>
-startxref
-%%EOF
-`.trim();
 
-  // Convert to base64
-  const encoder = new TextEncoder();
-  const pdfBytes = encoder.encode(pdfContent);
-  return btoa(String.fromCharCode(...pdfBytes));
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000266 00000 n 
+0000000${(300 + streamLength).toString().padStart(3, '0')} 00000 n 
+
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+${400 + streamLength}
+%%EOF`;
+
+  return new TextEncoder().encode(pdf);
 }
 
 function escapeText(text: string | null | undefined): string {
@@ -352,15 +373,7 @@ function escapeText(text: string | null | undefined): string {
     .replace(/[ÍÌÎ]/g, 'I')
     .replace(/[ÓÒÔÕ]/g, 'O')
     .replace(/[ÚÙÛ]/g, 'U')
-    .replace(/[Ç]/g, 'C');
-}
-
-function getPDFStreamLength(content: ContractContent, signedDateStr: string): number {
-  // Approximate length of the stream content
-  return 800 + 
-    (content.schoolName?.length || 0) +
-    (content.guardianName?.length || 0) +
-    (content.studentName?.length || 0) +
-    (content.courseName?.length || 0) +
-    signedDateStr.length;
+    .replace(/[Ç]/g, 'C')
+    .replace(/[ñ]/g, 'n')
+    .replace(/[Ñ]/g, 'N');
 }
