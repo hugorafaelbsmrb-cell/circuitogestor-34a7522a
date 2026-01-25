@@ -138,6 +138,20 @@ Deno.serve(async (req) => {
     // ========================================
     type Attempt = { endpoint: string; status: number | null; ok: boolean; note?: string };
 
+    const fetchWithTimeout = async (
+      url: string,
+      init: RequestInit,
+      timeoutMs = 12000,
+    ): Promise<Response> => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, { ...init, signal: controller.signal });
+      } finally {
+        clearTimeout(id);
+      }
+    };
+
     // Determine correct base URL
     // Try to extract the correct provider domain, prioritize api.wapi.com.br
     const getBaseUrls = (): string[] => {
@@ -158,6 +172,61 @@ Deno.serve(async (req) => {
     const baseUrls = getBaseUrls();
     console.log(`Using base URLs: ${baseUrls.join(', ')}`);
 
+    // Quick connectivity test to avoid looping through guardians if provider is unreachable
+    const connectivity: Array<{ baseUrl: string; ok: boolean; status?: number; error?: string }> = [];
+    for (const baseUrl of baseUrls) {
+      const testUrl = `${baseUrl}/getMessages?chatId=${encodeURIComponent(`5511000000000@c.us`)}&count=1`;
+      try {
+        const res = await fetchWithTimeout(
+          testUrl,
+          {
+            method: 'GET',
+            headers: {
+              apikey: apiToken,
+              instanceId: session,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              // Some providers reject requests without a UA
+              'User-Agent': 'LovableCloud/1.0',
+            },
+          },
+          8000,
+        );
+        connectivity.push({ baseUrl, ok: true, status: res.status });
+        // Consider any HTTP response as reachable (even 4xx), since it proves network connectivity
+        break;
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+        connectivity.push({ baseUrl, ok: false, error: msg });
+      }
+    }
+
+    const reachableBaseUrl = connectivity.find((c) => c.ok)?.baseUrl ?? null;
+    if (!reachableBaseUrl) {
+      console.log(`Connectivity check failed: ${JSON.stringify(connectivity)}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message:
+            'Falha de conexão com a W-API (timeout/DNS/TLS). Confirme o “API URL/Endpoint” exato no painel da W-API e se o servidor permite requisições externas.',
+          synced: 0,
+          errors: 0,
+          guardiansProcessed: 0,
+          guardiansWithMessages: 0,
+          debug: {
+            configuredBaseUrl: wapiUrl,
+            triedBaseUrls: baseUrls,
+            connectivity,
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Reduce candidate explosion: prefer the first reachable baseUrl
+    const effectiveBaseUrls = [reachableBaseUrl];
+    console.log(`Using reachable base URL: ${reachableBaseUrl}`);
+
     const fetchMessagesForPhone = async (
       phone: string,
     ): Promise<{ messages: WapiMessage[]; success: boolean; workingEndpoint?: string; attempts: Attempt[] }> => {
@@ -169,7 +238,7 @@ Deno.serve(async (req) => {
       // Build all candidate URLs following W-API PRO documentation
       const candidates: Array<{ url: string; headers: Record<string, string>; note: string }> = [];
 
-      for (const baseUrl of baseUrls) {
+      for (const baseUrl of effectiveBaseUrls) {
         // Format 1: GET /getMessages?chatId=...&count=... (apikey header)
         candidates.push({
           url: `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
@@ -217,10 +286,18 @@ Deno.serve(async (req) => {
       
       for (const candidate of candidates) {
         try {
-          const res = await fetch(candidate.url, {
-            method: 'GET',
-            headers: candidate.headers,
-          });
+          const res = await fetchWithTimeout(
+            candidate.url,
+            {
+              method: 'GET',
+              headers: {
+                ...candidate.headers,
+                'Accept': 'application/json',
+                'User-Agent': 'LovableCloud/1.0',
+              },
+            },
+            12000,
+          );
 
           attempts.push({ endpoint: candidate.note, status: res.status, ok: res.ok });
 
@@ -246,10 +323,12 @@ Deno.serve(async (req) => {
           } else if (res.status !== 404) {
             // Log non-404 errors for debugging
             const errText = await res.text();
-            console.log(`Error ${res.status} at ${candidate.note}: ${errText.slice(0, 100)}`);
+            console.log(`Error ${res.status} at ${candidate.note}: ${errText.slice(0, 200)}`);
           }
-        } catch (fetchError) {
-          attempts.push({ endpoint: candidate.note, status: null, ok: false, note: 'fetch_error' });
+        } catch (fetchError: unknown) {
+          const msg = fetchError instanceof Error ? `${fetchError.name}: ${fetchError.message}` : String(fetchError);
+          console.log(`Fetch error at ${candidate.note}: ${msg}`);
+          attempts.push({ endpoint: candidate.note, status: null, ok: false, note: msg });
         }
       }
 
