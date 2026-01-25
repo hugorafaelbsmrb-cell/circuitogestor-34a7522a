@@ -22,7 +22,16 @@ export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
     useImperativeHandle(ref, () => ({
       isEmpty: () => signatureRef.current?.isEmpty() ?? true,
       clear: () => signatureRef.current?.clear(),
-      toDataURL: () => signatureRef.current?.getTrimmedCanvas().toDataURL('image/png') ?? '',
+      toDataURL: () => {
+        if (!signatureRef.current) return '';
+        try {
+          // Use toDataURL directly instead of getTrimmedCanvas to avoid library issues
+          return signatureRef.current.toDataURL('image/png');
+        } catch (error) {
+          console.error('Error getting signature data:', error);
+          return '';
+        }
+      },
     }));
 
     // Adjust canvas size on mount and resize
