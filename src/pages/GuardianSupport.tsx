@@ -114,6 +114,26 @@ const STATUS_CONFIG = {
   completed: { label: 'Concluído', color: 'bg-green-500/10 text-green-600' },
 };
 
+/**
+ * Normaliza telefone para comparação: remove tudo exceto dígitos,
+ * e retorna os últimos 10-11 dígitos (parte nacional).
+ */
+const normalizePhone = (phone: string): string => {
+  const digits = phone.replace(/\D/g, '');
+  // Retorna últimos 11 dígitos (DDD + 9 dígitos) ou menos se o número for curto
+  return digits.slice(-11);
+};
+
+/**
+ * Verifica se dois telefones correspondem após normalização.
+ */
+const phonesMatch = (phone1: string, phone2: string): boolean => {
+  const n1 = normalizePhone(phone1);
+  const n2 = normalizePhone(phone2);
+  // Compara os últimos 8 dígitos para tolerância a variações de DDD/país
+  return n1.slice(-8) === n2.slice(-8) && n1.slice(-8).length === 8;
+};
+
 const COLUMNS: ColumnType[] = ['reforco', 'robotica', 'soroban', 'vip', 'unknown'];
 
 interface GuardianWithCategory {
@@ -335,11 +355,18 @@ export default function GuardianSupport() {
     return result;
   }, [guardians, students, enrollments, classGroups, courses, tickets]);
 
-  // Group unknown phone numbers
+  // Group unknown phone numbers - excluding those that match a registered guardian
   const unknownContacts = useMemo(() => {
     const phoneMap = new Map<string, UnknownContact>();
     
     unknownMessages.forEach(msg => {
+      // Verifica se esse telefone corresponde a algum guardian cadastrado
+      const matchedGuardian = guardians.find(g => phonesMatch(g.phone, msg.phone));
+      if (matchedGuardian) {
+        // Este telefone pertence a um guardian cadastrado, não é "desconhecido"
+        return;
+      }
+
       const existing = phoneMap.get(msg.phone);
       if (existing) {
         existing.messageCount++;
@@ -360,7 +387,7 @@ export default function GuardianSupport() {
     return Array.from(phoneMap.values()).sort(
       (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
     );
-  }, [unknownMessages]);
+  }, [unknownMessages, guardians]);
 
   const handleCreateTicket = async () => {
     if (!formGuardian || !formSubject.trim()) {
