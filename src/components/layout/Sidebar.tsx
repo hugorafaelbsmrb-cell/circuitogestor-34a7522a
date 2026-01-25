@@ -96,7 +96,6 @@ const menuSections: MenuSection[] = [
     defaultOpen: false,
     items: [
       { icon: Kanban, label: 'Atendimento Pais', path: '/atendimento-pais', permissionKey: 'guardians', adminOnly: false },
-      { icon: MessageSquare, label: 'WhatsApp', path: '/whatsapp-config', permissionKey: 'whatsapp', adminOnly: true },
       { icon: Send, label: 'Envio em Massa', path: '/envio-massa', permissionKey: 'whatsapp', adminOnly: true },
     ]
   },
