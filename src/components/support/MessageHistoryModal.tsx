@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Send, Loader2, MessageSquare, Image, FileText, Video, Paperclip, X, Smile, MapPin, Contact, MousePointerClick, List, Zap, Link2, Receipt, ExternalLink } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,7 @@ interface MessageHistoryModalProps {
   guardianName: string;
   guardianPhone: string;
   studentNames?: string[];
+  avatarUrl?: string | null;
 }
 
 type MediaType = 'image' | 'document' | 'video' | 'audio';
@@ -74,6 +76,7 @@ export function MessageHistoryModal({
   guardianName,
   guardianPhone,
   studentNames = [],
+  avatarUrl,
 }: MessageHistoryModalProps) {
   const { toast } = useToast();
   const { branding } = useSystemBranding();
@@ -744,7 +747,15 @@ export function MessageHistoryModal({
         <DialogContent className="sm:max-w-lg h-[600px] flex flex-col p-0">
           <DialogHeader className="p-4 border-b">
             <DialogTitle className="flex items-center justify-between gap-3">
-              <span>Conversa com {guardianName}</span>
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarImage src={avatarUrl || undefined} alt={guardianName} />
+                  <AvatarFallback className="bg-muted text-muted-foreground">
+                    {guardianName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <span>Conversa com {guardianName}</span>
+              </div>
               {branding.logo ? (
                 <img 
                   src={branding.logo} 
