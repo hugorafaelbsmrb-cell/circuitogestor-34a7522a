@@ -175,6 +175,7 @@ export default function GuardianSupport() {
     phone: string;
     studentNames: string[];
     avatarUrl?: string | null;
+    courseNames?: string[];
   } | null>(null);
 
   const [formGuardian, setFormGuardian] = useState('');
@@ -792,6 +793,7 @@ export default function GuardianSupport() {
                                   phone: guardian.phone,
                                   studentNames: guardianStudentNames,
                                   avatarUrl: guardian.avatarUrl,
+                                  courseNames: guardian.courseNames,
                                 });
                                 setShowMessagesModal(true);
                               }}>
@@ -847,6 +849,7 @@ export default function GuardianSupport() {
                               phone: guardian.phone,
                               studentNames: guardianStudentNames,
                               avatarUrl: guardian.avatarUrl,
+                              courseNames: guardian.courseNames,
                             });
                             setShowMessagesModal(true);
                           }}
@@ -1126,6 +1129,7 @@ export default function GuardianSupport() {
           guardianPhone={selectedGuardianForMessages.phone}
           studentNames={selectedGuardianForMessages.studentNames}
           avatarUrl={selectedGuardianForMessages.avatarUrl}
+          courseNames={selectedGuardianForMessages.courseNames}
         />
       )}
     </div>
