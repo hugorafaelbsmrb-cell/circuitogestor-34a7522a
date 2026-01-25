@@ -218,15 +218,37 @@ export function MessageHistoryModal({
   const loadMessages = async () => {
     setIsLoading(true);
     try {
-      // Get messages by guardian_id or phone
+      // Normaliza para apenas dígitos
       const cleanPhone = guardianPhone.replace(/\D/g, '');
-      const phoneVariants = [
-        cleanPhone,
-        cleanPhone.startsWith('55') ? cleanPhone.slice(2) : `55${cleanPhone}`,
-        // Add more common formats
-        cleanPhone.length === 11 && cleanPhone.startsWith('9') ? `55${cleanPhone}` : null,
-        cleanPhone.length === 13 ? cleanPhone : null,
-      ].filter(Boolean) as string[];
+      
+      // Gera variantes de telefone para cobrir diferentes formatos
+      // Ex: 5594999345048, 94999345048, 559499345048 (sem o 9 extra)
+      const phoneVariantsSet = new Set<string>();
+      phoneVariantsSet.add(cleanPhone);
+      
+      // Sem código do país
+      if (cleanPhone.startsWith('55')) {
+        phoneVariantsSet.add(cleanPhone.slice(2));
+      } else {
+        phoneVariantsSet.add(`55${cleanPhone}`);
+      }
+      
+      // Variante com 9 extra removido (celulares antigos vs novos)
+      // Ex: 94999345048 -> 9499345048 (remove o 9 do meio)
+      const withoutCountry = cleanPhone.startsWith('55') ? cleanPhone.slice(2) : cleanPhone;
+      if (withoutCountry.length === 11 && withoutCountry[2] === '9') {
+        // Remove o 9 extra: DDD(2) + 9 + resto(8) -> DDD(2) + resto(8)
+        const withoutExtra9 = withoutCountry.slice(0, 2) + withoutCountry.slice(3);
+        phoneVariantsSet.add(withoutExtra9);
+        phoneVariantsSet.add(`55${withoutExtra9}`);
+      } else if (withoutCountry.length === 10) {
+        // Adiciona o 9 extra: DDD(2) + resto(8) -> DDD(2) + 9 + resto(8)
+        const withExtra9 = withoutCountry.slice(0, 2) + '9' + withoutCountry.slice(2);
+        phoneVariantsSet.add(withExtra9);
+        phoneVariantsSet.add(`55${withExtra9}`);
+      }
+      
+      const phoneVariants = Array.from(phoneVariantsSet);
 
       // Build filter conditions - only include guardian_id if it's not empty
       const filterConditions = [
