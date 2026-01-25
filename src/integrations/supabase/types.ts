@@ -755,6 +755,11 @@ export type Database = {
           created_at: string
           email: string | null
           enrollment_id: string | null
+          guardian_address: string | null
+          guardian_address_number: string | null
+          guardian_cpf: string | null
+          guardian_postal_code: string | null
+          guardian_province: string | null
           id: string
           interested_course_id: string | null
           name: string
@@ -764,6 +769,7 @@ export type Database = {
           status: string
           student_birth_date: string | null
           student_name: string | null
+          student_sex: string | null
           updated_at: string
         }
         Insert: {
@@ -773,6 +779,11 @@ export type Database = {
           created_at?: string
           email?: string | null
           enrollment_id?: string | null
+          guardian_address?: string | null
+          guardian_address_number?: string | null
+          guardian_cpf?: string | null
+          guardian_postal_code?: string | null
+          guardian_province?: string | null
           id?: string
           interested_course_id?: string | null
           name: string
@@ -782,6 +793,7 @@ export type Database = {
           status?: string
           student_birth_date?: string | null
           student_name?: string | null
+          student_sex?: string | null
           updated_at?: string
         }
         Update: {
@@ -791,6 +803,11 @@ export type Database = {
           created_at?: string
           email?: string | null
           enrollment_id?: string | null
+          guardian_address?: string | null
+          guardian_address_number?: string | null
+          guardian_cpf?: string | null
+          guardian_postal_code?: string | null
+          guardian_province?: string | null
           id?: string
           interested_course_id?: string | null
           name?: string
@@ -800,6 +817,7 @@ export type Database = {
           status?: string
           student_birth_date?: string | null
           student_name?: string | null
+          student_sex?: string | null
           updated_at?: string
         }
         Relationships: [

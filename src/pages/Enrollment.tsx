@@ -193,6 +193,45 @@ export default function Enrollment() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingStudentId, isDataLoading, students.length > 0]);
 
+  // Effect to load lead/pre-enrollment data
+  useEffect(() => {
+    const leadIdParam = searchParams.get('leadId');
+    const guardianName = searchParams.get('guardianName');
+    
+    if (leadIdParam && guardianName && !existingStudentId) {
+      setFormData(prev => ({
+        ...prev,
+        student: {
+          name: searchParams.get('studentName') || '',
+          birthDate: searchParams.get('studentBirthDate') || '',
+          sex: (searchParams.get('studentSex') as 'M' | 'F') || 'M',
+        },
+        guardian: {
+          name: guardianName || '',
+          cpf: searchParams.get('guardianCpf') || '',
+          email: searchParams.get('guardianEmail') || '',
+          phone: searchParams.get('guardianPhone') || '',
+          address: searchParams.get('guardianAddress') || '',
+          addressNumber: searchParams.get('guardianAddressNumber') || '',
+          province: searchParams.get('guardianProvince') || '',
+          postalCode: searchParams.get('guardianPostalCode') || '',
+        },
+        courseId: searchParams.get('courseId') || '',
+      }));
+
+      // If we have guardian CPF, search for existing guardian
+      const cpf = searchParams.get('guardianCpf');
+      if (cpf) {
+        const existingGuardian = getGuardianByCpf(cpf.replace(/\D/g, ''));
+        if (existingGuardian) {
+          setFoundGuardianId(existingGuardian.id);
+          setGuardianSearched(true);
+        }
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Helper to validate phone format (10 or 11 digits for Brazilian phones)
   const isValidPhoneFormat = (phone: string): boolean => {
     const digits = phone.replace(/\D/g, '');
