@@ -631,10 +631,53 @@ export default function BulkMessages() {
                 Compor Mensagem
               </CardTitle>
               <CardDescription>
-                Variáveis: {'{nome_responsavel}'}, {'{nome_aluno}'}, {'{curso}'}, {'{nomes_alunos}'}, {'{cursos}'}
+                Clique nas variáveis para inserir na mensagem
               </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Clickable Variables */}
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Variáveis de personalização</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { variable: '{nome_responsavel}', label: 'Nome Responsável', description: 'Primeiro nome do responsável' },
+                      { variable: '{nome_aluno}', label: 'Nome Aluno', description: 'Nome e sobrenome do aluno' },
+                      { variable: '{nomes_alunos}', label: 'Nomes Alunos', description: 'Todos os alunos do responsável' },
+                      { variable: '{curso}', label: 'Curso', description: 'Nome do curso principal' },
+                      { variable: '{cursos}', label: 'Cursos', description: 'Todos os cursos matriculados' },
+                    ].map((item) => (
+                      <Button
+                        key={item.variable}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const textarea = document.getElementById('message') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const end = textarea.selectionEnd;
+                            const newMessage = message.substring(0, start) + item.variable + message.substring(end);
+                            setMessage(newMessage);
+                            // Set cursor position after the inserted variable
+                            setTimeout(() => {
+                              textarea.focus();
+                              textarea.setSelectionRange(start + item.variable.length, start + item.variable.length);
+                            }, 0);
+                          } else {
+                            setMessage(message + item.variable);
+                          }
+                        }}
+                        disabled={sendStatus === 'sending'}
+                        className="text-xs h-7 px-2 gap-1 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
+                        title={item.description}
+                      >
+                        <Zap className="w-3 h-3" />
+                        {item.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* AI Generator Button */}
                 <div className="p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
                   <div className="flex items-center justify-between gap-4">
