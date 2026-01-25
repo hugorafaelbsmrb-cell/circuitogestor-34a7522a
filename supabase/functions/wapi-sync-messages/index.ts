@@ -83,13 +83,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Normalize base URL to use api.w-api.app
-    let wapiUrl = config.W_API_URL.replace(/\/$/, '');
-    wapiUrl = wapiUrl.replace(/^http:\/\//i, 'https://');
-    wapiUrl = wapiUrl.replace(/\/api$/i, '');
-    if (/\/\/(app\.)?wawp\.net\b/i.test(wapiUrl) || wapiUrl.includes('w-api')) {
-      wapiUrl = 'https://api.w-api.app';
+    // Normalize base URL (keep the configured provider host; do NOT force a specific domain)
+    let wapiUrl = (config.W_API_URL || '').trim().replace(/\/$/, '');
+    if (!/^https?:\/\//i.test(wapiUrl)) {
+      wapiUrl = `https://${wapiUrl}`;
     }
+    wapiUrl = wapiUrl.replace(/^http:\/\//i, 'https://');
 
     const session = config.W_API_SESSION;
     const apiToken = config.W_API_TOKEN;
