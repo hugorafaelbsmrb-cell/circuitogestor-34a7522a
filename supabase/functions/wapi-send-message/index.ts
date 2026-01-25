@@ -91,6 +91,26 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
 
+    // ====== BEST PRACTICE: Save message BEFORE sending ======
+    // This ensures we never lose track of messages even if send fails
+    const { data: savedMsg, error: saveError } = await supabase
+      .from('whatsapp_messages')
+      .insert({
+        phone: formattedPhone,
+        message: message,
+        direction: 'outgoing',
+        status: 'pending', // Will be updated after send
+      })
+      .select('id')
+      .single();
+
+    if (saveError) {
+      console.error('Error saving outgoing message:', saveError);
+      // Continue anyway - sending is more important than logging
+    }
+
+    const savedMsgId = savedMsg?.id;
+
     // Normalize base URL
     let wapiUrl = config.W_API_URL.replace(/\/$/, '');
     wapiUrl = wapiUrl.replace(/^http:\/\//i, 'https://');
@@ -170,12 +190,26 @@ Deno.serve(async (req) => {
         // Success case
         if (res.ok) {
           console.log('Message sent successfully via:', c.url, { phone: formattedPhone });
+          
+          // Update message status to 'sent' and store wapi_message_id
+          const wapiMessageId = parsed?.id || parsed?.key?.id || parsed?.messageId || null;
+          if (savedMsgId) {
+            await supabase
+              .from('whatsapp_messages')
+              .update({ 
+                status: 'sent',
+                wapi_message_id: wapiMessageId,
+              })
+              .eq('id', savedMsgId);
+          }
+
           return new Response(
             JSON.stringify({
               success: true,
               message: 'Mensagem enviada com sucesso',
               data: parsed,
               endpoint: c.url,
+              messageId: savedMsgId,
             }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -192,12 +226,22 @@ Deno.serve(async (req) => {
     }
 
     console.error('All W-API send endpoints failed:', { attempts, lastStatus, lastError });
+    
+    // Update message status to 'failed'
+    if (savedMsgId) {
+      await supabase
+        .from('whatsapp_messages')
+        .update({ status: 'failed' })
+        .eq('id', savedMsgId);
+    }
+
     return new Response(
       JSON.stringify({
         error: 'Não foi possível enviar mensagem via W-API',
         lastStatus,
         details: lastError,
         attempts,
+        messageId: savedMsgId,
       }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
