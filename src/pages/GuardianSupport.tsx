@@ -649,11 +649,27 @@ export default function GuardianSupport() {
         return;
       }
       
+      // Fetch profile picture from WhatsApp API
+      let profilePictureUrl: string | null = markAsLeadContact.profilePicUrl;
+      
+      if (!profilePictureUrl) {
+        try {
+          const { data: picData } = await supabase.functions.invoke('wapi-get-profile-picture', {
+            body: { phone: markAsLeadContact.phone }
+          });
+          if (picData?.profilePictureUrl) {
+            profilePictureUrl = picData.profilePictureUrl;
+          }
+        } catch (picError) {
+          console.log('Could not fetch profile picture:', picError);
+        }
+      }
+      
       // Get course name for notes
       const selectedCourse = courses.find(c => c.id === leadCourseId);
       const courseNote = selectedCourse ? `Curso de interesse: ${selectedCourse.name}. ` : '';
       
-      // Create new lead
+      // Create new lead with avatar_url
       const { error } = await supabase
         .from('leads')
         .insert({
@@ -662,6 +678,7 @@ export default function GuardianSupport() {
           source: 'whatsapp',
           status: 'new',
           interested_course_id: leadCourseId || null,
+          avatar_url: profilePictureUrl,
           notes: `${courseNote}Criado automaticamente a partir do Atendimento aos Pais. Última mensagem: ${markAsLeadContact.lastMessage.substring(0, 100)}`,
         });
       

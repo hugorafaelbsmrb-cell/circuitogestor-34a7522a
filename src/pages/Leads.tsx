@@ -6,7 +6,6 @@ import {
   Phone, 
   Mail, 
   Calendar,
-  User,
   MessageSquare,
   ArrowRight,
   Loader2,
@@ -19,6 +18,7 @@ import {
   FileText,
   Users
 } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -61,6 +61,7 @@ interface Lead {
   assigned_to: string | null;
   converted_at: string | null;
   enrollment_id: string | null;
+  avatar_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -449,9 +450,14 @@ export default function Leads() {
                 <div key={lead.id} className="p-4 hover:bg-secondary/30 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 flex-1">
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <User className="w-5 h-5 text-primary" />
-                      </div>
+                      <Avatar className="w-10 h-10 shrink-0">
+                        {lead.avatar_url ? (
+                          <AvatarImage src={lead.avatar_url} alt={lead.name} />
+                        ) : null}
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {lead.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-medium text-foreground">{lead.name}</p>
