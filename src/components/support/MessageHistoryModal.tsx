@@ -103,18 +103,37 @@ export function MessageHistoryModal({
       const phoneVariants = [
         cleanPhone,
         cleanPhone.startsWith('55') ? cleanPhone.slice(2) : `55${cleanPhone}`,
-      ];
+        // Add more common formats
+        cleanPhone.length === 11 && cleanPhone.startsWith('9') ? `55${cleanPhone}` : null,
+        cleanPhone.length === 13 ? cleanPhone : null,
+      ].filter(Boolean) as string[];
 
+      // Build filter conditions - use separate queries for reliability
       const { data, error } = await supabase
         .from('whatsapp_messages')
         .select('*')
-        .or(`guardian_id.eq.${guardianId},phone.in.(${phoneVariants.join(',')})`)
+        .or(
+          [
+            `guardian_id.eq.${guardianId}`,
+            ...phoneVariants.map(p => `phone.eq.${p}`)
+          ].join(',')
+        )
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Query error:', error);
+        throw error;
+      }
+      
+      console.log('Loaded messages:', data?.length || 0, 'for phone variants:', phoneVariants);
       setMessages((data || []) as WhatsAppMessage[]);
     } catch (error) {
       console.error('Error loading messages:', error);
+      toast({
+        title: 'Erro ao carregar mensagens',
+        description: 'Não foi possível carregar o histórico.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
