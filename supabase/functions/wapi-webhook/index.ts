@@ -22,29 +22,62 @@ Deno.serve(async (req) => {
     const payload = await req.json();
     console.log("W-API Webhook received:", JSON.stringify(payload, null, 2));
 
-    // W-API sends different event types
+    // W-API PRO sends different event types
     const event = payload.event || payload.type || "unknown";
     const data = payload.data || payload.message || payload;
 
+    // Check if this is a W-API PRO "webhookReceived" message event
+    const isProMessageEvent = event === "webhookReceived" && payload.msgContent && payload.sender;
+    const isIncomingMessage = event === "message" || event === "messages.upsert" || event === "message-received" || 
+        isProMessageEvent || (data.fromMe === false && data.body);
+
     // ====== Handle MESSAGE RECEIVED ======
-    if (event === "message" || event === "messages.upsert" || event === "message-received" || 
-        (data.fromMe === false && data.body)) {
+    if (isIncomingMessage && payload.fromMe !== true) {
       
-      const phone = data.from || data.remoteJid || data.phone || "";
-      const messageText = data.body || data.text || data.message?.conversation || 
-                          data.message?.extendedTextMessage?.text || "";
-      const messageId = data.id || data.key?.id || payload.id || "";
-      const mediaUrl = data.mediaUrl || data.message?.imageMessage?.url || 
-                       data.message?.documentMessage?.url || null;
-      const mediaType = data.mediaType || 
-                        (data.message?.imageMessage ? "image" : null) ||
-                        (data.message?.documentMessage ? "document" : null) ||
-                        (data.message?.audioMessage ? "audio" : null);
+      // Handle W-API PRO format (webhookReceived)
+      let phone = "";
+      let messageText = "";
+      let messageId = "";
+      let mediaUrl: string | null = null;
+      let mediaType: string | null = null;
+
+      if (isProMessageEvent) {
+        // W-API PRO format
+        phone = payload.sender?.id || payload.chat?.id || "";
+        messageText = payload.msgContent?.conversation || 
+                      payload.msgContent?.extendedTextMessage?.text ||
+                      payload.msgContent?.text || "";
+        messageId = payload.messageId || "";
+        
+        // Handle media in PRO format
+        if (payload.msgContent?.imageMessage) {
+          mediaType = "image";
+          mediaUrl = payload.msgContent.imageMessage.url || null;
+        } else if (payload.msgContent?.documentMessage) {
+          mediaType = "document";
+          mediaUrl = payload.msgContent.documentMessage.url || null;
+        } else if (payload.msgContent?.audioMessage) {
+          mediaType = "audio";
+          mediaUrl = payload.msgContent.audioMessage.url || null;
+        }
+      } else {
+        // Standard format
+        phone = data.from || data.remoteJid || data.phone || "";
+        messageText = data.body || data.text || data.message?.conversation || 
+                      data.message?.extendedTextMessage?.text || "";
+        messageId = data.id || data.key?.id || payload.id || "";
+        mediaUrl = data.mediaUrl || data.message?.imageMessage?.url || 
+                   data.message?.documentMessage?.url || null;
+        mediaType = data.mediaType || 
+                    (data.message?.imageMessage ? "image" : null) ||
+                    (data.message?.documentMessage ? "document" : null) ||
+                    (data.message?.audioMessage ? "audio" : null);
+      }
 
       const cleanPhone = phone.replace(/@.*$/, "").replace(/\D/g, "");
       
       if (!cleanPhone || !messageText) {
-        console.log("Missing phone or message, skipping");
+        console.log("Missing phone or message, skipping. Phone:", cleanPhone, "Message:", messageText);
         return new Response(JSON.stringify({ success: true, skipped: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
