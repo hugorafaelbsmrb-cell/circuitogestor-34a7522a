@@ -32,6 +32,8 @@ import Inventory from "./pages/Inventory";
 import LMSStudents from "./pages/LMSStudents";
 import SorobanStudents from "./pages/SorobanStudents";
 import Teachers from "./pages/Teachers";
+import CanteenPublic from "./pages/CanteenPublic";
+import CanteenAdmin from "./pages/CanteenAdmin";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -60,6 +62,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/auth" element={<Auth />} />
       <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
+      <Route path="/cantina" element={<CanteenPublic />} />
       <Route
         path="/*"
         element={
@@ -89,6 +92,7 @@ function AppRoutes() {
                 <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
                 <Route path="/envio-massa" element={<BulkMessages />} />
                 <Route path="/atendimento-pais" element={<GuardianSupport />} />
+                <Route path="/cantina-admin" element={<CanteenAdmin />} />
                 <Route path="/configuracoes" element={<Settings />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

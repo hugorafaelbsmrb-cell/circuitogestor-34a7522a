@@ -4,6 +4,7 @@ import { MobileHeader } from './MobileHeader';
 import { useInactivityTimeout } from '@/hooks/useInactivityTimeout';
 import { WhatsAppNotificationListener } from '@/components/notifications/WhatsAppNotificationListener';
 import { PreEnrollmentNotificationListener } from '@/components/notifications/PreEnrollmentNotificationListener';
+import { CanteenNotificationListener } from '@/components/notifications/CanteenNotificationListener';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -22,6 +23,9 @@ export function MainLayout({ children }: MainLayoutProps) {
       
       {/* Global pre-enrollment notifications */}
       <PreEnrollmentNotificationListener />
+      
+      {/* Global canteen consumption notifications */}
+      <CanteenNotificationListener />
       
       {/* Mobile Header */}
       <MobileHeader onMenuClick={() => setSidebarOpen(true)} />
