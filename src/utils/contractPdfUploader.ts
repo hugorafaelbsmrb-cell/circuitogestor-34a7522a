@@ -87,8 +87,9 @@ export async function generateAndUploadContractPDF(data: ContractPDFData): Promi
     signatureHash: data.signatureHash,
   });
   
-  // Convert to blob
-  const pdfBlob = doc.output('blob');
+  // Convert to blob using arraybuffer for complete finalization
+  const pdfOutput = doc.output('arraybuffer');
+  const pdfBlob = new Blob([pdfOutput], { type: 'application/pdf' });
   console.log('PDF blob generated, size:', pdfBlob.size);
 
   // Create a safe filename

@@ -332,6 +332,7 @@ export function generateContractPDF(content: ContractContent): jsPDF {
 
   // Course selected highlight - MODALIDADE CONTRATADA
   if (content.courseName) {
+    console.log('[PDF] yPos antes da Modalidade:', yPos);
     const modalidadeBoxHeight = 50; // Fixed height for consistency
     
     // Save graphics state to isolate this block
@@ -373,10 +374,12 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     
     // CRITICAL: Update yPos to move past this block
     yPos += modalidadeBoxHeight + 8;
+    console.log('[PDF] yPos depois da Modalidade:', yPos);
   }
 
   // LMS Credentials section
   if (content.lmsCredentials) {
+    console.log('[PDF] yPos antes do LMS:', yPos);
     const lmsBoxHeight = 42; // Fixed height for consistency
     
     // Save graphics state
@@ -421,10 +424,12 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     
     // CRITICAL: Update yPos
     yPos += lmsBoxHeight + 8;
+    console.log('[PDF] yPos depois do LMS:', yPos);
   }
 
   // Soroban Credentials section
   if (content.sorobanCredentials) {
+    console.log('[PDF] yPos antes do Soroban:', yPos);
     const sorobanBoxHeight = 48; // Fixed height for consistency
     
     // Save graphics state
@@ -468,6 +473,7 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     
     // Reset to default colors
     doc.setTextColor(0, 0, 0);
+    console.log('[PDF] yPos depois do Soroban:', yPos);
   }
 
   return doc;
