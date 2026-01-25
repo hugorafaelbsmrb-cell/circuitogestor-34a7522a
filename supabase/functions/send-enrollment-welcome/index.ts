@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
     // Format the message with variables - extract first name only for guardian
     const firstName = guardianName.split(' ')[0];
     const message = template.message
+      .replace(/\\n/g, '\n') // Convert escaped newlines to real newlines
       .replace(/{nome_responsavel}/g, firstName)
       .replace(/{nome_aluno}/g, studentName)
       .replace(/{nome_escola}/g, schoolName)
