@@ -147,7 +147,8 @@ interface GuardianWithCategory {
   courseCount: number;
   courseNames: string[];
   tickets: SupportTicket[];
-  hasUnreadMessages?: boolean;
+  unreadCount: number;
+  lastMessageAt: string | null;
 }
 
 interface UnknownContact {
@@ -158,6 +159,7 @@ interface UnknownContact {
   lastMessage: string;
   lastMessageAt: string;
   messageCount: number;
+  unreadCount: number;
 }
 
 interface WhatsAppContact {
@@ -172,6 +174,7 @@ export default function GuardianSupport() {
   const { toast } = useToast();
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [allMessages, setAllMessages] = useState<WhatsAppMessage[]>([]);
   const [unknownMessages, setUnknownMessages] = useState<WhatsAppMessage[]>([]);
   const [whatsappContactsMap, setWhatsappContactsMap] = useState<Map<string, WhatsAppContact>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -241,9 +244,13 @@ export default function GuardianSupport() {
 
   const loadData = async () => {
     try {
-      const [ticketsResult, messagesResult] = await Promise.all([
+      const [ticketsResult, allMessagesResult, unknownMessagesResult] = await Promise.all([
         supabase
           .from('guardian_support_tickets')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('whatsapp_messages')
           .select('*')
           .order('created_at', { ascending: false }),
         supabase
@@ -254,10 +261,12 @@ export default function GuardianSupport() {
       ]);
 
       if (ticketsResult.error) throw ticketsResult.error;
-      if (messagesResult.error) throw messagesResult.error;
+      if (allMessagesResult.error) throw allMessagesResult.error;
+      if (unknownMessagesResult.error) throw unknownMessagesResult.error;
 
       setTickets((ticketsResult.data || []) as SupportTicket[]);
-      setUnknownMessages((messagesResult.data || []) as WhatsAppMessage[]);
+      setAllMessages((allMessagesResult.data || []) as WhatsAppMessage[]);
+      setUnknownMessages((unknownMessagesResult.data || []) as WhatsAppMessage[]);
       
       // Fetch WhatsApp contacts to enrich unknown contacts with names
       fetchWhatsAppContacts();
@@ -326,6 +335,34 @@ export default function GuardianSupport() {
     }
   };
 
+  // Helper to calculate unread messages count
+  // Unread = incoming messages after last outgoing message (or all incoming if no outgoing)
+  const calculateUnreadCount = (messages: WhatsAppMessage[]): { unreadCount: number; lastMessageAt: string | null } => {
+    if (messages.length === 0) return { unreadCount: 0, lastMessageAt: null };
+    
+    // Sort by date desc to get latest first
+    const sorted = [...messages].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    
+    const lastMessageAt = sorted[0]?.created_at || null;
+    
+    // Find the last outgoing message
+    const lastOutgoingIdx = sorted.findIndex(m => m.direction === 'outgoing');
+    
+    if (lastOutgoingIdx === -1) {
+      // No outgoing messages - all incoming are "unread"
+      return { 
+        unreadCount: sorted.filter(m => m.direction === 'incoming').length,
+        lastMessageAt 
+      };
+    }
+    
+    // Count incoming messages before the last outgoing (i.e., newer than last outgoing)
+    const unreadCount = sorted.slice(0, lastOutgoingIdx).filter(m => m.direction === 'incoming').length;
+    return { unreadCount, lastMessageAt };
+  };
+
   // Categorize guardians by course/VIP status
   const categorizedGuardians = useMemo(() => {
     const result: Record<ColumnType, GuardianWithCategory[]> = {
@@ -372,48 +409,68 @@ export default function GuardianSupport() {
       const courseCount = courseIds.size;
       const guardianTickets = tickets.filter(t => t.guardian_id === guardian.id);
 
+      // Get messages for this guardian (by phone match)
+      const guardianMessages = allMessages.filter(m => phonesMatch(m.phone, guardian.phone));
+      const { unreadCount, lastMessageAt } = calculateUnreadCount(guardianMessages);
+
       // Determine category
       // VIP: more than 1 student OR more than 1 course
       const isVip = studentCount > 1 || courseCount > 1;
 
+      const guardianData: GuardianWithCategory = {
+        id: guardian.id,
+        name: guardian.name,
+        phone: guardian.phone,
+        avatarUrl: (guardian as { avatar_url?: string | null }).avatar_url,
+        category: isVip ? 'vip' : 'reforco',
+        studentCount,
+        courseCount,
+        courseNames,
+        tickets: guardianTickets,
+        unreadCount,
+        lastMessageAt,
+      };
+
       if (isVip) {
-        result.vip.push({
-          id: guardian.id,
-          name: guardian.name,
-          phone: guardian.phone,
-          avatarUrl: (guardian as { avatar_url?: string | null }).avatar_url,
-          category: 'vip',
-          studentCount,
-          courseCount,
-          courseNames,
-          tickets: guardianTickets,
-        });
+        guardianData.category = 'vip';
+        result.vip.push(guardianData);
       } else if (courseNames.length > 0) {
         // Single course - categorize by course type
         const column = getCourseColumn(courseNames[0]);
         if (column) {
-          result[column].push({
-            id: guardian.id,
-            name: guardian.name,
-            phone: guardian.phone,
-            avatarUrl: (guardian as { avatar_url?: string | null }).avatar_url,
-            category: column,
-            studentCount,
-            courseCount,
-            courseNames,
-            tickets: guardianTickets,
-          });
+          guardianData.category = column;
+          result[column].push(guardianData);
         }
       }
     });
 
+    // Sort each column: unread first, then by last message date
+    Object.keys(result).forEach((key) => {
+      const column = key as ColumnType;
+      result[column].sort((a, b) => {
+        // Unread messages first
+        if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+        if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
+        
+        // Then by last message date (most recent first)
+        if (a.lastMessageAt && b.lastMessageAt) {
+          return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        }
+        if (a.lastMessageAt) return -1;
+        if (b.lastMessageAt) return 1;
+        
+        // Finally alphabetically
+        return a.name.localeCompare(b.name);
+      });
+    });
+
     return result;
-  }, [guardians, students, enrollments, classGroups, courses, tickets]);
+  }, [guardians, students, enrollments, classGroups, courses, tickets, allMessages]);
 
   // Group unknown phone numbers - excluding those that match a registered guardian
   // and enrich with WhatsApp contact info (name, pushName, profilePic)
   const unknownContacts = useMemo(() => {
-    const phoneMap = new Map<string, UnknownContact>();
+    const phoneMap = new Map<string, { messages: WhatsAppMessage[]; contact: Partial<UnknownContact> }>();
     
     unknownMessages.forEach(msg => {
       // Verifica se esse telefone corresponde a algum guardian cadastrado
@@ -425,31 +482,53 @@ export default function GuardianSupport() {
 
       const existing = phoneMap.get(msg.phone);
       if (existing) {
-        existing.messageCount++;
-        if (new Date(msg.created_at) > new Date(existing.lastMessageAt)) {
-          existing.lastMessage = msg.message;
-          existing.lastMessageAt = msg.created_at;
+        existing.messages.push(msg);
+        if (new Date(msg.created_at) > new Date(existing.contact.lastMessageAt!)) {
+          existing.contact.lastMessage = msg.message;
+          existing.contact.lastMessageAt = msg.created_at;
         }
+        existing.contact.messageCount = (existing.contact.messageCount || 0) + 1;
       } else {
         // Try to find WhatsApp contact info
         const normalizedPhone = normalizePhone(msg.phone);
         const whatsappContact = whatsappContactsMap.get(normalizedPhone);
         
         phoneMap.set(msg.phone, {
-          phone: msg.phone,
-          name: whatsappContact?.name || null,
-          pushName: whatsappContact?.pushName || null,
-          profilePicUrl: whatsappContact?.profilePicUrl || null,
-          lastMessage: msg.message,
-          lastMessageAt: msg.created_at,
-          messageCount: 1,
+          messages: [msg],
+          contact: {
+            phone: msg.phone,
+            name: whatsappContact?.name || null,
+            pushName: whatsappContact?.pushName || null,
+            profilePicUrl: whatsappContact?.profilePicUrl || null,
+            lastMessage: msg.message,
+            lastMessageAt: msg.created_at,
+            messageCount: 1,
+          }
         });
       }
     });
 
-    return Array.from(phoneMap.values()).sort(
-      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
-    );
+    // Calculate unread count for each unknown contact
+    const contacts: UnknownContact[] = Array.from(phoneMap.values()).map(({ messages, contact }) => {
+      const { unreadCount } = calculateUnreadCount(messages);
+      return {
+        phone: contact.phone!,
+        name: contact.name || null,
+        pushName: contact.pushName || null,
+        profilePicUrl: contact.profilePicUrl || null,
+        lastMessage: contact.lastMessage!,
+        lastMessageAt: contact.lastMessageAt!,
+        messageCount: contact.messageCount!,
+        unreadCount,
+      };
+    });
+
+    // Sort: unread first, then by last message date
+    return contacts.sort((a, b) => {
+      if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+      if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
+      return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+    });
   }, [unknownMessages, guardians, whatsappContactsMap]);
 
   const handleCreateTicket = async () => {
@@ -862,21 +941,35 @@ export default function GuardianSupport() {
                     const hasName = !!(contact.pushName || contact.name);
                     
                     return (
-                      <Card key={contact.phone} className="hover:shadow-md transition-shadow">
+                      <Card 
+                        key={contact.phone} 
+                        className={`hover:shadow-md transition-shadow ${
+                          contact.unreadCount > 0 
+                            ? 'ring-2 ring-primary/50 bg-primary/5' 
+                            : ''
+                        }`}
+                      >
                         <CardContent className="p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <Avatar className="h-8 w-8 shrink-0">
-                                {contact.profilePicUrl ? (
-                                  <AvatarImage src={contact.profilePicUrl} alt={displayName} />
-                                ) : null}
-                                <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                                  {hasName 
-                                    ? displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
-                                    : <UserX className="h-4 w-4" />
-                                  }
-                                </AvatarFallback>
-                              </Avatar>
+                              <div className="relative">
+                                <Avatar className="h-8 w-8 shrink-0">
+                                  {contact.profilePicUrl ? (
+                                    <AvatarImage src={contact.profilePicUrl} alt={displayName} />
+                                  ) : null}
+                                  <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+                                    {hasName 
+                                      ? displayName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                                      : <UserX className="h-4 w-4" />
+                                    }
+                                  </AvatarFallback>
+                                </Avatar>
+                                {contact.unreadCount > 0 && (
+                                  <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full h-4 min-w-4 flex items-center justify-center px-1">
+                                    {contact.unreadCount > 9 ? '9+' : contact.unreadCount}
+                                  </span>
+                                )}
+                              </div>
                               <div className="min-w-0 flex-1">
                                 <span className="font-medium text-sm block truncate">
                                   {displayName}
@@ -968,16 +1061,30 @@ export default function GuardianSupport() {
 
                   {/* Guardians in Category */}
                   {!isUnknownColumn && guardiansInColumn.map((guardian) => (
-                    <Card key={guardian.id} className="hover:shadow-md transition-shadow">
+                    <Card 
+                      key={guardian.id} 
+                      className={`hover:shadow-md transition-shadow ${
+                        guardian.unreadCount > 0 
+                          ? 'ring-2 ring-primary/50 bg-primary/5' 
+                          : ''
+                      }`}
+                    >
                       <CardContent className="p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={guardian.avatarUrl || undefined} alt={guardian.name} />
-                              <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                                {guardian.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
+                            <div className="relative">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={guardian.avatarUrl || undefined} alt={guardian.name} />
+                                <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+                                  {guardian.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              {guardian.unreadCount > 0 && (
+                                <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full h-4 min-w-4 flex items-center justify-center px-1">
+                                  {guardian.unreadCount > 9 ? '9+' : guardian.unreadCount}
+                                </span>
+                              )}
+                            </div>
                             <span className="font-medium text-sm">
                               {getDisplayName(guardian.name)}
                             </span>
