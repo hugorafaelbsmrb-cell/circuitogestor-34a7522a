@@ -9,7 +9,10 @@ import {
   AlertCircle,
   Filter,
   Sparkles,
-  Zap
+  Zap,
+  Save,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -67,13 +70,7 @@ interface LeadsBulkMessageModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const categoryOptions = [
-  { value: 'lead', label: 'Lead - Primeiro Contato' },
-  { value: 'lead_followup', label: 'Lead - Acompanhamento' },
-  { value: 'lead_scheduled', label: 'Lead - Agendamento' },
-  { value: 'lead_reactivation', label: 'Lead - Reativação' },
-  { value: 'general', label: 'Geral' },
-];
+// Removed categoryOptions - now using courses for template filtering
 
 const toneOptions = [
   { value: 'profissional e amigável', label: 'Profissional e Amigável' },
@@ -104,9 +101,12 @@ export function LeadsBulkMessageModal({
   const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
   
   // Message states
-  const [selectedCategory, setSelectedCategory] = useState('lead');
-  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [templateCourseFilter, setTemplateCourseFilter] = useState<string>('all');
+  const [selectedTemplateId, setSelectedTemplateId] = useState('custom');
   const [customMessage, setCustomMessage] = useState('');
+  const [showAiGenerator, setShowAiGenerator] = useState(false);
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
 
   // AI states (inline, like Envio em Massa)
   const [aiPurpose, setAiPurpose] = useState('');
@@ -197,7 +197,10 @@ export function LeadsBulkMessageModal({
     [filteredLeads, selectedRecipients]
   );
 
-  const filteredTemplates = templates.filter(t => t.category === selectedCategory);
+  const filteredTemplates = useMemo(() => {
+    if (templateCourseFilter === 'all') return templates;
+    return templates.filter(t => t.category === templateCourseFilter);
+  }, [templates, templateCourseFilter]);
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
 
   const getMessage = () => {
@@ -300,6 +303,47 @@ export function LeadsBulkMessageModal({
       });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleSaveAsTemplate = async () => {
+    if (!newTemplateName.trim() || !customMessage.trim()) return;
+    
+    setIsSavingTemplate(true);
+    try {
+      const templateKey = `whatsapp_template_lead_${Date.now()}`;
+      const templateValue = JSON.stringify({
+        name: newTemplateName.trim(),
+        category: templateCourseFilter !== 'all' ? templateCourseFilter : 'lead',
+        message: customMessage,
+      });
+
+      const { error } = await supabase
+        .from('app_settings')
+        .insert({
+          key: templateKey,
+          value: templateValue,
+          description: `Template de leads: ${newTemplateName.trim()}`,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Template salvo',
+        description: `O template "${newTemplateName}" foi salvo com sucesso.`,
+      });
+
+      setNewTemplateName('');
+      setIsSavingTemplate(false);
+      fetchTemplates(); // Refresh templates list
+    } catch (error: any) {
+      console.error('Error saving template:', error);
+      toast({
+        title: 'Erro ao salvar',
+        description: error?.message || 'Não foi possível salvar o template.',
+        variant: 'destructive',
+      });
+      setIsSavingTemplate(false);
     }
   };
 
@@ -483,30 +527,31 @@ export function LeadsBulkMessageModal({
                 {/* Template selection */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Categoria</Label>
-                    <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <Label>Curso (filtrar templates)</Label>
+                    <Select value={templateCourseFilter} onValueChange={setTemplateCourseFilter}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {categoryOptions.map(opt => (
-                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        <SelectItem value="all">Todos os templates</SelectItem>
+                        {courses.filter(c => c.is_active).map(course => (
+                          <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Template</Label>
+                    <Label>Template (opcional)</Label>
                     <Select
                       value={selectedTemplateId}
                       onValueChange={setSelectedTemplateId}
                       disabled={isLoadingTemplates}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione um template" />
+                        <SelectValue placeholder="Escreva sua própria mensagem" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="custom">Mensagem personalizada</SelectItem>
+                        <SelectItem value="custom">Escrever mensagem</SelectItem>
                         {filteredTemplates.map(t => (
                           <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                         ))}
@@ -541,91 +586,161 @@ export function LeadsBulkMessageModal({
                   </div>
                 </div>
 
-                {/* AI Generator (inline) */}
-                <div className="p-3 rounded-lg bg-secondary/30 border border-border/50 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                    <div>
-                      <p className="text-sm font-medium">Gerar com IA</p>
-                      <p className="text-xs text-muted-foreground">Descreva o objetivo e a IA cria a mensagem</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Propósito *</Label>
-                      <Input
-                        value={aiPurpose}
-                        onChange={(e) => setAiPurpose(e.target.value)}
-                        placeholder="Ex: convidar para uma visita"
-                        disabled={isGenerating || isSending}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Tom</Label>
-                      <Select value={aiTone} onValueChange={setAiTone}>
-                        <SelectTrigger disabled={isGenerating || isSending}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {toneOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Contexto (opcional)</Label>
-                    <Textarea
-                      value={aiContext}
-                      onChange={(e) => setAiContext(e.target.value)}
-                      placeholder="Ex: lead pediu informações sobre valores e horários"
-                      rows={2}
-                      disabled={isGenerating || isSending}
-                    />
-                  </div>
-
-                  <Button
+                {/* AI Generator (collapsible) */}
+                <div className="rounded-lg border border-border/50 overflow-hidden">
+                  <button
                     type="button"
-                    variant="secondary"
-                    onClick={handleGenerateWithAI}
-                    disabled={isGenerating || isSending || !aiPurpose.trim()}
-                    className="gap-2"
+                    onClick={() => setShowAiGenerator(!showAiGenerator)}
+                    className="w-full p-3 flex items-center justify-between bg-secondary/30 hover:bg-secondary/50 transition-colors"
                   >
-                    {isGenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Gerando...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4" />
-                        Gerar Mensagem
-                      </>
-                    )}
-                  </Button>
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-primary" />
+                      <div className="text-left">
+                        <p className="text-sm font-medium">Gerar com IA (opcional)</p>
+                        <p className="text-xs text-muted-foreground">Descreva o objetivo e a IA cria a mensagem</p>
+                      </div>
+                    </div>
+                    {showAiGenerator ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                  </button>
+                  
+                  {showAiGenerator && (
+                    <div className="p-3 space-y-3 bg-secondary/10">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-2">
+                          <Label>Propósito *</Label>
+                          <Input
+                            value={aiPurpose}
+                            onChange={(e) => setAiPurpose(e.target.value)}
+                            placeholder="Ex: convidar para uma visita"
+                            disabled={isGenerating || isSending}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Tom</Label>
+                          <Select value={aiTone} onValueChange={setAiTone}>
+                            <SelectTrigger disabled={isGenerating || isSending}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {toneOptions.map(opt => (
+                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Contexto (opcional)</Label>
+                        <Textarea
+                          value={aiContext}
+                          onChange={(e) => setAiContext(e.target.value)}
+                          placeholder="Ex: lead pediu informações sobre valores e horários"
+                          rows={2}
+                          disabled={isGenerating || isSending}
+                        />
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleGenerateWithAI}
+                        disabled={isGenerating || isSending || !aiPurpose.trim()}
+                        className="gap-2"
+                      >
+                        {isGenerating ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Gerando...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4" />
+                            Gerar Mensagem
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Message */}
                 <div className="space-y-2">
-                  <Label>{selectedTemplateId === 'custom' || !selectedTemplateId ? 'Mensagem' : 'Preview'}</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Mensagem</Label>
+                    {customMessage.trim() && selectedTemplateId === 'custom' && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsSavingTemplate(true)}
+                        disabled={isSending || isSavingTemplate}
+                        className="h-7 text-xs gap-1"
+                      >
+                        <Save className="w-3 h-3" />
+                        Salvar como Template
+                      </Button>
+                    )}
+                  </div>
                   <Textarea
                     id="lead-bulk-message"
                     value={selectedTemplateId && selectedTemplateId !== 'custom' ? selectedTemplate?.message || '' : customMessage}
                     onChange={(e) => {
-                      setSelectedTemplateId('custom');
+                      if (selectedTemplateId !== 'custom') {
+                        setSelectedTemplateId('custom');
+                      }
                       setCustomMessage(e.target.value);
                     }}
-                    placeholder="Olá {nome_responsavel}, ..."
-                    className="min-h-[180px] resize-none"
-                    disabled={isSending || (selectedTemplateId !== 'custom' && selectedTemplateId !== '')}
+                    placeholder="Olá {nome_responsavel}, escreva sua mensagem aqui..."
+                    className="min-h-[150px] resize-none"
+                    disabled={isSending}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Variáveis: {'{nome_responsavel}'}, {'{nome_aluno}'}, {'{nome_curso}'}
+                    Use as variáveis acima para personalizar. A mensagem será adaptada para cada lead.
                   </p>
                 </div>
+
+                {/* Save as Template dialog */}
+                {isSavingTemplate && (
+                  <div className="p-3 rounded-lg border border-primary/30 bg-primary/5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Save className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Salvar como Template</span>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Nome do template</Label>
+                      <Input
+                        value={newTemplateName}
+                        onChange={(e) => setNewTemplateName(e.target.value)}
+                        placeholder="Ex: Convite para visita"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleSaveAsTemplate}
+                        disabled={!newTemplateName.trim()}
+                        className="gap-1"
+                      >
+                        <Save className="w-3 h-3" />
+                        Salvar
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsSavingTemplate(false);
+                          setNewTemplateName('');
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Progress and results */}
                 {(isSending || sendResults.length > 0) && (
