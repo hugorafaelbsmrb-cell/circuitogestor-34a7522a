@@ -23,6 +23,7 @@ interface ConsumptionGroup {
       product_name: string;
       quantity: number;
       total: number;
+      consumed_at: string;
     }[];
     subtotal: number;
   }[];
@@ -79,6 +80,7 @@ export function WeeklySummary() {
           id,
           quantity,
           total_price,
+          consumed_at,
           student:students(
             id,
             name,
@@ -124,18 +126,13 @@ export function WeeklySummary() {
           group.students.push(studentGroup);
         }
 
-        // Aggregate items
-        const existingItem = studentGroup.items.find(i => i.product_name === c.product?.name);
-        if (existingItem) {
-          existingItem.quantity += c.quantity;
-          existingItem.total += c.total_price;
-        } else {
-          studentGroup.items.push({
-            product_name: c.product?.name || 'Produto',
-            quantity: c.quantity,
-            total: c.total_price
-          });
-        }
+        // Add items preserving date info for grouping by day
+        studentGroup.items.push({
+          product_name: c.product?.name || 'Produto',
+          quantity: c.quantity,
+          total: c.total_price,
+          consumed_at: c.consumed_at
+        });
 
         studentGroup.subtotal += c.total_price;
         group.total += c.total_price;
