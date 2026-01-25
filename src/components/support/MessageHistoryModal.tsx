@@ -39,6 +39,7 @@ interface MessageHistoryModalProps {
   guardianId: string;
   guardianName: string;
   guardianPhone: string;
+  studentNames?: string[];
 }
 
 type MediaType = 'image' | 'document' | 'video' | 'audio';
@@ -49,6 +50,7 @@ export function MessageHistoryModal({
   guardianId,
   guardianName,
   guardianPhone,
+  studentNames = [],
 }: MessageHistoryModalProps) {
   const { toast } = useToast();
   const { sendMessage, checkConfig } = useWapiMessage();
@@ -368,6 +370,12 @@ export function MessageHistoryModal({
             <MessageSquare className="h-5 w-5 text-green-600" />
             <span>Conversa com {guardianName}</span>
           </DialogTitle>
+          {studentNames.length > 0 && (
+            <p className="text-sm font-medium text-foreground">
+              {studentNames.length === 1 ? 'Aluno: ' : 'Alunos: '}
+              {studentNames.join(', ')}
+            </p>
+          )}
           <p className="text-sm text-muted-foreground">{guardianPhone}</p>
         </DialogHeader>
 

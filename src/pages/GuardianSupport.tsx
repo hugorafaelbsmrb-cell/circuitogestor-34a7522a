@@ -152,6 +152,7 @@ export default function GuardianSupport() {
     id: string | null;
     name: string;
     phone: string;
+    studentNames: string[];
   } | null>(null);
 
   const [formGuardian, setFormGuardian] = useState('');
@@ -641,6 +642,7 @@ export default function GuardianSupport() {
                                   id: null,
                                   name: formatPhone(contact.phone),
                                   phone: contact.phone,
+                                  studentNames: [],
                                 });
                                 setShowMessagesModal(true);
                               }}>
@@ -693,10 +695,14 @@ export default function GuardianSupport() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-popover">
                               <DropdownMenuItem onClick={() => {
+                                const guardianStudentNames = students
+                                  .filter(s => s.guardian_id === guardian.id)
+                                  .map(s => s.name);
                                 setSelectedGuardianForMessages({
                                   id: guardian.id,
                                   name: getFirstName(guardian.name),
                                   phone: guardian.phone,
+                                  studentNames: guardianStudentNames,
                                 });
                                 setShowMessagesModal(true);
                               }}>
@@ -987,6 +993,7 @@ export default function GuardianSupport() {
           guardianId={selectedGuardianForMessages.id || ''}
           guardianName={selectedGuardianForMessages.name}
           guardianPhone={selectedGuardianForMessages.phone}
+          studentNames={selectedGuardianForMessages.studentNames}
         />
       )}
     </div>
