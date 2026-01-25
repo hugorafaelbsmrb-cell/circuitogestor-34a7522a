@@ -99,7 +99,6 @@ export function LeadsBulkMessageModal({
   const [sendProgress, setSendProgress] = useState(0);
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [isWapiConfigured, setIsWapiConfigured] = useState(false);
-  const [sendMode, setSendMode] = useState<'wapi' | 'web'>('wapi');
 
   useEffect(() => {
     if (open) {
@@ -115,9 +114,6 @@ export function LeadsBulkMessageModal({
   const checkWapiConfig = async () => {
     const config = await checkConfig();
     setIsWapiConfigured(config.isConfigured);
-    if (!config.isConfigured) {
-      setSendMode('web');
-    }
   };
 
   const fetchLeads = async () => {
@@ -256,48 +252,6 @@ export function LeadsBulkMessageModal({
     });
   };
 
-  const handleSendViaWeb = () => {
-    const message = getMessage();
-    if (!message) {
-      toast({
-        title: 'Mensagem vazia',
-        description: 'Selecione um template ou digite uma mensagem.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (recipients.length === 0) {
-      toast({
-        title: 'Nenhum destinatário',
-        description: 'Selecione pelo menos um lead para enviar.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    recipients.forEach((recipient, index) => {
-      const personalizedMessage = message
-        .replace(/{nome_responsavel}/g, recipient.name.split(' ')[0])
-        .replace(/{nome_aluno}/g, recipient.student_name || recipient.name);
-      
-      const cleanPhone = recipient.phone.replace(/\D/g, '');
-      const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-      const encodedMessage = encodeURIComponent(personalizedMessage);
-      
-      setTimeout(() => {
-        window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, '_blank');
-      }, index * 500);
-    });
-
-    toast({
-      title: 'Abas abertas',
-      description: `${recipients.length} abas do WhatsApp Web foram abertas.`,
-    });
-    
-    onOpenChange(false);
-  };
-
   const successCount = sendResults.filter(r => r.success).length;
   const errorCount = sendResults.filter(r => !r.success).length;
 
@@ -373,24 +327,8 @@ export function LeadsBulkMessageModal({
               <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5" />
               <div className="text-sm">
                 <p className="font-medium text-yellow-600">W-API não configurada</p>
-                <p className="text-muted-foreground">O envio será feito via WhatsApp Web.</p>
+                <p className="text-muted-foreground">Configure a W-API nas configurações para enviar mensagens.</p>
               </div>
-            </div>
-          )}
-
-          {/* Send mode selection */}
-          {isWapiConfigured && (
-            <div className="space-y-2">
-              <Label>Modo de envio</Label>
-              <Select value={sendMode} onValueChange={(v) => setSendMode(v as 'wapi' | 'web')}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="wapi">Via W-API (automático)</SelectItem>
-                  <SelectItem value="web">Via WhatsApp Web (manual)</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           )}
 
@@ -491,8 +429,8 @@ export function LeadsBulkMessageModal({
           </Button>
           {sendResults.length === 0 && (
             <Button 
-              onClick={sendMode === 'wapi' && isWapiConfigured ? handleSendViaWapi : handleSendViaWeb}
-              disabled={isSending || !getMessage() || recipients.length === 0}
+              onClick={handleSendViaWapi}
+              disabled={isSending || !getMessage() || recipients.length === 0 || !isWapiConfigured}
               className="gap-2"
             >
               {isSending ? (
