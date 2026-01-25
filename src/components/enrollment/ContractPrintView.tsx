@@ -303,6 +303,21 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
 
         {/* PÁGINA 2 - ANEXOS */}
         <div className="annex-page" style={{ fontFamily: 'Times New Roman, serif' }}>
+          {/* Logo no topo dos anexos */}
+          {content.schoolLogo && (
+            <div className="text-center" style={{ marginBottom: '8px' }}>
+              <img 
+                src={content.schoolLogo} 
+                alt="Logo da escola" 
+                style={{ 
+                  maxHeight: '40px', 
+                  maxWidth: '150px', 
+                  margin: '0 auto',
+                  display: 'block'
+                }} 
+              />
+            </div>
+          )}
           <h2 style={{ fontSize: '14pt', fontWeight: 'bold', textAlign: 'center', marginBottom: '16px' }}>
             ANEXOS DO CONTRATO
           </h2>
@@ -451,6 +466,21 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
         {/* PÁGINA 3 - SYLLABUS SOROBAN (apenas para alunos Soroban) */}
         {content.sorobanCredentials && (
           <div className="annex-page" style={{ fontFamily: 'Times New Roman, serif' }}>
+            {/* Logo no topo do syllabus */}
+            {content.schoolLogo && (
+              <div className="text-center" style={{ marginBottom: '8px' }}>
+                <img 
+                  src={content.schoolLogo} 
+                  alt="Logo da escola" 
+                  style={{ 
+                    maxHeight: '40px', 
+                    maxWidth: '150px', 
+                    margin: '0 auto',
+                    display: 'block'
+                  }} 
+                />
+              </div>
+            )}
             <h2 style={{ fontSize: '14pt', fontWeight: 'bold', textAlign: 'center', marginBottom: '16px' }}>
               GRADE CURRICULAR - SOROBAN
             </h2>
