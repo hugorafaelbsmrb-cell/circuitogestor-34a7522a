@@ -83,13 +83,11 @@ export function MessageHistoryModal({
     sendList, 
     sendLocation,
     sendContact,
-    sendTypingIndicator,
     isReactionsEnabled,
     isButtonsEnabled,
     isListsEnabled,
     isLocationEnabled,
     isVcardEnabled,
-    isTypingEnabled,
     isLinkPreviewEnabled,
   } = useWapiAdvanced();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -104,7 +102,6 @@ export function MessageHistoryModal({
   const [isLoading, setIsLoading] = useState(true);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
   const [quickReplies, setQuickReplies] = useState<QuickReplyTemplate[]>([]);
   // Media attachment state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -997,27 +994,6 @@ export function MessageHistoryModal({
                 </PopoverContent>
               </Popover>
 
-              {/* Typing Indicator Button */}
-              {isTypingEnabled() && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="shrink-0"
-                  disabled={isTyping}
-                  onClick={async () => {
-                    setIsTyping(true);
-                    await sendTypingIndicator(guardianPhone, 3000);
-                    setIsTyping(false);
-                  }}
-                  title="Enviar indicador de digitação"
-                >
-                  {isTyping ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <span className="text-sm font-medium">...</span>
-                  )}
-                </Button>
-              )}
 
               <Textarea
                 ref={textareaRef}
