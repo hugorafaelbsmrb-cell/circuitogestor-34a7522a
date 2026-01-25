@@ -44,6 +44,7 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AdvancedMessagesPanel } from '@/components/whatsapp/AdvancedMessagesPanel';
+import { useAIProvider } from '@/hooks/useAIProvider';
 
 interface Recipient {
   id: string;
@@ -88,6 +89,7 @@ export default function BulkMessages() {
   const { guardians, students, courses, enrollments, classGroups } = useSchool();
   const { sendMessage, checkConfig } = useWapiMessage();
   const { toast } = useToast();
+  const { getGenerateFunctionName } = useAIProvider();
 
   const [message, setMessage] = useState('');
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
@@ -538,7 +540,8 @@ export default function BulkMessages() {
 
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-message', {
+      const functionName = getGenerateFunctionName();
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           purpose: aiPurpose,
           tone: aiTone,

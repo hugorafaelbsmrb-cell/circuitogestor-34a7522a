@@ -42,6 +42,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useWapiMessage } from '@/hooks/useWapiMessage';
 import { useSchool } from '@/contexts/SchoolContext';
+import { useAIProvider } from '@/hooks/useAIProvider';
 
 interface Lead {
   id: string;
@@ -88,6 +89,7 @@ export function LeadsBulkMessageModal({
   const { toast } = useToast();
   const { courses } = useSchool();
   const { sendMessage, checkConfig } = useWapiMessage();
+  const { getGenerateFunctionName } = useAIProvider();
   
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
@@ -272,7 +274,8 @@ export function LeadsBulkMessageModal({
 
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-message', {
+      const functionName = getGenerateFunctionName();
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           purpose: aiPurpose,
           tone: aiTone,
