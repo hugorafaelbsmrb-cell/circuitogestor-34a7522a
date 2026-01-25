@@ -14,7 +14,6 @@ import {
   Trash2,
   CheckCircle,
   Clock,
-  XCircle,
   AlertCircle,
   Send
 } from 'lucide-react';
@@ -24,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
@@ -393,7 +392,37 @@ export default function Leads() {
               ))}
             </SelectContent>
           </Select>
+          {isBulkEnabled && selectedLeads.length > 0 && (
+            <Button 
+              onClick={() => setShowBulkModal(true)}
+              className="gap-2"
+            >
+              <Send className="w-4 h-4" />
+              Enviar Mensagem ({selectedLeads.length})
+            </Button>
+          )}
         </div>
+        
+        {/* Select All Header */}
+        {isBulkEnabled && filteredLeads.length > 0 && (
+          <div className="px-4 py-2 border-b border-border bg-secondary/30 flex items-center gap-3">
+            <Checkbox
+              checked={selectedLeads.length === filteredLeads.length && filteredLeads.length > 0}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  setSelectedLeads(filteredLeads.map(l => l.id));
+                } else {
+                  setSelectedLeads([]);
+                }
+              }}
+            />
+            <span className="text-sm text-muted-foreground">
+              {selectedLeads.length > 0 
+                ? `${selectedLeads.length} lead(s) selecionado(s)` 
+                : 'Selecionar todos'}
+            </span>
+          </div>
+        )}
 
         {isLoading ? (
           <div className="p-12 text-center">
@@ -408,6 +437,19 @@ export default function Leads() {
                 <div key={lead.id} className="p-4 hover:bg-secondary/30 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 flex-1">
+                      {isBulkEnabled && (
+                        <Checkbox
+                          checked={selectedLeads.includes(lead.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedLeads(prev => [...prev, lead.id]);
+                            } else {
+                              setSelectedLeads(prev => prev.filter(id => id !== lead.id));
+                            }
+                          }}
+                          className="mt-3"
+                        />
+                      )}
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <User className="w-5 h-5 text-primary" />
                       </div>
@@ -655,6 +697,23 @@ export default function Leads() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Message Modal */}
+      <BulkMessageModal
+        open={showBulkModal}
+        onOpenChange={setShowBulkModal}
+        recipients={selectedLeads.map(id => {
+          const lead = leads.find(l => l.id === id);
+          if (!lead) return null;
+          return {
+            id: lead.id,
+            name: lead.name,
+            phone: lead.phone,
+            type: 'lead' as const,
+          };
+        }).filter(Boolean) as Array<{ id: string; name: string; phone: string; type: 'lead' }>}
+        defaultCategory="lead"
+      />
     </div>
   );
 }
