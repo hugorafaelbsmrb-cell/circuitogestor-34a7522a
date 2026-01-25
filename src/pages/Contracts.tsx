@@ -15,6 +15,7 @@ import { generateContractPDF } from '@/utils/pdfGenerator';
 import { useToast } from '@/hooks/use-toast';
 import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
 import { SignatureModal } from '@/components/contracts/SignatureModal';
+import { SignedContractModal } from '@/components/contracts/SignedContractModal';
 import { supabase } from '@/integrations/supabase/client';
 
 export default function Contracts() {
@@ -77,6 +78,22 @@ export default function Contracts() {
     guardianName: string;
     totalValue: number;
     installments: number;
+  } | null>(null);
+
+  // Signed contract modal state
+  const [showSignedContractModal, setShowSignedContractModal] = useState(false);
+  const [selectedSignedContract, setSelectedSignedContract] = useState<{
+    id: string;
+    studentName: string;
+    guardianName: string;
+    courseName: string;
+    totalValue: number;
+    installments: number;
+    signedAt: string;
+    signatureHash: string | null;
+    signatureImage: string | null;
+    signedIp: string | null;
+    signedUserAgent: string | null;
   } | null>(null);
   interface ContractContentType {
     schoolName: string;
@@ -224,7 +241,38 @@ export default function Contracts() {
     setShowSignatureModal(true);
   };
 
-  // Refetch contracts after signature
+  // Open signed contract modal
+  const handleOpenSignedContractModal = (enrollment: typeof enrollments[0]) => {
+    const contract = getContractForEnrollment(enrollment.id);
+    const student = getStudentById(enrollment.student_id);
+    const guardian = getGuardianById(enrollment.guardian_id);
+    const classGroup = getClassGroupById(enrollment.class_group_id);
+    const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
+
+    if (!contract || !student || !guardian || !course) {
+      toast({
+        title: 'Erro',
+        description: 'Dados do contrato não encontrados.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSelectedSignedContract({
+      id: contract.id,
+      studentName: student.name,
+      guardianName: guardian.name,
+      courseName: course.name,
+      totalValue: Number(contract.total_value),
+      installments: contract.installment_count || 1,
+      signedAt: contract.signed_at || '',
+      signatureHash: (contract as any).signature_hash || null,
+      signatureImage: (contract as any).signature_image || null,
+      signedIp: (contract as any).signed_ip || null,
+      signedUserAgent: (contract as any).signed_user_agent || null,
+    });
+    setShowSignedContractModal(true);
+  };
   const handleSignatureComplete = async () => {
     // Refetch to update the UI
     window.location.reload();
@@ -523,7 +571,10 @@ export default function Contracts() {
                             Contrato - {student?.name}
                           </h3>
                           {isSigned ? (
-                            <Badge className="bg-success/10 text-success border-success/30">
+                            <Badge 
+                              className="bg-success/10 text-success border-success/30 cursor-pointer hover:bg-success/20 transition-colors"
+                              onClick={() => handleOpenSignedContractModal(enrollment)}
+                            >
                               <CheckCircle2 className="w-3 h-3 mr-1" />
                               Assinado
                             </Badge>
@@ -858,6 +909,35 @@ export default function Contracts() {
         onOpenChange={setShowSignatureModal}
         contract={selectedContractForSignature}
         onSignatureComplete={handleSignatureComplete}
+      />
+
+      {/* Signed Contract Details Modal */}
+      <SignedContractModal
+        open={showSignedContractModal}
+        onOpenChange={setShowSignedContractModal}
+        contract={selectedSignedContract}
+        onPrint={() => {
+          if (selectedSignedContract) {
+            const enrollment = contractEnrollments.find(e => 
+              getContractForEnrollment(e.id)?.id === selectedSignedContract.id
+            );
+            if (enrollment) {
+              handlePreview(enrollment.id);
+              setShowSignedContractModal(false);
+            }
+          }
+        }}
+        onDownload={() => {
+          if (selectedSignedContract) {
+            const enrollment = contractEnrollments.find(e => 
+              getContractForEnrollment(e.id)?.id === selectedSignedContract.id
+            );
+            if (enrollment) {
+              handleDownloadPDF(enrollment.id);
+              setShowSignedContractModal(false);
+            }
+          }
+        }}
       />
     </div>
   );
