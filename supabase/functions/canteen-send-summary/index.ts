@@ -26,6 +26,16 @@ interface RequestBody {
   total: number;
 }
 
+const DEFAULT_TEMPLATE = `🍽️ *CONSUMO SEMANAL - CANTINA*
+
+Olá, {nome_responsavel}! Segue o resumo da semana {semana_inicio} a {semana_fim}:
+
+{lista_consumos}
+
+💰 *TOTAL: {total}*
+
+Forma de pagamento: combinar com a cantina.`;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -39,14 +49,15 @@ Deno.serve(async (req) => {
     const body: RequestBody = await req.json();
     const { guardian_id, guardian_phone, guardian_name, week_start, week_end, students, total } = body;
 
-    // Get W-API settings
+    // Get W-API settings and message template
     const { data: settings } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_URL', 'W_API_TOKEN']);
+      .in('key', ['W_API_URL', 'W_API_TOKEN', 'canteen_message_template']);
 
     const wapiUrl = settings?.find(s => s.key === 'W_API_URL')?.value || 'https://api.w-api.app';
     const wapiToken = settings?.find(s => s.key === 'W_API_TOKEN')?.value;
+    const messageTemplate = settings?.find(s => s.key === 'canteen_message_template')?.value || DEFAULT_TEMPLATE;
 
     if (!wapiToken) {
       return new Response(
@@ -63,20 +74,26 @@ Deno.serve(async (req) => {
       }).format(price);
     };
 
-    // Build message
-    let message = `🍽️ *CONSUMO SEMANAL - CANTINA*\n\n`;
-    message += `Olá, ${guardian_name.split(' ')[0]}! Segue o resumo da semana ${week_start} a ${week_end}:\n\n`;
-
+    // Build consumption list
+    let listaConsumos = '';
     students.forEach(student => {
-      message += `👦 *${student.student_name}*\n`;
+      listaConsumos += `👦 *${student.student_name}*\n`;
       student.items.forEach(item => {
-        message += `• ${item.quantity}x ${item.product_name} - ${formatPrice(item.total)}\n`;
+        listaConsumos += `• ${item.quantity}x ${item.product_name} - ${formatPrice(item.total)}\n`;
       });
-      message += `Subtotal: ${formatPrice(student.subtotal)}\n\n`;
+      listaConsumos += `Subtotal: ${formatPrice(student.subtotal)}\n\n`;
     });
 
-    message += `💰 *TOTAL: ${formatPrice(total)}*\n\n`;
-    message += `Forma de pagamento: combinar com a cantina.`;
+    // Replace variables in template
+    let message = messageTemplate
+      .replace(/{nome_responsavel}/g, guardian_name.split(' ')[0])
+      .replace(/{semana_inicio}/g, week_start)
+      .replace(/{semana_fim}/g, week_end)
+      .replace(/{lista_consumos}/g, listaConsumos.trim())
+      .replace(/{total}/g, formatPrice(total));
+
+    // Convert escaped newlines to real newlines
+    message = message.replace(/\\n/g, '\n');
 
     // Format phone number
     let phone = guardian_phone.replace(/\D/g, '');
