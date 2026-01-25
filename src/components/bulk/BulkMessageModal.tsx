@@ -71,7 +71,7 @@ const categoryOptions = [
   { value: 'general', label: 'Geral' },
 ];
 
-const SEND_DELAY_MS = 2500; // 2.5 seconds between messages to avoid rate limiting
+const SEND_DELAY_MS = 3500; // 3.5 seconds between messages to avoid rate limiting
 
 export function BulkMessageModal({ 
   open, 

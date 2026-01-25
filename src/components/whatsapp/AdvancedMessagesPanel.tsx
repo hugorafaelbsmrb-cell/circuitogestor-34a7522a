@@ -44,7 +44,7 @@ interface AdvancedMessagesPanelProps {
   }>;
 }
 
-const SEND_DELAY_MS = 2500;
+const SEND_DELAY_MS = 3500;
 
 export function AdvancedMessagesPanel({ selectedRecipients, recipients }: AdvancedMessagesPanelProps) {
   const { toast } = useToast();
