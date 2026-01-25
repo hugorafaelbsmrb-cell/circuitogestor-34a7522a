@@ -610,6 +610,37 @@ export default function BulkMessages() {
         if (aiCooldownTimeoutRef.current) clearTimeout(aiCooldownTimeoutRef.current);
         aiCooldownTimeoutRef.current = setTimeout(() => setAiCooldownUntil(null), ms);
 
+        // Fallback automático para o provedor interno (evita travar o fluxo por rate limit externo)
+        try {
+          const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke(
+            'generate-message',
+            {
+              body: {
+                purpose: aiPurpose,
+                tone: aiTone,
+                context: aiContext,
+              },
+            }
+          );
+
+          if (fallbackError) throw fallbackError;
+
+          if (fallbackData?.message) {
+            setMessage(fallbackData.message);
+            setShowAIDialog(false);
+            setAiPurpose('');
+            setAiContext('');
+            toast({
+              title: 'Mensagem gerada (fallback)',
+              description:
+                'O serviço de IA principal limitou as requisições; usamos um provedor alternativo para gerar a mensagem.',
+            });
+            return;
+          }
+        } catch (fallbackErr) {
+          console.error('AI fallback error:', fallbackErr);
+        }
+
         toast({
           title: 'Limite de requisições (IA)',
           description: parsed.body?.error || 'Aguarde um pouco e tente novamente.',
