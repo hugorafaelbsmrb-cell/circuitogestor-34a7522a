@@ -58,15 +58,16 @@ Deno.serve(async (req) => {
     const { data: settings } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_URL', 'W_API_TOKEN', 'canteen_message_template']);
+      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION', 'canteen_message_template']);
 
-    const wapiUrl = settings?.find(s => s.key === 'W_API_URL')?.value || 'https://api.w-api.app';
+    const wapiUrl = (settings?.find(s => s.key === 'W_API_URL')?.value || 'https://api.w-api.app').replace(/\/+$/, '');
     const wapiToken = settings?.find(s => s.key === 'W_API_TOKEN')?.value;
+    const wapiSession = settings?.find(s => s.key === 'W_API_SESSION')?.value;
     const messageTemplate = settings?.find(s => s.key === 'canteen_message_template')?.value || DEFAULT_TEMPLATE;
 
-    if (!wapiToken) {
+    if (!wapiToken || !wapiSession) {
       return new Response(
-        JSON.stringify({ error: 'W-API not configured' }),
+        JSON.stringify({ error: 'W-API not configured (missing token or session)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -134,8 +135,14 @@ Deno.serve(async (req) => {
       phone = '55' + phone;
     }
 
-    // Send via W-API
-    const wapiResponse = await fetch(`${wapiUrl}/send-message`, {
+    // Send via W-API using the correct endpoint format
+    const encodedInstanceId = encodeURIComponent(wapiSession);
+    const endpoint = `${wapiUrl}/v1/message/send-text?instanceId=${encodedInstanceId}`;
+    
+    console.log('Sending canteen summary to:', phone);
+    console.log('Endpoint:', endpoint);
+    
+    const wapiResponse = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -143,7 +150,8 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         phone,
-        message
+        message,
+        isGroup: false
       })
     });
 
