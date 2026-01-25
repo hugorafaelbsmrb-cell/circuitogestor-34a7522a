@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// W-API PRO uses api.wapi.com.br exclusively
-const PRO_BASE_URL = 'https://api.wapi.com.br';
+// Default W-API URL (can be overridden by app_settings)
+const DEFAULT_WAPI_URL = 'https://api.w-api.app';
 
 interface WapiMessage {
   id?: { _serialized?: string } | string;
@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_TOKEN', 'W_API_SESSION']);
+      .in('key', ['W_API_TOKEN', 'W_API_SESSION', 'W_API_URL']);
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
@@ -87,9 +87,11 @@ Deno.serve(async (req) => {
 
     const apiKey = config.W_API_TOKEN;
     const instanceId = config.W_API_SESSION;
+    // Use W_API_URL from database or default to api.w-api.app
+    const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
 
-    console.log('=== W-API PRO Sync Started ===');
-    console.log(`PRO Base URL: ${PRO_BASE_URL}`);
+    console.log('=== W-API Sync Started ===');
+    console.log(`Base URL: ${baseUrl}`);
     console.log(`Instance ID: ${instanceId}`);
     console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
@@ -124,10 +126,10 @@ Deno.serve(async (req) => {
       return digits.startsWith('55') ? digits : `55${digits}`;
     };
 
-    // W-API PRO getMessages endpoint
+    // W-API getMessages endpoint
     // POST /getMessages with apikey header and JSON body { chatId, count }
     const fetchMessagesForPhone = async (chatId: string): Promise<{ messages: WapiMessage[]; status: number; error?: string }> => {
-      const url = `${PRO_BASE_URL}/getMessages`;
+      const url = `${baseUrl}/getMessages`;
       
       console.log(`Fetching: POST ${url}`);
       console.log(`ChatId: ${chatId}`);
@@ -291,7 +293,7 @@ Deno.serve(async (req) => {
     
     if (guardiansWithMessages === 0 && syncedCount === 0) {
       if (lastStatus === 404) {
-        message = 'Endpoint não encontrado (404). Verifique se sua instância W-API é PRO e se a API Key está correta.';
+        message = 'Endpoint não encontrado (404). Verifique se sua instância W-API está ativa e a API Key está correta.';
       } else if (lastStatus === 401 || lastStatus === 403) {
         message = 'Erro de autenticação. Verifique se a API Key está correta no painel W-API.';
       } else if (lastStatus === 408 || lastError?.includes('Timeout')) {
@@ -312,7 +314,7 @@ Deno.serve(async (req) => {
         guardiansProcessed: processedPhones.size,
         guardiansWithMessages,
         debug: {
-          proBaseUrl: PRO_BASE_URL,
+          baseUrl,
           instanceId: instanceId.slice(0, 8) + '...',
           lastStatus,
           lastError,

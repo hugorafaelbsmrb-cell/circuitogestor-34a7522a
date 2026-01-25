@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// W-API PRO uses api.wapi.com.br exclusively
-const PRO_BASE_URL = 'https://api.wapi.com.br';
+// Default W-API URL (can be overridden by app_settings)
+const DEFAULT_WAPI_URL = 'https://api.w-api.app';
 
 function parseConnection(data: any) {
   const stateRaw =
@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_TOKEN', 'W_API_SESSION']);
+      .in('key', ['W_API_TOKEN', 'W_API_SESSION', 'W_API_URL']);
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
@@ -96,21 +96,23 @@ Deno.serve(async (req) => {
 
     const apiKey = config.W_API_TOKEN;
     const instanceId = config.W_API_SESSION;
+    // Use W_API_URL from database or default to api.w-api.app
+    const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
     const encoded = encodeURIComponent(instanceId);
 
-    console.log('=== W-API PRO Connection Status ===');
-    console.log(`PRO Base URL: ${PRO_BASE_URL}`);
+    console.log('=== W-API Connection Status ===');
+    console.log(`Base URL: ${baseUrl}`);
     console.log(`Instance ID: ${instanceId}`);
     console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
-    // W-API PRO endpoints for connection status
-    // Using apikey header (not Bearer Authorization)
+    // W-API endpoints for connection status
+    // Using apikey header
     const candidates: Array<{ url: string; method: 'GET' | 'POST' }> = [
-      { url: `${PRO_BASE_URL}/connectionState?instanceId=${encoded}`, method: 'GET' },
-      { url: `${PRO_BASE_URL}/instance/connectionState?instanceId=${encoded}`, method: 'GET' },
-      { url: `${PRO_BASE_URL}/v1/instance/connectionState?instanceId=${encoded}`, method: 'GET' },
-      { url: `${PRO_BASE_URL}/status?instanceId=${encoded}`, method: 'GET' },
-      { url: `${PRO_BASE_URL}/v1/instance/qr-code?instanceId=${encoded}`, method: 'GET' },
+      { url: `${baseUrl}/connectionState?instanceId=${encoded}`, method: 'GET' },
+      { url: `${baseUrl}/instance/connectionState?instanceId=${encoded}`, method: 'GET' },
+      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}`, method: 'GET' },
+      { url: `${baseUrl}/status?instanceId=${encoded}`, method: 'GET' },
+      { url: `${baseUrl}/v1/instance/qr-code?instanceId=${encoded}`, method: 'GET' },
     ];
 
     const attempts: Array<{ url: string; status: number | null; ok: boolean; error?: string }> = [];
@@ -178,10 +180,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.error('W-API PRO status check failed', { attempts });
+    console.error('W-API status check failed', { attempts });
     return new Response(
       JSON.stringify({
-        error: 'Não foi possível verificar o status na W-API PRO',
+        error: 'Não foi possível verificar o status na W-API',
         attempts,
       }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
