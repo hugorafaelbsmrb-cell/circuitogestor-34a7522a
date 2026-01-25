@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -46,34 +46,6 @@ export default function ContractSign() {
   const [isSigning, setIsSigning] = useState(false);
   const [signed, setSigned] = useState(false);
   const [branding, setBranding] = useState<SystemBranding>({ name: DEFAULT_NAME, logo: null });
-  
-  
-  const addDebug = useCallback((msg: string) => {
-    console.log('[ContractSign]', msg);
-  }, []);
-
-  // Detect browser and log on mount
-  useEffect(() => {
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    
-    console.log('🔴 [ContractSign] Component mounted');
-    console.log('🔴 [ContractSign] Browser:', { isSafari, isIOS, userAgent: navigator.userAgent });
-    console.log('🔴 [ContractSign] Token from URL:', window.location.pathname);
-    console.log('🔴 [ContractSign] Viewport:', { width: window.innerWidth, height: window.innerHeight });
-    
-    addDebug('useEffect executado');
-    addDebug(`Browser: ${isSafari ? 'Safari' : 'Outro'} ${isIOS ? '(iOS)' : ''}`);
-    addDebug(`URL atual: ${window.location.href}`);
-    
-    // Test crypto API availability (Safari compatibility)
-    if (typeof crypto === 'undefined' || !crypto.subtle) {
-      console.error('🔴 [ContractSign] Crypto API not available!');
-      addDebug('❌ ERRO: Crypto API não disponível neste navegador');
-    } else {
-      addDebug('✅ Crypto API disponível');
-    }
-  }, [addDebug]);
 
   useEffect(() => {
     let isMounted = true;
@@ -81,7 +53,6 @@ export default function ContractSign() {
     
     // Fetch branding in parallel (non-blocking)
     const fetchBranding = async () => {
-      addDebug('Iniciando fetch de branding...');
       try {
         const { data } = await supabase
           .from('app_settings')
@@ -89,7 +60,6 @@ export default function ContractSign() {
           .in('key', ['system_name', 'system_logo']);
         
         if (!isMounted) return;
-        addDebug(`Branding recebido: ${data ? 'sim' : 'não'}`);
         
         if (data) {
           const nameEntry = data.find(d => d.key === 'system_name');
@@ -100,33 +70,25 @@ export default function ContractSign() {
             logo: logoEntry?.value || null,
           });
         }
-      } catch (error) {
+      } catch {
         // Fail silently - use defaults
-        if (isMounted) {
-          addDebug(`ERRO Branding: ${error instanceof Error ? error.message : 'desconhecido'}`);
-        }
       }
     };
     
     // Don't wait for branding to load contract
     fetchBranding().catch(() => {});
     
-    addDebug('Iniciando carregamento do contrato...');
-    addDebug(`Token: ${token ? token.substring(0, 8) + '...' : 'nenhum'}`);
-    
-    // Timeout para evitar loading infinito no Safari
+    // Timeout para evitar loading infinito
     timeoutId = setTimeout(() => {
       if (!isMounted) return;
-      addDebug('⏰ TIMEOUT - 15 segundos');
       setLoading(false);
       if (!contract && !error) {
         setError('Tempo esgotado ao carregar contrato. Por favor, recarregue a página.');
       }
-    }, 15000); // 15 segundos
+    }, 15000);
     
     const fetchContract = async () => {
       if (!token) {
-        addDebug('ERRO: Token não fornecido');
         if (isMounted) {
           setError('Token inválido');
           setLoading(false);
@@ -135,10 +97,7 @@ export default function ContractSign() {
         return;
       }
 
-      addDebug('Buscando contrato no banco...');
-      
       try {
-        addDebug('Executando query...');
         const { data, error: fetchError } = await supabase
           .from('contracts')
           .select('*')
@@ -147,46 +106,33 @@ export default function ContractSign() {
 
         if (!isMounted) return;
         
-        addDebug(`Query completada: ${data ? 'dados recebidos' : 'sem dados'}, erro: ${fetchError?.message || 'nenhum'}`);
-        
         if (fetchError || !data) {
-          addDebug(`ERRO: ${fetchError?.message || 'Contrato não encontrado'}`);
           setError('Contrato não encontrado ou link expirado.');
           setLoading(false);
           clearTimeout(timeoutId);
           return;
         }
 
-        // Primeiro define o contrato
         setContract(data as ContractData);
         
         if (data.signed_at) {
-          addDebug('Contrato já assinado - mostrando confirmação');
           setSigned(true);
           setLoading(false);
           clearTimeout(timeoutId);
           return;
         }
-
-        addDebug('Registrando visualização...');
         // Log view event - non-blocking
         supabase.from('contract_signature_logs').insert({
           contract_id: data.id,
           action: 'viewed',
           ip_address: 'public',
           user_agent: navigator.userAgent,
-        }).then(({ error: logError }) => {
-          if (logError && isMounted) {
-            addDebug(`Aviso: Log falhou - ${logError.message}`);
-          }
-        });
+        }).then(() => {});
 
-        addDebug('Contrato carregado com sucesso!');
         setLoading(false);
         clearTimeout(timeoutId);
-      } catch (err) {
+      } catch {
         if (!isMounted) return;
-        addDebug(`ERRO CATCH: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
         setError('Erro ao carregar contrato.');
         setLoading(false);
         clearTimeout(timeoutId);
@@ -199,7 +145,7 @@ export default function ContractSign() {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [token, addDebug]);
+  }, [token]);
 
   const handleSign = async () => {
     if (!contract) return;
@@ -227,8 +173,6 @@ export default function ContractSign() {
     try {
       const signatureImage = signatureRef.current?.toDataURL() || '';
       
-      console.log('[ContractSign] Starting signature process for token:', token);
-      
       // Generate hash from contract content
       const hashContent = JSON.stringify({
         id: contract.id,
@@ -243,8 +187,6 @@ export default function ContractSign() {
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const contractHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
-      console.log('[ContractSign] Hash generated, calling edge function...');
 
       // Update contract with signature via edge function for IP capture
       const response = await supabase.functions.invoke('contract-sign', {
@@ -255,11 +197,8 @@ export default function ContractSign() {
           userAgent: navigator.userAgent,
         },
       });
-      
-      console.log('[ContractSign] Edge function response:', response);
 
       if (response.error) {
-        console.error('[ContractSign] Edge function error:', response.error);
         throw response.error;
       }
 
