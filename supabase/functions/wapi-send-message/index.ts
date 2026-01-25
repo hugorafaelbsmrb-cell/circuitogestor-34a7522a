@@ -98,6 +98,14 @@ Deno.serve(async (req) => {
     const instanceId = config.W_API_SESSION;
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
 
+    // Some providers expose docs/SDKs under waapi.app/api/v1, while some users configure api.w-api.app.
+    // To avoid hard-coding a single vendor URL, we try a small set of compatible API bases.
+    const apiBases = new Set<string>();
+    apiBases.add(baseUrl);
+    if (!baseUrl.endsWith('/api/v1')) apiBases.add(`${baseUrl}/api/v1`);
+    if (baseUrl === 'https://waapi.app') apiBases.add('https://waapi.app/api/v1');
+    if (baseUrl.includes('w-api.app')) apiBases.add('https://waapi.app/api/v1');
+
     console.log('=== W-API Send Message ===');
     console.log(`Base URL: ${baseUrl}`);
     console.log(`Instance ID: ${instanceId}`);
@@ -127,131 +135,134 @@ Deno.serve(async (req) => {
 
     const savedMsgId = savedMsg?.id;
 
-    // W-API PRO endpoint structure: /v1/messages/{type}?instanceId={instanceId}
-    // Headers: apikey: {apiKey}
-    // Body varies by message type
-    
     const candidates: Array<{
       url: string;
       body: Record<string, unknown>;
       description: string;
     }> = [];
 
-    const chatId = `${formattedPhone}@c.us`;
+    const pushCandidate = (path: string, body: Record<string, unknown>, description: string) => {
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      for (const b of apiBases) {
+        const base = b.replace(/\/+$/, '');
+        candidates.push({
+          url: `${base}${normalizedPath}`,
+          body,
+          description: `${description} (${base})`,
+        });
+      }
+    };
+
+    const chatId = `${formattedPhone}@${isGroup ? 'g.us' : 'c.us'}`;
 
     if (mediaUrl && mediaType) {
       const mediaCaption = caption || message || '';
 
+      // WAAPI-style (documented) endpoints
+      // - POST /instances/{instanceId}/client/action/send-media
+      // - Body: { chatId, mediaUrl, caption?, fileName? }
+      pushCandidate(
+        `/instances/${encodeURIComponent(instanceId)}/client/action/send-media`,
+        {
+          chatId,
+          mediaUrl,
+          caption: mediaCaption || undefined,
+          fileName: fileName || undefined,
+          mediaType,
+        },
+        'instances/{id}/client/action/send-media'
+      );
+
+      // Legacy fallbacks that some deployments expose
       switch (mediaType) {
         case 'image':
           candidates.push(
-            // W-API PRO v1 endpoint for images
             {
               url: `${baseUrl}/v1/messages/image?instanceId=${instanceId}`,
               body: { phone: formattedPhone, image: mediaUrl, caption: mediaCaption, isGroup },
-              description: 'v1/messages/image',
-            },
-            // Alternative formats
-            {
-              url: `${baseUrl}/v1/messages/image?instanceId=${instanceId}`,
-              body: { chatId, image: mediaUrl, caption: mediaCaption },
-              description: 'v1/messages/image chatId',
+              description: 'legacy v1/messages/image',
             },
             {
               url: `${baseUrl}/messages/image?instanceId=${instanceId}`,
               body: { phone: formattedPhone, image: mediaUrl, caption: mediaCaption },
-              description: 'messages/image',
+              description: 'legacy messages/image',
             }
           );
           break;
-
         case 'document':
-          const docFileName = fileName || 'documento.pdf';
           candidates.push(
             {
               url: `${baseUrl}/v1/messages/document?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, document: mediaUrl, fileName: docFileName, caption: mediaCaption },
-              description: 'v1/messages/document',
-            },
-            {
-              url: `${baseUrl}/v1/messages/document?instanceId=${instanceId}`,
-              body: { chatId, document: mediaUrl, fileName: docFileName, caption: mediaCaption },
-              description: 'v1/messages/document chatId',
+              body: { phone: formattedPhone, document: mediaUrl, fileName: fileName || 'documento.pdf', caption: mediaCaption },
+              description: 'legacy v1/messages/document',
             },
             {
               url: `${baseUrl}/messages/document?instanceId=${instanceId}`,
-              body: { phone: formattedPhone, document: mediaUrl, fileName: docFileName },
-              description: 'messages/document',
+              body: { phone: formattedPhone, document: mediaUrl, fileName: fileName || 'documento.pdf', caption: mediaCaption },
+              description: 'legacy messages/document',
             }
           );
           break;
-
         case 'video':
           candidates.push(
             {
               url: `${baseUrl}/v1/messages/video?instanceId=${instanceId}`,
               body: { phone: formattedPhone, video: mediaUrl, caption: mediaCaption },
-              description: 'v1/messages/video',
-            },
-            {
-              url: `${baseUrl}/v1/messages/video?instanceId=${instanceId}`,
-              body: { chatId, video: mediaUrl, caption: mediaCaption },
-              description: 'v1/messages/video chatId',
+              description: 'legacy v1/messages/video',
             },
             {
               url: `${baseUrl}/messages/video?instanceId=${instanceId}`,
               body: { phone: formattedPhone, video: mediaUrl, caption: mediaCaption },
-              description: 'messages/video',
+              description: 'legacy messages/video',
             }
           );
           break;
-
         case 'audio':
           candidates.push(
             {
               url: `${baseUrl}/v1/messages/audio?instanceId=${instanceId}`,
               body: { phone: formattedPhone, audio: mediaUrl },
-              description: 'v1/messages/audio',
-            },
-            {
-              url: `${baseUrl}/v1/messages/audio?instanceId=${instanceId}`,
-              body: { chatId, audio: mediaUrl },
-              description: 'v1/messages/audio chatId',
+              description: 'legacy v1/messages/audio',
             },
             {
               url: `${baseUrl}/messages/audio?instanceId=${instanceId}`,
               body: { phone: formattedPhone, audio: mediaUrl },
-              description: 'messages/audio',
+              description: 'legacy messages/audio',
             }
           );
           break;
       }
     } else {
-      // TEXT MESSAGE - W-API PRO format: /v1/messages/text?instanceId=XXX
+      // WAAPI-style (documented) endpoint
+      // - POST /instances/{instanceId}/client/action/send-message
+      // - Body: { chatId, message }
+      pushCandidate(
+        `/instances/${encodeURIComponent(instanceId)}/client/action/send-message`,
+        { chatId, message },
+        'instances/{id}/client/action/send-message'
+      );
+
+      // Legacy fallbacks (older W-API shapes)
       candidates.push(
-        // Primary: W-API PRO v1 text endpoint
         {
           url: `${baseUrl}/v1/messages/text?instanceId=${instanceId}`,
           body: { phone: formattedPhone, message, isGroup },
-          description: 'v1/messages/text phone',
+          description: 'legacy v1/messages/text phone',
         },
-        // Alternative with chatId
         {
           url: `${baseUrl}/v1/messages/text?instanceId=${instanceId}`,
           body: { chatId, message },
-          description: 'v1/messages/text chatId',
+          description: 'legacy v1/messages/text chatId',
         },
-        // Without v1 prefix
         {
           url: `${baseUrl}/messages/text?instanceId=${instanceId}`,
           body: { phone: formattedPhone, message, isGroup },
-          description: 'messages/text',
+          description: 'legacy messages/text',
         },
-        // Legacy sendText
         {
           url: `${baseUrl}/sendText?instanceId=${instanceId}`,
           body: { phone: formattedPhone, message, isGroup },
-          description: 'sendText legacy',
+          description: 'legacy sendText',
         }
       );
     }
@@ -268,7 +279,10 @@ Deno.serve(async (req) => {
         const res = await fetch(c.url, {
           method: 'POST',
           headers: {
+            // Different vendors use different auth header conventions.
+            // We send both to maximize compatibility.
             'apikey': apiKey,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
