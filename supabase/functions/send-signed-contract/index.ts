@@ -8,6 +8,7 @@ const corsHeaders = {
 interface RequestBody {
   contractId: string;
   pdfUrl?: string; // Optional: if provided, use this pre-generated PDF instead of generating one
+  skipAutomationCheck?: boolean; // Optional: if true, skip automation setting check (for manual sends)
 }
 
 Deno.serve(async (req) => {
@@ -20,7 +21,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { contractId, pdfUrl: preGeneratedPdfUrl } = await req.json() as RequestBody;
+    const { contractId, pdfUrl: preGeneratedPdfUrl, skipAutomationCheck } = await req.json() as RequestBody;
 
     if (!contractId) {
       return new Response(
@@ -29,19 +30,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if auto-notify is enabled
-    const { data: automationSetting } = await supabase
-      .from('automation_settings')
-      .select('enabled')
-      .eq('key', 'auto_contract_signed_notify')
-      .single();
+    // Check if auto-notify is enabled (skip for manual sends)
+    if (!skipAutomationCheck) {
+      const { data: automationSetting } = await supabase
+        .from('automation_settings')
+        .select('enabled')
+        .eq('key', 'auto_contract_signed_notify')
+        .single();
 
-    if (!automationSetting?.enabled) {
-      console.log('Auto contract notification is disabled');
-      return new Response(
-        JSON.stringify({ success: false, message: 'Automation is disabled' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (!automationSetting?.enabled) {
+        console.log('Auto contract notification is disabled');
+        return new Response(
+          JSON.stringify({ success: false, message: 'Automation is disabled' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Fetch contract with related data

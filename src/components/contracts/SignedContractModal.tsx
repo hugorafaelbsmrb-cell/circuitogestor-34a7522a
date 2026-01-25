@@ -207,20 +207,27 @@ export function SignedContractModal({
     setIsSending(true);
     try {
       const { data, error } = await supabase.functions.invoke('send-signed-contract', {
-        body: { contractId: contract.id },
+        body: { 
+          contractId: contract.id,
+          skipAutomationCheck: true // Manual send from modal, skip automation check
+        },
       });
 
       if (error) throw error;
+      
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
       toast({
         title: 'Mensagem enviada!',
-        description: `Notificação de contrato assinado enviada para ${contract.guardianName}.`,
+        description: `Contrato assinado enviado para ${contract.guardianName} via WhatsApp.`,
       });
     } catch (error) {
       console.error('Error sending WhatsApp:', error);
       toast({
         title: 'Erro ao enviar',
-        description: 'Não foi possível enviar a mensagem. Verifique a configuração do WhatsApp.',
+        description: error instanceof Error ? error.message : 'Não foi possível enviar a mensagem. Verifique a configuração do WhatsApp.',
         variant: 'destructive',
       });
     } finally {
