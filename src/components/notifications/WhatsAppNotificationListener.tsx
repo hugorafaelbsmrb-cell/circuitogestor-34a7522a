@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { toast as sonnerToast } from 'sonner';
 import { useSchool } from '@/contexts/SchoolContext';
+import { WhatsAppToast } from './WhatsAppToast';
 
 /**
  * Normaliza telefone para comparação: remove tudo exceto dígitos,
@@ -48,7 +49,6 @@ interface WhatsAppNotificationListenerProps {
 }
 
 export function WhatsAppNotificationListener({ enabled = true }: WhatsAppNotificationListenerProps) {
-  const { toast } = useToast();
   const { guardians } = useSchool();
   const guardiansRef = useRef(guardians);
   
@@ -85,14 +85,20 @@ export function WhatsAppNotificationListener({ enabled = true }: WhatsAppNotific
               : formatPhone(newMessage.phone);
             
             // Truncate message for preview
-            const messagePreview = newMessage.message.length > 100
-              ? newMessage.message.substring(0, 100) + '...'
+            const messagePreview = newMessage.message.length > 80
+              ? newMessage.message.substring(0, 80) + '...'
               : newMessage.message;
             
-            toast({
-              title: `📱 Nova mensagem de ${senderName}`,
-              description: messagePreview,
+            // Show custom WhatsApp toast using sonner
+            sonnerToast.custom((toastId) => (
+              <WhatsAppToast
+                senderName={senderName}
+                message={messagePreview}
+                onClose={() => sonnerToast.dismiss(toastId)}
+              />
+            ), {
               duration: 8000,
+              position: 'top-right',
             });
           }
         }
@@ -102,7 +108,7 @@ export function WhatsAppNotificationListener({ enabled = true }: WhatsAppNotific
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [enabled, toast]);
+  }, [enabled]);
 
   // This component doesn't render anything
   return null;
