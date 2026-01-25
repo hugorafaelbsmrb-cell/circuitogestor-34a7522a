@@ -39,7 +39,12 @@ interface ContractContent {
 }
 
 export function generateContractPDF(content: ContractContent): jsPDF {
-  const doc = new jsPDF();
+  // Using 'pt' (points) for more precise control - 1pt = 1/72 inch
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   let yPos = 15;
@@ -325,24 +330,28 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   doc.text('• Material Didático (obrigatório): consultar valores', margin, yPos);
   yPos += 15;
 
-  // Course selected highlight
+  // Course selected highlight - MODALIDADE CONTRATADA
   if (content.courseName) {
-    // Draw box around contracted modality with background
-    // Using more visible background color for testing
-    doc.setFillColor(240, 240, 245);     // Fundo cinza mais visível
-    doc.setDrawColor(55, 65, 81);        // Borda cinza escuro (#374151)
-    doc.setLineWidth(0.8);
-    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 56, 3, 3, 'FD');
+    // Calculate dynamic height based on content (7 lines + title + padding)
+    const modalidadeBoxHeight = 8 + (7 * 6) + 8; // title + 7 lines * 6mm + bottom padding = 58mm
     
+    // IMPORTANT: Set fill and draw colors BEFORE drawing the rectangle
+    doc.setFillColor(230, 230, 235);     // Light gray background (RGB)
+    doc.setDrawColor(55, 65, 81);        // Dark gray border (RGB)
+    doc.setLineWidth(0.5);
+    
+    // Draw the rounded rectangle with fill and stroke
+    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, modalidadeBoxHeight, 2, 2, 'FD');
+    
+    // Reset text color to black before writing
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);  // Ensure text is black
-    doc.text('✓ MODALIDADE CONTRATADA:', margin, yPos);
+    doc.text('MODALIDADE CONTRATADA:', margin, yPos);
     yPos += 8;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);  // Ensure text is black
     doc.text(`• Curso: ${content.courseName}`, margin, yPos);
     yPos += 6;
     doc.text(`• Turma: ${content.classGroupName || '-'}`, margin, yPos);
@@ -362,30 +371,38 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   // LMS Credentials section
   if (content.lmsCredentials) {
     yPos += 5;
-    // Draw background first, then border
-    doc.setFillColor(220, 235, 255);     // Fundo azul mais visível
-    doc.setDrawColor(37, 99, 235);       // Borda azul (#2563eb)
-    doc.setLineWidth(0.8);
-    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 42, 3, 3, 'FD');
+    // Calculate dynamic height: title + 3 credentials + note + padding
+    const lmsBoxHeight = 8 + (3 * 6) + 8 + 6 + 4; // = 44mm
     
+    // IMPORTANT: Set fill and draw colors BEFORE drawing
+    doc.setFillColor(200, 220, 255);     // Light blue background (RGB)
+    doc.setDrawColor(37, 99, 235);       // Blue border (RGB)
+    doc.setLineWidth(0.5);
+    
+    // Draw the rounded rectangle
+    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, lmsBoxHeight, 2, 2, 'FD');
+    
+    // Title in blue
+    doc.setTextColor(30, 64, 175);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 64, 175);
-    doc.text('ACESSO À PLATAFORMA DE ENSINO (LMS)', margin, yPos);
-    doc.setTextColor(0, 0, 0);
+    doc.text('ACESSO A PLATAFORMA DE ENSINO (LMS)', margin, yPos);
     yPos += 8;
 
+    // Reset to black for content
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`• Matrícula: ${content.lmsCredentials.matricula}`, margin, yPos);
+    doc.text(`• Matricula: ${content.lmsCredentials.matricula}`, margin, yPos);
     yPos += 6;
     doc.text(`• E-mail de acesso: ${content.lmsCredentials.email}`, margin, yPos);
     yPos += 6;
     doc.text(`• Senha inicial: ${content.lmsCredentials.password}`, margin, yPos);
     yPos += 8;
     
+    // Note in gray
     doc.setFontSize(8);
-    doc.setTextColor(107, 114, 128);
+    doc.setTextColor(100, 100, 100);
     doc.text('* Recomendamos alterar a senha no primeiro acesso.', margin, yPos);
     doc.setTextColor(0, 0, 0);
     yPos += 10;
@@ -394,32 +411,40 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   // Soroban Credentials section
   if (content.sorobanCredentials) {
     yPos += 5;
-    // Draw background first, then border
-    doc.setFillColor(255, 240, 200);     // Fundo laranja mais visível
-    doc.setDrawColor(217, 119, 6);       // Borda laranja (#d97706)
-    doc.setLineWidth(0.8);
-    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 48, 3, 3, 'FD');
+    // Calculate dynamic height: title + 4 credentials + note + padding
+    const sorobanBoxHeight = 8 + (4 * 6) + 8 + 6 + 4; // = 50mm
     
+    // IMPORTANT: Set fill and draw colors BEFORE drawing
+    doc.setFillColor(255, 230, 180);     // Light orange/amber background (RGB)
+    doc.setDrawColor(217, 119, 6);       // Orange border (RGB)
+    doc.setLineWidth(0.5);
+    
+    // Draw the rounded rectangle
+    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, sorobanBoxHeight, 2, 2, 'FD');
+    
+    // Title in orange
+    doc.setTextColor(180, 83, 9);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(180, 83, 9);
-    doc.text('ACESSO À PLATAFORMA SOROBAN', margin, yPos);
-    doc.setTextColor(0, 0, 0);
+    doc.text('ACESSO A PLATAFORMA SOROBAN', margin, yPos);
     yPos += 8;
 
+    // Reset to black for content
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`• Matrícula: ${content.sorobanCredentials.matricula}`, margin, yPos);
+    doc.text(`• Matricula: ${content.sorobanCredentials.matricula}`, margin, yPos);
     yPos += 6;
     doc.text(`• E-mail de acesso: ${content.sorobanCredentials.email}`, margin, yPos);
     yPos += 6;
     doc.text(`• Senha inicial: ${content.sorobanCredentials.password}`, margin, yPos);
     yPos += 6;
-    doc.text(`• Nível inicial: ${content.sorobanCredentials.level || 1}`, margin, yPos);
+    doc.text(`• Nivel inicial: ${content.sorobanCredentials.level || 1}`, margin, yPos);
     yPos += 8;
     
+    // Note in gray
     doc.setFontSize(8);
-    doc.setTextColor(107, 114, 128);
+    doc.setTextColor(100, 100, 100);
     doc.text('* Recomendamos alterar a senha no primeiro acesso.', margin, yPos);
     doc.setTextColor(0, 0, 0);
   }
