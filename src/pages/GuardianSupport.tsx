@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, 
-  User, 
   Phone,
   MessageSquare,
   MoreHorizontal,
@@ -14,6 +13,7 @@ import {
   BookOpen,
   RefreshCw
 } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -140,6 +140,7 @@ interface GuardianWithCategory {
   id: string;
   name: string;
   phone: string;
+  avatarUrl?: string | null;
   category: ColumnType;
   studentCount: number;
   courseCount: number;
@@ -173,6 +174,7 @@ export default function GuardianSupport() {
     name: string;
     phone: string;
     studentNames: string[];
+    avatarUrl?: string | null;
   } | null>(null);
 
   const [formGuardian, setFormGuardian] = useState('');
@@ -328,6 +330,7 @@ export default function GuardianSupport() {
           id: guardian.id,
           name: guardian.name,
           phone: guardian.phone,
+          avatarUrl: (guardian as { avatar_url?: string | null }).avatar_url,
           category: 'vip',
           studentCount,
           courseCount,
@@ -342,6 +345,7 @@ export default function GuardianSupport() {
             id: guardian.id,
             name: guardian.name,
             phone: guardian.phone,
+            avatarUrl: (guardian as { avatar_url?: string | null }).avatar_url,
             category: column,
             studentCount,
             courseCount,
@@ -758,7 +762,12 @@ export default function GuardianSupport() {
                       <CardContent className="p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-muted-foreground" />
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={guardian.avatarUrl || undefined} alt={guardian.name} />
+                              <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+                                {guardian.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
                             <span className="font-medium text-sm">
                               {getDisplayName(guardian.name)}
                             </span>
@@ -782,6 +791,7 @@ export default function GuardianSupport() {
                                   name: getDisplayName(guardian.name),
                                   phone: guardian.phone,
                                   studentNames: guardianStudentNames,
+                                  avatarUrl: guardian.avatarUrl,
                                 });
                                 setShowMessagesModal(true);
                               }}>
@@ -836,6 +846,7 @@ export default function GuardianSupport() {
                               name: getDisplayName(guardian.name),
                               phone: guardian.phone,
                               studentNames: guardianStudentNames,
+                              avatarUrl: guardian.avatarUrl,
                             });
                             setShowMessagesModal(true);
                           }}
@@ -1114,6 +1125,7 @@ export default function GuardianSupport() {
           guardianName={selectedGuardianForMessages.name}
           guardianPhone={selectedGuardianForMessages.phone}
           studentNames={selectedGuardianForMessages.studentNames}
+          avatarUrl={selectedGuardianForMessages.avatarUrl}
         />
       )}
     </div>
