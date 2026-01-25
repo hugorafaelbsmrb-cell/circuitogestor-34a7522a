@@ -1,7 +1,13 @@
-import { Check, Printer, Eye, FileText, CreditCard, Download, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Check, Printer, Eye, FileText, CreditCard, Download, Loader2, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useWapiMessage } from '@/hooks/useWapiMessage';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface EnrollmentData {
   student: { name: string; birthDate: string };
@@ -64,9 +70,147 @@ export function EnrollmentSummary({
   onNewEnrollment,
   isLoadingCarne = false,
 }: EnrollmentSummaryProps) {
+  const { toast } = useToast();
+  const { sendMessage, checkConfig } = useWapiMessage();
+  const [isSendingBoleto, setIsSendingBoleto] = useState(false);
+  const [isSendingCarne, setIsSendingCarne] = useState(false);
+  const [boletoSent, setBoletoSent] = useState(false);
+  const [carneSent, setCarneSent] = useState(false);
+  
   const totalValue = data.payment.total;
   const hasProRataBoleto = data.proRataBoleto && (data.proRataBoleto.invoiceUrl || data.proRataBoleto.bankSlipUrl);
 
+  const sendEntryBoletoViaWhatsApp = async () => {
+    if (!hasProRataBoleto || !data.guardian.phone) return;
+    
+    setIsSendingBoleto(true);
+    try {
+      const config = await checkConfig();
+      if (!config.isConfigured) {
+        toast({
+          title: 'W-API não configurada',
+          description: 'Configure a W-API em Configurações > WhatsApp.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Get school name
+      const { data: schoolConfig } = await supabase
+        .from('contract_config')
+        .select('school_name')
+        .single();
+      
+      const schoolName = schoolConfig?.school_name || 'Nossa Escola';
+      const boletoUrl = data.proRataBoleto?.invoiceUrl || data.proRataBoleto?.bankSlipUrl || '';
+      const formattedValue = `R$ ${data.payment.proRataValue.toFixed(2).replace('.', ',')}`;
+      const formattedDate = data.payment.entryBoletoDueDate 
+        ? format(new Date(data.payment.entryBoletoDueDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })
+        : format(new Date(), 'dd/MM/yyyy', { locale: ptBR });
+      const firstName = data.guardian.name.split(' ')[0];
+
+      const message = `Olá, ${firstName}! 📄\n\nSegue o *boleto de entrada* referente à matrícula de *${data.student.name}* no curso *${data.course?.name || 'não informado'}*.\n\n💰 *Valor:* ${formattedValue}\n📅 *Vencimento:* ${formattedDate}\n\n🏫 *${schoolName}*\n\n📎 Acesse o boleto:\n${boletoUrl}`;
+
+      const success = await sendMessage({
+        phone: data.guardian.phone,
+        message,
+      });
+
+      if (success) {
+        setBoletoSent(true);
+        toast({
+          title: 'Boleto enviado!',
+          description: 'O boleto de entrada foi enviado via WhatsApp.',
+        });
+      }
+    } catch (error) {
+      console.error('Error sending boleto:', error);
+      toast({
+        title: 'Erro ao enviar',
+        description: 'Não foi possível enviar o boleto.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingBoleto(false);
+    }
+  };
+
+  const sendCarneViaWhatsApp = async () => {
+    if (!data.carne || !data.guardian.phone) return;
+    
+    setIsSendingCarne(true);
+    try {
+      const config = await checkConfig();
+      if (!config.isConfigured) {
+        toast({
+          title: 'W-API não configurada',
+          description: 'Configure a W-API em Configurações > WhatsApp.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Get school name
+      const { data: schoolConfig } = await supabase
+        .from('contract_config')
+        .select('school_name')
+        .single();
+      
+      const schoolName = schoolConfig?.school_name || 'Nossa Escola';
+      
+      // Fetch carne payments to get the invoice URLs
+      const { data: carnePayments } = await supabase
+        .from('payments')
+        .select('id, value, due_date, invoice_url, bank_slip_url, installment_number')
+        .eq('asaas_installment_id', data.carne?.asaasInstallmentId)
+        .order('due_date', { ascending: true })
+        .limit(3);
+      
+      const firstName = data.guardian.name.split(' ')[0];
+      const installmentCount = hasProRataBoleto 
+        ? (data.payment.installments || 12) - 1 
+        : data.payment.installments || 12;
+      
+      let message = `Olá, ${firstName}! 📋\n\nSegue o *carnê de pagamento* referente à matrícula de *${data.student.name}* no curso *${data.course?.name || 'não informado'}*.\n\n📊 *${installmentCount} parcelas* de R$ ${data.payment.regularValue.toFixed(2).replace('.', ',')}\n📅 *Início:* ${format(new Date(data.payment.firstDueDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })}\n\n🏫 *${schoolName}*`;
+
+      // Add first payment links if available
+      if (carnePayments && carnePayments.length > 0) {
+        message += '\n\n📎 *Próximos boletos:*';
+        for (const payment of carnePayments.slice(0, 3)) {
+          const paymentUrl = payment.invoice_url || payment.bank_slip_url;
+          if (paymentUrl) {
+            const dueDate = format(new Date(payment.due_date), 'dd/MM', { locale: ptBR });
+            message += `\n• Parcela ${payment.installment_number || ''} (${dueDate}): ${paymentUrl}`;
+          }
+        }
+        if (carnePayments.length > 3) {
+          message += `\n\n_Os demais boletos serão enviados próximo ao vencimento._`;
+        }
+      }
+
+      const success = await sendMessage({
+        phone: data.guardian.phone,
+        message,
+      });
+
+      if (success) {
+        setCarneSent(true);
+        toast({
+          title: 'Carnê enviado!',
+          description: 'Os links do carnê foram enviados via WhatsApp.',
+        });
+      }
+    } catch (error) {
+      console.error('Error sending carne:', error);
+      toast({
+        title: 'Erro ao enviar',
+        description: 'Não foi possível enviar o carnê.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingCarne(false);
+    }
+  };
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Success Banner */}
@@ -380,6 +524,59 @@ export function EnrollmentSummary({
           </Card>
         )}
       </div>
+
+      {/* WhatsApp Sending Actions */}
+      {(hasProRataBoleto || data.carne) && (
+        <Card className="border-emerald-500/20 bg-emerald-50/30 dark:bg-emerald-950/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-emerald-600" />
+              Enviar via WhatsApp
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Envie os boletos diretamente para o responsável via WhatsApp. O telefone cadastrado é: <strong>{data.guardian.phone}</strong>
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {hasProRataBoleto && (
+                <Button 
+                  variant="outline"
+                  className="flex-1 gap-2 border-emerald-500/50 text-emerald-700 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                  onClick={sendEntryBoletoViaWhatsApp}
+                  disabled={isSendingBoleto || boletoSent}
+                >
+                  {isSendingBoleto ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : boletoSent ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <MessageSquare className="w-4 h-4" />
+                  )}
+                  {boletoSent ? 'Boleto Enviado' : 'Enviar Boleto de Entrada'}
+                </Button>
+              )}
+              {data.carne && (
+                <Button 
+                  variant="outline"
+                  className="flex-1 gap-2 border-emerald-500/50 text-emerald-700 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                  onClick={sendCarneViaWhatsApp}
+                  disabled={isSendingCarne || carneSent}
+                >
+                  {isSendingCarne ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : carneSent ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <MessageSquare className="w-4 h-4" />
+                  )}
+                  {carneSent ? 'Carnê Enviado' : 'Enviar Links do Carnê'}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Navigation Actions */}
       <div className="flex flex-col sm:flex-row gap-4 pt-4">
