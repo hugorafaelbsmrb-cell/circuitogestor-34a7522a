@@ -98,14 +98,10 @@ Deno.serve(async (req) => {
     const instanceId = config.W_API_SESSION;
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
 
-    // Build chatId in W-API format
-    const chatId = `${formattedPhone}@${isGroup ? 'g.us' : 'c.us'}`;
-
     console.log('=== W-API Send Message ===');
     console.log(`Base URL: ${baseUrl}`);
-    console.log(`Instance ID: ${instanceId}`);
+    console.log(`Session: ${instanceId}`);
     console.log(`Phone: ${formattedPhone}`);
-    console.log(`ChatId: ${chatId}`);
     console.log(`Media Type: ${mediaType || 'text'}`);
 
     const messageContent = message || caption || `[${mediaType || 'media'}]`;
@@ -131,41 +127,73 @@ Deno.serve(async (req) => {
 
     const savedMsgId = savedMsg?.id;
 
-    // Build the correct W-API PRO endpoint: /{instanceId}/send-text
-    const sendUrl = `${baseUrl}/${instanceId}/send-text`;
-    
-    // Build request body based on message type
+    // Build request - using the same pattern that works in asaas-webhook and scheduled-notifications
+    // Endpoint: /message/send-text with session in body and Bearer token auth
+    let endpoint: string;
     let requestBody: Record<string, unknown>;
-    let endpoint = sendUrl;
     
     if (mediaUrl && mediaType) {
-      // For media, use the appropriate endpoint
       const mediaCaption = caption || message || '';
       
       switch (mediaType) {
         case 'image':
-          endpoint = `${baseUrl}/${instanceId}/send-image`;
-          requestBody = { chatId, image: mediaUrl, caption: mediaCaption };
+          endpoint = `${baseUrl}/message/send-image`;
+          requestBody = { 
+            session: instanceId, 
+            phone: formattedPhone, 
+            image: mediaUrl, 
+            caption: mediaCaption,
+            isGroup 
+          };
           break;
         case 'document':
-          endpoint = `${baseUrl}/${instanceId}/send-document`;
-          requestBody = { chatId, document: mediaUrl, fileName: fileName || 'documento.pdf', caption: mediaCaption };
+          endpoint = `${baseUrl}/message/send-document`;
+          requestBody = { 
+            session: instanceId, 
+            phone: formattedPhone, 
+            document: mediaUrl, 
+            fileName: fileName || 'documento.pdf', 
+            caption: mediaCaption,
+            isGroup 
+          };
           break;
         case 'video':
-          endpoint = `${baseUrl}/${instanceId}/send-video`;
-          requestBody = { chatId, video: mediaUrl, caption: mediaCaption };
+          endpoint = `${baseUrl}/message/send-video`;
+          requestBody = { 
+            session: instanceId, 
+            phone: formattedPhone, 
+            video: mediaUrl, 
+            caption: mediaCaption,
+            isGroup 
+          };
           break;
         case 'audio':
-          endpoint = `${baseUrl}/${instanceId}/send-audio`;
-          requestBody = { chatId, audio: mediaUrl };
+          endpoint = `${baseUrl}/message/send-audio`;
+          requestBody = { 
+            session: instanceId, 
+            phone: formattedPhone, 
+            audio: mediaUrl,
+            isGroup 
+          };
           break;
         default:
-          endpoint = sendUrl;
-          requestBody = { chatId, text: message };
+          endpoint = `${baseUrl}/message/send-text`;
+          requestBody = { 
+            session: instanceId, 
+            phone: formattedPhone, 
+            message: message,
+            isGroup 
+          };
       }
     } else {
-      // Text message - use chatId and text as per W-API PRO docs
-      requestBody = { chatId, text: message };
+      // Text message - use same format as asaas-webhook (proven working)
+      endpoint = `${baseUrl}/message/send-text`;
+      requestBody = { 
+        session: instanceId, 
+        phone: formattedPhone, 
+        message: message,
+        isGroup 
+      };
     }
 
     console.log(`Calling: POST ${endpoint}`);
@@ -175,7 +203,7 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'apikey': apiKey,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
     });
