@@ -627,6 +627,19 @@ export default function Enrollment() {
           postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
         }};
       } else if (!guardian) {
+        // Fetch profile picture from WhatsApp before creating guardian
+        let avatarUrl: string | null = null;
+        try {
+          const { data: picData } = await supabase.functions.invoke('wapi-get-profile-picture', {
+            body: { phone: normalizedPhone }
+          });
+          if (picData?.profilePictureUrl) {
+            avatarUrl = picData.profilePictureUrl;
+          }
+        } catch (picError) {
+          console.log('Could not fetch profile picture for guardian:', picError);
+        }
+
         guardian = await createGuardian({
           name: formData.guardian.name,
           cpf: cleanCpf,
@@ -637,6 +650,7 @@ export default function Enrollment() {
           province: formData.guardian.province || 'Centro',
           postal_code: formData.guardian.postalCode.replace(/\D/g, ''),
           asaas_customer_id: null,
+          avatar_url: avatarUrl,
         });
       }
 
