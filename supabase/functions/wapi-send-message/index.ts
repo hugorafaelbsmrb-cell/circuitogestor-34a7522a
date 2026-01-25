@@ -12,6 +12,11 @@ interface SendMessageRequest {
   phone: string;
   message: string;
   isGroup?: boolean;
+  // Media fields
+  mediaUrl?: string;
+  mediaType?: 'image' | 'document' | 'video' | 'audio';
+  fileName?: string;
+  caption?: string;
 }
 
 Deno.serve(async (req) => {
@@ -78,11 +83,11 @@ Deno.serve(async (req) => {
     }
 
     // Parse request body
-    const { phone, message, isGroup = false }: SendMessageRequest = await req.json();
+    const { phone, message, isGroup = false, mediaUrl, mediaType, fileName, caption }: SendMessageRequest = await req.json();
 
-    if (!phone || !message) {
+    if (!phone || (!message && !mediaUrl)) {
       return new Response(
-        JSON.stringify({ error: 'Telefone e mensagem são obrigatórios' }),
+        JSON.stringify({ error: 'Telefone e mensagem ou mídia são obrigatórios' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -101,16 +106,23 @@ Deno.serve(async (req) => {
     console.log(`Base URL: ${baseUrl}`);
     console.log(`Instance ID: ${instanceId}`);
     console.log(`Phone: ${formattedPhone}`);
+    console.log(`Media Type: ${mediaType || 'text'}`);
     console.log(`API Key: ${apiKey.slice(0, 8)}...`);
+
+    // Determine message type for DB storage
+    const messageContent = message || caption || `[${mediaType || 'media'}]`;
+    const dbMediaType = mediaType || null;
 
     // Save message BEFORE sending (resilience pattern)
     const { data: savedMsg, error: saveError } = await supabase
       .from('whatsapp_messages')
       .insert({
         phone: formattedPhone,
-        message: message,
+        message: messageContent,
         direction: 'outgoing',
         status: 'pending',
+        media_url: mediaUrl || null,
+        media_type: dbMediaType,
       })
       .select('id')
       .single();
@@ -121,28 +133,123 @@ Deno.serve(async (req) => {
 
     const savedMsgId = savedMsg?.id;
 
-    // W-API send message endpoints
-    // Using apikey header
+    // Build candidates based on message type
     const candidates: Array<{
       url: string;
       body: Record<string, unknown>;
-    }> = [
-      // POST /sendText with phone + message in body
-      {
-        url: `${baseUrl}/sendText?instanceId=${encoded}`,
-        body: { phone: formattedPhone, message, isGroup },
-      },
-      // Alternative: chatId format
-      {
-        url: `${baseUrl}/sendText?instanceId=${encoded}`,
-        body: { chatId: `${formattedPhone}@c.us`, message, isGroup },
-      },
-      // Legacy: /message/send-text
-      {
-        url: `${baseUrl}/message/send-text?instanceId=${encoded}`,
-        body: { phone: formattedPhone, message, isGroup },
-      },
-    ];
+      description: string;
+    }> = [];
+
+    if (mediaUrl && mediaType) {
+      // MEDIA MESSAGE ENDPOINTS
+      const chatId = `${formattedPhone}@c.us`;
+      const mediaCaption = caption || message || '';
+
+      switch (mediaType) {
+        case 'image':
+          candidates.push(
+            {
+              url: `${baseUrl}/sendImage?instanceId=${encoded}`,
+              body: { phone: formattedPhone, image: mediaUrl, caption: mediaCaption, isGroup },
+              description: 'sendImage with phone',
+            },
+            {
+              url: `${baseUrl}/sendImage?instanceId=${encoded}`,
+              body: { chatId, image: mediaUrl, caption: mediaCaption, isGroup },
+              description: 'sendImage with chatId',
+            },
+            {
+              url: `${baseUrl}/message/send-image?instanceId=${encoded}`,
+              body: { phone: formattedPhone, image: mediaUrl, caption: mediaCaption },
+              description: 'legacy send-image',
+            }
+          );
+          break;
+
+        case 'document':
+          const docFileName = fileName || 'documento.pdf';
+          candidates.push(
+            {
+              url: `${baseUrl}/sendDocument?instanceId=${encoded}`,
+              body: { phone: formattedPhone, document: mediaUrl, fileName: docFileName, caption: mediaCaption, isGroup },
+              description: 'sendDocument with phone',
+            },
+            {
+              url: `${baseUrl}/sendDocument?instanceId=${encoded}`,
+              body: { chatId, document: mediaUrl, fileName: docFileName, caption: mediaCaption, isGroup },
+              description: 'sendDocument with chatId',
+            },
+            {
+              url: `${baseUrl}/message/send-document?instanceId=${encoded}`,
+              body: { phone: formattedPhone, document: mediaUrl, fileName: docFileName, caption: mediaCaption },
+              description: 'legacy send-document',
+            }
+          );
+          break;
+
+        case 'video':
+          candidates.push(
+            {
+              url: `${baseUrl}/sendVideo?instanceId=${encoded}`,
+              body: { phone: formattedPhone, video: mediaUrl, caption: mediaCaption, isGroup },
+              description: 'sendVideo with phone',
+            },
+            {
+              url: `${baseUrl}/sendVideo?instanceId=${encoded}`,
+              body: { chatId, video: mediaUrl, caption: mediaCaption, isGroup },
+              description: 'sendVideo with chatId',
+            },
+            {
+              url: `${baseUrl}/message/send-video?instanceId=${encoded}`,
+              body: { phone: formattedPhone, video: mediaUrl, caption: mediaCaption },
+              description: 'legacy send-video',
+            }
+          );
+          break;
+
+        case 'audio':
+          candidates.push(
+            {
+              url: `${baseUrl}/sendAudio?instanceId=${encoded}`,
+              body: { phone: formattedPhone, audio: mediaUrl, isGroup },
+              description: 'sendAudio with phone',
+            },
+            {
+              url: `${baseUrl}/sendAudio?instanceId=${encoded}`,
+              body: { chatId, audio: mediaUrl, isGroup },
+              description: 'sendAudio with chatId',
+            },
+            {
+              url: `${baseUrl}/message/send-audio?instanceId=${encoded}`,
+              body: { phone: formattedPhone, audio: mediaUrl },
+              description: 'legacy send-audio',
+            }
+          );
+          break;
+      }
+    } else {
+      // TEXT MESSAGE ENDPOINTS
+      candidates.push(
+        // POST /sendText with phone + message in body
+        {
+          url: `${baseUrl}/sendText?instanceId=${encoded}`,
+          body: { phone: formattedPhone, message, isGroup },
+          description: 'sendText with phone',
+        },
+        // Alternative: chatId format
+        {
+          url: `${baseUrl}/sendText?instanceId=${encoded}`,
+          body: { chatId: `${formattedPhone}@c.us`, message, isGroup },
+          description: 'sendText with chatId',
+        },
+        // Legacy: /message/send-text
+        {
+          url: `${baseUrl}/message/send-text?instanceId=${encoded}`,
+          body: { phone: formattedPhone, message, isGroup },
+          description: 'legacy send-text',
+        }
+      );
+    }
 
     let lastError: string | null = null;
     let lastStatus: number | null = null;
