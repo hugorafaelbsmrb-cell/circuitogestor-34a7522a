@@ -11,7 +11,19 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, type, guardianName, studentNames, courseNames } = await req.json();
+    const body = await req.json();
+    const { messages, guardianName, studentNames, courseNames, purpose, tone, context } = body;
+    
+    // Auto-detect type based on provided parameters
+    let type = body.type;
+    if (!type) {
+      if (purpose || tone || context) {
+        type = 'generate';
+      } else if (messages && Array.isArray(messages)) {
+        type = 'suggest';
+      }
+    }
+    
     const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
 
     if (!GOOGLE_API_KEY) {
@@ -75,8 +87,6 @@ Retorne APENAS um JSON válido com o formato:
 
       userPrompt = `Conversa completa:\n${allMessages}\n\nForneça o resumo.`;
     } else if (type === "generate") {
-      const { context, tone, purpose } = messages;
-      
       systemPrompt = `Você é um assistente especializado em criar mensagens de WhatsApp para escolas e instituições de ensino.
 
 Regras importantes:
