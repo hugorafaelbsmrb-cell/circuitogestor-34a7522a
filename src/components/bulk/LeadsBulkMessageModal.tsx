@@ -351,9 +351,15 @@ export function LeadsBulkMessageModal({
       const recipient = recipients[i];
       
       try {
+        // Get course name for this lead
+        const courseName = recipient.interested_course_id 
+          ? courses.find(c => c.id === recipient.interested_course_id)?.name || ''
+          : '';
+        
         const personalizedMessage = message
           .replace(/{nome_responsavel}/g, recipient.name.split(' ')[0])
-          .replace(/{nome_aluno}/g, recipient.student_name || recipient.name);
+          .replace(/{nome_aluno}/g, recipient.student_name || recipient.name)
+          .replace(/{nome_curso}/g, courseName);
         
         const success = await sendMessage({
           phone: recipient.phone,
@@ -547,17 +553,61 @@ export function LeadsBulkMessageModal({
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="custom">Mensagem personalizada</SelectItem>
-                        {filteredTemplates.map(t => (
-                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                        ))}
+                        {filteredTemplates.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground italic">
+                            Nenhum template nesta categoria
+                          </div>
+                        ) : (
+                          filteredTemplates.map(t => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
+                    {filteredTemplates.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Crie templates na aba "Templates" da página de Leads
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 {/* Custom message or template preview */}
                 <div className="space-y-2">
-                  <Label>{selectedTemplateId === 'custom' || !selectedTemplateId ? 'Mensagem' : 'Preview'}</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>{selectedTemplateId === 'custom' || !selectedTemplateId ? 'Mensagem' : 'Preview'}</Label>
+                    {(selectedTemplateId === 'custom' || !selectedTemplateId) && (
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => setCustomMessage(prev => prev + '{nome_responsavel}')}
+                        >
+                          +Nome
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => setCustomMessage(prev => prev + '{nome_aluno}')}
+                        >
+                          +Aluno
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => setCustomMessage(prev => prev + '{nome_curso}')}
+                        >
+                          +Curso
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <Textarea
                     value={selectedTemplateId && selectedTemplateId !== 'custom' ? selectedTemplate?.message || '' : customMessage}
                     onChange={(e) => setCustomMessage(e.target.value)}
@@ -566,7 +616,7 @@ export function LeadsBulkMessageModal({
                     disabled={selectedTemplateId !== 'custom' && selectedTemplateId !== ''}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Variáveis disponíveis: {'{nome_responsavel}'}, {'{nome_aluno}'}
+                    Variáveis: {'{nome_responsavel}'} = primeiro nome, {'{nome_aluno}'} = nome do aluno, {'{nome_curso}'} = curso de interesse
                   </p>
                 </div>
               </TabsContent>
