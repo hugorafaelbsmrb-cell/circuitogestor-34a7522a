@@ -190,6 +190,12 @@ export default function GuardianSupport() {
     courseNames?: string[];
   } | null>(null);
 
+  // Mark as Lead dialog state
+  const [showMarkAsLeadDialog, setShowMarkAsLeadDialog] = useState(false);
+  const [markAsLeadContact, setMarkAsLeadContact] = useState<UnknownContact | null>(null);
+  const [leadCourseId, setLeadCourseId] = useState<string>('');
+  const [isCreatingLead, setIsCreatingLead] = useState(false);
+
   const [formGuardian, setFormGuardian] = useState('');
   const [formSubject, setFormSubject] = useState('');
   const [formNotes, setFormNotes] = useState('');
@@ -613,15 +619,24 @@ export default function GuardianSupport() {
     return phone;
   };
 
-  const handleMarkAsLead = async (contact: UnknownContact) => {
+  const openMarkAsLeadDialog = (contact: UnknownContact) => {
+    setMarkAsLeadContact(contact);
+    setLeadCourseId('');
+    setShowMarkAsLeadDialog(true);
+  };
+
+  const handleConfirmMarkAsLead = async () => {
+    if (!markAsLeadContact) return;
+    
+    setIsCreatingLead(true);
     try {
-      const displayName = contact.pushName || contact.name || formatPhone(contact.phone);
+      const displayName = markAsLeadContact.pushName || markAsLeadContact.name || formatPhone(markAsLeadContact.phone);
       
       // Check if lead already exists with this phone
       const { data: existingLead } = await supabase
         .from('leads')
         .select('id')
-        .eq('phone', contact.phone)
+        .eq('phone', markAsLeadContact.phone)
         .maybeSingle();
       
       if (existingLead) {
@@ -629,18 +644,25 @@ export default function GuardianSupport() {
           title: 'Lead já existe',
           description: `Já existe um lead cadastrado com este telefone.`,
         });
+        setShowMarkAsLeadDialog(false);
+        setMarkAsLeadContact(null);
         return;
       }
+      
+      // Get course name for notes
+      const selectedCourse = courses.find(c => c.id === leadCourseId);
+      const courseNote = selectedCourse ? `Curso de interesse: ${selectedCourse.name}. ` : '';
       
       // Create new lead
       const { error } = await supabase
         .from('leads')
         .insert({
           name: displayName,
-          phone: contact.phone,
+          phone: markAsLeadContact.phone,
           source: 'whatsapp',
           status: 'new',
-          notes: `Criado automaticamente a partir do Atendimento aos Pais. Última mensagem: ${contact.lastMessage.substring(0, 100)}`,
+          interested_course_id: leadCourseId || null,
+          notes: `${courseNote}Criado automaticamente a partir do Atendimento aos Pais. Última mensagem: ${markAsLeadContact.lastMessage.substring(0, 100)}`,
         });
       
       if (error) throw error;
@@ -649,6 +671,9 @@ export default function GuardianSupport() {
         title: 'Lead criado',
         description: `${displayName} foi adicionado à lista de leads.`,
       });
+      
+      setShowMarkAsLeadDialog(false);
+      setMarkAsLeadContact(null);
       
       // Reload data to update the UI
       loadData();
@@ -659,6 +684,8 @@ export default function GuardianSupport() {
         description: 'Não foi possível criar o lead. Tente novamente.',
         variant: 'destructive',
       });
+    } finally {
+      setIsCreatingLead(false);
     }
   };
 
@@ -867,7 +894,7 @@ export default function GuardianSupport() {
                                   <Phone className="h-4 w-4 mr-2" />
                                   Abrir WhatsApp
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleMarkAsLead(contact)}>
+                                <DropdownMenuItem onClick={() => openMarkAsLeadDialog(contact)}>
                                   <UserPlus className="h-4 w-4 mr-2" />
                                   Marcar como Lead
                                 </DropdownMenuItem>
@@ -911,7 +938,7 @@ export default function GuardianSupport() {
                               variant="secondary"
                               size="sm"
                               className="flex-1 text-xs h-7"
-                              onClick={() => handleMarkAsLead(contact)}
+                              onClick={() => openMarkAsLeadDialog(contact)}
                             >
                               <UserPlus className="h-3 w-3 mr-1" />
                               Lead
@@ -1354,6 +1381,75 @@ export default function GuardianSupport() {
           courseNames={selectedGuardianForMessages.courseNames}
         />
       )}
+
+      {/* Mark as Lead Dialog */}
+      <Dialog open={showMarkAsLeadDialog} onOpenChange={setShowMarkAsLeadDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Marcar como Lead</DialogTitle>
+            <DialogDescription>
+              Selecione o curso de interesse para este contato.
+            </DialogDescription>
+          </DialogHeader>
+
+          {markAsLeadContact && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                <Avatar className="h-10 w-10">
+                  {markAsLeadContact.profilePicUrl ? (
+                    <AvatarImage src={markAsLeadContact.profilePicUrl} alt="Contact" />
+                  ) : null}
+                  <AvatarFallback>
+                    {(markAsLeadContact.pushName || markAsLeadContact.name || 'C')[0].toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium">
+                    {markAsLeadContact.pushName || markAsLeadContact.name || formatPhone(markAsLeadContact.phone)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatPhone(markAsLeadContact.phone)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Curso de Interesse *</Label>
+                <Select value={leadCourseId} onValueChange={setLeadCourseId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o curso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courses.filter(c => c.is_active).map((course) => (
+                      <SelectItem key={course.id} value={course.id}>
+                        {course.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowMarkAsLeadDialog(false);
+                setMarkAsLeadContact(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleConfirmMarkAsLead} 
+              disabled={isCreatingLead || !leadCourseId}
+            >
+              {isCreatingLead ? 'Criando...' : 'Criar Lead'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
