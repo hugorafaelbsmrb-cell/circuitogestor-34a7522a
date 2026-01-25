@@ -45,11 +45,14 @@ export function useSystemBranding() {
 
   const fetchBranding = async () => {
     try {
+      console.log('[useSystemBranding] Fetching branding...');
       const { data } = await supabase
         .from('app_settings')
         .select('key, value')
         .in('key', ['system_name', 'system_logo', 'system_favicon', 'system_browser_title']);
 
+      console.log('[useSystemBranding] Branding data:', data);
+      
       if (data) {
         const nameEntry = data.find(d => d.key === 'system_name');
         const logoEntry = data.find(d => d.key === 'system_logo');
@@ -65,8 +68,17 @@ export function useSystemBranding() {
       }
     } catch (error) {
       console.error('Error fetching branding:', error);
+      // Falha silenciosa - usa valores padrão
+      setBranding({
+        name: DEFAULT_NAME,
+        logo: null,
+        favicon: null,
+        browserTitle: null,
+      });
     }
-    setIsLoading(false);
+    finally {
+      setIsLoading(false);
+    }
   };
 
   const updateBranding = async (newBranding: Partial<SystemBranding>) => {

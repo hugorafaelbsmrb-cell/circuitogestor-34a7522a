@@ -30,7 +30,7 @@ interface ContractData {
 export default function ContractSign() {
   const { token } = useParams<{ token: string }>();
   const { toast } = useToast();
-  const { branding } = useSystemBranding();
+  const { branding, isLoading: brandingLoading } = useSystemBranding();
   const signatureRef = useRef<SignaturePadRef>(null);
 
   const [loading, setLoading] = useState(true);
@@ -42,51 +42,81 @@ export default function ContractSign() {
   const [signed, setSigned] = useState(false);
 
   useEffect(() => {
+    // Timeout para evitar loading infinito no Safari
+    const timeoutId = setTimeout(() => {
+      if (loading) {
+        console.warn('[ContractSign] Loading timeout - forcing load with defaults');
+        setLoading(false);
+        if (!contract && !error) {
+          setError('Tempo esgotado ao carregar contrato. Por favor, recarregue a página.');
+        }
+      }
+    }, 10000); // 10 segundos timeout
+    
     const fetchContract = async () => {
       if (!token) {
+        console.error('[ContractSign] No token provided');
         setError('Token inválido');
         setLoading(false);
+        clearTimeout(timeoutId);
         return;
       }
 
+      console.log('[ContractSign] Fetching contract for token:', token);
+      
       try {
         const { data, error: fetchError } = await supabase
           .from('contracts')
           .select('*')
           .eq('signature_token', token)
-          .single();
+          .maybeSingle();
 
+        console.log('[ContractSign] Query result:', { data, error: fetchError });
+        
         if (fetchError || !data) {
+          console.error('[ContractSign] Contract not found:', fetchError);
           setError('Contrato não encontrado ou link expirado.');
           setLoading(false);
+          clearTimeout(timeoutId);
           return;
         }
 
         if (data.signed_at) {
+          console.log('[ContractSign] Contract already signed');
           setContract(data as ContractData);
           setSigned(true);
           setLoading(false);
+          clearTimeout(timeoutId);
           return;
         }
 
+        console.log('[ContractSign] Logging view event...');
         // Log view event
-        await supabase.from('contract_signature_logs').insert({
+        const { error: logError } = await supabase.from('contract_signature_logs').insert({
           contract_id: data.id,
           action: 'viewed',
           ip_address: 'public',
           user_agent: navigator.userAgent,
         });
+        
+        if (logError) {
+          console.warn('[ContractSign] Failed to log view event:', logError);
+        }
 
+        console.log('[ContractSign] Contract loaded successfully');
         setContract(data as ContractData);
       } catch (err) {
         console.error('Error fetching contract:', err);
         setError('Erro ao carregar contrato.');
       } finally {
         setLoading(false);
+        clearTimeout(timeoutId);
       }
     };
 
     fetchContract();
+    
+    return () => clearTimeout(timeoutId);
   }, [token]);
 
   const handleSign = async () => {
