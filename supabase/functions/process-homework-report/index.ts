@@ -250,7 +250,14 @@ Responda em JSON com o formato:
     }
 
     teacherMessage += `_${randomMotivation}_\n\n`;
-    teacherMessage += `_Recebido em ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}_`;
+    
+    const now = new Date();
+    const diasSemana = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+    const diaSemana = diasSemana[now.getUTCDay()];
+    const dataFormatada = now.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
+    const horaFormatada = now.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+    
+    teacherMessage += `_Recebido em ${diaSemana}, ${dataFormatada} às ${horaFormatada}_`;
 
     // Step 6: Send message to teacher via W-API
     const { data: wapiSettings } = await supabase
