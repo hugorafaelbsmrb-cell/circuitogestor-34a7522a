@@ -64,15 +64,30 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Find guardian
+      // Find guardian using flexible phone matching
       let guardianId: string | null = null;
-      const phoneVariants = [cleanPhone, cleanPhone.startsWith("55") ? cleanPhone.slice(2) : `55${cleanPhone}`];
+      
+      // Generate phone variants for matching (handles 9-digit mobile prefix variations)
+      const basePhone = cleanPhone.replace(/^55/, ""); // Remove country code
+      const phoneWithNine = basePhone.length === 10 ? basePhone.slice(0, 2) + "9" + basePhone.slice(2) : basePhone;
+      const phoneWithoutNine = basePhone.length === 11 && basePhone[2] === "9" ? basePhone.slice(0, 2) + basePhone.slice(3) : basePhone;
+      
+      const phoneVariants = [
+        cleanPhone,
+        `55${phoneWithNine}`,
+        `55${phoneWithoutNine}`,
+        phoneWithNine,
+        phoneWithoutNine,
+      ];
+      
+      // Try to find guardian with any variant, also use last 8 digits for flexible matching
+      const last8 = cleanPhone.slice(-8);
       
       for (const phoneVariant of phoneVariants) {
         const { data: guardian } = await supabase
           .from("guardians")
           .select("id")
-          .or(`phone.eq.${phoneVariant},phone.ilike.%${phoneVariant.slice(-9)}`)
+          .or(`phone.eq.${phoneVariant},phone.ilike.%${last8}`)
           .limit(1)
           .single();
 
@@ -170,19 +185,29 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Find guardian by phone
+      // Find guardian using flexible phone matching (handles 9-digit mobile prefix variations)
+      const basePhone = cleanPhone.replace(/^55/, ""); // Remove country code
+      const phoneWithNine = basePhone.length === 10 ? basePhone.slice(0, 2) + "9" + basePhone.slice(2) : basePhone;
+      const phoneWithoutNine = basePhone.length === 11 && basePhone[2] === "9" ? basePhone.slice(0, 2) + basePhone.slice(3) : basePhone;
+      
       const phoneVariants = [
         cleanPhone,
-        cleanPhone.startsWith("55") ? cleanPhone.slice(2) : `55${cleanPhone}`,
+        `55${phoneWithNine}`,
+        `55${phoneWithoutNine}`,
+        phoneWithNine,
+        phoneWithoutNine,
       ];
 
       let guardianId: string | null = null;
+      
+      // Try to find guardian with any variant, also use last 8 digits for flexible matching
+      const last8 = cleanPhone.slice(-8);
 
       for (const phoneVariant of phoneVariants) {
         const { data: guardian } = await supabase
           .from("guardians")
           .select("id")
-          .or(`phone.eq.${phoneVariant},phone.ilike.%${phoneVariant.slice(-9)}`)
+          .or(`phone.eq.${phoneVariant},phone.ilike.%${last8}`)
           .limit(1)
           .single();
 
