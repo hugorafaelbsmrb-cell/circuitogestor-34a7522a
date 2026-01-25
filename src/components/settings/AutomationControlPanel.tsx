@@ -20,6 +20,8 @@ import {
   Image as ImageIcon,
   MapPin,
   Contact,
+  Edit,
+  Info,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -27,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -61,6 +64,15 @@ interface AutomationConfig {
   category: 'payments' | 'enrollment' | 'students' | 'bulk' | 'whatsapp_features';
   hasConfig?: boolean;
   configFields?: { key: string; label: string; type: 'time' | 'select'; options?: { value: string; label: string }[] }[];
+  hasTemplate?: boolean;
+  templateCategory?: string;
+}
+
+interface MessageTemplate {
+  name: string;
+  category: string;
+  message: string;
+  is_active: boolean;
 }
 
 const automationConfigs: AutomationConfig[] = [
@@ -101,6 +113,8 @@ const automationConfigs: AutomationConfig[] = [
     description: 'Envia boas-vindas automática após finalizar matrícula',
     icon: GraduationCap,
     category: 'enrollment',
+    hasTemplate: true,
+    templateCategory: 'enrollment',
   },
   // Student automations
   {
@@ -113,6 +127,8 @@ const automationConfigs: AutomationConfig[] = [
     configFields: [
       { key: 'send_time', label: 'Horário de envio', type: 'time' },
     ],
+    hasTemplate: true,
+    templateCategory: 'birthday',
   },
   {
     key: 'auto_lms_alert',
@@ -239,6 +255,14 @@ export function AutomationControlPanel() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [configSetting, setConfigSetting] = useState<AutomationSetting | null>(null);
   const [configForm, setConfigForm] = useState<Record<string, string>>({});
+  
+  // Template editing state
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateCategory, setTemplateCategory] = useState<string | null>(null);
+  const [templateTitle, setTemplateTitle] = useState<string>('');
+  const [templateMessage, setTemplateMessage] = useState<string>('');
+  const [templateKey, setTemplateKey] = useState<string | null>(null);
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -325,6 +349,77 @@ export function AutomationControlPanel() {
     setSavingKey(null);
   };
 
+  const handleOpenTemplate = async (config: AutomationConfig) => {
+    if (!config.templateCategory) return;
+    
+    setTemplateCategory(config.templateCategory);
+    setTemplateTitle(config.title);
+    setShowTemplateModal(true);
+    
+    // Find the template in app_settings
+    const { data } = await supabase
+      .from('app_settings')
+      .select('key, value')
+      .like('key', 'whatsapp_template_%');
+    
+    if (data) {
+      for (const item of data) {
+        try {
+          const parsed: MessageTemplate = JSON.parse(item.value || '{}');
+          if (parsed.category === config.templateCategory) {
+            setTemplateMessage(parsed.message || '');
+            setTemplateKey(item.key);
+            return;
+          }
+        } catch {}
+      }
+    }
+    
+    // Default message if not found
+    setTemplateMessage('');
+    setTemplateKey(null);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateCategory) return;
+    
+    setIsSavingTemplate(true);
+    
+    const templateData: MessageTemplate = {
+      name: templateTitle,
+      category: templateCategory,
+      message: templateMessage,
+      is_active: true,
+    };
+    
+    const key = templateKey || `whatsapp_template_${templateCategory}`;
+    
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert({
+        key,
+        value: JSON.stringify(templateData),
+        description: `Template de ${templateTitle}`,
+        is_secret: false,
+      }, { onConflict: 'key' });
+    
+    if (error) {
+      toast({
+        title: 'Erro ao salvar template',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } else {
+      toast({
+        title: 'Template salvo',
+        description: 'A mensagem foi atualizada com sucesso.',
+      });
+      setShowTemplateModal(false);
+    }
+    
+    setIsSavingTemplate(false);
+  };
+
   const getSetting = (key: string): AutomationSetting | undefined => {
     return settings.find(s => s.key === key);
   };
@@ -390,12 +485,24 @@ export function AutomationControlPanel() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {config.hasTemplate && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenTemplate(config)}
+                          className="h-8 w-8"
+                          title="Editar mensagem"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      )}
                       {config.hasConfig && setting && (
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleOpenConfig(setting)}
                           className="h-8 w-8"
+                          title="Configurações"
                         >
                           <Settings className="w-4 h-4" />
                         </Button>
@@ -493,6 +600,57 @@ export function AutomationControlPanel() {
             </Button>
             <Button onClick={handleSaveConfig} disabled={savingKey !== null}>
               {savingKey ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Template Edit Modal */}
+      <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="w-5 h-5" />
+              Editar Mensagem: {templateTitle}
+            </DialogTitle>
+            <DialogDescription>
+              Personalize o texto da mensagem automática
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="template-message">Texto da Mensagem</Label>
+              <Textarea
+                id="template-message"
+                value={templateMessage}
+                onChange={(e) => setTemplateMessage(e.target.value)}
+                placeholder="Digite a mensagem..."
+                rows={8}
+                className="font-mono text-sm"
+              />
+            </div>
+            
+            <div className="p-3 rounded-lg bg-muted/50 border">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p className="font-medium">Variáveis disponíveis:</p>
+                  <ul className="space-y-0.5">
+                    <li><code className="bg-muted px-1 rounded">{'{nome_responsavel}'}</code> - Nome do responsável</li>
+                    <li><code className="bg-muted px-1 rounded">{'{nome_aluno}'}</code> - Nome do aluno</li>
+                    <li><code className="bg-muted px-1 rounded">{'{nome_escola}'}</code> - Nome da escola</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTemplateModal(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveTemplate} disabled={isSavingTemplate}>
+              {isSavingTemplate && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Salvar
             </Button>
           </DialogFooter>
