@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAIProvider } from '@/hooks/useAIProvider';
 
 interface Message {
   id: string;
@@ -41,6 +42,7 @@ export function AISuggestionsPanel({
   onSelectSuggestion,
 }: AISuggestionsPanelProps) {
   const { toast } = useToast();
+  const { getAnalyzeFunctionName } = useAIProvider();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
@@ -62,9 +64,10 @@ export function AISuggestionsPanel({
 
     setIsLoadingSuggestions(true);
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-messages', {
+      const functionName = getAnalyzeFunctionName();
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
-          messages: messages.slice(-10), // Last 10 messages for context
+          messages: messages.slice(-10),
           type: 'suggest',
           guardianName,
           studentNames,
@@ -104,7 +107,8 @@ export function AISuggestionsPanel({
     setIsLoadingSummary(true);
     setShowSummary(true);
     try {
-      const { data, error } = await supabase.functions.invoke('analyze-messages', {
+      const functionName = getAnalyzeFunctionName();
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           messages,
           type: 'summary',
