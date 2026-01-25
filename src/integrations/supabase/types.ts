@@ -218,6 +218,7 @@ export type Database = {
           guardian_id: string
           id: string
           items_count: number
+          payment_status: string
           sent_at: string | null
           status: string
           total_value: number
@@ -230,6 +231,7 @@ export type Database = {
           guardian_id: string
           id?: string
           items_count: number
+          payment_status?: string
           sent_at?: string | null
           status?: string
           total_value: number
@@ -242,6 +244,7 @@ export type Database = {
           guardian_id?: string
           id?: string
           items_count?: number
+          payment_status?: string
           sent_at?: string | null
           status?: string
           total_value?: number
