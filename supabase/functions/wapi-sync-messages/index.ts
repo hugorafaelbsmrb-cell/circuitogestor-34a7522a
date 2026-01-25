@@ -173,9 +173,11 @@ Deno.serve(async (req) => {
     console.log(`Using base URLs: ${baseUrls.join(', ')}`);
 
     // Quick connectivity test to avoid looping through guardians if provider is unreachable
+    // Using /all-messages endpoint as per W-API PRO documentation
     const connectivity: Array<{ baseUrl: string; ok: boolean; status?: number; error?: string }> = [];
     for (const baseUrl of baseUrls) {
-      const testUrl = `${baseUrl}/getMessages?chatId=${encodeURIComponent(`5511000000000@c.us`)}&count=1`;
+      // Test with all-messages (correct endpoint per W-API PRO docs)
+      const testUrl = `${baseUrl}/all-messages?chatId=${encodeURIComponent(`5511000000000@c.us`)}&limit=1`;
       try {
         const res = await fetchWithTimeout(
           testUrl,
@@ -186,11 +188,10 @@ Deno.serve(async (req) => {
               instanceId: session,
               'Content-Type': 'application/json',
               'Accept': 'application/json',
-              // Some providers reject requests without a UA
               'User-Agent': 'LovableCloud/1.0',
             },
           },
-          8000,
+          10000,
         );
         connectivity.push({ baseUrl, ok: true, status: res.status });
         // Consider any HTTP response as reachable (even 4xx), since it proves network connectivity
@@ -208,7 +209,7 @@ Deno.serve(async (req) => {
         JSON.stringify({
           success: false,
           message:
-            'Falha de conexão com a W-API (timeout/DNS/TLS). Confirme o “API URL/Endpoint” exato no painel da W-API e se o servidor permite requisições externas.',
+            'Falha de conexão com a W-API (timeout/DNS/TLS). Confirme o "API URL/Endpoint" exato no painel da W-API.',
           synced: 0,
           errors: 0,
           guardiansProcessed: 0,
@@ -223,9 +224,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Reduce candidate explosion: prefer the first reachable baseUrl
-    const effectiveBaseUrls = [reachableBaseUrl];
-    console.log(`Using reachable base URL: ${reachableBaseUrl}`);
+    // Use the reachable base URL
+    const effectiveBaseUrl = reachableBaseUrl;
+    console.log(`Using reachable base URL: ${effectiveBaseUrl}`);
 
     const fetchMessagesForPhone = async (
       phone: string,
@@ -235,54 +236,50 @@ Deno.serve(async (req) => {
       
       const attempts: Attempt[] = [];
 
-      // Build all candidate URLs following W-API PRO documentation
+      // ========================================
+      // W-API PRO CORRECT ENDPOINTS (per documentation):
+      // 1. GET /all-messages?chatId=...&limit=50 - Forces fetch from device
+      // 2. GET /get-chat-by-id?chatId=... - Lighter, returns last message
+      // 3. GET /getMessages?chatId=...&count=50 - Fetches from local DB (may be empty)
+      // ========================================
       const candidates: Array<{ url: string; headers: Record<string, string>; note: string }> = [];
 
-      for (const baseUrl of effectiveBaseUrls) {
-        // Format 1: GET /getMessages?chatId=...&count=... (apikey header)
-        candidates.push({
-          url: `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
-          headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
-          note: `${baseUrl}/getMessages (apikey header)`,
-        });
+      // PRIMARY: /all-messages (forces device fetch, best for history)
+      candidates.push({
+        url: `${effectiveBaseUrl}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=30`,
+        headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
+        note: '/all-messages (primary)',
+      });
 
-        // Format 2: GET /{instanceId}/getMessages?chatId=...&count=... (Instance ID in path)
-        candidates.push({
-          url: `${baseUrl}/${session}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
-          headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
-          note: `${baseUrl}/{instanceId}/getMessages`,
-        });
+      // FALLBACK 1: /all-messages with instance in path
+      candidates.push({
+        url: `${effectiveBaseUrl}/${session}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=30`,
+        headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
+        note: '/{instance}/all-messages',
+      });
 
-        // Format 3: Instance ID as query param
-        candidates.push({
-          url: `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50&instanceId=${encodeURIComponent(session)}`,
-          headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
-          note: `${baseUrl}/getMessages?instanceId=...`,
-        });
+      // FALLBACK 2: /getMessages (local DB, may work if synced)
+      candidates.push({
+        url: `${effectiveBaseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=30`,
+        headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
+        note: '/getMessages',
+      });
 
-        // Format 4: Instance ID in header
-        candidates.push({
-          url: `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
-          headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
-          note: `${baseUrl}/getMessages (instanceId header)`,
-        });
+      // FALLBACK 3: /get-chat-by-id (lighter, for quick preview)
+      candidates.push({
+        url: `${effectiveBaseUrl}/get-chat-by-id?chatId=${encodeURIComponent(chatId)}`,
+        headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
+        note: '/get-chat-by-id',
+      });
 
-        // Format 5: Authorization Bearer instead of apikey
-        candidates.push({
-          url: `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
-          headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-          note: `${baseUrl}/getMessages (Bearer token)`,
-        });
+      // FALLBACK 4: Bearer token auth variant
+      candidates.push({
+        url: `${effectiveBaseUrl}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=30`,
+        headers: { 'Authorization': `Bearer ${apiToken}`, 'instanceId': session, 'Content-Type': 'application/json' },
+        note: '/all-messages (Bearer)',
+      });
 
-        // Format 6: v1 prefix
-        candidates.push({
-          url: `${baseUrl}/v1/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
-          headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
-          note: `${baseUrl}/v1/getMessages`,
-        });
-      }
-
-      console.log(`Trying ${candidates.length} endpoint candidates for chatId: ${chatId}`);
+      console.log(`Trying ${candidates.length} endpoints for chatId: ${chatId}`);
       
       for (const candidate of candidates) {
         try {
@@ -296,22 +293,35 @@ Deno.serve(async (req) => {
                 'User-Agent': 'LovableCloud/1.0',
               },
             },
-            12000,
+            15000, // Slightly longer timeout for all-messages which fetches from device
           );
 
           attempts.push({ endpoint: candidate.note, status: res.status, ok: res.ok });
 
           if (res.ok) {
             const text = await res.text();
-            console.log(`SUCCESS ${candidate.note}: ${text.slice(0, 200)}`);
+            console.log(`SUCCESS ${candidate.note}: ${text.slice(0, 300)}`);
             
             try {
               const parsed = JSON.parse(text);
               
               // Extract messages from various possible response structures
-              const msgs: WapiMessage[] = Array.isArray(parsed)
-                ? parsed
-                : (parsed.messages ?? parsed.data?.messages ?? parsed.data ?? parsed.result ?? []);
+              let msgs: WapiMessage[] = [];
+              
+              if (Array.isArray(parsed)) {
+                msgs = parsed;
+              } else if (parsed.messages && Array.isArray(parsed.messages)) {
+                msgs = parsed.messages;
+              } else if (parsed.data?.messages && Array.isArray(parsed.data.messages)) {
+                msgs = parsed.data.messages;
+              } else if (parsed.data && Array.isArray(parsed.data)) {
+                msgs = parsed.data;
+              } else if (parsed.result && Array.isArray(parsed.result)) {
+                msgs = parsed.result;
+              } else if (parsed.lastMessage) {
+                // get-chat-by-id returns single chat with lastMessage
+                msgs = [parsed.lastMessage];
+              }
 
               if (Array.isArray(msgs) && msgs.length > 0) {
                 console.log(`Found ${msgs.length} messages using: ${candidate.note}`);
@@ -320,10 +330,9 @@ Deno.serve(async (req) => {
             } catch (parseError) {
               console.log(`Parse error for ${candidate.note}: ${parseError}`);
             }
-          } else if (res.status !== 404) {
-            // Log non-404 errors for debugging
+          } else {
             const errText = await res.text();
-            console.log(`Error ${res.status} at ${candidate.note}: ${errText.slice(0, 200)}`);
+            console.log(`Error ${res.status} at ${candidate.note}: ${errText.slice(0, 150)}`);
           }
         } catch (fetchError: unknown) {
           const msg = fetchError instanceof Error ? `${fetchError.name}: ${fetchError.message}` : String(fetchError);
