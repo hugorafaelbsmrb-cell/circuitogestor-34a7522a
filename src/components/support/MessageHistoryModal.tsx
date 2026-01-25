@@ -31,6 +31,7 @@ import { useWapiMessage } from '@/hooks/useWapiMessage';
 import { useWapiAdvanced } from '@/hooks/useWapiAdvanced';
 import { useToast } from '@/hooks/use-toast';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
+import { AISuggestionsPanel } from './AISuggestionsPanel';
 
 interface WhatsAppMessage {
   id: string;
@@ -870,6 +871,15 @@ export function MessageHistoryModal({
               </div>
             </ScrollArea>
           </div>
+
+          {/* AI Suggestions Panel */}
+          <AISuggestionsPanel
+            messages={messages}
+            guardianName={guardianName}
+            studentNames={studentNames}
+            courseNames={courseNames}
+            onSelectSuggestion={(text) => setNewMessage(text)}
+          />
 
           {/* Selected File Preview */}
           {selectedFile && (
