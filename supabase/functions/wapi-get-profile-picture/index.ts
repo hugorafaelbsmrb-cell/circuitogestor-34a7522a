@@ -94,14 +94,23 @@ Deno.serve(async (req) => {
     const responseText = await response.text();
     console.log(`Response ${response.status}: ${responseText.slice(0, 500)}`);
 
+    // Casos esperados de "sem foto" - não são erros críticos
     if (!response.ok) {
+      let errorMessage = `W-API retornou ${response.status}`;
+      try {
+        const errData = JSON.parse(responseText);
+        if (errData.message) errorMessage = errData.message;
+      } catch {}
+      
+      // Retorna sucesso mas sem foto (casos normais: privacidade, sem WhatsApp)
       return new Response(
         JSON.stringify({ 
-          success: false, 
-          error: `W-API retornou ${response.status}`,
-          details: responseText.slice(0, 200)
+          success: true, 
+          profilePictureUrl: null,
+          phone: formattedPhone,
+          reason: errorMessage
         }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -109,8 +118,9 @@ Deno.serve(async (req) => {
     
     try {
       const data = JSON.parse(responseText);
-      // A W-API pode retornar em diferentes formatos
-      profilePictureUrl = data.profilePictureUrl || 
+      // W-API retorna em diferentes formatos
+      profilePictureUrl = data.link || 
+                          data.profilePictureUrl || 
                           data.profilePicThumbObj?.img || 
                           data.url || 
                           data.imgUrl ||
