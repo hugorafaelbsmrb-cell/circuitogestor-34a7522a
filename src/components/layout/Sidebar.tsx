@@ -23,7 +23,8 @@ import {
   Kanban,
   ChevronDown,
   UtensilsCrossed,
-  X
+  X,
+  Megaphone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -100,6 +101,7 @@ const menuSections: MenuSection[] = [
     defaultOpen: false,
     items: [
       { icon: Send, label: 'Envio em Massa', path: '/envio-massa', permissionKey: 'whatsapp', adminOnly: false },
+      { icon: Megaphone, label: 'Campanhas', path: '/campanhas-admin', permissionKey: 'leads', adminOnly: false },
     ]
   },
   {

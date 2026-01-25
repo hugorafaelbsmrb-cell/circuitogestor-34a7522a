@@ -86,6 +86,7 @@ const statusOptions = [
 const sourceOptions = [
   { value: 'website', label: 'Website' },
   { value: 'external_form', label: 'Formulário Externo' },
+  { value: 'landing_page', label: 'Landing Page' },
   { value: 'whatsapp', label: 'WhatsApp' },
   { value: 'phone', label: 'Telefone' },
   { value: 'instagram', label: 'Instagram' },

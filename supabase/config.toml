@@ -33,3 +33,6 @@ verify_jwt = false
 
 [functions.canteen-send-summary]
 verify_jwt = false
+
+[functions.campaign-lead]
+verify_jwt = false
