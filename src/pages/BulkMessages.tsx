@@ -728,16 +728,23 @@ export default function BulkMessages() {
                     <Save className="w-4 h-4" />
                     Salvar Template
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowScheduleDialog(true)}
-                    disabled={!message.trim() || selectedRecipients.size === 0 || sendStatus === 'sending'}
-                    className="gap-2"
-                  >
-                    <Clock className="w-4 h-4" />
-                    Agendar
-                  </Button>
+                  <div className="relative group">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowScheduleDialog(true)}
+                      disabled={!message.trim() || selectedRecipients.size === 0 || sendStatus === 'sending'}
+                      className="gap-2"
+                    >
+                      <Clock className="w-4 h-4" />
+                      Agendar
+                    </Button>
+                    {(!message.trim() || selectedRecipients.size === 0) && (
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-popover border rounded text-xs text-muted-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                        {!message.trim() ? 'Digite uma mensagem' : 'Selecione destinatários'}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {sendStatus === 'sending' && (
