@@ -270,10 +270,12 @@
              'Content-Type': 'application/json',
              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
            },
-           body: JSON.stringify({
-             token: token,
-             signature: signatureData
-           })
+            body: JSON.stringify({
+              token: token,
+              signatureImage: signatureData,
+              signatureHash: await crypto.subtle.digest('SHA-256', new TextEncoder().encode(signatureData)).then(h => Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('')),
+              userAgent: navigator.userAgent
+            })
          });
  
          const result = await response.json();
