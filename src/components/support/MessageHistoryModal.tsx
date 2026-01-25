@@ -91,7 +91,6 @@ export function MessageHistoryModal({
     isVcardEnabled,
     isTypingEnabled,
     isLinkPreviewEnabled,
-    sendLink,
   } = useWapiAdvanced();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -600,33 +599,64 @@ export function MessageHistoryModal({
 
     setIsSending(true);
     
-    // Get school name from config for the title
-    const { data: configData } = await supabase
-      .from('contract_config')
-      .select('school_name')
-      .single();
-    
-    const schoolName = configData?.school_name || 'Escola';
-    const formattedValue = `R$ ${selectedPayment.value.toFixed(2).replace('.', ',')}`;
-    const formattedDate = format(new Date(selectedPayment.due_date), 'dd/MM/yyyy', { locale: ptBR });
-    
-    const messageText = boletoMessage.trim() || 
-      `Olá! Segue o boleto de ${selectedPayment.description || 'mensalidade'} no valor de ${formattedValue} com vencimento em ${formattedDate}.`;
+    try {
+      // Get school name from config for the message
+      const { data: configData } = await supabase
+        .from('contract_config')
+        .select('school_name')
+        .single();
+      
+      const schoolName = configData?.school_name || 'Escola';
+      const formattedValue = `R$ ${selectedPayment.value.toFixed(2).replace('.', ',')}`;
+      const formattedDate = format(new Date(selectedPayment.due_date), 'dd/MM/yyyy', { locale: ptBR });
+      
+      // Build the complete message with the boleto link
+      const customMessage = boletoMessage.trim();
+      const defaultMessage = `Olá! 📄\n\nSegue o boleto de *${selectedPayment.description || 'mensalidade'}* no valor de *${formattedValue}* com vencimento em *${formattedDate}*.\n\n🏫 *${schoolName}*`;
+      
+      const fullMessage = customMessage 
+        ? `${customMessage}\n\n📎 Link do boleto:\n${boletoUrl}`
+        : `${defaultMessage}\n\n📎 Clique no link para acessar:\n${boletoUrl}`;
 
-    const success = await sendLink({
-      phone: guardianPhone,
-      url: boletoUrl,
-      title: `📄 Boleto ${schoolName}`,
-      description: messageText,
-    });
+      // Send as regular text message (works without link preview feature)
+      const config = await checkConfig();
+      if (!config.isConfigured) {
+        toast({
+          title: 'W-API não configurada',
+          description: 'Configure a W-API em Configurações > WhatsApp.',
+          variant: 'destructive',
+        });
+        setIsSending(false);
+        return;
+      }
 
-    if (success) {
-      setShowBoletoModal(false);
-      setSelectedPaymentId(null);
-      setBoletoMessage('');
-      await loadMessages();
+      const success = await sendMessage({
+        phone: guardianPhone,
+        message: fullMessage,
+      });
+
+      if (success) {
+        toast({
+          title: 'Boleto enviado',
+          description: 'O link do boleto foi enviado com sucesso.',
+        });
+        setShowBoletoModal(false);
+        setSelectedPaymentId(null);
+        setBoletoMessage('');
+        await loadMessages();
+      } else {
+        throw new Error('Falha no envio');
+      }
+    } catch (error) {
+      console.error('Error sending boleto:', error);
+      toast({
+        title: 'Erro ao enviar',
+        description: 'Não foi possível enviar o boleto.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSending(false);
     }
-    setIsSending(false);
   };
 
   const renderMediaPreview = (msg: WhatsAppMessage) => {
@@ -874,11 +904,21 @@ export function MessageHistoryModal({
                   
                   {/* Advanced features */}
                   <DropdownMenuSeparator />
-                  {/* Boleto Link - Always show if guardian has payments */}
+                  {/* Boleto Link - Always show for all guardians */}
+                  <DropdownMenuItem onClick={handleOpenBoletoModal}>
+                    <Receipt className="h-4 w-4 mr-2 text-emerald-500" />
+                    Enviar Boleto
+                  </DropdownMenuItem>
                   {isLinkPreviewEnabled() && (
-                    <DropdownMenuItem onClick={handleOpenBoletoModal}>
-                      <Link2 className="h-4 w-4 mr-2 text-emerald-500" />
-                      Mensagem com Link/Boleto
+                    <DropdownMenuItem onClick={() => {
+                      // This could open a generic link modal in the future
+                      toast({
+                        title: 'Link com Preview',
+                        description: 'Use a opção "Enviar Boleto" para boletos ou envie o link diretamente na mensagem.',
+                      });
+                    }}>
+                      <Link2 className="h-4 w-4 mr-2 text-blue-500" />
+                      Mensagem com Link/Preview
                     </DropdownMenuItem>
                   )}
                   {isButtonsEnabled() && (
