@@ -34,18 +34,18 @@ export function PreEnrollmentNotificationListener({ enabled = true }: PreEnrollm
         { 
           event: 'INSERT', 
           schema: 'public', 
-          table: 'leads',
-          filter: 'status=eq.pre_enrollment'
+          table: 'leads'
         },
         (payload) => {
           const newLead = payload.new as { 
             name: string; 
             student_name: string | null;
             source: string | null;
+            status: string;
           };
           
-          // Only show for external form submissions
-          if (newLead.source === 'external_form') {
+          // Only show for external form submissions with pre_enrollment status
+          if (newLead.source === 'external_form' && newLead.status === 'pre_enrollment') {
             const guardianName = getFirstName(newLead.name);
             const studentName = newLead.student_name 
               ? getFirstAndSecondName(newLead.student_name)
