@@ -895,40 +895,47 @@ export default function GuardianSupport() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Atendimento aos Pais</h1>
-          <p className="text-muted-foreground">Organizado por curso e categoria</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-foreground">Atendimento aos Pais</h1>
+          <p className="text-sm lg:text-base text-muted-foreground">Organizado por curso e categoria</p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
+            size="sm"
+            className="flex-1 sm:flex-none"
             onClick={handleRefreshAll}
             disabled={isRefreshing}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Atualizando...' : 'Atualizar dados'}
+            <span className="hidden sm:inline">{isRefreshing ? 'Atualizando...' : 'Atualizar'}</span>
+            <span className="sm:hidden">{isRefreshing ? '...' : 'Atualizar'}</span>
           </Button>
           <Button 
             variant="outline" 
+            size="sm"
+            className="flex-1 sm:flex-none"
             onClick={handleSyncMessages}
             disabled={isSyncing}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Sincronizando...' : 'Sincronizar WhatsApp'}
+            <span className="hidden sm:inline">{isSyncing ? 'Sincronizando...' : 'Sincronizar'}</span>
+            <span className="sm:hidden">{isSyncing ? '...' : 'Sync'}</span>
           </Button>
-          <Button onClick={() => setShowCreateDialog(true)}>
+          <Button size="sm" className="flex-1 sm:flex-none" onClick={() => setShowCreateDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Novo Atendimento
+            <span className="hidden sm:inline">Novo Atendimento</span>
+            <span className="sm:hidden">Novo</span>
           </Button>
         </div>
       </div>
 
       {/* Kanban Board - Columns by Category */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 lg:gap-4">
         {COLUMNS.map((columnType) => {
           const config = COLUMN_CONFIG[columnType];
           const guardiansInColumn = categorizedGuardians[columnType];
@@ -937,7 +944,7 @@ export default function GuardianSupport() {
           return (
             <div
               key={columnType}
-              className="flex flex-col h-[calc(100vh-220px)] min-h-[500px]"
+              className="flex flex-col h-[400px] sm:h-[calc(100vh-280px)] lg:h-[calc(100vh-220px)] min-h-[300px] lg:min-h-[500px]"
             >
               {/* Column Header */}
               <div className={`rounded-t-lg px-4 py-3 ${config.color} border`}>

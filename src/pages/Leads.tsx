@@ -344,79 +344,82 @@ export default function Leads() {
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-col gap-4">
         <div>
           <h1 className="page-title">Leads</h1>
           <p className="page-subtitle">Gerencie seus leads e acompanhe o funil de vendas</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleCopyFormLink} className="gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleCopyFormLink} className="gap-2 flex-1 sm:flex-none">
             <Link2 className="w-4 h-4" />
-            Link Pré-Matrícula
+            <span className="hidden sm:inline">Link Pré-Matrícula</span>
+            <span className="sm:hidden">Link</span>
           </Button>
           {isBulkEnabled && (
-            <Button variant="outline" onClick={() => setShowBulkModal(true)} className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowBulkModal(true)} className="gap-2 flex-1 sm:flex-none">
               <Send className="w-4 h-4" />
-              Envio em Massa
+              <span className="hidden sm:inline">Envio em Massa</span>
+              <span className="sm:hidden">Enviar</span>
             </Button>
           )}
-          <Button onClick={() => setShowModal(true)} className="gap-2">
+          <Button size="sm" onClick={() => setShowModal(true)} className="gap-2 flex-1 sm:flex-none">
             <Plus className="w-4 h-4" />
-            Novo Lead
+            <span className="hidden sm:inline">Novo Lead</span>
+            <span className="sm:hidden">Novo</span>
           </Button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-4 lg:mb-6">
         <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <UserPlus className="w-5 h-5 text-primary" />
+          <CardContent className="p-3 lg:p-4">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="p-1.5 lg:p-2 rounded-lg bg-primary/10">
+                <UserPlus className="w-4 h-4 lg:w-5 lg:h-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.total}</p>
-                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-xl lg:text-2xl font-bold">{stats.total}</p>
+                <p className="text-xs lg:text-sm text-muted-foreground">Total</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <AlertCircle className="w-5 h-5 text-blue-500" />
+          <CardContent className="p-3 lg:p-4">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="p-1.5 lg:p-2 rounded-lg bg-blue-500/10">
+                <AlertCircle className="w-4 h-4 lg:w-5 lg:h-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.new}</p>
-                <p className="text-sm text-muted-foreground">Novos</p>
+                <p className="text-xl lg:text-2xl font-bold">{stats.new}</p>
+                <p className="text-xs lg:text-sm text-muted-foreground">Novos</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-500/10">
-                <Clock className="w-5 h-5 text-purple-500" />
+          <CardContent className="p-3 lg:p-4">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="p-1.5 lg:p-2 rounded-lg bg-purple-500/10">
+                <Clock className="w-4 h-4 lg:w-5 lg:h-5 text-purple-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.interested}</p>
-                <p className="text-sm text-muted-foreground">Interessados</p>
+                <p className="text-xl lg:text-2xl font-bold">{stats.interested}</p>
+                <p className="text-xs lg:text-sm text-muted-foreground">Interessados</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card className="border-border/50">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-success/10">
-                <CheckCircle className="w-5 h-5 text-success" />
+          <CardContent className="p-3 lg:p-4">
+            <div className="flex items-center gap-2 lg:gap-3">
+              <div className="p-1.5 lg:p-2 rounded-lg bg-success/10">
+                <CheckCircle className="w-4 h-4 lg:w-5 lg:h-5 text-success" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{stats.converted}</p>
-                <p className="text-sm text-muted-foreground">Convertidos</p>
+                <p className="text-xl lg:text-2xl font-bold">{stats.converted}</p>
+                <p className="text-xs lg:text-sm text-muted-foreground">Convertidos</p>
               </div>
             </div>
           </CardContent>
