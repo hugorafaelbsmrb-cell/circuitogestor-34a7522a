@@ -34,6 +34,7 @@ import SorobanStudents from "./pages/SorobanStudents";
 import Teachers from "./pages/Teachers";
 import CanteenPublic from "./pages/CanteenPublic";
 import CanteenAdmin from "./pages/CanteenAdmin";
+import InstallApp from "./pages/InstallApp";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -63,6 +64,7 @@ function AppRoutes() {
       <Route path="/auth" element={<Auth />} />
       <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
       <Route path="/cantina" element={<CanteenPublic />} />
+      <Route path="/instalar" element={<InstallApp />} />
       <Route
         path="/*"
         element={
