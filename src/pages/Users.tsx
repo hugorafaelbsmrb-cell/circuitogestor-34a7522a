@@ -68,6 +68,7 @@ interface UserPermissions {
   enrollment?: boolean;
   students?: boolean;
   guardians?: boolean;
+  guardian_support?: boolean;
   leads?: boolean;
   classes?: boolean;
   courses?: boolean;
@@ -104,6 +105,7 @@ const moduleLabels: Record<string, string> = {
   enrollment: 'Nova Matrícula',
   students: 'Alunos',
   guardians: 'Responsáveis',
+  guardian_support: 'Atendimento aos Pais',
   leads: 'Leads',
   classes: 'Turmas',
   courses: 'Cursos',
@@ -116,7 +118,7 @@ const moduleLabels: Record<string, string> = {
   contracts: 'Contratos',
   discounts: 'Descontos',
   reports: 'Relatórios',
-  whatsapp: 'Envio em Massa (Admin)',
+  whatsapp: 'Comunicação (Envio em Massa)',
   inventory: 'Patrimônio',
   contract_config: 'Config. Contrato',
   users: 'Usuários (Admin)',
@@ -128,6 +130,7 @@ const defaultPermissions: UserPermissions = {
   enrollment: true,
   students: true,
   guardians: true,
+  guardian_support: true,
   leads: true,
   classes: true,
   courses: true,
@@ -780,7 +783,7 @@ export default function Users() {
             <div className="grid grid-cols-1 gap-3">
               {Object.entries(moduleLabels).map(([key, label]) => {
                 // Hide admin-only modules for non-admin users
-                const adminOnlyModules = ['users', 'settings', 'teachers', 'whatsapp'];
+                const adminOnlyModules = ['users', 'settings', 'teachers'];
                 if (adminOnlyModules.includes(key) && editingUser?.role !== 'admin') {
                   return null;
                 }
