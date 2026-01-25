@@ -67,15 +67,16 @@ export function MessageHistoryModal({
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
-    if (open && guardianId) {
+    if (open && (guardianId || guardianPhone)) {
       loadMessages();
       subscribeToMessages();
     }
     
     return () => {
-      supabase.removeChannel(supabase.channel(`messages-${guardianId}`));
+      const channelId = guardianId || guardianPhone.replace(/\D/g, '');
+      supabase.removeChannel(supabase.channel(`messages-${channelId}`));
     };
-  }, [open, guardianId]);
+  }, [open, guardianId, guardianPhone]);
 
   useEffect(() => {
     // Scroll to bottom when messages change
@@ -108,16 +109,20 @@ export function MessageHistoryModal({
         cleanPhone.length === 13 ? cleanPhone : null,
       ].filter(Boolean) as string[];
 
-      // Build filter conditions - use separate queries for reliability
+      // Build filter conditions - only include guardian_id if it's not empty
+      const filterConditions = [
+        ...phoneVariants.map(p => `phone.eq.${p}`)
+      ];
+      
+      // Only add guardian_id filter if it's a valid UUID
+      if (guardianId && guardianId.length > 0) {
+        filterConditions.unshift(`guardian_id.eq.${guardianId}`);
+      }
+
       const { data, error } = await supabase
         .from('whatsapp_messages')
         .select('*')
-        .or(
-          [
-            `guardian_id.eq.${guardianId}`,
-            ...phoneVariants.map(p => `phone.eq.${p}`)
-          ].join(',')
-        )
+        .or(filterConditions.join(','))
         .order('created_at', { ascending: true });
 
       if (error) {
