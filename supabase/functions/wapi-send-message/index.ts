@@ -98,14 +98,6 @@ Deno.serve(async (req) => {
     const instanceId = config.W_API_SESSION;
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
 
-    // Some providers expose docs/SDKs under waapi.app/api/v1, while some users configure api.w-api.app.
-    // To avoid hard-coding a single vendor URL, we try a small set of compatible API bases.
-    const apiBases = new Set<string>();
-    apiBases.add(baseUrl);
-    if (!baseUrl.endsWith('/api/v1')) apiBases.add(`${baseUrl}/api/v1`);
-    if (baseUrl === 'https://waapi.app') apiBases.add('https://waapi.app/api/v1');
-    if (baseUrl.includes('w-api.app')) apiBases.add('https://waapi.app/api/v1');
-
     console.log('=== W-API Send Message ===');
     console.log(`Base URL: ${baseUrl}`);
     console.log(`Instance ID: ${instanceId}`);
@@ -141,37 +133,13 @@ Deno.serve(async (req) => {
       description: string;
     }> = [];
 
-    const pushCandidate = (path: string, body: Record<string, unknown>, description: string) => {
-      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-      for (const b of apiBases) {
-        const base = b.replace(/\/+$/, '');
-        candidates.push({
-          url: `${base}${normalizedPath}`,
-          body,
-          description: `${description} (${base})`,
-        });
-      }
-    };
-
     const chatId = `${formattedPhone}@${isGroup ? 'g.us' : 'c.us'}`;
 
     if (mediaUrl && mediaType) {
       const mediaCaption = caption || message || '';
 
-      // WAAPI-style (documented) endpoints
-      // - POST /instances/{instanceId}/client/action/send-media
-      // - Body: { chatId, mediaUrl, caption?, fileName? }
-      pushCandidate(
-        `/instances/${encodeURIComponent(instanceId)}/client/action/send-media`,
-        {
-          chatId,
-          mediaUrl,
-          caption: mediaCaption || undefined,
-          fileName: fileName || undefined,
-          mediaType,
-        },
-        'instances/{id}/client/action/send-media'
-      );
+      // NOTE: Media endpoints vary a lot between W-API vendors/versions.
+      // We keep the legacy candidates below (and can extend once you confirm the provider's media route).
 
       // Legacy fallbacks that some deployments expose
       switch (mediaType) {
@@ -233,16 +201,32 @@ Deno.serve(async (req) => {
           break;
       }
     } else {
-      // WAAPI-style (documented) endpoint
-      // - POST /instances/{instanceId}/client/action/send-message
-      // - Body: { chatId, message }
-      pushCandidate(
-        `/instances/${encodeURIComponent(instanceId)}/client/action/send-message`,
-        { chatId, message },
-        'instances/{id}/client/action/send-message'
+      // Primary (known-working in this repo): /message/send-text with Bearer token + session in body
+      candidates.push(
+        {
+          url: `${baseUrl}/message/send-text`,
+          body: { session: instanceId, phone: formattedPhone, message, isGroup },
+          description: 'message/send-text (repo-proven)',
+        },
+        // Common variants
+        {
+          url: `${baseUrl}/message/sendText`,
+          body: { session: instanceId, phone: formattedPhone, message, isGroup },
+          description: 'message/sendText',
+        },
+        {
+          url: `${baseUrl}/message/sendText/${encodeURIComponent(instanceId)}`,
+          body: { phone: formattedPhone, message, isGroup },
+          description: 'message/sendText/:session',
+        },
+        {
+          url: `${baseUrl}/message/send-text`,
+          body: { session: instanceId, phone: formattedPhone, text: message, isGroup },
+          description: 'message/send-text (text field)',
+        }
       );
 
-      // Legacy fallbacks (older W-API shapes)
+      // Other fallbacks (older W-API shapes)
       candidates.push(
         {
           url: `${baseUrl}/v1/messages/text?instanceId=${instanceId}`,
@@ -279,10 +263,10 @@ Deno.serve(async (req) => {
         const res = await fetch(c.url, {
           method: 'POST',
           headers: {
-            // Different vendors use different auth header conventions.
-            // We send both to maximize compatibility.
-            'apikey': apiKey,
+            // This project already uses Bearer auth for W-API in other backend functions.
+            // We also include apikey for compatibility with older variants.
             'Authorization': `Bearer ${apiKey}`,
+            'apikey': apiKey,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
