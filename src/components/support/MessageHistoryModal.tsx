@@ -799,7 +799,7 @@ export function MessageHistoryModal({
                           className={`max-w-[80%] rounded-lg px-3 py-2 ${
                             msg.direction === 'outgoing'
                               ? 'bg-primary text-primary-foreground rounded-br-none'
-                              : 'bg-muted text-foreground rounded-bl-none'
+                              : 'bg-secondary text-secondary-foreground rounded-bl-none'
                           }`}
                         >
                           {renderMediaPreview(msg)}
