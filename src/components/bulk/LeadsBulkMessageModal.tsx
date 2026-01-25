@@ -119,7 +119,6 @@ export function LeadsBulkMessageModal({
   const [sendProgress, setSendProgress] = useState(0);
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [isWapiConfigured, setIsWapiConfigured] = useState(false);
-  const [sendMode, setSendMode] = useState<'wapi' | 'web'>('wapi');
 
   useEffect(() => {
     if (open) {
@@ -135,9 +134,6 @@ export function LeadsBulkMessageModal({
   const checkWapiConfig = async () => {
     const config = await checkConfig();
     setIsWapiConfigured(config.isConfigured);
-    if (!config.isConfigured) {
-      setSendMode('web');
-    }
   };
 
   const fetchLeads = async () => {
@@ -469,7 +465,8 @@ export function LeadsBulkMessageModal({
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="flex-1 overflow-hidden flex flex-col gap-4">
+              <ScrollArea className="flex-1">
+                <CardContent className="space-y-4 pr-4">
                 {/* W-API warning */}
                 {!isWapiConfigured && (
                   <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
@@ -481,21 +478,6 @@ export function LeadsBulkMessageModal({
                   </div>
                 )}
 
-                {/* Send mode selection */}
-                {isWapiConfigured && (
-                  <div className="space-y-2">
-                    <Label>Modo de envio</Label>
-                    <Select value={sendMode} onValueChange={(v) => setSendMode(v as 'wapi' | 'web')}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="wapi">Via W-API (automático)</SelectItem>
-                        <SelectItem value="web">Via WhatsApp Web (manual)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
 
                 {/* Template selection */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -684,6 +666,7 @@ export function LeadsBulkMessageModal({
                   </div>
                 )}
               </CardContent>
+              </ScrollArea>
             </Card>
 
             {/* Recipients Selection */}
@@ -698,7 +681,8 @@ export function LeadsBulkMessageModal({
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="flex-1 overflow-hidden flex flex-col gap-4">
+              <ScrollArea className="flex-1">
+                <CardContent className="space-y-4 pr-4">
                 {/* Filter by Course */}
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
@@ -798,6 +782,7 @@ export function LeadsBulkMessageModal({
                   </div>
                 </ScrollArea>
               </CardContent>
+              </ScrollArea>
             </Card>
           </div>
         </div>
@@ -808,7 +793,7 @@ export function LeadsBulkMessageModal({
           </Button>
           {sendResults.length === 0 && (
             <Button 
-              onClick={sendMode === 'wapi' && isWapiConfigured ? handleSendViaWapi : handleSendViaWeb}
+              onClick={isWapiConfigured ? handleSendViaWapi : handleSendViaWeb}
               disabled={isSending || (!getMessage()) || selectedRecipients.size === 0}
               className="gap-2"
             >
