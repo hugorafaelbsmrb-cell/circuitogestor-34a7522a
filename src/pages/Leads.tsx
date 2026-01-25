@@ -22,7 +22,6 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -39,7 +38,7 @@ import { useSchool } from '@/contexts/SchoolContext';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
-import { BulkMessageModal } from '@/components/bulk/BulkMessageModal';
+import { LeadsBulkMessageModal } from '@/components/bulk/LeadsBulkMessageModal';
 import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { isValidEmail, formatPhone, normalizePhoneToWAPI, formatPhoneFromNormalized } from '@/utils/validators';
 
@@ -98,7 +97,6 @@ export default function Leads() {
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
-  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showBulkModal, setShowBulkModal] = useState(false);
   
   const [form, setForm] = useState({
@@ -309,10 +307,18 @@ export default function Leads() {
           <h1 className="page-title">Leads</h1>
           <p className="page-subtitle">Gerencie seus leads e acompanhe o funil de vendas</p>
         </div>
-        <Button onClick={() => setShowModal(true)} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Novo Lead
-        </Button>
+        <div className="flex items-center gap-2">
+          {isBulkEnabled && (
+            <Button variant="outline" onClick={() => setShowBulkModal(true)} className="gap-2">
+              <Send className="w-4 h-4" />
+              Envio em Massa
+            </Button>
+          )}
+          <Button onClick={() => setShowModal(true)} className="gap-2">
+            <Plus className="w-4 h-4" />
+            Novo Lead
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -405,37 +411,7 @@ export default function Leads() {
               ))}
             </SelectContent>
           </Select>
-          {isBulkEnabled && selectedLeads.length > 0 && (
-            <Button 
-              onClick={() => setShowBulkModal(true)}
-              className="gap-2"
-            >
-              <Send className="w-4 h-4" />
-              Enviar Mensagem ({selectedLeads.length})
-            </Button>
-          )}
         </div>
-        
-        {/* Select All Header */}
-        {isBulkEnabled && filteredLeads.length > 0 && (
-          <div className="px-4 py-2 border-b border-border bg-secondary/30 flex items-center gap-3">
-            <Checkbox
-              checked={selectedLeads.length === filteredLeads.length && filteredLeads.length > 0}
-              onCheckedChange={(checked) => {
-                if (checked) {
-                  setSelectedLeads(filteredLeads.map(l => l.id));
-                } else {
-                  setSelectedLeads([]);
-                }
-              }}
-            />
-            <span className="text-sm text-muted-foreground">
-              {selectedLeads.length > 0 
-                ? `${selectedLeads.length} lead(s) selecionado(s)` 
-                : 'Selecionar todos'}
-            </span>
-          </div>
-        )}
 
         {isLoading ? (
           <div className="p-12 text-center">
@@ -450,19 +426,6 @@ export default function Leads() {
                 <div key={lead.id} className="p-4 hover:bg-secondary/30 transition-colors">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4 flex-1">
-                      {isBulkEnabled && (
-                        <Checkbox
-                          checked={selectedLeads.includes(lead.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedLeads(prev => [...prev, lead.id]);
-                            } else {
-                              setSelectedLeads(prev => prev.filter(id => id !== lead.id));
-                            }
-                          }}
-                          className="mt-3"
-                        />
-                      )}
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <User className="w-5 h-5 text-primary" />
                       </div>
@@ -712,20 +675,9 @@ export default function Leads() {
       </Dialog>
 
       {/* Bulk Message Modal */}
-      <BulkMessageModal
+      <LeadsBulkMessageModal
         open={showBulkModal}
         onOpenChange={setShowBulkModal}
-        recipients={selectedLeads.map(id => {
-          const lead = leads.find(l => l.id === id);
-          if (!lead) return null;
-          return {
-            id: lead.id,
-            name: lead.name,
-            phone: lead.phone,
-            type: 'lead' as const,
-          };
-        }).filter(Boolean) as Array<{ id: string; name: string; phone: string; type: 'lead' }>}
-        defaultCategory="lead"
       />
     </div>
   );
