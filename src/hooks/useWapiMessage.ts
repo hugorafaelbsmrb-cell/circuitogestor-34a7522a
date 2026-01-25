@@ -6,6 +6,10 @@ interface SendMessageParams {
   phone: string;
   message: string;
   isGroup?: boolean;
+  mediaUrl?: string;
+  mediaType?: 'image' | 'document' | 'video' | 'audio';
+  fileName?: string;
+  caption?: string;
 }
 
 interface WapiConfig {
@@ -19,7 +23,15 @@ export function useWapiMessage() {
   const [isSending, setIsSending] = useState(false);
   const { toast } = useToast();
 
-  const sendMessage = async ({ phone, message, isGroup = false }: SendMessageParams): Promise<boolean> => {
+  const sendMessage = async ({ 
+    phone, 
+    message, 
+    isGroup = false,
+    mediaUrl,
+    mediaType,
+    fileName,
+    caption,
+  }: SendMessageParams): Promise<boolean> => {
     setIsSending(true);
 
     try {
@@ -36,7 +48,7 @@ export function useWapiMessage() {
       }
 
       const response = await supabase.functions.invoke('wapi-send-message', {
-        body: { phone, message, isGroup },
+        body: { phone, message, isGroup, mediaUrl, mediaType, fileName, caption },
       });
 
       if (response.error) {
@@ -59,9 +71,14 @@ export function useWapiMessage() {
         return false;
       }
 
+      const mediaTypeLabel = mediaType === 'image' ? 'Imagem' : 
+                            mediaType === 'document' ? 'Documento' : 
+                            mediaType === 'video' ? 'Vídeo' :
+                            mediaType === 'audio' ? 'Áudio' : 'Mensagem';
+
       toast({
-        title: 'Mensagem enviada',
-        description: 'A mensagem foi enviada com sucesso via WhatsApp.',
+        title: `${mediaTypeLabel} enviado(a)`,
+        description: mediaType ? `${mediaTypeLabel} enviado(a) com sucesso.` : 'A mensagem foi enviada com sucesso via WhatsApp.',
       });
       
       setIsSending(false);
