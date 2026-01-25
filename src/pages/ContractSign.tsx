@@ -30,7 +30,7 @@ interface ContractData {
 export default function ContractSign() {
   const { token } = useParams<{ token: string }>();
   const { toast } = useToast();
-  const { branding, isLoading: brandingLoading } = useSystemBranding();
+  const { branding } = useSystemBranding();
   const signatureRef = useRef<SignaturePadRef>(null);
 
   const [loading, setLoading] = useState(true);
@@ -40,41 +40,51 @@ export default function ContractSign() {
   const [hasDrawn, setHasDrawn] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [signed, setSigned] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  
+  const addDebug = (msg: string) => {
+    console.log('[ContractSign]', msg);
+    setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+  };
 
   useEffect(() => {
+    addDebug('Iniciando carregamento...');
+    addDebug(`Token: ${token ? token.substring(0, 8) + '...' : 'nenhum'}`);
+    
     // Timeout para evitar loading infinito no Safari
     const timeoutId = setTimeout(() => {
       if (loading) {
-        console.warn('[ContractSign] Loading timeout - forcing load with defaults');
+        addDebug('TIMEOUT - Loading demorou mais que 10s');
         setLoading(false);
         if (!contract && !error) {
           setError('Tempo esgotado ao carregar contrato. Por favor, recarregue a página.');
         }
       }
-    }, 10000); // 10 segundos timeout
+    }, 10000);
     
     const fetchContract = async () => {
       if (!token) {
-        console.error('[ContractSign] No token provided');
+        addDebug('ERRO: Token não fornecido');
         setError('Token inválido');
         setLoading(false);
         clearTimeout(timeoutId);
         return;
       }
 
-      console.log('[ContractSign] Fetching contract for token:', token);
+      addDebug('Buscando contrato no banco...');
       
       try {
+        addDebug('Executando query...');
         const { data, error: fetchError } = await supabase
           .from('contracts')
           .select('*')
           .eq('signature_token', token)
           .maybeSingle();
 
-        console.log('[ContractSign] Query result:', { data, error: fetchError });
+        addDebug(`Query completada: ${data ? 'dados recebidos' : 'sem dados'}, erro: ${fetchError?.message || 'nenhum'}`);
         
         if (fetchError || !data) {
-          console.error('[ContractSign] Contract not found:', fetchError);
+          addDebug(`ERRO: ${fetchError?.message || 'Contrato não encontrado'}`);
           setError('Contrato não encontrado ou link expirado.');
           setLoading(false);
           clearTimeout(timeoutId);
@@ -82,7 +92,7 @@ export default function ContractSign() {
         }
 
         if (data.signed_at) {
-          console.log('[ContractSign] Contract already signed');
+          addDebug('Contrato já assinado');
           setContract(data as ContractData);
           setSigned(true);
           setLoading(false);
@@ -90,7 +100,7 @@ export default function ContractSign() {
           return;
         }
 
-        console.log('[ContractSign] Logging view event...');
+        addDebug('Registrando visualização...');
         // Log view event
         const { error: logError } = await supabase.from('contract_signature_logs').insert({
           contract_id: data.id,
@@ -100,13 +110,13 @@ export default function ContractSign() {
         });
         
         if (logError) {
-          console.warn('[ContractSign] Failed to log view event:', logError);
+          addDebug(`Aviso: Log falhou - ${logError.message}`);
         }
 
-        console.log('[ContractSign] Contract loaded successfully');
+        addDebug('Contrato carregado com sucesso!');
         setContract(data as ContractData);
       } catch (err) {
-        console.error('Error fetching contract:', err);
+        addDebug(`ERRO CATCH: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
         setError('Erro ao carregar contrato.');
       } finally {
         setLoading(false);
@@ -199,6 +209,18 @@ export default function ContractSign() {
     }
   };
 
+  // Debug panel component
+  const DebugPanel = () => (
+    debugInfo.length > 0 && (
+      <div className="fixed bottom-0 left-0 right-0 bg-black/90 text-green-400 p-3 text-xs font-mono max-h-32 overflow-y-auto z-50">
+        <p className="text-yellow-400 font-bold mb-1">🔧 Debug Safari:</p>
+        {debugInfo.map((msg, i) => (
+          <p key={i}>{msg}</p>
+        ))}
+      </div>
+    )
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-4">
@@ -206,6 +228,7 @@ export default function ContractSign() {
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground">Carregando contrato...</p>
         </div>
+        <DebugPanel />
       </div>
     );
   }
@@ -218,6 +241,7 @@ export default function ContractSign() {
           <h1 className="text-xl font-bold text-foreground mb-2">Link Inválido</h1>
           <p className="text-muted-foreground">{error}</p>
         </div>
+        <DebugPanel />
       </div>
     );
   }
@@ -395,6 +419,8 @@ export default function ContractSign() {
       <footer className="py-6 text-center text-xs text-muted-foreground">
         <p>© {new Date().getFullYear()} {branding?.name || 'Sistema de Matrículas'}</p>
       </footer>
+      
+      <DebugPanel />
     </div>
   );
 }
