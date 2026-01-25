@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Link as LinkIcon, Copy, MessageCircle, Send } from 'lucide-react';
+import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Copy, MessageCircle } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
@@ -547,28 +547,33 @@ export default function Contracts() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap justify-end">
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
                       {!isSigned && (
                         <>
-                          <Button 
-                            variant="default" 
-                            size="sm" 
-                            className="gap-2"
-                            onClick={() => handleOpenSignatureModal(enrollment)}
-                          >
-                            <PenLine className="w-4 h-4" />
-                            Assinar
-                          </Button>
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="gap-2"
+                                variant="default" 
+                                size="icon" 
+                                className="h-8 w-8"
+                                onClick={() => handleOpenSignatureModal(enrollment)}
+                              >
+                                <PenLine className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Assinar contrato</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8"
                                 onClick={() => copySignatureLink(enrollment.id)}
                               >
-                                <LinkIcon className="w-4 h-4" />
-                                Link
+                                <Copy className="w-4 h-4" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
@@ -578,9 +583,9 @@ export default function Contracts() {
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button 
-                                variant="outline" 
-                                size="sm" 
-                                className="gap-2 text-success border-success/50 hover:bg-success/10"
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-success hover:text-success hover:bg-success/10"
                                 onClick={() => handleSendSignatureLinkWhatsApp(enrollment)}
                                 disabled={isSendingWhatsApp}
                               >
@@ -589,49 +594,66 @@ export default function Contracts() {
                                 ) : (
                                   <MessageCircle className="w-4 h-4" />
                                 )}
-                                WhatsApp
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Enviar link de assinatura via WhatsApp</p>
+                              <p>Enviar link via WhatsApp</p>
                             </TooltipContent>
                           </Tooltip>
                         </>
                       )}
                       {!hasCarne && (
-                        <Button 
-                          variant="default" 
-                          size="sm" 
-                          className="gap-2 bg-success hover:bg-success/90"
-                          onClick={() => handleOpenCarneModal(enrollment)}
-                        >
-                          <CreditCard className="w-4 h-4" />
-                          Gerar Carnê
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="default" 
+                              size="icon" 
+                              className="h-8 w-8 bg-success hover:bg-success/90"
+                              onClick={() => handleOpenCarneModal(enrollment)}
+                            >
+                              <CreditCard className="w-4 h-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Gerar carnê</p>
+                          </TooltipContent>
+                        </Tooltip>
                       )}
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="gap-2"
-                        onClick={() => handlePreview(enrollment.id)}
-                      >
-                        <Eye className="w-4 h-4" />
-                        Visualizar
-                      </Button>
-                      <Button 
-                        variant="default" 
-                        size="sm" 
-                        className="gap-2" 
-                        onClick={() => handleDownloadPDF(enrollment.id)}
-                        disabled={isGenerating}
-                      >
-                        {isGenerating ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Download className="w-4 h-4" />
-                        )}
-                        PDF
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8"
+                            onClick={() => handlePreview(enrollment.id)}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Visualizar contrato</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8" 
+                            onClick={() => handleDownloadPDF(enrollment.id)}
+                            disabled={isGenerating}
+                          >
+                            {isGenerating ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Baixar PDF</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </div>
                   </div>
                 </div>
