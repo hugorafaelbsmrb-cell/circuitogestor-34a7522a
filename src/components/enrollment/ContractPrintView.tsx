@@ -302,65 +302,65 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
         </div>
 
         {/* PÁGINA 2 - ANEXOS */}
-        <div className="annex-page" style={{ fontFamily: 'Times New Roman, serif', padding: '5mm 0' }}>
+        <div className="annex-page" style={{ fontFamily: 'Times New Roman, serif', padding: '2mm 0' }}>
           {/* Logo no topo dos anexos */}
           {content.schoolLogo && (
-            <div className="text-center" style={{ marginBottom: '12px' }}>
+            <div className="text-center" style={{ marginBottom: '6px' }}>
               <img 
                 src={content.schoolLogo} 
                 alt="Logo da escola" 
                 style={{ 
-                  maxHeight: '50px', 
-                  maxWidth: '180px', 
+                  maxHeight: '40px', 
+                  maxWidth: '150px', 
                   margin: '0 auto',
                   display: 'block'
                 }} 
               />
             </div>
           )}
-          <h2 style={{ fontSize: '16pt', fontWeight: 'bold', textAlign: 'center', marginBottom: '20px' }}>
+          <h2 style={{ fontSize: '14pt', fontWeight: 'bold', textAlign: 'center', marginBottom: '12px' }}>
             ANEXOS DO CONTRATO
           </h2>
 
           {/* Anexo I */}
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '12pt', fontWeight: 'bold', marginBottom: '8px' }}>
+          <div style={{ marginBottom: '10px' }}>
+            <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '4px' }}>
               ANEXO I – REFORÇO ESCOLAR (1º A 5º ANO)
             </h3>
-            <ul style={{ fontSize: '11pt', marginLeft: '24px', listStyleType: 'disc', lineHeight: '1.6' }}>
+            <ul style={{ fontSize: '10pt', marginLeft: '20px', listStyleType: 'disc', lineHeight: '1.4' }}>
               <li>Modalidade: Plano Semestral (06 meses)</li>
               <li>Opções de Frequência e Valores:</li>
             </ul>
-            <table style={{ fontSize: '11pt', marginLeft: '24px', marginTop: '8px', borderCollapse: 'collapse' }}>
+            <table style={{ fontSize: '10pt', marginLeft: '20px', marginTop: '4px', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f3f4f6' }}>
-                  <th style={{ border: '1px solid #d1d5db', padding: '6px 16px' }}>Frequência</th>
-                  <th style={{ border: '1px solid #d1d5db', padding: '6px 16px' }}>Valor Mensal</th>
+                  <th style={{ border: '1px solid #d1d5db', padding: '3px 12px' }}>Frequência</th>
+                  <th style={{ border: '1px solid #d1d5db', padding: '3px 12px' }}>Valor Mensal</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td style={{ border: '1px solid #d1d5db', padding: '4px 16px' }}>2x na semana</td>
-                  <td style={{ border: '1px solid #d1d5db', padding: '4px 16px' }}>R$ 200,00</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>2x na semana</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>R$ 200,00</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #d1d5db', padding: '4px 16px' }}>3x na semana</td>
-                  <td style={{ border: '1px solid #d1d5db', padding: '4px 16px' }}>R$ 250,00</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>3x na semana</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>R$ 250,00</td>
                 </tr>
                 <tr>
-                  <td style={{ border: '1px solid #d1d5db', padding: '4px 16px' }}>5x na semana</td>
-                  <td style={{ border: '1px solid #d1d5db', padding: '4px 16px' }}>R$ 300,00</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>5x na semana</td>
+                  <td style={{ border: '1px solid #d1d5db', padding: '2px 12px' }}>R$ 300,00</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
           {/* Anexo II */}
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '12pt', fontWeight: 'bold', marginBottom: '8px' }}>
+          <div style={{ marginBottom: '10px' }}>
+            <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '4px' }}>
               ANEXO II – ROBÓTICA EDUCACIONAL
             </h3>
-            <ul style={{ fontSize: '11pt', marginLeft: '24px', listStyleType: 'disc', lineHeight: '1.6' }}>
+            <ul style={{ fontSize: '10pt', marginLeft: '20px', listStyleType: 'disc', lineHeight: '1.4' }}>
               <li>Frequência: 02 vezes na semana</li>
               <li>Plano: Anual (12 meses)</li>
               <li>Valor Mensal: R$ 250,00</li>
@@ -368,11 +368,11 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
           </div>
 
           {/* Anexo III */}
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ fontSize: '12pt', fontWeight: 'bold', marginBottom: '8px' }}>
+          <div style={{ marginBottom: '10px' }}>
+            <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '4px' }}>
               ANEXO III – SOROBAN (ÁBACO JAPONÊS)
             </h3>
-            <ul style={{ fontSize: '11pt', marginLeft: '24px', listStyleType: 'disc', lineHeight: '1.6' }}>
+            <ul style={{ fontSize: '10pt', marginLeft: '20px', listStyleType: 'disc', lineHeight: '1.4' }}>
               <li>Frequência: 02 vezes na semana</li>
               <li>Duração: Estimada em 18 meses (10 níveis no total)</li>
               <li>Valor Mensal: R$ 250,00</li>
@@ -383,16 +383,16 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
           {/* Modalidade Contratada */}
           {content.courseName && (
             <div style={{ 
-              marginBottom: '16px', 
-              padding: '16px', 
+              marginBottom: '10px', 
+              padding: '10px', 
               border: '2px solid #374151', 
-              borderRadius: '6px',
+              borderRadius: '4px',
               backgroundColor: '#f9fafb'
             }}>
-              <h3 style={{ fontSize: '12pt', fontWeight: 'bold', marginBottom: '10px' }}>
+              <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '6px' }}>
                 ✓ MODALIDADE CONTRATADA:
               </h3>
-              <ul style={{ fontSize: '11pt', marginLeft: '24px', listStyleType: 'disc', lineHeight: '1.8' }}>
+              <ul style={{ fontSize: '10pt', marginLeft: '20px', listStyleType: 'disc', lineHeight: '1.5' }}>
                 <li><strong>Curso:</strong> {content.courseName}</li>
                 <li><strong>Turma:</strong> {content.classGroupName || '-'}</li>
                 <li><strong>Horário:</strong> {content.schedule || '-'}</li>
@@ -407,27 +407,24 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
           {/* Credenciais LMS */}
           {content.lmsCredentials && (
             <div style={{ 
-              marginBottom: '16px', 
-              padding: '16px', 
+              marginBottom: '10px', 
+              padding: '10px', 
               border: '2px solid #2563eb', 
-              borderRadius: '6px',
+              borderRadius: '4px',
               backgroundColor: '#eff6ff'
             }}>
-              <h3 style={{ fontSize: '12pt', fontWeight: 'bold', marginBottom: '8px', color: '#1e40af' }}>
+              <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '4px', color: '#1e40af' }}>
                 🖥️ ACESSO À PLATAFORMA DE ENSINO (LMS)
               </h3>
-              <p style={{ fontSize: '11pt', marginBottom: '10px', color: '#374151' }}>
-                O aluno terá acesso à plataforma online de ensino com os seguintes dados:
-              </p>
-              <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
-                <ul style={{ fontSize: '11pt', listStyleType: 'none', margin: 0, padding: 0, lineHeight: '1.8' }}>
-                  <li style={{ marginBottom: '6px' }}><strong>Matrícula:</strong> {content.lmsCredentials.matricula}</li>
-                  <li style={{ marginBottom: '6px' }}><strong>E-mail de acesso:</strong> {content.lmsCredentials.email}</li>
-                  <li><strong>Senha inicial:</strong> {content.lmsCredentials.password}</li>
+              <div style={{ backgroundColor: 'white', padding: '8px', borderRadius: '4px', border: '1px solid #bfdbfe' }}>
+                <ul style={{ fontSize: '10pt', listStyleType: 'none', margin: 0, padding: 0, lineHeight: '1.5' }}>
+                  <li style={{ marginBottom: '2px' }}><strong>Matrícula:</strong> {content.lmsCredentials.matricula}</li>
+                  <li style={{ marginBottom: '2px' }}><strong>E-mail:</strong> {content.lmsCredentials.email}</li>
+                  <li><strong>Senha:</strong> {content.lmsCredentials.password}</li>
                 </ul>
               </div>
-              <p style={{ fontSize: '10pt', marginTop: '10px', color: '#6b7280', fontStyle: 'italic' }}>
-                * Recomendamos alterar a senha no primeiro acesso. Guarde estas informações em local seguro.
+              <p style={{ fontSize: '9pt', marginTop: '4px', color: '#6b7280', fontStyle: 'italic' }}>
+                * Altere a senha no primeiro acesso.
               </p>
             </div>
           )}
@@ -435,28 +432,25 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
           {/* Credenciais Soroban */}
           {content.sorobanCredentials && (
             <div style={{ 
-              marginBottom: '16px', 
-              padding: '16px', 
+              marginBottom: '10px', 
+              padding: '10px', 
               border: '2px solid #d97706', 
-              borderRadius: '6px',
+              borderRadius: '4px',
               backgroundColor: '#fffbeb'
             }}>
-              <h3 style={{ fontSize: '12pt', fontWeight: 'bold', marginBottom: '8px', color: '#b45309' }}>
+              <h3 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '4px', color: '#b45309' }}>
                 🧮 ACESSO À PLATAFORMA SOROBAN
               </h3>
-              <p style={{ fontSize: '11pt', marginBottom: '10px', color: '#374151' }}>
-                O aluno terá acesso à plataforma de Soroban (Ábaco Japonês) com os seguintes dados:
-              </p>
-              <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '6px', border: '1px solid #fcd34d' }}>
-                <ul style={{ fontSize: '11pt', listStyleType: 'none', margin: 0, padding: 0, lineHeight: '1.8' }}>
-                  <li style={{ marginBottom: '6px' }}><strong>Matrícula:</strong> {content.sorobanCredentials.matricula}</li>
-                  <li style={{ marginBottom: '6px' }}><strong>E-mail de acesso:</strong> {content.sorobanCredentials.email}</li>
-                  <li style={{ marginBottom: '6px' }}><strong>Senha inicial:</strong> {content.sorobanCredentials.password}</li>
-                  <li><strong>Nível inicial:</strong> {content.sorobanCredentials.level || 1}</li>
+              <div style={{ backgroundColor: 'white', padding: '8px', borderRadius: '4px', border: '1px solid #fcd34d' }}>
+                <ul style={{ fontSize: '10pt', listStyleType: 'none', margin: 0, padding: 0, lineHeight: '1.5' }}>
+                  <li style={{ marginBottom: '2px' }}><strong>Matrícula:</strong> {content.sorobanCredentials.matricula}</li>
+                  <li style={{ marginBottom: '2px' }}><strong>E-mail:</strong> {content.sorobanCredentials.email}</li>
+                  <li style={{ marginBottom: '2px' }}><strong>Senha:</strong> {content.sorobanCredentials.password}</li>
+                  <li><strong>Nível:</strong> {content.sorobanCredentials.level || 1}</li>
                 </ul>
               </div>
-              <p style={{ fontSize: '10pt', marginTop: '10px', color: '#6b7280', fontStyle: 'italic' }}>
-                * Recomendamos alterar a senha no primeiro acesso. Guarde estas informações em local seguro.
+              <p style={{ fontSize: '9pt', marginTop: '4px', color: '#6b7280', fontStyle: 'italic' }}>
+                * Altere a senha no primeiro acesso.
               </p>
             </div>
           )}
