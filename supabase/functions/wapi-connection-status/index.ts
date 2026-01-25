@@ -9,30 +9,25 @@ const corsHeaders = {
 const DEFAULT_WAPI_URL = 'https://api.w-api.app';
 
 function parseConnection(data: any) {
-  const stateRaw =
-    data?.instance?.state ??
-    data?.state ??
-    data?.status ??
-    data?.data?.state ??
-    '';
-
-  const state = String(stateRaw).toLowerCase();
+  // W-API PRO status-instance response format
+  const status = data?.status || data?.state || data?.instance?.state || '';
+  const statusLower = String(status).toLowerCase();
+  
   const connected =
     data?.connected === true ||
-    state === 'open' ||
-    state === 'connected' ||
-    state === 'online' ||
-    state === 'ready' ||
-    state === 'true';
+    statusLower === 'connected' ||
+    statusLower === 'open' ||
+    statusLower === 'online' ||
+    statusLower === 'ready';
 
   const phone =
-    data?.instance?.phone ??
     data?.phone ??
     data?.number ??
+    data?.instance?.phone ??
     data?.data?.phone ??
     null;
 
-  return { connected, state: stateRaw ?? null, phone };
+  return { connected, state: status || null, phone };
 }
 
 Deno.serve(async (req) => {
@@ -105,100 +100,52 @@ Deno.serve(async (req) => {
     console.log(`Instance ID: ${instanceId}`);
     console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
-    // W-API PRO endpoints for connection status
-    // Different authentication methods to try
-    const candidates: Array<{ url: string; method: 'GET' | 'POST'; authType: 'bearer' | 'apikey' | 'header' }> = [
-      // Bearer token auth
-      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}`, method: 'GET', authType: 'bearer' },
-      { url: `${baseUrl}/instance/connectionState?instanceId=${encoded}`, method: 'GET', authType: 'bearer' },
-      { url: `${baseUrl}/connectionState?instanceId=${encoded}`, method: 'GET', authType: 'bearer' },
-      // Apikey header auth
-      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}`, method: 'GET', authType: 'apikey' },
-      // Token in URL
-      { url: `${baseUrl}/v1/instance/connectionState?instanceId=${encoded}&token=${apiKey}`, method: 'GET', authType: 'header' },
-      { url: `${baseUrl}/instance/connectionState?instanceId=${encoded}&token=${apiKey}`, method: 'GET', authType: 'header' },
-    ];
+    // W-API PRO endpoint for connection status (from official documentation)
+    // Endpoint: GET /v1/instance/status-instance?instanceId={{INSTANCE_ID}}
+    // Auth: Authorization: Bearer {{TOKEN}}
+    const endpoint = `${baseUrl}/v1/instance/status-instance?instanceId=${encoded}`;
 
-    const attempts: Array<{ url: string; status: number | null; ok: boolean; error?: string; authType?: string }> = [];
+    console.log(`Calling: GET ${endpoint}`);
 
-    for (const c of candidates) {
-      try {
-        console.log(`Trying: ${c.method} ${c.url} (auth: ${c.authType})`);
-        
-        // Build headers based on auth type
-        const headers: Record<string, string> = {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        };
-        
-        if (c.authType === 'bearer') {
-          headers['Authorization'] = `Bearer ${apiKey}`;
-        } else if (c.authType === 'apikey') {
-          headers['apikey'] = apiKey;
-        }
-        // 'header' type uses token in URL, no auth header needed
-        
-        const res = await fetch(c.url, {
-          method: c.method,
-          headers,
-        });
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json',
+      },
+    });
 
-        const text = await res.text();
-        console.log(`Response ${res.status} (${c.authType}): ${text.slice(0, 200)}`);
-        
-        attempts.push({ url: c.url, status: res.status, ok: res.ok, authType: c.authType });
+    const text = await response.text();
+    console.log(`Response ${response.status}: ${text.slice(0, 500)}`);
 
-        let parsed: any = null;
-        try {
-          parsed = JSON.parse(text);
-        } catch {
-          parsed = null;
-        }
-
-        if (res.ok && parsed) {
-          const conn = parseConnection(parsed);
-          return new Response(
-            JSON.stringify({
-              success: true,
-              ...conn,
-              endpoint: c.url,
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-          );
-        }
-
-        // Even non-200 responses might contain status info
-        if (parsed && !res.ok) {
-          const conn = parseConnection(parsed);
-          if (conn.state || typeof parsed.connected !== 'undefined') {
-            return new Response(
-              JSON.stringify({
-                success: true,
-                ...conn,
-                endpoint: c.url,
-                note: 'non-200 response parsed',
-              }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-            );
-          }
-        }
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : String(e);
-        console.error(`Error with ${c.url}:`, errMsg);
-        attempts.push({
-          url: c.url,
-          status: null,
-          ok: false,
-          error: errMsg,
-        });
-      }
+    let parsed: any = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      console.error('Failed to parse response as JSON');
     }
 
-    console.error('W-API status check failed', { attempts });
+    if (response.ok && parsed) {
+      const conn = parseConnection(parsed);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          ...conn,
+          endpoint,
+          raw: parsed,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // Handle error responses
+    console.error('W-API status check failed', { status: response.status, body: text });
     return new Response(
       JSON.stringify({
         error: 'Não foi possível verificar o status na W-API',
-        attempts,
+        status: response.status,
+        message: parsed?.message || parsed?.error || text.slice(0, 200),
+        endpoint,
       }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );

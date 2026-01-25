@@ -78,11 +78,11 @@ Deno.serve(async (req) => {
     console.log(`Instance ID: ${instanceId}`);
     console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
-    // W-API logout endpoints
-    // Using apikey header
-    const candidates: Array<{ method: 'DELETE' | 'POST' | 'GET'; url: string }> = [
-      { method: 'DELETE', url: `${baseUrl}/logout?instanceId=${encoded}` },
-      { method: 'POST', url: `${baseUrl}/logout?instanceId=${encoded}` },
+    // W-API PRO logout endpoints
+    // Auth: Authorization: Bearer {{TOKEN}}
+    const candidates: Array<{ method: 'DELETE' | 'POST'; url: string }> = [
+      { method: 'DELETE', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
+      { method: 'POST', url: `${baseUrl}/v1/instance/logout?instanceId=${encoded}` },
       { method: 'DELETE', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
       { method: 'POST', url: `${baseUrl}/instance/logout?instanceId=${encoded}` },
     ];
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
         const res = await fetch(c.url, {
           method: c.method,
           headers: {
-            'apikey': apiKey,
+            'Authorization': `Bearer ${apiKey}`,
             'Accept': 'application/json',
             'Content-Type': 'application/json',
           },
