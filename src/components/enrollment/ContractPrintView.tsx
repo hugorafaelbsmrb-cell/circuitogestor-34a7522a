@@ -101,7 +101,7 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
           @media print {
             @page {
               size: A4;
-              margin: 12mm 12mm 12mm 12mm;
+              margin: 8mm 10mm 8mm 10mm;
             }
             .contract-page {
               page-break-after: always;
@@ -114,60 +114,56 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
 
         {/* PÁGINA 1 - CONTRATO */}
         <div className="contract-page" style={{ fontFamily: 'Times New Roman, serif' }}>
-          {/* Cabeçalho com Logo */}
-          <div className="text-center" style={{ marginBottom: '6px' }}>
+          {/* Cabeçalho com Logo - mais compacto */}
+          <div className="text-center" style={{ marginBottom: '4px' }}>
             {content.schoolLogo && (
-              <div style={{ marginBottom: '4px' }}>
+              <div style={{ marginBottom: '2px' }}>
                 <img 
                   src={content.schoolLogo} 
                   alt="Logo da escola" 
                   style={{ 
-                    maxHeight: '50px', 
-                    maxWidth: '180px', 
+                    maxHeight: '40px', 
+                    maxWidth: '150px', 
                     margin: '0 auto',
                     display: 'block'
                   }} 
                 />
               </div>
             )}
-            <h1 style={{ fontSize: '12pt', fontWeight: 'bold', marginBottom: '4px' }}>
+            <h1 style={{ fontSize: '11pt', fontWeight: 'bold', marginBottom: '2px' }}>
               CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS
             </h1>
-            <p style={{ fontSize: '10pt', fontWeight: 'bold' }}>
+            <p style={{ fontSize: '9pt', fontWeight: 'bold', margin: 0 }}>
               {content.schoolName?.toUpperCase() || 'CIRCUITO KIDS'}
             </p>
           </div>
 
-          {/* Partes */}
-          <div style={{ fontSize: '9pt', lineHeight: '1.3', textAlign: 'justify', marginBottom: '6px' }}>
-            <p style={{ marginBottom: '4px' }}>Pelo presente instrumento particular, de um lado:</p>
+          {/* Partes - mais compacto */}
+          <div style={{ fontSize: '8pt', lineHeight: '1.2', textAlign: 'justify', marginBottom: '4px' }}>
+            <p style={{ marginBottom: '2px' }}>Pelo presente instrumento particular, de um lado:</p>
             
-            <p style={{ marginBottom: '4px' }}>
-              <strong>CONTRATADA:</strong> {content.schoolName || 'CIRCUITO KIDS'}, pessoa jurídica de direito privado, 
-              inscrita no CNPJ nº {content.schoolCnpj || '____________________'}, 
-              com sede à {content.schoolAddress || '__________________________________________________'}.
+            <p style={{ marginBottom: '2px' }}>
+              <strong>CONTRATADA:</strong> {content.schoolName || 'CIRCUITO KIDS'}, CNPJ nº {content.schoolCnpj || '____________________'}, {content.schoolAddress || '__________________________________________________'}.
             </p>
             
-            <p style={{ marginBottom: '4px' }}>
+            <p style={{ marginBottom: '2px' }}>
               <strong>CONTRATANTE:</strong> {content.guardianName || '___________________________________________'}, 
-              responsável legal pelo(a) aluno(a) <strong>{content.studentName || '___________________________________________'}</strong>
+              responsável pelo(a) aluno(a) <strong>{content.studentName || '___________________________________________'}</strong>
               {content.studentSex && `, sexo ${content.studentSex === 'M' ? 'masculino' : 'feminino'}`}
-              {content.studentAge !== null && content.studentAge !== undefined && `, ${content.studentAge} anos de idade`}, 
-              CPF nº {content.guardianCpf || '____________________'}
-              {content.guardianRg && `, RG nº ${content.guardianRg}`}.
+              {content.studentAge !== null && content.studentAge !== undefined && `, ${content.studentAge} anos`}, 
+              CPF nº {content.guardianCpf || '____________________'}.
             </p>
             
-            <p style={{ marginBottom: '4px' }}>
-              As partes resolvem celebrar o presente contrato nos termos do ECA (Lei nº 8.069/90) e da LGPD 
-              (Lei nº 13.709/18), conforme as cláusulas abaixo:
+            <p style={{ margin: 0 }}>
+              As partes celebram o presente contrato nos termos do ECA (Lei nº 8.069/90) e da LGPD (Lei nº 13.709/18):
             </p>
           </div>
 
-          {/* Cláusulas */}
-          <div style={{ fontSize: '8pt', lineHeight: '1.2' }}>
+          {/* Cláusulas - fonte menor */}
+          <div style={{ fontSize: '7pt', lineHeight: '1.15' }}>
             {content.clauses.map((clause, index) => (
-              <div key={index} style={{ marginBottom: '3px' }}>
-                <p style={{ fontWeight: 'bold', marginBottom: '1px' }}>
+              <div key={index} style={{ marginBottom: '2px' }}>
+                <p style={{ fontWeight: 'bold', marginBottom: '0px', fontSize: '7pt' }}>
                   CLÁUSULA {index + 1}ª – {clause.title.toUpperCase()}
                 </p>
                 <p style={{ textAlign: 'justify', margin: 0 }}>{clause.content}</p>
@@ -175,17 +171,17 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
             ))}
           </div>
 
-          {/* Local, Data e Assinaturas */}
-          <div style={{ fontSize: '9pt', marginTop: '12px' }}>
-            <p style={{ marginBottom: '20px' }}>
+          {/* Local, Data e Assinaturas - compacto */}
+          <div style={{ fontSize: '8pt', marginTop: '8px' }}>
+            <p style={{ marginBottom: '12px' }}>
               {city}, {formattedDate}.
             </p>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '25px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
               <div style={{ textAlign: 'center', width: '45%' }}>
-                <div style={{ borderTop: '1px solid black', paddingTop: '3px' }}>
-                  <p style={{ fontWeight: 'bold', fontSize: '9pt', margin: 0 }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
-                  <p style={{ fontSize: '8pt', margin: 0 }}>(CONTRATADA)</p>
+                <div style={{ borderTop: '1px solid black', paddingTop: '2px' }}>
+                  <p style={{ fontWeight: 'bold', fontSize: '8pt', margin: 0 }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
+                  <p style={{ fontSize: '7pt', margin: 0 }}>(CONTRATADA)</p>
                 </div>
               </div>
               <div style={{ textAlign: 'center', width: '45%' }}>
@@ -195,26 +191,26 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
                       src={content.signatureImage} 
                       alt="Assinatura digital" 
                       style={{ 
-                        maxHeight: '60px', 
-                        maxWidth: '200px', 
-                        margin: '0 auto 4px',
+                        maxHeight: '45px', 
+                        maxWidth: '150px', 
+                        margin: '0 auto 2px',
                         display: 'block'
                       }} 
                     />
-                    <div style={{ borderTop: '1px solid black', paddingTop: '3px' }}>
-                      <p style={{ fontWeight: 'bold', fontSize: '9pt', margin: 0 }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
-                      <p style={{ fontSize: '8pt', margin: 0 }}>(CONTRATANTE)</p>
+                    <div style={{ borderTop: '1px solid black', paddingTop: '2px' }}>
+                      <p style={{ fontWeight: 'bold', fontSize: '8pt', margin: 0 }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                      <p style={{ fontSize: '7pt', margin: 0 }}>(CONTRATANTE)</p>
                       {content.signedAt && (
-                        <p style={{ fontSize: '7pt', margin: '2px 0 0', color: '#666' }}>
-                          Assinado digitalmente em {new Date(content.signedAt).toLocaleString('pt-BR')}
+                        <p style={{ fontSize: '6pt', margin: '1px 0 0', color: '#666' }}>
+                          Assinado em {new Date(content.signedAt).toLocaleString('pt-BR')}
                         </p>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <div style={{ borderTop: '1px solid black', paddingTop: '3px' }}>
-                    <p style={{ fontWeight: 'bold', fontSize: '9pt', margin: 0 }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
-                    <p style={{ fontSize: '8pt', margin: 0 }}>(CONTRATANTE)</p>
+                  <div style={{ borderTop: '1px solid black', paddingTop: '2px' }}>
+                    <p style={{ fontWeight: 'bold', fontSize: '8pt', margin: 0 }}>{content.guardianName || 'RESPONSÁVEL LEGAL'}</p>
+                    <p style={{ fontSize: '7pt', margin: 0 }}>(CONTRATANTE)</p>
                   </div>
                 )}
               </div>
@@ -222,8 +218,8 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
 
             {/* Hash de verificação do documento */}
             {content.signatureHash && (
-              <div style={{ marginTop: '16px', fontSize: '7pt', color: '#888', textAlign: 'center' }}>
-                <p style={{ margin: 0 }}>Código de verificação: {content.signatureHash.substring(0, 16)}...</p>
+              <div style={{ marginTop: '6px', fontSize: '6pt', color: '#888', textAlign: 'center' }}>
+                <p style={{ margin: 0 }}>Verificação: {content.signatureHash.substring(0, 20)}...</p>
               </div>
             )}
           </div>

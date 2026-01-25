@@ -13,6 +13,8 @@ interface ContractContent {
   guardianAddress: string;
   studentName: string;
   studentBirthDate: string;
+  studentSex?: string;
+  studentAge?: number | null;
   courseName: string;
   courseDuration: string;
   coursePrice: number;
@@ -24,28 +26,33 @@ interface ContractContent {
   clauses: { title: string; content: string }[];
   createdAt: string;
   city?: string;
+  contractDurationLabel?: string;
+  // Digital signature fields
+  signatureImage?: string | null;
+  signedAt?: string | null;
+  signatureHash?: string | null;
 }
 
 export function generateContractPDF(content: ContractContent): jsPDF {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 20;
-  let yPos = 20;
+  const margin = 15;
+  let yPos = 15;
 
-  // Title
-  doc.setFontSize(14);
+  // Title - more compact
+  doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS EDUCACIONAIS', pageWidth / 2, yPos, { align: 'center' });
-  yPos += 7;
-  doc.text(content.schoolName?.toUpperCase() || 'CIRCUITO KIDS', pageWidth / 2, yPos, { align: 'center' });
-  yPos += 12;
-
-  // Introduction
+  yPos += 5;
   doc.setFontSize(10);
+  doc.text(content.schoolName?.toUpperCase() || 'CIRCUITO KIDS', pageWidth / 2, yPos, { align: 'center' });
+  yPos += 8;
+
+  // Introduction - smaller font
+  doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
-  const introText = 'Pelo presente instrumento particular, de um lado:';
-  doc.text(introText, margin, yPos);
-  yPos += 10;
+  doc.text('Pelo presente instrumento particular, de um lado:', margin, yPos);
+  yPos += 6;
 
   // School Info (CONTRATADA)
   doc.setFont('helvetica', 'bold');
@@ -54,20 +61,18 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   const contratadaLabelWidth = doc.getTextWidth(contratadaLabel);
   
   doc.setFont('helvetica', 'normal');
-  const contratadaText = `${content.schoolName || 'CIRCUITO KIDS'}, pessoa jurídica de direito privado, inscrita no CNPJ nº ${content.schoolCnpj || '___________________'}, com sede à ${content.schoolAddress || '_________________________________________________'}.`;
+  const contratadaText = `${content.schoolName || 'CIRCUITO KIDS'}, CNPJ nº ${content.schoolCnpj || '___________________'}, ${content.schoolAddress || '_________________________________________________'}.`;
   const contratadaLines = doc.splitTextToSize(contratadaText, pageWidth - 2 * margin - contratadaLabelWidth);
   
-  // First line after label
   if (contratadaLines.length > 0) {
     doc.text(contratadaLines[0], margin + contratadaLabelWidth, yPos);
-    yPos += 5;
+    yPos += 4;
   }
-  // Remaining lines at margin
   for (let i = 1; i < contratadaLines.length; i++) {
     doc.text(contratadaLines[i], margin, yPos);
-    yPos += 5;
+    yPos += 4;
   }
-  yPos += 5;
+  yPos += 3;
 
   // Guardian Info (CONTRATANTE)
   doc.setFont('helvetica', 'bold');
@@ -76,95 +81,141 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   const contratanteLabelWidth = doc.getTextWidth(contratanteLabel);
   
   doc.setFont('helvetica', 'normal');
-  const contratanteText = `${content.guardianName || '___________________________________________'}, responsável legal pelo(a) aluno(a) ${content.studentName || '___________________________________________'}, CPF nº ${content.guardianCpf || '____________________'}${content.guardianRg ? `, RG nº ${content.guardianRg}` : ''}.`;
+  let contratanteText = `${content.guardianName || '___________________________________________'}, responsável pelo(a) aluno(a) ${content.studentName || '___________________________________________'}`;
+  if (content.studentSex) {
+    contratanteText += `, sexo ${content.studentSex === 'M' ? 'masculino' : 'feminino'}`;
+  }
+  if (content.studentAge !== null && content.studentAge !== undefined) {
+    contratanteText += `, ${content.studentAge} anos`;
+  }
+  contratanteText += `, CPF nº ${content.guardianCpf || '____________________'}.`;
+  
   const contratanteLines = doc.splitTextToSize(contratanteText, pageWidth - 2 * margin - contratanteLabelWidth);
   
-  // First line after label
   if (contratanteLines.length > 0) {
     doc.text(contratanteLines[0], margin + contratanteLabelWidth, yPos);
-    yPos += 5;
+    yPos += 4;
   }
-  // Remaining lines at margin
   for (let i = 1; i < contratanteLines.length; i++) {
     doc.text(contratanteLines[i], margin, yPos);
-    yPos += 5;
+    yPos += 4;
   }
-  yPos += 8;
+  yPos += 4;
 
-  // Legal reference
+  // Legal reference - compact
   doc.setFont('helvetica', 'normal');
-  const legalText = 'As partes resolvem celebrar o presente contrato nos termos do ECA (Lei nº 8.069/90) e da LGPD (Lei nº 13.709/18), conforme as cláusulas abaixo:';
+  const legalText = 'As partes celebram o presente contrato nos termos do ECA (Lei nº 8.069/90) e da LGPD (Lei nº 13.709/18):';
   const legalLines = doc.splitTextToSize(legalText, pageWidth - 2 * margin);
   doc.text(legalLines, margin, yPos);
-  yPos += legalLines.length * 5 + 10;
+  yPos += legalLines.length * 4 + 4;
 
-  // Clauses
+  // Clauses - smaller font for compactness
   if (content.clauses && content.clauses.length > 0) {
     content.clauses.forEach((clause, index) => {
-      // Check if we need a new page
-      if (yPos > 260) {
+      if (yPos > 270) {
         doc.addPage();
-        yPos = 20;
+        yPos = 15;
       }
 
-      doc.setFontSize(10);
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.text(`CLÁUSULA ${index + 1}ª – ${clause.title.toUpperCase()}`, margin, yPos);
-      yPos += 6;
+      yPos += 4;
 
       doc.setFont('helvetica', 'normal');
-      
-      // Split long text into lines
       const lines = doc.splitTextToSize(clause.content, pageWidth - 2 * margin);
       lines.forEach((line: string) => {
-        if (yPos > 270) {
+        if (yPos > 280) {
           doc.addPage();
-          yPos = 20;
+          yPos = 15;
         }
         doc.text(line, margin, yPos);
-        yPos += 5;
+        yPos += 3.5;
       });
-      yPos += 5;
+      yPos += 2;
     });
   }
 
-  // Foro clause if not included
+  // Ensure we have space for signatures
   if (yPos > 250) {
     doc.addPage();
-    yPos = 20;
+    yPos = 15;
   }
 
   // Signature section
-  yPos += 10;
-  doc.setFontSize(10);
-  doc.text(`Local e data: ${content.city || '___________________________________________'}`, margin, yPos);
-  yPos += 25;
+  yPos += 6;
+  doc.setFontSize(9);
+  
+  // Format date
+  let dateStr = content.city || 'Local';
+  try {
+    const contractDate = content.signedAt ? new Date(content.signedAt) : new Date(content.createdAt);
+    dateStr += `, ${format(contractDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`;
+  } catch {
+    dateStr += `, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`;
+  }
+  doc.text(dateStr, margin, yPos);
+  yPos += 15;
 
   // Signature lines
-  doc.line(margin, yPos, margin + 70, yPos);
-  doc.line(pageWidth - margin - 70, yPos, pageWidth - margin, yPos);
-  yPos += 6;
+  const sigWidth = 70;
+  const sigStartRight = pageWidth - margin - sigWidth;
   
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text(content.schoolName || 'CIRCUITO KIDS', margin, yPos);
-  doc.text(content.guardianName || 'RESPONSÁVEL LEGAL', pageWidth - margin - 70, yPos);
+  // Left signature (CONTRATADA) - always just a line
+  doc.line(margin, yPos, margin + sigWidth, yPos);
+  
+  // Right signature (CONTRATANTE) - show digital signature if available
+  if (content.signatureImage) {
+    try {
+      // Add signature image above the line
+      doc.addImage(content.signatureImage, 'PNG', sigStartRight, yPos - 20, sigWidth, 18);
+    } catch {
+      // If image fails, just draw line
+    }
+  }
+  doc.line(sigStartRight, yPos, sigStartRight + sigWidth, yPos);
+  
   yPos += 4;
   
-  doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text(content.schoolName || 'CIRCUITO KIDS', margin, yPos);
+  doc.text(content.guardianName || 'RESPONSÁVEL LEGAL', sigStartRight, yPos);
+  yPos += 3;
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
   doc.text('(CONTRATADA)', margin, yPos);
-  doc.text('(CONTRATANTE)', pageWidth - margin - 70, yPos);
+  doc.text('(CONTRATANTE)', sigStartRight, yPos);
+  
+  // Show digital signature info if signed
+  if (content.signedAt) {
+    yPos += 3;
+    doc.setFontSize(6);
+    doc.setTextColor(100, 100, 100);
+    const signedDate = format(new Date(content.signedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+    doc.text(`Assinado digitalmente em ${signedDate}`, sigStartRight, yPos);
+    doc.setTextColor(0, 0, 0);
+  }
+  
+  // Verification hash
+  if (content.signatureHash) {
+    yPos += 8;
+    doc.setFontSize(6);
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Código de verificação: ${content.signatureHash.substring(0, 32)}...`, pageWidth / 2, yPos, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+  }
 
   // Add Annexes page
   doc.addPage();
   yPos = 20;
 
   // Annex Header
-  doc.setFontSize(14);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.text('ANEXOS DO CONTRATO', pageWidth / 2, yPos, { align: 'center' });
-  yPos += 15;
+  yPos += 10;
 
   // Annex I - Reforço Escolar
   doc.setFontSize(11);
@@ -209,7 +260,7 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   doc.text('• Plano: Anual (12 meses)', margin, yPos);
   yPos += 6;
   doc.text('• Valor Mensal: R$ 250,00', margin, yPos);
-  yPos += 15;
+  yPos += 8;
 
   // Annex III - Soroban
   doc.setFontSize(11);

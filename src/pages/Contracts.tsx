@@ -234,11 +234,15 @@ export default function Contracts() {
     // First check if there's a saved contract in the database
     const savedContract = contracts.find(c => c.enrollment_id === enrollmentId);
     if (savedContract?.contract_content) {
-      // Add the school logo to saved contracts that don't have it
+      // Add the school logo and signature data to saved contracts
       const content = savedContract.contract_content as any;
       return {
         ...content,
         schoolLogo: content.schoolLogo || branding?.logo || '',
+        // Include signature fields from the contract record
+        signatureImage: (savedContract as any).signature_image || content.signatureImage || null,
+        signedAt: savedContract.signed_at || content.signedAt || null,
+        signatureHash: (savedContract as any).signature_hash || content.signatureHash || null,
       };
     }
 
