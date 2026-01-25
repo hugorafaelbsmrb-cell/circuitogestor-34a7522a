@@ -115,6 +115,8 @@ export default function ContractSign() {
     try {
       const signatureImage = signatureRef.current?.toDataURL() || '';
       
+      console.log('[ContractSign] Starting signature process for token:', token);
+      
       // Generate hash from contract content
       const hashContent = JSON.stringify({
         id: contract.id,
@@ -129,9 +131,11 @@ export default function ContractSign() {
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const contractHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      console.log('[ContractSign] Hash generated, calling edge function...');
 
       // Update contract with signature via edge function for IP capture
-      const { error: invokeError } = await supabase.functions.invoke('contract-sign', {
+      const response = await supabase.functions.invoke('contract-sign', {
         body: {
           token,
           signatureImage,
@@ -139,8 +143,13 @@ export default function ContractSign() {
           userAgent: navigator.userAgent,
         },
       });
+      
+      console.log('[ContractSign] Edge function response:', response);
 
-      if (invokeError) throw invokeError;
+      if (response.error) {
+        console.error('[ContractSign] Edge function error:', response.error);
+        throw response.error;
+      }
 
       toast({
         title: 'Contrato assinado!',
@@ -152,7 +161,7 @@ export default function ContractSign() {
       console.error('Error signing contract:', error);
       toast({
         title: 'Erro ao assinar',
-        description: 'Não foi possível registrar a assinatura. Tente novamente.',
+        description: error instanceof Error ? error.message : 'Não foi possível registrar a assinatura. Tente novamente.',
         variant: 'destructive',
       });
     } finally {

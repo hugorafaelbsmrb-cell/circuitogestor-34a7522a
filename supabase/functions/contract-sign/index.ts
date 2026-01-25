@@ -6,8 +6,11 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  console.log('[contract-sign] Request received:', req.method);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('[contract-sign] CORS preflight request');
     return new Response(null, { headers: corsHeaders });
   }
 
@@ -15,11 +18,18 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
+    console.log('[contract-sign] Supabase URL:', supabaseUrl ? 'present' : 'missing');
+    console.log('[contract-sign] Service key:', supabaseServiceKey ? 'present' : 'missing');
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { token, signatureImage, signatureHash, userAgent } = await req.json();
+    const body = await req.json();
+    console.log('[contract-sign] Request body keys:', Object.keys(body));
+    
+    const { token, signatureImage, signatureHash, userAgent } = body;
 
     if (!token || !signatureImage) {
+      console.error('[contract-sign] Missing required fields - token:', !!token, 'signature:', !!signatureImage);
       return new Response(
         JSON.stringify({ error: 'Token e assinatura são obrigatórios' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -59,6 +69,8 @@ Deno.serve(async (req) => {
 
     // Update contract with signature
     const signedAt = new Date().toISOString();
+    console.log('[contract-sign] Updating contract:', contract.id);
+    
     const { error: updateError } = await supabase
       .from('contracts')
       .update({
@@ -77,6 +89,7 @@ Deno.serve(async (req) => {
     }
 
     // Log the signature event
+    console.log('[contract-sign] Inserting signature log');
     await supabase.from('contract_signature_logs').insert({
       contract_id: contract.id,
       action: 'signed',
