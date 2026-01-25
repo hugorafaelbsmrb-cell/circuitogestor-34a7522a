@@ -19,7 +19,8 @@ import {
   Zap,
   MessageSquare as MessageSquareIcon,
   DollarSign,
-  MessageCircle
+  MessageCircle,
+  FileText
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -47,7 +48,9 @@ import { AutomationControlPanel } from '@/components/settings/AutomationControlP
 import { MessageLogsViewer } from '@/components/settings/MessageLogsViewer';
 import { QuickRepliesConfigCard } from '@/components/settings/QuickRepliesConfigCard';
 import { AIProviderConfigCard } from '@/components/settings/AIProviderConfigCard';
+import { SystemDocumentation } from '@/components/settings/SystemDocumentation';
 import { cn } from '@/lib/utils';
+import '@/styles/print.css';
 
 interface AppSetting {
   id: string;
@@ -74,6 +77,7 @@ const settingsSections: SettingsSection[] = [
   { id: 'webhooks', label: 'Webhooks', icon: Webhook, description: 'URLs de notificação' },
   { id: 'financial', label: 'Financeiro', icon: DollarSign, description: 'Juros, multas e descontos' },
   { id: 'other', label: 'Outras', icon: SettingsIcon, description: 'Configurações gerais' },
+  { id: 'docs', label: 'Documentação', icon: FileText, description: 'Manual do sistema' },
 ];
 
 export default function Settings() {
@@ -1011,6 +1015,9 @@ export default function Settings() {
             </CardContent>
           </Card>
         );
+
+      case 'docs':
+        return <SystemDocumentation />;
 
       default:
         return null;

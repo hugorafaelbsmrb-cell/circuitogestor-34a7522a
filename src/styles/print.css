@@ -1,0 +1,221 @@
+/* Print Styles for System Documentation */
+@media print {
+  /* Hide non-printable elements */
+  .no-print,
+  nav:not(.print-nav),
+  button,
+  .sidebar,
+  header,
+  [data-sidebar],
+  [data-radix-popper-content-wrapper] {
+    display: none !important;
+  }
+
+  /* Reset page layout */
+  body {
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #000 !important;
+    background: #fff !important;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Main content takes full width */
+  main,
+  .main-content,
+  [role="main"] {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Show print header */
+  .print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #333;
+  }
+
+  .print-header img {
+    max-height: 60px;
+    margin: 0 auto 1rem;
+  }
+
+  .print-header h1 {
+    font-size: 24pt;
+    margin: 0;
+    color: #000;
+  }
+
+  .print-header p {
+    margin: 0.25rem 0;
+    color: #666;
+  }
+
+  /* Section styling */
+  section {
+    page-break-inside: avoid;
+    margin-bottom: 1.5rem;
+  }
+
+  h2 {
+    page-break-after: avoid;
+    font-size: 16pt;
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: #000;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 0.25rem;
+  }
+
+  h3 {
+    page-break-after: avoid;
+    font-size: 13pt;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    color: #333;
+  }
+
+  h4 {
+    page-break-after: avoid;
+    font-size: 11pt;
+    font-weight: 600;
+    margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
+    color: #444;
+  }
+
+  /* Paragraphs and lists */
+  p {
+    margin: 0.5rem 0;
+    orphans: 3;
+    widows: 3;
+  }
+
+  ul, ol {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+
+  li {
+    margin: 0.25rem 0;
+  }
+
+  /* Cards and boxes */
+  .card,
+  [class*="Card"],
+  [class*="AlertBox"] {
+    border: 1px solid #ddd !important;
+    background: #f9f9f9 !important;
+    padding: 0.75rem !important;
+    margin: 0.5rem 0 !important;
+    border-radius: 4px !important;
+  }
+
+  /* Badges */
+  .badge,
+  [class*="Badge"] {
+    border: 1px solid #999 !important;
+    background: #eee !important;
+    color: #333 !important;
+    padding: 0.1rem 0.5rem !important;
+    border-radius: 3px !important;
+    font-size: 9pt !important;
+  }
+
+  /* Code blocks */
+  code {
+    background: #f0f0f0 !important;
+    border: 1px solid #ddd !important;
+    padding: 0.1rem 0.3rem !important;
+    border-radius: 2px !important;
+    font-size: 10pt !important;
+    color: #333 !important;
+  }
+
+  /* Links */
+  a {
+    color: #000 !important;
+    text-decoration: underline !important;
+  }
+
+  a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #666;
+  }
+
+  /* Separators */
+  hr,
+  [data-orientation="horizontal"] {
+    border: none !important;
+    border-top: 1px solid #ccc !important;
+    margin: 1rem 0 !important;
+  }
+
+  /* Page breaks */
+  .page-break {
+    page-break-before: always;
+  }
+
+  /* Icons - hide or reduce */
+  svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  /* Step cards */
+  .step-card,
+  [class*="StepCard"] {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    margin: 0.5rem 0;
+    background: #fafafa;
+  }
+
+  /* Footer */
+  footer,
+  .print-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 9pt;
+    color: #666;
+    border-top: 1px solid #ccc;
+    padding-top: 0.5rem;
+  }
+
+  /* Page margins */
+  @page {
+    margin: 2cm 1.5cm;
+    size: A4;
+  }
+
+  @page :first {
+    margin-top: 1cm;
+  }
+
+  /* Table of contents styling */
+  .toc {
+    page-break-after: always;
+  }
+
+  .toc a {
+    display: block;
+    padding: 0.25rem 0;
+    border-bottom: 1px dotted #ccc;
+  }
+
+  .toc a::after {
+    content: none !important;
+  }
+}
