@@ -16,15 +16,15 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -33,13 +33,12 @@ Deno.serve(async (req) => {
     const token = authHeader.replace('Bearer ', '');
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData?.user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    // Get W-API config from app_settings
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
@@ -47,27 +46,24 @@ Deno.serve(async (req) => {
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
-      return new Response(
-        JSON.stringify({ error: 'Erro ao buscar configurações' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Erro ao buscar configurações' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const config: Record<string, string> = {};
-    settings?.forEach(s => {
+    settings?.forEach((s) => {
       if (s.value) config[s.key] = s.value;
     });
 
     if (!config.W_API_TOKEN || !config.W_API_SESSION) {
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Configurações W-API incompletas',
-          missing: {
-            token: !config.W_API_TOKEN,
-            session: !config.W_API_SESSION,
-          }
+          missing: { token: !config.W_API_TOKEN, session: !config.W_API_SESSION },
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
@@ -77,148 +73,119 @@ Deno.serve(async (req) => {
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
     const encoded = encodeURIComponent(instanceId);
 
-    console.log('=== W-API QR Code ===');
+    console.log('=== W-API Get QR Code ===');
     console.log(`Base URL: ${baseUrl}`);
     console.log(`Instance ID: ${instanceId}`);
     console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
-    // W-API QR Code endpoint
-    // Using apikey header
-    const qrCodeUrl = `${baseUrl}/qr-code?instanceId=${encoded}&image=enable`;
-    
-    console.log('Fetching QR Code from:', qrCodeUrl);
-    
+    // W-API PRO endpoint for QR code
+    // Auth: Authorization: Bearer {{TOKEN}}
+    const qrCodeUrl = `${baseUrl}/v1/instance/qr-code?instanceId=${encoded}&image=enable`;
+
+    console.log(`Calling: GET ${qrCodeUrl}`);
+
     const response = await fetch(qrCodeUrl, {
       method: 'GET',
       headers: {
-        'apikey': apiKey,
-        'Accept': 'application/json, image/png, image/*, */*',
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json, image/*',
       },
     });
 
     const contentType = response.headers.get('content-type') || '';
-    
-    console.log('W-API response status:', response.status, 'content-type:', contentType);
+    console.log(`Response ${response.status}, Content-Type: ${contentType}`);
 
-    // Handle image response (when image=enable returns PNG directly)
-    if (contentType.includes('image/')) {
+    // If response is an image, convert to base64 data URI
+    if (contentType.startsWith('image/')) {
       const arrayBuffer = await response.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-      const dataUri = `data:${contentType};base64,${base64}`;
-      
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      const mimeType = contentType.split(';')[0];
+      const dataUri = `data:${mimeType};base64,${base64}`;
+
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: true,
           status: 'pending',
           qrcode: dataUri,
-          message: 'QR Code gerado com sucesso'
+          message: 'Escaneie o QR Code com seu WhatsApp',
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    // Handle JSON response
-    const rawBody = await response.text();
-    let responseData: any = null;
-    
+    // Parse JSON response
+    const text = await response.text();
+    console.log(`Response body: ${text.slice(0, 500)}`);
+
+    let parsed: any = null;
     try {
-      responseData = JSON.parse(rawBody);
+      parsed = JSON.parse(text);
     } catch {
-      responseData = null;
+      console.error('Failed to parse response as JSON');
     }
 
     if (!response.ok) {
-      console.error('W-API QR Code error:', {
-        status: response.status,
-        contentType,
-        bodyPreview: rawBody.slice(0, 300),
-        parsed: responseData,
-      });
-      
-      // Check if already connected
-      if (responseData?.status === 'CONNECTED' || responseData?.connected || responseData?.instance?.state === 'open') {
-        return new Response(
-          JSON.stringify({ 
-            success: true,
-            status: 'connected',
-            message: 'WhatsApp já está conectado'
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'Erro ao obter QR Code',
-          details: responseData || {
-            status: response.status,
-            contentType,
-            bodyPreview: rawBody.slice(0, 500),
-          }
-        }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!responseData) {
-      console.error('W-API QR Code: expected JSON but got non-JSON response', {
-        status: response.status,
-        contentType,
-        bodyPreview: rawBody.slice(0, 300),
-      });
       return new Response(
         JSON.stringify({
-          error: 'Resposta inválida do provedor W-API',
-          details: {
-            status: response.status,
-            contentType,
-            bodyPreview: rawBody.slice(0, 500),
-          }
+          success: false,
+          error: parsed?.message || parsed?.error || 'Erro ao obter QR Code',
+          status: response.status,
         }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
-
-    console.log('QR Code response:', responseData);
 
     // Check if already connected
-    if (responseData.status === 'CONNECTED' || responseData.connected || responseData.instance?.state === 'open') {
+    const state = parsed?.state || parsed?.status || '';
+    const stateLower = String(state).toLowerCase();
+    if (stateLower === 'connected' || stateLower === 'open') {
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: true,
           status: 'connected',
-          message: 'WhatsApp já está conectado'
+          message: 'WhatsApp já está conectado',
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    // Extract QR code from various possible response formats
-    const qrCode = responseData.qrcode || 
-                   responseData.qr || 
-                   responseData.base64 ||
-                   responseData.qrcode_url ||
-                   responseData.qr_url ||
-                   responseData.data?.qrcode ||
-                   responseData.data?.qr ||
-                   responseData.data?.base64;
+    // Extract QR code from JSON response
+    const qrcode = parsed?.qrcode || parsed?.qr || parsed?.base64 || parsed?.data?.qrcode || null;
 
+    if (qrcode) {
+      // Ensure proper data URI format
+      const qrDataUri = qrcode.startsWith('data:') ? qrcode : `data:image/png;base64,${qrcode}`;
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: 'pending',
+          qrcode: qrDataUri,
+          message: 'Escaneie o QR Code com seu WhatsApp',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    // No QR code found
     return new Response(
-      JSON.stringify({ 
-        success: true,
-        status: responseData.status || 'pending',
-        qrcode: qrCode,
-        qrcode_url: responseData.qrcode_url || responseData.qr_url || responseData.data?.qrcode_url,
-        message: responseData.message || 'QR Code gerado com sucesso'
+      JSON.stringify({
+        success: false,
+        error: 'QR Code não disponível',
+        raw: parsed,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
-
-  } catch (error) {
-    console.error('Error getting QR code:', error);
+  } catch (error: unknown) {
+    console.error('Error in wapi-get-qrcode:', error);
     return new Response(
-      JSON.stringify({ error: 'Erro interno ao obter QR Code', details: String(error) }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Erro interno' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 });
