@@ -40,7 +40,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
 - Contexto adicional: ${context || 'mensagem para responsáveis de alunos'}`;
 
     const response = await fetch(
-      "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8B-Instruct",
+      "https://router.huggingface.co/hf-inference/models/meta-llama/Llama-3.1-8B-Instruct/v1/chat/completions",
       {
         method: "POST",
         headers: {
@@ -48,20 +48,13 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          inputs: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-${systemPrompt}<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-${userPrompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-`,
-          parameters: {
-            max_new_tokens: 500,
-            temperature: 0.7,
-            top_p: 0.9,
-            do_sample: true,
-            return_full_text: false,
-          },
+          model: "meta-llama/Llama-3.1-8B-Instruct",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: 500,
+          temperature: 0.7,
         }),
       }
     );
@@ -82,9 +75,7 @@ ${userPrompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
     }
 
     const data = await response.json();
-    const generatedMessage = Array.isArray(data) 
-      ? data[0]?.generated_text || ""
-      : data.generated_text || "";
+    const generatedMessage = data.choices?.[0]?.message?.content || "";
 
     return new Response(JSON.stringify({ message: generatedMessage.trim() }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

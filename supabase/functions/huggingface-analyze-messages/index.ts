@@ -39,11 +39,8 @@ serve(async (req) => {
 
     let systemPrompt = '';
     let userPrompt = '';
-    let jsonFormat = '';
 
     if (type === 'suggest') {
-      jsonFormat = '{"suggestions": [{"text": "sugestão 1", "tone": "formal"}, {"text": "sugestão 2", "tone": "informal"}, {"text": "sugestão 3", "tone": "empático"}]}';
-      
       systemPrompt = `Você é um assistente de atendimento escolar especializado em comunicação com responsáveis.
 Sua tarefa é analisar a conversa e sugerir 3 respostas curtas e apropriadas.
 
@@ -57,12 +54,10 @@ Regras:
 - Use linguagem amigável mas profissional
 - Considere o tom e contexto da última mensagem recebida
 - Não use emojis em excesso (máximo 1-2 por sugestão)
-- Retorne APENAS um JSON válido com o formato: ${jsonFormat}`;
+- Retorne APENAS um JSON válido com o formato: {"suggestions": [{"text": "sugestão", "tone": "formal|informal|empático"}]}`;
 
       userPrompt = `Conversa atual:\n${conversation}\n\nGere 3 sugestões de resposta para a última mensagem do responsável. Responda APENAS com JSON válido.`;
     } else if (type === 'summary') {
-      jsonFormat = '{"summary": "texto do resumo", "mainTopics": ["tópico 1", "tópico 2"], "pendingActions": ["ação 1"], "sentiment": "neutro"}';
-      
       systemPrompt = `Você é um assistente que resume conversas de atendimento escolar.
 
 Contexto:
@@ -74,8 +69,7 @@ Regras:
 - Faça um resumo conciso (máximo 200 palavras)
 - Destaque os pontos principais discutidos
 - Identifique qualquer pendência ou ação necessária
-- Retorne APENAS um JSON válido com o formato: ${jsonFormat}
-- sentiment deve ser: positivo, neutro ou negativo`;
+- Retorne APENAS um JSON válido com o formato: {"summary": "texto", "mainTopics": ["tópico"], "pendingActions": ["ação"], "sentiment": "positivo|neutro|negativo"}`;
 
       userPrompt = `Conversa completa:\n${conversation}\n\nResuma esta conversa identificando os pontos principais. Responda APENAS com JSON válido.`;
     } else {
@@ -86,7 +80,7 @@ Regras:
     }
 
     const response = await fetch(
-      "https://api-inference.huggingface.co/models/meta-llama/Llama-3-8B-Instruct",
+      "https://router.huggingface.co/hf-inference/models/meta-llama/Llama-3.1-8B-Instruct/v1/chat/completions",
       {
         method: "POST",
         headers: {
@@ -94,20 +88,13 @@ Regras:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          inputs: `<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-
-${systemPrompt}<|eot_id|><|start_header_id|>user<|end_header_id|>
-
-${userPrompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
-
-`,
-          parameters: {
-            max_new_tokens: 800,
-            temperature: 0.5,
-            top_p: 0.9,
-            do_sample: true,
-            return_full_text: false,
-          },
+          model: "meta-llama/Llama-3.1-8B-Instruct",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: 800,
+          temperature: 0.5,
         }),
       }
     );
@@ -128,9 +115,7 @@ ${userPrompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
     }
 
     const data = await response.json();
-    const content = Array.isArray(data) 
-      ? data[0]?.generated_text || "{}"
-      : data.generated_text || "{}";
+    const content = data.choices?.[0]?.message?.content || "{}";
     
     // Try to extract JSON from the response
     let parsedContent;
