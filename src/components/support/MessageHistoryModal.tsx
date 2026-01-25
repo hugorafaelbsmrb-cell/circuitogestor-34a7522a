@@ -743,7 +743,8 @@ export function MessageHistoryModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg h-[600px] flex flex-col p-0">
           <DialogHeader className="p-4 border-b">
-            <DialogTitle className="flex items-center gap-3">
+            <DialogTitle className="flex items-center justify-between gap-3">
+              <span>Conversa com {guardianName}</span>
               {branding.logo ? (
                 <img 
                   src={branding.logo} 
@@ -755,7 +756,6 @@ export function MessageHistoryModal({
                   <MessageSquare className="h-4 w-4 text-primary-foreground" />
                 </div>
               )}
-              <span>Conversa com {guardianName}</span>
             </DialogTitle>
             {studentNames.length > 0 && (
               <p className="text-sm font-medium text-foreground">
