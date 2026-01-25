@@ -94,6 +94,7 @@ export default function Leads() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [courseFilter, setCourseFilter] = useState<string>('all');
   const [showModal, setShowModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
@@ -289,7 +290,8 @@ export default function Leads() {
       lead.phone.includes(searchTerm) ||
       (lead.email?.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesCourse = courseFilter === 'all' || lead.interested_course_id === courseFilter;
+    return matchesSearch && matchesStatus && matchesCourse;
   });
 
   // Stats
@@ -389,6 +391,17 @@ export default function Leads() {
               <SelectItem value="all">Todos os status</SelectItem>
               {statusOptions.map(option => (
                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={courseFilter} onValueChange={setCourseFilter}>
+            <SelectTrigger className="w-full sm:w-[200px]">
+              <SelectValue placeholder="Curso" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os cursos</SelectItem>
+              {courses.filter(c => c.is_active).map(course => (
+                <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
