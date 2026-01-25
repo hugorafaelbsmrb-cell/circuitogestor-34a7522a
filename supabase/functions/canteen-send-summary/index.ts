@@ -5,14 +5,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface ConsumptionItem {
+  product_name: string;
+  quantity: number;
+  total: number;
+  consumed_at: string;
+}
+
 interface StudentSummary {
   student_id: string;
   student_name: string;
-  items: {
-    product_name: string;
-    quantity: number;
-    total: number;
-  }[];
+  items: ConsumptionItem[];
   subtotal: number;
 }
 
@@ -25,6 +28,8 @@ interface RequestBody {
   students: StudentSummary[];
   total: number;
 }
+
+const DAYS_OF_WEEK = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 const DEFAULT_TEMPLATE = `🍽️ *CONSUMO SEMANAL - CANTINA*
 
@@ -74,13 +79,41 @@ Deno.serve(async (req) => {
       }).format(price);
     };
 
-    // Build consumption list
+    // Format date helper
+    const formatDateWithDay = (dateStr: string) => {
+      const date = new Date(dateStr);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const dayOfWeek = DAYS_OF_WEEK[date.getDay()];
+      return `${day}/${month} (${dayOfWeek})`;
+    };
+
+    // Build consumption list grouped by date
     let listaConsumos = '';
     students.forEach(student => {
       listaConsumos += `👦 *${student.student_name}*\n`;
+      
+      // Group items by date
+      const itemsByDate: Record<string, typeof student.items> = {};
       student.items.forEach(item => {
-        listaConsumos += `• ${item.quantity}x ${item.product_name} - ${formatPrice(item.total)}\n`;
+        const dateKey = item.consumed_at?.split('T')[0] || 'unknown';
+        if (!itemsByDate[dateKey]) {
+          itemsByDate[dateKey] = [];
+        }
+        itemsByDate[dateKey].push(item);
       });
+
+      // Sort dates and format
+      const sortedDates = Object.keys(itemsByDate).sort();
+      sortedDates.forEach(dateKey => {
+        const dateItems = itemsByDate[dateKey];
+        const formattedDate = dateKey !== 'unknown' ? formatDateWithDay(dateKey) : 'Data não informada';
+        listaConsumos += `📅 ${formattedDate}\n`;
+        dateItems.forEach(item => {
+          listaConsumos += `   • ${item.quantity}x ${item.product_name} - ${formatPrice(item.total)}\n`;
+        });
+      });
+      
       listaConsumos += `Subtotal: ${formatPrice(student.subtotal)}\n\n`;
     });
 

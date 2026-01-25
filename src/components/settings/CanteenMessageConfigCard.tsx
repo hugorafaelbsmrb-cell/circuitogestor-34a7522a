@@ -21,7 +21,7 @@ const AVAILABLE_VARIABLES = [
   { key: '{nome_responsavel}', description: 'Primeiro nome do responsável' },
   { key: '{semana_inicio}', description: 'Data de início da semana (ex: 20/01)' },
   { key: '{semana_fim}', description: 'Data de fim da semana (ex: 24/01)' },
-  { key: '{lista_consumos}', description: 'Lista detalhada de consumos por aluno' },
+  { key: '{lista_consumos}', description: 'Lista detalhada por aluno, agrupada por data/dia da semana (ex: 📅 20/01 (Segunda))' },
   { key: '{total}', description: 'Valor total formatado (ex: R$ 23,50)' },
 ];
 
