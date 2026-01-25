@@ -86,18 +86,35 @@ export function AIProviderConfigCard() {
           </div>
 
           <div className="flex items-start space-x-3 p-4 rounded-lg border border-border/50 hover:bg-accent/50 transition-colors">
+            <RadioGroupItem value="gemini" id="gemini" className="mt-1" />
+            <div className="flex-1">
+              <Label htmlFor="gemini" className="flex items-center gap-2 cursor-pointer font-medium">
+                <span className="text-lg">✨</span>
+                Google Gemini
+                <Badge variant="secondary" className="ml-2 text-xs">2.5 Flash</Badge>
+                {selectedProvider === 'gemini' && !isSaving && (
+                  <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
+                )}
+              </Label>
+              <p className="text-sm text-muted-foreground mt-1">
+                Utiliza o modelo Gemini 2.5 Flash via Google AI API. Rápido e de alta qualidade.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start space-x-3 p-4 rounded-lg border border-border/50 hover:bg-accent/50 transition-colors">
             <RadioGroupItem value="huggingface" id="huggingface" className="mt-1" />
             <div className="flex-1">
               <Label htmlFor="huggingface" className="flex items-center gap-2 cursor-pointer font-medium">
                 <span className="text-lg">🤗</span>
                 Hugging Face
-                <Badge variant="outline" className="ml-2 text-xs">Llama 3</Badge>
+                <Badge variant="outline" className="ml-2 text-xs">GLM-4</Badge>
                 {selectedProvider === 'huggingface' && !isSaving && (
                   <CheckCircle className="h-4 w-4 text-green-500 ml-auto" />
                 )}
               </Label>
               <p className="text-sm text-muted-foreground mt-1">
-                Utiliza o modelo Meta Llama 3 8B Instruct via Hugging Face Inference API.
+                Utiliza o modelo GLM-4.7 Flash via Hugging Face Router.
               </p>
             </div>
           </div>
