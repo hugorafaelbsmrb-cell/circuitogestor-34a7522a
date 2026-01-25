@@ -16,13 +16,13 @@ import {
   Shield,
   ClipboardList,
   UsersRound,
-  MessageSquare,
   ClipboardCheck,
   Package,
   Monitor,
   Send,
   Kanban,
-  ChevronDown
+  ChevronDown,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -30,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { useState } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 interface MenuItem {
   icon: typeof LayoutDashboard;
@@ -119,7 +120,12 @@ const menuSections: MenuSection[] = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ open, onClose }: SidebarProps) {
   const location = useLocation();
   const { profile } = useAuthContext();
   const { branding } = useSystemBranding();
@@ -128,16 +134,12 @@ export function Sidebar() {
   const permissions = profile?.permissions || {};
 
   const resolvePermission = (permissionKey: string): boolean | undefined => {
-    // Backward-compat: older profiles used "guardians" to control both pages.
     if (permissionKey === 'guardian_support') {
       return permissions.guardian_support ?? permissions.guardians;
     }
-
-    // Segurança: novos módulos sensíveis devem ser negados por padrão se não estiverem definidos.
     if (permissionKey === 'whatsapp') {
       return permissions.whatsapp ?? false;
     }
-
     return permissions[permissionKey];
   };
 
@@ -159,26 +161,41 @@ export function Sidebar() {
 
   const visibleSections = getVisibleSections();
 
-  return (
-    <aside className="w-64 bg-card border-r border-border h-screen fixed left-0 top-0 flex flex-col">
-      <div className="p-6 border-b border-border">
+  const handleLinkClick = () => {
+    // Close mobile sidebar when navigating
+    onClose?.();
+  };
+
+  const sidebarContent = (
+    <>
+      <div className="p-4 lg:p-6 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
           {branding.logo ? (
             <img 
               src={branding.logo} 
               alt={branding.name} 
-              className="w-10 h-10 rounded-xl object-contain"
+              className="w-8 h-8 lg:w-10 lg:h-10 rounded-xl object-contain"
             />
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
+            <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-primary flex items-center justify-center">
+              <GraduationCap className="w-5 h-5 lg:w-6 lg:h-6 text-primary-foreground" />
             </div>
           )}
           <div>
-            <h1 className="font-semibold text-foreground">{branding.name}</h1>
-            <p className="text-xs text-muted-foreground">Sistema Escolar</p>
+            <h1 className="font-semibold text-foreground text-sm lg:text-base">{branding.name}</h1>
+            <p className="text-xs text-muted-foreground hidden lg:block">Sistema Escolar</p>
           </div>
         </div>
+        
+        {/* Close button for mobile */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="lg:hidden h-8 w-8"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </Button>
       </div>
 
       <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
@@ -187,6 +204,7 @@ export function Sidebar() {
             key={section.title} 
             section={section} 
             currentPath={location.pathname}
+            onLinkClick={handleLinkClick}
           />
         ))}
       </nav>
@@ -200,11 +218,33 @@ export function Sidebar() {
         )}
         <LogoutButton />
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex w-64 bg-card border-r border-border h-screen fixed left-0 top-0 flex-col">
+        {sidebarContent}
+      </aside>
+
+      {/* Mobile Sidebar as Sheet */}
+      <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose?.()}>
+        <SheetContent side="left" className="p-0 w-72 flex flex-col">
+          {sidebarContent}
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 
-function MenuSectionComponent({ section, currentPath }: { section: MenuSection; currentPath: string }) {
+interface MenuSectionProps {
+  section: MenuSection;
+  currentPath: string;
+  onLinkClick?: () => void;
+}
+
+function MenuSectionComponent({ section, currentPath, onLinkClick }: MenuSectionProps) {
   const hasActiveItem = section.items.some(item => item.path === currentPath);
   const [isOpen, setIsOpen] = useState(section.defaultOpen || hasActiveItem);
 
@@ -227,6 +267,7 @@ function MenuSectionComponent({ section, currentPath }: { section: MenuSection; 
               <Link
                 key={item.path}
                 to={item.path}
+                onClick={onLinkClick}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all',
                   'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90',
@@ -243,6 +284,7 @@ function MenuSectionComponent({ section, currentPath }: { section: MenuSection; 
             <Link
               key={item.path}
               to={item.path}
+              onClick={onLinkClick}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
                 'text-muted-foreground hover:text-foreground hover:bg-muted/50',

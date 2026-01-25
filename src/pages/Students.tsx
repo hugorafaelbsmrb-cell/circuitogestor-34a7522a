@@ -289,22 +289,23 @@ export default function Students() {
 
   return (
     <div className="animate-fade-in">
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="page-title">Alunos</h1>
           <p className="page-subtitle">Gerencie os alunos matriculados</p>
         </div>
         <Link to="/matricula">
-          <Button className="gap-2">
+          <Button className="gap-2 w-full sm:w-auto">
             <Plus className="w-4 h-4" />
-            Nova Matrícula
+            <span className="hidden sm:inline">Nova Matrícula</span>
+            <span className="sm:hidden">Nova</span>
           </Button>
         </Link>
       </div>
 
       <div className="bg-card rounded-xl border border-border/50 shadow-sm">
-        <div className="p-4 border-b border-border flex flex-col md:flex-row gap-4 justify-between">
-          <div className="relative max-w-sm">
+        <div className="p-3 lg:p-4 border-b border-border flex flex-col gap-3">
+          <div className="relative w-full sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Buscar aluno..."
@@ -321,7 +322,7 @@ export default function Students() {
                 onChange={(e) => setShowInactive(e.target.checked)}
                 className="rounded border-border"
               />
-              <span className="text-muted-foreground">Mostrar inativos</span>
+              <span className="text-muted-foreground text-xs sm:text-sm">Mostrar inativos</span>
             </label>
           </div>
         </div>
@@ -335,15 +336,15 @@ export default function Students() {
               const isActive = (student as any).is_active !== false;
               
               return (
-                <div key={student.id} className={`p-4 hover:bg-secondary/30 transition-colors ${!isActive ? 'opacity-60 bg-muted/30' : ''}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isActive ? 'bg-primary/10' : 'bg-muted'}`}>
-                        <Users className={`w-6 h-6 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                <div key={student.id} className={`p-3 lg:p-4 hover:bg-secondary/30 transition-colors ${!isActive ? 'opacity-60 bg-muted/30' : ''}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 lg:gap-4">
+                      <div className={`w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center shrink-0 ${isActive ? 'bg-primary/10' : 'bg-muted'}`}>
+                        <Users className={`w-5 h-5 lg:w-6 lg:h-6 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-foreground">{student.name}</p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm lg:text-base text-foreground truncate">{student.name}</p>
                           {!isActive && (
                             <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/20">
                               <XCircle className="w-3 h-3 mr-1" />
@@ -351,23 +352,26 @@ export default function Students() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          Nascimento: {new Date(student.birth_date).toLocaleDateString('pt-BR')}
+                        <p className="text-xs lg:text-sm text-muted-foreground">
+                          Nasc: {new Date(student.birth_date).toLocaleDateString('pt-BR')}
                         </p>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <Badge variant="outline" className="text-xs">
                             <GraduationCap className="w-3 h-3 mr-1" />
                             {activeEnrollments.length} curso(s)
                           </Badge>
+                          <span className="text-xs text-muted-foreground sm:hidden">
+                            Resp: {guardian?.name?.split(' ')[0] || '-'}
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right hidden md:block">
-                        <p className="text-sm font-medium text-foreground">Responsável</p>
-                        <p className="text-sm text-muted-foreground">{guardian?.name || '-'}</p>
+                    <div className="flex items-center gap-2 sm:gap-4">
+                      <div className="text-right hidden sm:block">
+                        <p className="text-xs lg:text-sm font-medium text-foreground">Responsável</p>
+                        <p className="text-xs lg:text-sm text-muted-foreground truncate max-w-[150px]">{guardian?.name || '-'}</p>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 ml-auto sm:ml-0">
                         <Button 
                           variant="ghost" 
                           size="icon"

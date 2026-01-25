@@ -432,85 +432,85 @@ export default function Financial() {
   };
 
   return (
-    <div className="animate-fade-in space-y-6">
+    <div className="animate-fade-in space-y-4 lg:space-y-6">
       {/* Header */}
-      <div className="page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="page-header flex flex-col gap-4">
         <div>
           <h1 className="page-title flex items-center gap-2">
-            <Wallet className="w-7 h-7" />
+            <Wallet className="w-5 h-5 lg:w-7 lg:h-7" />
             Financeiro
           </h1>
           <p className="page-subtitle">Visão geral e previsibilidade financeira</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={fetchPayments} disabled={isLoading} className="gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={fetchPayments} disabled={isLoading} className="gap-2 flex-1 sm:flex-none">
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-            Atualizar
+            <span className="hidden sm:inline">Atualizar</span>
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2 flex-1 sm:flex-none">
             <Download className="w-4 h-4" />
-            Exportar
+            <span className="hidden sm:inline">Exportar</span>
           </Button>
         </div>
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-3 lg:pt-6 lg:px-6">
             <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Previsão do Mês</p>
-                <p className="text-2xl font-bold">{formatCurrency(metrics.monthlyForecast)}</p>
-                <p className="text-xs text-muted-foreground">{metrics.monthPayments.length} mensalidades</p>
+              <div className="space-y-0.5 lg:space-y-1 min-w-0">
+                <p className="text-xs lg:text-sm text-muted-foreground truncate">Previsão do Mês</p>
+                <p className="text-lg lg:text-2xl font-bold">{formatCurrency(metrics.monthlyForecast)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.monthPayments.length} mensalidades</p>
               </div>
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <TrendingUp className="w-5 h-5 text-primary" />
+              <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-3 lg:pt-6 lg:px-6">
             <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Recebido no Mês</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(metrics.monthlyReceived)}</p>
-                <p className="text-xs text-muted-foreground">{metrics.paidThisMonth.length} pagamentos</p>
+              <div className="space-y-0.5 lg:space-y-1 min-w-0">
+                <p className="text-xs lg:text-sm text-muted-foreground truncate">Recebido no Mês</p>
+                <p className="text-lg lg:text-2xl font-bold text-green-600">{formatCurrency(metrics.monthlyReceived)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.paidThisMonth.length} pagamentos</p>
               </div>
-              <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center">
-                <CheckCircle2 className="w-5 h-5 text-green-500" />
+              <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 text-green-500" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-3 lg:pt-6 lg:px-6">
             <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Pendente no Mês</p>
-                <p className="text-2xl font-bold text-yellow-600">{formatCurrency(metrics.monthlyForecast - metrics.monthlyReceived)}</p>
-                <p className="text-xs text-muted-foreground">{metrics.pendingThisMonth.length} aguardando</p>
+              <div className="space-y-0.5 lg:space-y-1 min-w-0">
+                <p className="text-xs lg:text-sm text-muted-foreground truncate">Pendente no Mês</p>
+                <p className="text-lg lg:text-2xl font-bold text-yellow-600">{formatCurrency(metrics.monthlyForecast - metrics.monthlyReceived)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.pendingThisMonth.length} aguardando</p>
               </div>
-              <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                <Clock className="w-5 h-5 text-yellow-500" />
+              <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4 lg:w-5 lg:h-5 text-yellow-500" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-3 lg:pt-6 lg:px-6">
             <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Total em Atraso</p>
-                <p className="text-2xl font-bold text-destructive">{formatCurrency(metrics.overdueTotal)}</p>
-                <p className="text-xs text-muted-foreground">{metrics.allOverdue.length} vencidos</p>
+              <div className="space-y-0.5 lg:space-y-1 min-w-0">
+                <p className="text-xs lg:text-sm text-muted-foreground truncate">Total em Atraso</p>
+                <p className="text-lg lg:text-2xl font-bold text-destructive">{formatCurrency(metrics.overdueTotal)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.allOverdue.length} vencidos</p>
               </div>
-              <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-destructive" />
+              <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4 lg:w-5 lg:h-5 text-destructive" />
               </div>
             </div>
           </CardContent>

@@ -131,15 +131,27 @@
   }
 
   .page-header {
-    @apply mb-8;
+    @apply mb-4 lg:mb-8;
   }
 
   .page-title {
-    @apply text-2xl font-semibold text-foreground;
+    @apply text-xl lg:text-2xl font-semibold text-foreground;
   }
 
   .page-subtitle {
-    @apply text-muted-foreground mt-1;
+    @apply text-sm lg:text-base text-muted-foreground mt-1;
+  }
+
+  .form-section {
+    @apply bg-card rounded-xl p-4 lg:p-6 border border-border/50 shadow-sm mb-4 lg:mb-6;
+  }
+
+  .form-section-title {
+    @apply text-base lg:text-lg font-semibold mb-3 lg:mb-4 text-foreground;
+  }
+
+  .stat-card {
+    @apply bg-card rounded-xl p-4 lg:p-6 border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200;
   }
 
   .form-section {

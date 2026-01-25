@@ -37,20 +37,20 @@ export default function Dashboard() {
   return (
     <div className="animate-fade-in">
       <WelcomePopup />
-      <div className="page-header flex items-center justify-between">
+      <div className="page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="page-title">Dashboard</h1>
           <p className="page-subtitle">Visão geral do sistema escolar</p>
         </div>
         <Link to="/matricula">
-          <Button className="gap-2">
+          <Button className="gap-2 w-full sm:w-auto">
             <Users className="w-4 h-4" />
             Nova Matrícula
           </Button>
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mb-6 lg:mb-8">
         <StatCard
           title="Alunos Matriculados"
           value={students.length}
@@ -78,14 +78,14 @@ export default function Dashboard() {
 
       {/* Alerts Section */}
       {(paymentsDueIn48h.length > 0 || overduePayments.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mb-6 lg:mb-8">
           {/* Payments due in 48h */}
           {paymentsDueIn48h.length > 0 && (
-            <div className="bg-warning/10 rounded-xl border border-warning/20 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-warning/10 rounded-xl border border-warning/20 shadow-sm p-4 lg:p-6">
+              <div className="flex items-center justify-between mb-3 lg:mb-4">
                 <div className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-warning" />
-                  <h2 className="text-lg font-semibold text-foreground">Vence em 48h</h2>
+                  <Clock className="w-4 h-4 lg:w-5 lg:h-5 text-warning" />
+                  <h2 className="text-base lg:text-lg font-semibold text-foreground">Vence em 48h</h2>
                 </div>
                 <Badge className="bg-warning/20 text-warning border-warning/30">
                   {paymentsDueIn48h.length} boletos
@@ -128,11 +128,11 @@ export default function Dashboard() {
 
           {/* Overdue payments */}
           {overduePayments.length > 0 && (
-            <div className="bg-destructive/10 rounded-xl border border-destructive/20 shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4">
+            <div className="bg-destructive/10 rounded-xl border border-destructive/20 shadow-sm p-4 lg:p-6">
+              <div className="flex items-center justify-between mb-3 lg:mb-4">
                 <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-destructive" />
-                  <h2 className="text-lg font-semibold text-foreground">Boletos em Atraso</h2>
+                  <AlertTriangle className="w-4 h-4 lg:w-5 lg:h-5 text-destructive" />
+                  <h2 className="text-base lg:text-lg font-semibold text-foreground">Boletos em Atraso</h2>
                 </div>
                 <Badge variant="destructive">
                   {overduePayments.length} boletos
@@ -176,23 +176,23 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card rounded-xl border border-border/50 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-foreground">Turmas com Vagas</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+        <div className="bg-card rounded-xl border border-border/50 shadow-sm p-4 lg:p-6">
+          <div className="flex items-center justify-between mb-4 lg:mb-6">
+            <h2 className="text-base lg:text-lg font-semibold text-foreground">Turmas com Vagas</h2>
             <Link to="/turmas" className="text-sm text-primary hover:underline">
               Ver todas
             </Link>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3 lg:space-y-4">
             {classGroups.filter(cg => cg.current_students < cg.max_students).slice(0, 5).map((classGroup) => {
               const course = courses.find(c => c.id === classGroup.course_id);
               const availableSlots = classGroup.max_students - classGroup.current_students;
               return (
-                <div key={classGroup.id} className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
+                <div key={classGroup.id} className="flex items-center justify-between p-3 lg:p-4 bg-secondary/30 rounded-lg">
                   <div>
-                    <p className="font-medium text-foreground">{classGroup.name}</p>
-                    <p className="text-sm text-muted-foreground">{course?.name}</p>
+                    <p className="font-medium text-sm lg:text-base text-foreground">{classGroup.name}</p>
+                    <p className="text-xs lg:text-sm text-muted-foreground">{course?.name}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-medium text-success">{availableSlots} vagas</p>
@@ -204,30 +204,30 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="bg-card rounded-xl border border-border/50 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-foreground">Ações Rápidas</h2>
+        <div className="bg-card rounded-xl border border-border/50 shadow-sm p-4 lg:p-6">
+          <div className="flex items-center justify-between mb-4 lg:mb-6">
+            <h2 className="text-base lg:text-lg font-semibold text-foreground">Ações Rápidas</h2>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Link to="/matricula" className="p-4 bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors group">
-              <Users className="w-8 h-8 text-primary mb-3" />
-              <p className="font-medium text-foreground">Nova Matrícula</p>
-              <p className="text-sm text-muted-foreground">Matricular novo aluno</p>
+          <div className="grid grid-cols-2 gap-3 lg:gap-4">
+            <Link to="/matricula" className="p-3 lg:p-4 bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors group">
+              <Users className="w-6 h-6 lg:w-8 lg:h-8 text-primary mb-2 lg:mb-3" />
+              <p className="font-medium text-sm lg:text-base text-foreground">Nova Matrícula</p>
+              <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">Matricular novo aluno</p>
             </Link>
-            <Link to="/alunos" className="p-4 bg-accent/10 rounded-lg hover:bg-accent/20 transition-colors group">
-              <TrendingUp className="w-8 h-8 text-accent mb-3" />
-              <p className="font-medium text-foreground">Ver Alunos</p>
-              <p className="text-sm text-muted-foreground">Lista de alunos</p>
+            <Link to="/alunos" className="p-3 lg:p-4 bg-accent/10 rounded-lg hover:bg-accent/20 transition-colors group">
+              <TrendingUp className="w-6 h-6 lg:w-8 lg:h-8 text-accent mb-2 lg:mb-3" />
+              <p className="font-medium text-sm lg:text-base text-foreground">Ver Alunos</p>
+              <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">Lista de alunos</p>
             </Link>
-            <Link to="/cursos" className="p-4 bg-success/10 rounded-lg hover:bg-success/20 transition-colors group">
-              <BookOpen className="w-8 h-8 text-success mb-3" />
-              <p className="font-medium text-foreground">Cursos</p>
-              <p className="text-sm text-muted-foreground">Gerenciar cursos</p>
+            <Link to="/cursos" className="p-3 lg:p-4 bg-success/10 rounded-lg hover:bg-success/20 transition-colors group">
+              <BookOpen className="w-6 h-6 lg:w-8 lg:h-8 text-success mb-2 lg:mb-3" />
+              <p className="font-medium text-sm lg:text-base text-foreground">Cursos</p>
+              <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">Gerenciar cursos</p>
             </Link>
-            <Link to="/horarios" className="p-4 bg-warning/10 rounded-lg hover:bg-warning/20 transition-colors group">
-              <Calendar className="w-8 h-8 text-warning mb-3" />
-              <p className="font-medium text-foreground">Horários</p>
-              <p className="text-sm text-muted-foreground">Ver horários</p>
+            <Link to="/horarios" className="p-3 lg:p-4 bg-warning/10 rounded-lg hover:bg-warning/20 transition-colors group">
+              <Calendar className="w-6 h-6 lg:w-8 lg:h-8 text-warning mb-2 lg:mb-3" />
+              <p className="font-medium text-sm lg:text-base text-foreground">Horários</p>
+              <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">Ver horários</p>
             </Link>
           </div>
         </div>
