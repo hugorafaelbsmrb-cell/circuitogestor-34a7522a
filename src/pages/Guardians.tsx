@@ -9,14 +9,17 @@ import {
   User,
   Pencil,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Camera
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSchool } from '@/contexts/SchoolContext';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
+import { useWapiAdvanced } from '@/hooks/useWapiAdvanced';
 import WhatsAppTemplateSelector from '@/components/whatsapp/WhatsAppTemplateSelector';
 import EditGuardianModal from '@/components/guardians/EditGuardianModal';
 import { DbGuardian } from '@/hooks/useSchoolData';
@@ -36,6 +39,7 @@ export default function Guardians() {
   const { guardians, students, isLoading, updateGuardian, deleteStudent, deleteGuardian, refetch } = useSchool();
   const { profile } = useAuthContext();
   const { syncGuardians, isLoading: isSyncing } = useAsaasPayment();
+  const { fetchProfilePicture } = useWapiAdvanced();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingGuardian, setEditingGuardian] = useState<DbGuardian | null>(null);
@@ -43,6 +47,7 @@ export default function Guardians() {
   const [studentToDelete, setStudentToDelete] = useState<{ id: string; name: string } | null>(null);
   const [guardianToDelete, setGuardianToDelete] = useState<{ id: string; name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSyncingPhotos, setIsSyncingPhotos] = useState(false);
 
   const isAdmin = profile?.role === 'admin';
 
@@ -54,6 +59,38 @@ export default function Guardians() {
     if (result) {
       await refetch();
     }
+  };
+
+  const handleSyncPhotos = async () => {
+    setIsSyncingPhotos(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    toast({
+      title: 'Sincronizando fotos...',
+      description: `Buscando fotos de ${guardians.length} responsáveis. Isso pode levar alguns minutos.`,
+    });
+
+    for (const guardian of guardians) {
+      try {
+        const photoUrl = await fetchProfilePicture(guardian.phone, guardian.id, true);
+        if (photoUrl) {
+          successCount++;
+        }
+        // Delay de 1.5s entre requisições para evitar rate limit
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      } catch {
+        errorCount++;
+      }
+    }
+
+    await refetch();
+    setIsSyncingPhotos(false);
+
+    toast({
+      title: 'Sincronização concluída',
+      description: `${successCount} fotos atualizadas${errorCount > 0 ? `, ${errorCount} erros` : ''}.`,
+    });
   };
 
   const filteredGuardians = guardians.filter(guardian => {
@@ -142,21 +179,36 @@ export default function Guardians() {
           <h1 className="page-title">Responsáveis</h1>
           <p className="page-subtitle">Lista de responsáveis cadastrados ({guardians.length})</p>
         </div>
-        {isAdmin && guardiansWithoutAsaas.length > 0 && (
+        <div className="flex flex-wrap gap-2">
           <Button
-            onClick={handleSyncGuardians}
-            disabled={isSyncing}
+            onClick={handleSyncPhotos}
+            disabled={isSyncingPhotos || guardians.length === 0}
             variant="outline"
             className="gap-2"
           >
-            {isSyncing ? (
+            {isSyncingPhotos ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <RefreshCw className="w-4 h-4" />
+              <Camera className="w-4 h-4" />
             )}
-            Sincronizar Asaas ({guardiansWithoutAsaas.length})
+            {isSyncingPhotos ? 'Sincronizando...' : 'Sincronizar Fotos'}
           </Button>
-        )}
+          {isAdmin && guardiansWithoutAsaas.length > 0 && (
+            <Button
+              onClick={handleSyncGuardians}
+              disabled={isSyncing}
+              variant="outline"
+              className="gap-2"
+            >
+              {isSyncing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              Sincronizar Asaas ({guardiansWithoutAsaas.length})
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Search */}
@@ -181,9 +233,12 @@ export default function Guardians() {
               <Card key={guardian.id} className="border-border/50 hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <User className="w-6 h-6 text-primary" />
-                    </div>
+                    <Avatar className="w-12 h-12 shrink-0">
+                      <AvatarImage src={(guardian as any).avatar_url || undefined} alt={guardian.name} />
+                      <AvatarFallback className="bg-primary/10">
+                        <User className="w-6 h-6 text-primary" />
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="font-semibold text-foreground truncate">{guardian.name}</h3>
