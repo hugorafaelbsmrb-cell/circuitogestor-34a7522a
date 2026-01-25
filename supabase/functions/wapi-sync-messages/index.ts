@@ -136,23 +136,29 @@ Deno.serve(async (req) => {
     };
 
     // ========================================
-    // SIMPLE FETCH FUNCTION (per W-API PRO docs)
+    // W-API PRO: POST /getMessages with JSON body
+    // Based on documentation: POST method with body {chatId, count}
     // ========================================
     const fetchWhatsAppHistory = async (chatId: string, baseUrl: string): Promise<WapiMessage[]> => {
-      const url = `${baseUrl}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=20`;
+      const url = `${baseUrl}/getMessages`;
       
-      console.log(`Fetching: ${url}`);
+      console.log(`POST ${url} with chatId: ${chatId}`);
       
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
         
+        // W-API PRO uses POST with JSON body
         const response = await fetch(url, {
-          method: 'GET',
+          method: 'POST',
           headers: {
             'apikey': apiKey,
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            chatId: chatId,
+            count: 20
+          }),
           signal: controller.signal,
         });
         
@@ -192,16 +198,16 @@ Deno.serve(async (req) => {
       }
     };
 
-    // Try with /getMessages as fallback (legacy endpoint)
+    // Fallback: try GET /all-messages (some versions support this)
     const fetchWithFallback = async (chatId: string, baseUrl: string): Promise<WapiMessage[]> => {
-      // Try primary endpoint first
+      // Try POST /getMessages first (correct per PRO docs)
       let messages = await fetchWhatsAppHistory(chatId, baseUrl);
       
       if (messages.length > 0) return messages;
       
-      // Fallback: try /getMessages (with capital M)
-      const fallbackUrl = `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=20`;
-      console.log(`Trying fallback: ${fallbackUrl}`);
+      // Fallback: GET /all-messages
+      const fallbackUrl = `${baseUrl}/all-messages?chatId=${encodeURIComponent(chatId)}&limit=20`;
+      console.log(`Trying fallback GET: ${fallbackUrl}`);
       
       try {
         const controller = new AbortController();
