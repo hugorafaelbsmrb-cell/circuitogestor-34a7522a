@@ -68,7 +68,6 @@ function AppRoutes() {
       <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
       <Route path="/campanha" element={<CampaignLanding />} />
       <Route path="/cantina" element={<CanteenPublic />} />
-      <Route path="/assinar/:token" element={<ContractSign />} />
       <Route path="/instalar" element={<InstallApp />} />
       <Route
         path="/*"
@@ -118,11 +117,17 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthProvider>
-          <SchoolProvider>
-            <AppRoutes />
-          </SchoolProvider>
-        </AuthProvider>
+        {/* Public route without auth context */}
+        <Routes>
+          <Route path="/assinar/:token" element={<ContractSign />} />
+          <Route path="*" element={
+            <AuthProvider>
+              <SchoolProvider>
+                <AppRoutes />
+              </SchoolProvider>
+            </AuthProvider>
+          } />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
