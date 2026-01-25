@@ -76,7 +76,9 @@ Deno.serve(async (req) => {
 
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
     const instanceId = encodeURIComponent(config.W_API_SESSION);
-    const endpoint = `${baseUrl}/v1/chat/typing?instanceId=${instanceId}`;
+    
+    // W-API PRO usa /v1/chat/send-presence com presence: "composing"
+    const endpoint = `${baseUrl}/v1/chat/send-presence?instanceId=${instanceId}`;
 
     console.log(`=== W-API Typing Indicator ===`);
     console.log(`Endpoint: ${endpoint}`);
@@ -88,7 +90,10 @@ Deno.serve(async (req) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.W_API_TOKEN}`,
       },
-      body: JSON.stringify({ chatId }),
+      body: JSON.stringify({ 
+        chatId,
+        presence: 'composing' // "composing" = typing, "recording" = recording audio
+      }),
     });
 
     const responseText = await response.text();
