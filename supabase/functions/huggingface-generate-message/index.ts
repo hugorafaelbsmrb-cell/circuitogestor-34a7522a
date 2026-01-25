@@ -40,7 +40,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
 - Contexto adicional: ${context || 'mensagem para responsáveis de alunos'}`;
 
     const response = await fetch(
-      "https://router.huggingface.co/novita/v3/openai/chat/completions",
+      "https://router.huggingface.co/v1/chat/completions",
       {
         method: "POST",
         headers: {
@@ -48,7 +48,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "zai-org/GLM-4.7-Flash",
+          model: "zai-org/GLM-4.7-Flash:novita",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
