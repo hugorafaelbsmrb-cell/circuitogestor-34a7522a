@@ -45,12 +45,11 @@ export default function ContractSign() {
   const [hasDrawn, setHasDrawn] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [signed, setSigned] = useState(false);
-  const [debugInfo, setDebugInfo] = useState<string[]>(['🚀 Página iniciada']);
   const [branding, setBranding] = useState<SystemBranding>({ name: DEFAULT_NAME, logo: null });
+  
   
   const addDebug = useCallback((msg: string) => {
     console.log('[ContractSign]', msg);
-    setDebugInfo(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
   }, []);
 
   // Detect browser and log on mount
@@ -273,18 +272,6 @@ export default function ContractSign() {
         <div className="text-center space-y-4 max-w-md">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground">Carregando contrato...</p>
-          
-          {/* Debug info inline */}
-          {debugInfo.length > 0 && (
-            <div className="mt-4 p-3 bg-black/80 rounded-lg text-left">
-              <p className="text-xs font-bold text-yellow-300 mb-2">🔧 Debug:</p>
-              <div className="space-y-1 text-xs text-green-300 font-mono max-h-48 overflow-y-auto">
-                {debugInfo.map((msg, i) => (
-                  <p key={i}>{msg}</p>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -297,18 +284,6 @@ export default function ContractSign() {
           <XCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
           <h1 className="text-xl font-bold text-foreground mb-2">Link Inválido</h1>
           <p className="text-muted-foreground">{error}</p>
-          
-          {/* Debug info inline */}
-          {debugInfo.length > 0 && (
-            <div className="mt-4 p-3 bg-black/80 rounded-lg text-left">
-              <p className="text-xs font-bold text-yellow-300 mb-2">🔧 Debug:</p>
-              <div className="space-y-1 text-xs text-green-300 font-mono max-h-48 overflow-y-auto">
-                {debugInfo.map((msg, i) => (
-                  <p key={i}>{msg}</p>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     );
