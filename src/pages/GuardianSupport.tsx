@@ -136,7 +136,7 @@ interface UnknownContact {
 }
 
 export default function GuardianSupport() {
-  const { guardians, courses, students, enrollments, classGroups } = useSchool();
+  const { guardians, courses, students, enrollments, classGroups, refetch } = useSchool();
   const { toast } = useToast();
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
@@ -162,8 +162,13 @@ export default function GuardianSupport() {
   const [formCourse, setFormCourse] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
+    // Força uma atualização inicial dos dados escolares quando a página abre,
+    // para evitar Kanban “defasado” após matrículas recentes.
+    void refetch?.();
+
     loadData();
     
     // Subscribe to realtime updates
@@ -222,9 +227,30 @@ export default function GuardianSupport() {
     }
   };
 
-  // Helper to get first name
-  const getFirstName = (fullName: string): string => {
-    return fullName.trim().split(' ')[0] || fullName;
+  // Helper to get a short display name (first + second name)
+  const getDisplayName = (fullName: string): string => {
+    const parts = fullName.trim().split(/\s+/).filter(Boolean);
+    return parts.slice(0, 2).join(' ') || fullName;
+  };
+
+  const handleRefreshAll = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([refetch?.(), loadData()]);
+      toast({
+        title: 'Dados atualizados',
+        description: 'Cadastros, matrículas e atendimentos foram recarregados.',
+      });
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+      toast({
+        title: 'Erro ao atualizar',
+        description: 'Não foi possível recarregar os dados agora.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Categorize guardians by course/VIP status
@@ -494,7 +520,7 @@ export default function GuardianSupport() {
         return;
       }
 
-      const debugSummary = (() => {
+      const _debugSummary = (() => {
         const samples = data?.debug?.samples as
           | Array<{ phoneSuffix: string; attempts: Array<{ endpoint: string; status: number | null; ok: boolean; note?: string }> }>
           | undefined;
@@ -575,6 +601,14 @@ export default function GuardianSupport() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleRefreshAll}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Atualizando...' : 'Atualizar dados'}
+          </Button>
           <Button 
             variant="outline" 
             onClick={handleSyncMessages}
@@ -700,7 +734,7 @@ export default function GuardianSupport() {
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
                             <span className="font-medium text-sm">
-                              {getFirstName(guardian.name)}
+                              {getDisplayName(guardian.name)}
                             </span>
                             {guardian.category === 'vip' && (
                               <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
@@ -719,7 +753,7 @@ export default function GuardianSupport() {
                                   .map(s => s.name);
                                 setSelectedGuardianForMessages({
                                   id: guardian.id,
-                                  name: getFirstName(guardian.name),
+                                  name: getDisplayName(guardian.name),
                                   phone: guardian.phone,
                                   studentNames: guardianStudentNames,
                                 });
@@ -758,6 +792,10 @@ export default function GuardianSupport() {
                           );
                         })()}
 
+                        <p className="text-xs text-muted-foreground mt-1 ml-6">
+                          {formatPhone(guardian.phone)}
+                        </p>
+
                         {/* Ver Mensagens Button */}
                         <Button
                           variant="outline"
@@ -769,7 +807,7 @@ export default function GuardianSupport() {
                               .map(s => s.name);
                             setSelectedGuardianForMessages({
                               id: guardian.id,
-                              name: getFirstName(guardian.name),
+                              name: getDisplayName(guardian.name),
                               phone: guardian.phone,
                               studentNames: guardianStudentNames,
                             });
