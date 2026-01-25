@@ -7,12 +7,17 @@ import {
   XCircle,
   Users,
   AlertCircle,
-  Filter
+  Filter,
+  Sparkles,
+  Calendar,
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -34,6 +39,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useWapiMessage } from '@/hooks/useWapiMessage';
 import { useSchool } from '@/contexts/SchoolContext';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface Lead {
   id: string;
@@ -70,6 +77,13 @@ const categoryOptions = [
   { value: 'general', label: 'Geral' },
 ];
 
+const toneOptions = [
+  { value: 'profissional e amigável', label: 'Profissional e Amigável' },
+  { value: 'formal e respeitoso', label: 'Formal e Respeitoso' },
+  { value: 'casual e descontraído', label: 'Casual e Descontraído' },
+  { value: 'urgente e direto', label: 'Urgente e Direto' },
+];
+
 const SEND_DELAY_MS = 3500;
 
 export function LeadsBulkMessageModal({ 
@@ -100,6 +114,20 @@ export function LeadsBulkMessageModal({
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [isWapiConfigured, setIsWapiConfigured] = useState(false);
 
+  // AI states
+  const [aiPurpose, setAiPurpose] = useState('');
+  const [aiTone, setAiTone] = useState('profissional e amigável');
+  const [aiContext, setAiContext] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Scheduling states
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [isScheduling, setIsScheduling] = useState(false);
+
+  // Current tab
+  const [activeTab, setActiveTab] = useState('compose');
+
   useEffect(() => {
     if (open) {
       fetchLeads();
@@ -108,6 +136,7 @@ export function LeadsBulkMessageModal({
       setSendResults([]);
       setSendProgress(0);
       setSelectAll(true);
+      setActiveTab('compose');
     }
   }, [open]);
 
@@ -173,6 +202,124 @@ export function LeadsBulkMessageModal({
 
   const getMessage = () => {
     return selectedTemplate?.message || customMessage;
+  };
+
+  const handleGenerateWithAI = async () => {
+    if (!aiPurpose.trim()) {
+      toast({
+        title: 'Propósito obrigatório',
+        description: 'Descreva o propósito da mensagem.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-message', {
+        body: {
+          purpose: aiPurpose,
+          tone: aiTone,
+          context: aiContext || 'mensagem para leads interessados em cursos',
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.message) {
+        setCustomMessage(data.message);
+        setSelectedTemplateId('custom');
+        setActiveTab('compose');
+        setAiPurpose('');
+        setAiContext('');
+        toast({
+          title: 'Mensagem gerada',
+          description: 'A IA criou uma mensagem. Revise e edite se necessário.',
+        });
+      } else {
+        throw new Error('Nenhuma mensagem gerada');
+      }
+    } catch (error: any) {
+      console.error('Error generating message:', error);
+      toast({
+        title: 'Erro ao gerar',
+        description: error.message || 'Não foi possível gerar a mensagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleScheduleMessage = async () => {
+    const message = getMessage();
+    if (!message) {
+      toast({
+        title: 'Mensagem vazia',
+        description: 'Digite uma mensagem ou gere com IA.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!scheduleDate || !scheduleTime) {
+      toast({
+        title: 'Data e hora obrigatórios',
+        description: 'Selecione a data e hora do agendamento.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (recipients.length === 0) {
+      toast({
+        title: 'Nenhum destinatário',
+        description: 'Selecione pelo menos um lead para enviar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`);
+    if (scheduledAt <= new Date()) {
+      toast({
+        title: 'Data inválida',
+        description: 'A data de agendamento deve ser no futuro.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsScheduling(true);
+    try {
+      const { error } = await supabase
+        .from('scheduled_bulk_messages')
+        .insert({
+          message: message.trim(),
+          course_filter: courseFilter,
+          recipient_ids: recipients.map(r => r.id),
+          scheduled_at: scheduledAt.toISOString(),
+          status: 'pending',
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: 'Mensagem agendada',
+        description: `Envio programado para ${format(scheduledAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}.`,
+      });
+
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error scheduling message:', error);
+      toast({
+        title: 'Erro ao agendar',
+        description: 'Não foi possível agendar a mensagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsScheduling(false);
+    }
   };
 
   const handleSendViaWapi = async () => {
@@ -274,160 +421,320 @@ export function LeadsBulkMessageModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4 py-4">
-          {/* Course Filter */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Filter className="w-4 h-4" />
-              Filtrar por Curso de Interesse
-            </Label>
-            <Select value={courseFilter} onValueChange={setCourseFilter}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
-                  Todos os leads ({getCourseLeadCount('all')})
-                </SelectItem>
-                <SelectItem value="none">
-                  Sem curso definido ({getCourseLeadCount('none')})
-                </SelectItem>
-                {courses.filter(c => c.is_active).map(course => (
-                  <SelectItem key={course.id} value={course.id}>
-                    {course.name} ({getCourseLeadCount(course.id)})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="compose" className="gap-2">
+              <Send className="w-4 h-4" />
+              Compor
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="gap-2">
+              <Sparkles className="w-4 h-4" />
+              Gerar com IA
+            </TabsTrigger>
+            <TabsTrigger value="schedule" className="gap-2">
+              <Calendar className="w-4 h-4" />
+              Agendar
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Recipients summary */}
-          <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">
-                {isLoadingLeads ? 'Carregando...' : `${filteredLeads.length} leads`}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="selectAll"
-                checked={selectAll}
-                onCheckedChange={(checked) => setSelectAll(checked === true)}
-              />
-              <Label htmlFor="selectAll" className="text-sm cursor-pointer">
-                Enviar para todos
-              </Label>
-            </div>
-          </div>
-
-          {/* W-API warning */}
-          {!isWapiConfigured && (
-            <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-              <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-yellow-600">W-API não configurada</p>
-                <p className="text-muted-foreground">Configure a W-API nas configurações para enviar mensagens.</p>
-              </div>
-            </div>
-          )}
-
-          {/* Template selection */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Categoria</Label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categoryOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Template</Label>
-              <Select 
-                value={selectedTemplateId} 
-                onValueChange={setSelectedTemplateId}
-                disabled={isLoadingTemplates}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um template" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="custom">Mensagem personalizada</SelectItem>
-                  {filteredTemplates.map(t => (
-                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Custom message or template preview */}
-          <div className="space-y-2">
-            <Label>{selectedTemplateId === 'custom' || !selectedTemplateId ? 'Mensagem' : 'Preview'}</Label>
-            <Textarea
-              value={selectedTemplateId && selectedTemplateId !== 'custom' ? selectedTemplate?.message || '' : customMessage}
-              onChange={(e) => setCustomMessage(e.target.value)}
-              placeholder="Digite sua mensagem..."
-              className="min-h-[100px]"
-              disabled={selectedTemplateId !== 'custom' && selectedTemplateId !== ''}
-            />
-            <p className="text-xs text-muted-foreground">
-              Variáveis disponíveis: {'{nome_responsavel}'}, {'{nome_aluno}'}
-            </p>
-          </div>
-
-          {/* Progress and results */}
-          {(isSending || sendResults.length > 0) && (
-            <div className="space-y-3">
+          <ScrollArea className="flex-1 pr-4">
+            {/* Compose Tab */}
+            <TabsContent value="compose" className="space-y-4 mt-4">
+              {/* Course Filter */}
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Progresso</span>
-                  <span>{Math.round(sendProgress)}%</span>
-                </div>
-                <Progress value={sendProgress} />
+                <Label className="flex items-center gap-2">
+                  <Filter className="w-4 h-4" />
+                  Filtrar por Curso de Interesse
+                </Label>
+                <Select value={courseFilter} onValueChange={setCourseFilter}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
+                      Todos os leads ({getCourseLeadCount('all')})
+                    </SelectItem>
+                    <SelectItem value="none">
+                      Sem curso definido ({getCourseLeadCount('none')})
+                    </SelectItem>
+                    {courses.filter(c => c.is_active).map(course => (
+                      <SelectItem key={course.id} value={course.id}>
+                        {course.name} ({getCourseLeadCount(course.id)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              
-              {sendResults.length > 0 && (
-                <div className="flex gap-4 text-sm">
-                  <div className="flex items-center gap-1 text-success">
-                    <CheckCircle className="w-4 h-4" />
-                    {successCount} enviados
+
+              {/* Recipients summary */}
+              <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">
+                    {isLoadingLeads ? 'Carregando...' : `${filteredLeads.length} leads`}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="selectAll"
+                    checked={selectAll}
+                    onCheckedChange={(checked) => setSelectAll(checked === true)}
+                  />
+                  <Label htmlFor="selectAll" className="text-sm cursor-pointer">
+                    Enviar para todos
+                  </Label>
+                </div>
+              </div>
+
+              {/* W-API warning */}
+              {!isWapiConfigured && (
+                <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-yellow-600">W-API não configurada</p>
+                    <p className="text-muted-foreground">Configure a W-API nas configurações para enviar mensagens.</p>
                   </div>
-                  {errorCount > 0 && (
-                    <div className="flex items-center gap-1 text-destructive">
-                      <XCircle className="w-4 h-4" />
-                      {errorCount} erros
+                </div>
+              )}
+
+              {/* Template selection */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Categoria</Label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryOptions.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Template</Label>
+                  <Select 
+                    value={selectedTemplateId} 
+                    onValueChange={setSelectedTemplateId}
+                    disabled={isLoadingTemplates}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Mensagem personalizada</SelectItem>
+                      {filteredTemplates.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Custom message or template preview */}
+              <div className="space-y-2">
+                <Label>{selectedTemplateId === 'custom' || !selectedTemplateId ? 'Mensagem' : 'Preview'}</Label>
+                <Textarea
+                  value={selectedTemplateId && selectedTemplateId !== 'custom' ? selectedTemplate?.message || '' : customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  placeholder="Digite sua mensagem ou use a IA para gerar..."
+                  className="min-h-[120px]"
+                  disabled={selectedTemplateId !== 'custom' && selectedTemplateId !== ''}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Variáveis disponíveis: {'{nome_responsavel}'}, {'{nome_aluno}'}
+                </p>
+              </div>
+
+              {/* Progress and results */}
+              {(isSending || sendResults.length > 0) && (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Progresso</span>
+                      <span>{Math.round(sendProgress)}%</span>
                     </div>
+                    <Progress value={sendProgress} />
+                  </div>
+                  
+                  {sendResults.length > 0 && (
+                    <div className="flex gap-4 text-sm">
+                      <div className="flex items-center gap-1 text-success">
+                        <CheckCircle className="w-4 h-4" />
+                        {successCount} enviados
+                      </div>
+                      {errorCount > 0 && (
+                        <div className="flex items-center gap-1 text-destructive">
+                          <XCircle className="w-4 h-4" />
+                          {errorCount} erros
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {errorCount > 0 && (
+                    <ScrollArea className="h-[100px] border rounded-md p-2">
+                      <div className="space-y-1">
+                        {sendResults.filter(r => !r.success).map(r => (
+                          <div key={r.id} className="text-xs text-destructive">
+                            {r.name}: {r.error || 'Falha no envio'}
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   )}
                 </div>
               )}
+            </TabsContent>
 
-              {errorCount > 0 && (
-                <ScrollArea className="h-[100px] border rounded-md p-2">
-                  <div className="space-y-1">
-                    {sendResults.filter(r => !r.success).map(r => (
-                      <div key={r.id} className="text-xs text-destructive">
-                        {r.name}: {r.error || 'Falha no envio'}
-                      </div>
+            {/* AI Generation Tab */}
+            <TabsContent value="ai" className="space-y-4 mt-4">
+              <div className="p-4 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold">Gerar Mensagem com IA</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Descreva o propósito da mensagem e a IA criará um texto otimizado para WhatsApp.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="aiPurpose">Propósito da Mensagem *</Label>
+                <Textarea
+                  id="aiPurpose"
+                  value={aiPurpose}
+                  onChange={(e) => setAiPurpose(e.target.value)}
+                  placeholder="Ex: Convidar para aula experimental, lembrar sobre matrícula, reativar lead inativo..."
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="aiTone">Tom da Mensagem</Label>
+                <Select value={aiTone} onValueChange={setAiTone}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {toneOptions.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                     ))}
-                  </div>
-                </ScrollArea>
-              )}
-            </div>
-          )}
-        </div>
+                  </SelectContent>
+                </Select>
+              </div>
 
-        <DialogFooter>
+              <div className="space-y-2">
+                <Label htmlFor="aiContext">Contexto Adicional (opcional)</Label>
+                <Textarea
+                  id="aiContext"
+                  value={aiContext}
+                  onChange={(e) => setAiContext(e.target.value)}
+                  placeholder="Ex: Promoção de 20% para matrículas até sexta, nova turma abrindo em março..."
+                  className="min-h-[60px]"
+                />
+              </div>
+
+              <Button 
+                onClick={handleGenerateWithAI} 
+                disabled={isGenerating || !aiPurpose.trim()}
+                className="w-full gap-2"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Gerando...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Gerar Mensagem
+                  </>
+                )}
+              </Button>
+            </TabsContent>
+
+            {/* Schedule Tab */}
+            <TabsContent value="schedule" className="space-y-4 mt-4">
+              <div className="p-4 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  <h3 className="font-semibold">Agendar Envio</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Programe o envio da mensagem para uma data e hora específica.
+                </p>
+              </div>
+
+              {/* Show current message preview */}
+              <div className="space-y-2">
+                <Label>Mensagem a ser agendada</Label>
+                <div className="p-3 bg-secondary/50 rounded-lg text-sm min-h-[60px]">
+                  {getMessage() || (
+                    <span className="text-muted-foreground italic">
+                      Nenhuma mensagem. Compose ou gere com IA primeiro.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Recipients info */}
+              <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">
+                <Users className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm">
+                  {recipients.length} leads serão notificados
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="scheduleDate">Data</Label>
+                  <Input
+                    id="scheduleDate"
+                    type="date"
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="scheduleTime">Hora</Label>
+                  <Input
+                    id="scheduleTime"
+                    type="time"
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <Button 
+                onClick={handleScheduleMessage} 
+                disabled={isScheduling || !getMessage() || !scheduleDate || !scheduleTime || recipients.length === 0}
+                className="w-full gap-2"
+              >
+                {isScheduling ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Agendando...
+                  </>
+                ) : (
+                  <>
+                    <Clock className="w-4 h-4" />
+                    Agendar Envio
+                  </>
+                )}
+              </Button>
+            </TabsContent>
+          </ScrollArea>
+        </Tabs>
+
+        <DialogFooter className="mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSending}>
             {sendResults.length > 0 ? 'Fechar' : 'Cancelar'}
           </Button>
-          {sendResults.length === 0 && (
+          {activeTab === 'compose' && sendResults.length === 0 && (
             <Button 
               onClick={handleSendViaWapi}
               disabled={isSending || !getMessage() || recipients.length === 0 || !isWapiConfigured}
