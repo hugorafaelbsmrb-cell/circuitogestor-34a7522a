@@ -25,10 +25,10 @@ export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
       toDataURL: () => {
         if (!signatureRef.current) return '';
         try {
-          // Use toDataURL directly instead of getTrimmedCanvas to avoid library issues
+          console.log('[SignaturePad] Generating signature data URL...');
           return signatureRef.current.toDataURL('image/png');
         } catch (error) {
-          console.error('Error getting signature data:', error);
+          console.error('[SignaturePad] Error getting signature data:', error);
           return '';
         }
       },
@@ -38,28 +38,47 @@ export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
     useEffect(() => {
       const resizeCanvas = () => {
         if (containerRef.current && signatureRef.current) {
+          console.log('[SignaturePad] Resizing canvas for Safari compatibility...');
+          
           const canvas = signatureRef.current.getCanvas();
-          const ratio = window.devicePixelRatio || 1;
+          const ratio = Math.min(window.devicePixelRatio || 1, 2); // Cap at 2x for performance
           const rect = containerRef.current.getBoundingClientRect();
           
-          canvas.width = rect.width * ratio;
-          canvas.height = rect.height * ratio;
-          canvas.style.width = `${rect.width}px`;
-          canvas.style.height = `${rect.height}px`;
+          // Set explicit dimensions for Safari
+          const width = Math.floor(rect.width);
+          const height = Math.floor(rect.height);
+          
+          canvas.width = width * ratio;
+          canvas.height = height * ratio;
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
+          
+          // Set explicit attributes for Safari
+          canvas.setAttribute('width', String(width * ratio));
+          canvas.setAttribute('height', String(height * ratio));
           
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.scale(ratio, ratio);
           }
+          
+          console.log('[SignaturePad] Canvas resized:', { width, height, ratio });
         }
       };
 
+      // Initial resize with delay for Safari
+      setTimeout(resizeCanvas, 100);
       resizeCanvas();
+      
       window.addEventListener('resize', resizeCanvas);
-      return () => window.removeEventListener('resize', resizeCanvas);
+      
+      return () => {
+        window.removeEventListener('resize', resizeCanvas);
+      };
     }, []);
 
     const handleClear = () => {
+      console.log('[SignaturePad] Clearing signature...');
       signatureRef.current?.clear();
     };
 
@@ -67,14 +86,29 @@ export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
       <div className={`space-y-2 ${className}`}>
         <div 
           ref={containerRef}
-          className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white overflow-hidden"
-          style={{ height: '200px' }}
+          className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white overflow-hidden touch-none"
+          style={{ 
+            height: '200px',
+            minHeight: '200px',
+            width: '100%',
+            WebkitUserSelect: 'none',
+            WebkitTouchCallout: 'none'
+          }}
         >
           <SignatureCanvas
             ref={signatureRef}
             penColor="black"
+            velocityFilterWeight={0.7}
+            minWidth={0.5}
+            maxWidth={2.5}
+            dotSize={1}
+            throttle={16}
             canvasProps={{
-              className: 'w-full h-full cursor-crosshair',
+              className: 'w-full h-full cursor-crosshair touch-none',
+              style: {
+                touchAction: 'none',
+                WebkitUserSelect: 'none'
+              }
             }}
             onEnd={onEnd}
           />
