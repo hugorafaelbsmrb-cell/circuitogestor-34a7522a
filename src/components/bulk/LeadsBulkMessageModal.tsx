@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   MessageSquare, 
   Send, 
@@ -115,6 +115,34 @@ export function LeadsBulkMessageModal({
   const [aiTone, setAiTone] = useState('profissional e amigável');
   const [aiContext, setAiContext] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [aiCooldownUntil, setAiCooldownUntil] = useState<number | null>(null);
+  const aiCooldownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (aiCooldownTimeoutRef.current) {
+        clearTimeout(aiCooldownTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const parseInvokeError = (err: any): { status?: number; body?: any } => {
+    const status: number | undefined =
+      err?.context?.status ?? err?.status ?? err?.context?.response?.status;
+
+    const rawBody = err?.context?.body ?? err?.context?.response?.body;
+    if (!rawBody) return { status };
+
+    if (typeof rawBody === 'string') {
+      try {
+        return { status, body: JSON.parse(rawBody) };
+      } catch {
+        return { status, body: { error: rawBody } };
+      }
+    }
+
+    return { status, body: rawBody };
+  };
   
   // Send states
   const [isSending, setIsSending] = useState(false);
@@ -263,6 +291,15 @@ export function LeadsBulkMessageModal({
   };
 
   const handleGenerateWithAI = async () => {
+    if (aiCooldownUntil && Date.now() < aiCooldownUntil) {
+      toast({
+        title: 'Aguarde para tentar novamente',
+        description: 'O serviço de IA limitou as requisições. Aguarde alguns instantes e tente novamente.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!aiPurpose.trim()) {
       toast({
         title: 'Propósito obrigatório',
@@ -298,10 +335,27 @@ export function LeadsBulkMessageModal({
         throw new Error('Nenhuma mensagem gerada');
       }
     } catch (error: any) {
+      const parsed = parseInvokeError(error);
+      if (parsed.status === 429) {
+        const retryAfterSeconds = Number(parsed.body?.retry_after_seconds ?? 60);
+        const ms = Math.min(Math.max(retryAfterSeconds, 5), 600) * 1000;
+
+        setAiCooldownUntil(Date.now() + ms);
+        if (aiCooldownTimeoutRef.current) clearTimeout(aiCooldownTimeoutRef.current);
+        aiCooldownTimeoutRef.current = setTimeout(() => setAiCooldownUntil(null), ms);
+
+        toast({
+          title: 'Limite de requisições (IA)',
+          description: parsed.body?.error || 'Aguarde um pouco e tente novamente.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       console.error('Error generating message:', error);
       toast({
         title: 'Erro ao gerar',
-        description: error?.message || 'Não foi possível gerar a mensagem.',
+        description: parsed.body?.error || error?.message || 'Não foi possível gerar a mensagem.',
         variant: 'destructive',
       });
     } finally {
@@ -648,7 +702,7 @@ export function LeadsBulkMessageModal({
                         type="button"
                         variant="secondary"
                         onClick={handleGenerateWithAI}
-                        disabled={isGenerating || isSending || !aiPurpose.trim()}
+                          disabled={isGenerating || isSending || !aiPurpose.trim() || (!!aiCooldownUntil && Date.now() < aiCooldownUntil)}
                         className="gap-2"
                       >
                         {isGenerating ? (
