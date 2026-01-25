@@ -7,6 +7,7 @@ interface ContractContent {
   schoolName: string;
   schoolCnpj: string;
   schoolAddress: string;
+  schoolLogo?: string;
   schoolSignatureUrl?: string | null;
   schoolRepresentativeName?: string | null;
   guardianName: string;
@@ -29,6 +30,8 @@ interface ContractContent {
   createdAt: string;
   city?: string;
   contractDurationLabel?: string;
+  lmsCredentials?: { email: string; password: string; matricula: string } | null;
+  sorobanCredentials?: { email: string; password: string; matricula: string; level?: number } | null;
   // Digital signature fields
   signatureImage?: string | null;
   signedAt?: string | null;
@@ -40,6 +43,29 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   let yPos = 15;
+
+  // Helper function to add logo at top of page
+  const addLogoToPage = async () => {
+    if (content.schoolLogo) {
+      try {
+        doc.addImage(content.schoolLogo, 'PNG', pageWidth / 2 - 25, yPos, 50, 15);
+        return 20;
+      } catch {
+        return 0;
+      }
+    }
+    return 0;
+  };
+
+  // Add logo to first page
+  if (content.schoolLogo) {
+    try {
+      doc.addImage(content.schoolLogo, 'PNG', pageWidth / 2 - 25, yPos, 50, 15);
+      yPos += 20;
+    } catch {
+      // If logo fails, continue without it
+    }
+  }
 
   // Title - more compact
   doc.setFontSize(12);
@@ -219,18 +245,28 @@ export function generateContractPDF(content: ContractContent): jsPDF {
 
   // Add Annexes page
   doc.addPage();
-  yPos = 20;
+  yPos = 15;
+
+  // Add logo to annexes page
+  if (content.schoolLogo) {
+    try {
+      doc.addImage(content.schoolLogo, 'PNG', pageWidth / 2 - 25, yPos, 50, 15);
+      yPos += 20;
+    } catch {
+      // If logo fails, continue without it
+    }
+  }
 
   // Annex Header
-  doc.setFontSize(10);
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('ANEXOS DO CONTRATO', pageWidth / 2, yPos, { align: 'center' });
-  yPos += 10;
+  yPos += 12;
 
   // Annex I - Reforço Escolar
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('ANEXO I – REFORÇO ESCOLAR (1 A 5 ANOS)', margin, yPos);
+  doc.text('ANEXO I – REFORÇO ESCOLAR (1º A 5º ANO)', margin, yPos);
   yPos += 8;
   
   doc.setFontSize(10);
@@ -255,7 +291,7 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     tableWidth: 100,
   });
 
-  yPos = (doc as any).lastAutoTable.finalY + 15;
+  yPos = (doc as any).lastAutoTable.finalY + 12;
 
   // Annex II - Robótica Educacional
   doc.setFontSize(11);
@@ -270,7 +306,7 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   doc.text('• Plano: Anual (12 meses)', margin, yPos);
   yPos += 6;
   doc.text('• Valor Mensal: R$ 250,00', margin, yPos);
-  yPos += 8;
+  yPos += 12;
 
   // Annex III - Soroban
   doc.setFontSize(11);
@@ -287,13 +323,18 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   doc.text('• Valor Mensal: R$ 250,00', margin, yPos);
   yPos += 6;
   doc.text('• Material Didático (obrigatório): consultar valores', margin, yPos);
-  yPos += 20;
+  yPos += 15;
 
   // Course selected highlight
   if (content.courseName) {
+    // Draw box around contracted modality
+    doc.setDrawColor(55, 65, 81);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 56, 2, 2);
+    
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('MODALIDADE CONTRATADA:', margin, yPos);
+    doc.text('✓ MODALIDADE CONTRATADA:', margin, yPos);
     yPos += 8;
 
     doc.setFontSize(10);
@@ -304,31 +345,76 @@ export function generateContractPDF(content: ContractContent): jsPDF {
     yPos += 6;
     doc.text(`• Horário: ${content.schedule || '-'}`, margin, yPos);
     yPos += 6;
-    doc.text(`• Duração: ${content.courseDuration || '-'}`, margin, yPos);
+    doc.text(`• Duração do Contrato: ${content.contractDurationLabel || `${content.installments} meses`}`, margin, yPos);
     yPos += 6;
     doc.text(`• Valor Mensal: R$ ${content.installmentValue?.toFixed(2).replace('.', ',') || '-'}`, margin, yPos);
     yPos += 6;
     doc.text(`• Número de Parcelas: ${content.installments}x`, margin, yPos);
     yPos += 6;
     doc.text(`• Valor Total: R$ ${content.totalValue?.toFixed(2).replace('.', ',') || '-'}`, margin, yPos);
+    yPos += 10;
   }
 
-  // Signature on annex
-  yPos += 25;
-  doc.line(margin, yPos, margin + 70, yPos);
-  doc.line(pageWidth - margin - 70, yPos, pageWidth - margin, yPos);
-  yPos += 6;
-  
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'bold');
-  doc.text(content.schoolName || 'CIRCUITO KIDS', margin, yPos);
-  doc.text(content.guardianName || 'RESPONSÁVEL LEGAL', pageWidth - margin - 70, yPos);
-  yPos += 4;
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text('(CONTRATADA)', margin, yPos);
-  doc.text('(CONTRATANTE)', pageWidth - margin - 70, yPos);
+  // LMS Credentials section
+  if (content.lmsCredentials) {
+    yPos += 5;
+    doc.setDrawColor(37, 99, 235);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 42, 2, 2);
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 64, 175);
+    doc.text('ACESSO À PLATAFORMA DE ENSINO (LMS)', margin, yPos);
+    doc.setTextColor(0, 0, 0);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`• Matrícula: ${content.lmsCredentials.matricula}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• E-mail de acesso: ${content.lmsCredentials.email}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• Senha inicial: ${content.lmsCredentials.password}`, margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.text('* Recomendamos alterar a senha no primeiro acesso.', margin, yPos);
+    doc.setTextColor(0, 0, 0);
+    yPos += 10;
+  }
+
+  // Soroban Credentials section
+  if (content.sorobanCredentials) {
+    yPos += 5;
+    doc.setDrawColor(217, 119, 6);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(margin - 2, yPos - 4, pageWidth - 2 * margin + 4, 48, 2, 2);
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(180, 83, 9);
+    doc.text('ACESSO À PLATAFORMA SOROBAN', margin, yPos);
+    doc.setTextColor(0, 0, 0);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`• Matrícula: ${content.sorobanCredentials.matricula}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• E-mail de acesso: ${content.sorobanCredentials.email}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• Senha inicial: ${content.sorobanCredentials.password}`, margin, yPos);
+    yPos += 6;
+    doc.text(`• Nível inicial: ${content.sorobanCredentials.level || 1}`, margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(8);
+    doc.setTextColor(107, 114, 128);
+    doc.text('* Recomendamos alterar a senha no primeiro acesso.', margin, yPos);
+    doc.setTextColor(0, 0, 0);
+  }
 
   return doc;
 }
