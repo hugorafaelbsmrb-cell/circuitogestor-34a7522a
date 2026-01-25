@@ -432,7 +432,7 @@ export function LeadsBulkMessageModal({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 max-h-[60vh] pr-4">
+        <ScrollArea className="flex-1 max-h-[65vh] pr-4">
           <div className="space-y-4 py-2">
             {/* Course Filter - always visible */}
             <div className="space-y-2">
