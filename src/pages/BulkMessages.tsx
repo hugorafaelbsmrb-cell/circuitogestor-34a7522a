@@ -16,7 +16,8 @@ import {
   Loader2,
   Sparkles,
   Wand2,
-  Settings2
+  Settings2,
+  Zap
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,7 @@ import {
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WhatsAppStatusPanel } from '@/components/whatsapp/WhatsAppStatusPanel';
+import { AdvancedMessagesPanel } from '@/components/whatsapp/AdvancedMessagesPanel';
 
 interface Recipient {
   id: string;
@@ -602,10 +604,14 @@ export default function BulkMessages() {
       </div>
 
       <Tabs defaultValue="compose" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 max-w-lg">
+        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
           <TabsTrigger value="compose" className="gap-2">
             <MessageSquare className="w-4 h-4" />
             Compor
+          </TabsTrigger>
+          <TabsTrigger value="advanced" className="gap-2">
+            <Zap className="w-4 h-4" />
+            Avançado
           </TabsTrigger>
           <TabsTrigger value="templates" className="gap-2">
             <FileText className="w-4 h-4" />
@@ -871,6 +877,14 @@ export default function BulkMessages() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Advanced Messages Tab */}
+        <TabsContent value="advanced" className="mt-6">
+          <AdvancedMessagesPanel
+            selectedRecipients={selectedRecipients}
+            recipients={filteredRecipients}
+          />
         </TabsContent>
 
         <TabsContent value="templates" className="mt-6">
