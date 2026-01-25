@@ -7,6 +7,9 @@ import { Label } from '@/components/ui/label';
 import { SignaturePad, SignaturePadRef } from '@/components/contracts/SignaturePad';
 import { FileText, PenLine, Loader2, AlertTriangle, CheckCircle2, Shield, XCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { generateAndUploadContractPDF } from '@/utils/contractPdfUploader';
+import { differenceInYears, parseISO, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface ContractData {
   id: string;
@@ -175,6 +178,7 @@ export default function ContractSign() {
 
     try {
       const signatureImage = signatureRef.current?.toDataURL() || '';
+      const signedAt = new Date().toISOString();
       
       // Generate hash from contract content
       const hashContent = JSON.stringify({
@@ -182,7 +186,7 @@ export default function ContractSign() {
         studentName: contract.contract_content?.studentName,
         courseName: contract.contract_content?.courseName,
         totalValue: contract.total_value,
-        signedAt: new Date().toISOString(),
+        signedAt,
       });
       
       const encoder = new TextEncoder();
@@ -203,6 +207,134 @@ export default function ContractSign() {
 
       if (response.error) {
         throw response.error;
+      }
+
+      // After successful signing, generate and upload the PDF
+      // Then trigger the WhatsApp send with the pre-generated PDF URL
+      try {
+        // Fetch full contract data needed for PDF
+        const { data: fullContract } = await supabase
+          .from('contracts')
+          .select(`
+            *,
+            student:students(name, birth_date, sex),
+            guardian:guardians(name, cpf, address),
+            course:courses(name, duration, price, contract_duration_months),
+            enrollment:enrollments(
+              class_group:class_groups(
+                name,
+                schedule:schedules(day_of_week, start_time, end_time)
+              )
+            )
+          `)
+          .eq('id', contract.id)
+          .single();
+
+        if (fullContract) {
+          // Fetch clauses
+          const { data: clauses } = await supabase
+            .from('contract_clauses')
+            .select('title, content')
+            .eq('is_active', true)
+            .order('clause_order');
+
+          // Fetch branding
+          const { data: brandingData } = await supabase
+            .from('app_settings')
+            .select('key, value')
+            .in('key', ['system_name', 'system_logo']);
+
+          // Fetch contract config for school signature
+          const { data: configData } = await supabase
+            .from('contract_config')
+            .select('*')
+            .limit(1)
+            .maybeSingle();
+
+          // Fetch LMS and Soroban credentials
+          const { data: lmsData } = await supabase
+            .from('lms_credentials')
+            .select('email, password, matricula')
+            .eq('student_id', fullContract.student_id)
+            .maybeSingle();
+
+          const { data: sorobanData } = await supabase
+            .from('soroban_credentials')
+            .select('email, password, matricula, current_level')
+            .eq('student_id', fullContract.student_id)
+            .maybeSingle();
+
+          const schoolLogo = brandingData?.find(b => b.key === 'system_logo')?.value || undefined;
+          const schoolName = configData?.school_name || brandingData?.find(b => b.key === 'system_name')?.value || 'Circuito Kids';
+          
+          const schedule = fullContract.enrollment?.class_group?.schedule;
+          const scheduleStr = schedule 
+            ? `${schedule.day_of_week} ${schedule.start_time} às ${schedule.end_time}`
+            : '';
+
+          // Calculate student age
+          const birthDate = fullContract.student?.birth_date;
+          const studentAge = birthDate ? differenceInYears(new Date(), parseISO(birthDate)) : null;
+
+          // Extract city from address
+          const addressParts = configData?.school_address?.split('-') || [];
+          const city = addressParts.length > 1 
+            ? addressParts[addressParts.length - 1].trim() 
+            : 'Marabá';
+
+          // Generate PDF and upload
+          const pdfUrl = await generateAndUploadContractPDF({
+            contractId: contract.id,
+            schoolName,
+            schoolCnpj: configData?.school_cnpj || '',
+            schoolAddress: configData?.school_address || '',
+            schoolLogo,
+            schoolSignatureUrl: configData?.representative_signature_url,
+            schoolRepresentativeName: configData?.representative_name,
+            guardianName: fullContract.guardian?.name || '',
+            guardianCpf: fullContract.guardian?.cpf || '',
+            guardianAddress: fullContract.guardian?.address || '',
+            studentName: fullContract.student?.name || '',
+            studentBirthDate: fullContract.student?.birth_date || '',
+            studentSex: fullContract.student?.sex,
+            studentAge,
+            courseName: fullContract.course?.name || '',
+            courseDuration: fullContract.course?.duration || '',
+            coursePrice: fullContract.course?.price || 0,
+            classGroupName: fullContract.enrollment?.class_group?.name || '',
+            schedule: scheduleStr,
+            installments: fullContract.installment_count || 1,
+            installmentValue: fullContract.total_value / (fullContract.installment_count || 1),
+            totalValue: fullContract.total_value,
+            clauses: clauses || [],
+            createdAt: fullContract.created_at,
+            city,
+            contractDurationLabel: fullContract.course?.contract_duration_months 
+              ? `${fullContract.course.contract_duration_months} meses` 
+              : undefined,
+            lmsCredentials: lmsData,
+            sorobanCredentials: sorobanData ? {
+              ...sorobanData,
+              level: sorobanData.current_level || 1,
+            } : null,
+            signatureImage,
+            signedAt,
+            signatureHash: contractHash,
+          });
+
+          console.log('PDF generated and uploaded:', pdfUrl);
+
+          // Call the edge function with the pre-generated PDF URL
+          await supabase.functions.invoke('send-signed-contract', {
+            body: { 
+              contractId: contract.id,
+              pdfUrl, // Pass the pre-generated PDF URL
+            },
+          });
+        }
+      } catch (pdfError) {
+        // Don't fail the signing if PDF generation fails
+        console.error('Error generating/sending PDF:', pdfError);
       }
 
       toast({
