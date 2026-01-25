@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-export type AIProvider = 'lovable' | 'huggingface';
+export type AIProvider = 'lovable' | 'huggingface' | 'gemini';
 
 export function useAIProvider() {
-  const [provider, setProvider] = useState<AIProvider>('lovable');
+  const [provider, setProvider] = useState<AIProvider>('gemini');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -63,15 +63,25 @@ export function useAIProvider() {
   };
 
   const getAnalyzeFunctionName = () => {
-    return provider === 'huggingface' 
-      ? 'huggingface-analyze-messages' 
-      : 'analyze-messages';
+    switch (provider) {
+      case 'huggingface':
+        return 'huggingface-analyze-messages';
+      case 'gemini':
+        return 'gemini-chat';
+      default:
+        return 'analyze-messages';
+    }
   };
 
   const getGenerateFunctionName = () => {
-    return provider === 'huggingface' 
-      ? 'huggingface-generate-message' 
-      : 'generate-message';
+    switch (provider) {
+      case 'huggingface':
+        return 'huggingface-generate-message';
+      case 'gemini':
+        return 'gemini-chat';
+      default:
+        return 'generate-message';
+    }
   };
 
   return {
