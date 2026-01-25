@@ -209,26 +209,25 @@ export default function ContractSign() {
     }
   };
 
-  // Debug panel component
-  const DebugPanel = () => (
-    debugInfo.length > 0 && (
-      <div className="fixed bottom-0 left-0 right-0 bg-black/90 text-green-400 p-3 text-xs font-mono max-h-32 overflow-y-auto z-50">
-        <p className="text-yellow-400 font-bold mb-1">🔧 Debug Safari:</p>
-        {debugInfo.map((msg, i) => (
-          <p key={i}>{msg}</p>
-        ))}
-      </div>
-    )
-  );
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-secondary/30 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-4 max-w-md">
           <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
           <p className="text-muted-foreground">Carregando contrato...</p>
+          
+          {/* Debug info inline */}
+          {debugInfo.length > 0 && (
+            <div className="mt-4 p-3 bg-black/80 rounded-lg text-left">
+              <p className="text-xs font-bold text-yellow-300 mb-2">🔧 Debug:</p>
+              <div className="space-y-1 text-xs text-green-300 font-mono max-h-48 overflow-y-auto">
+                {debugInfo.map((msg, i) => (
+                  <p key={i}>{msg}</p>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <DebugPanel />
       </div>
     );
   }
@@ -240,8 +239,19 @@ export default function ContractSign() {
           <XCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
           <h1 className="text-xl font-bold text-foreground mb-2">Link Inválido</h1>
           <p className="text-muted-foreground">{error}</p>
+          
+          {/* Debug info inline */}
+          {debugInfo.length > 0 && (
+            <div className="mt-4 p-3 bg-black/80 rounded-lg text-left">
+              <p className="text-xs font-bold text-yellow-300 mb-2">🔧 Debug:</p>
+              <div className="space-y-1 text-xs text-green-300 font-mono max-h-48 overflow-y-auto">
+                {debugInfo.map((msg, i) => (
+                  <p key={i}>{msg}</p>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <DebugPanel />
       </div>
     );
   }
@@ -419,8 +429,6 @@ export default function ContractSign() {
       <footer className="py-6 text-center text-xs text-muted-foreground">
         <p>© {new Date().getFullYear()} {branding?.name || 'Sistema de Matrículas'}</p>
       </footer>
-      
-      <DebugPanel />
     </div>
   );
 }
