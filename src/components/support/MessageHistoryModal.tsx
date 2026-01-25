@@ -79,8 +79,12 @@ export function MessageHistoryModal({
     isLocationEnabled,
     isVcardEnabled,
   } = useWapiAdvanced();
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const [messages, setMessages] = useState<WhatsAppMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -144,9 +148,7 @@ export function MessageHistoryModal({
 
   useEffect(() => {
     // Scroll to bottom when messages change
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    scrollToBottom();
   }, [messages]);
 
   // Clean up preview URL when file changes
@@ -196,6 +198,8 @@ export function MessageHistoryModal({
       
       console.log('Loaded messages:', data?.length || 0, 'for phone variants:', phoneVariants);
       setMessages((data || []) as WhatsAppMessage[]);
+      // Scroll to bottom after loading
+      setTimeout(scrollToBottom, 100);
     } catch (error) {
       console.error('Error loading messages:', error);
       toast({
@@ -571,7 +575,7 @@ export function MessageHistoryModal({
 
           {/* Messages Area */}
           <div className="flex-1 overflow-hidden">
-            <ScrollArea className="h-full" ref={scrollRef}>
+            <ScrollArea className="h-full">
               <div className="p-4 space-y-3">
                 {isLoading ? (
                   <div className="flex items-center justify-center py-8">
@@ -641,6 +645,8 @@ export function MessageHistoryModal({
                     </div>
                   ))
                 )}
+                {/* Auto-scroll anchor */}
+                <div ref={messagesEndRef} />
               </div>
             </ScrollArea>
           </div>
