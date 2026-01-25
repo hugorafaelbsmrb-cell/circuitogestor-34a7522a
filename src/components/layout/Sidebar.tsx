@@ -52,7 +52,7 @@ const menuSections: MenuSection[] = [
     items: [
       { icon: LayoutDashboard, label: 'Dashboard', path: '/', permissionKey: 'dashboard', adminOnly: false },
       { icon: UserPlus, label: 'Nova Matrícula', path: '/matricula', permissionKey: 'enrollment', adminOnly: false },
-      { icon: Kanban, label: 'Atendimento Pais', path: '/atendimento-pais', permissionKey: 'guardians', adminOnly: false },
+      { icon: Kanban, label: 'Atendimento Pais', path: '/atendimento-pais', permissionKey: 'guardian_support', adminOnly: false },
     ]
   },
   {
@@ -97,7 +97,7 @@ const menuSections: MenuSection[] = [
     title: 'Comunicação',
     defaultOpen: false,
     items: [
-      { icon: Send, label: 'Envio em Massa', path: '/envio-massa', permissionKey: 'whatsapp', adminOnly: true },
+      { icon: Send, label: 'Envio em Massa', path: '/envio-massa', permissionKey: 'whatsapp', adminOnly: false },
     ]
   },
   {
@@ -127,10 +127,24 @@ export function Sidebar() {
   const isAdmin = profile?.role === 'admin';
   const permissions = profile?.permissions || {};
 
+  const resolvePermission = (permissionKey: string): boolean | undefined => {
+    // Backward-compat: older profiles used "guardians" to control both pages.
+    if (permissionKey === 'guardian_support') {
+      return permissions.guardian_support ?? permissions.guardians;
+    }
+
+    // Segurança: novos módulos sensíveis devem ser negados por padrão se não estiverem definidos.
+    if (permissionKey === 'whatsapp') {
+      return permissions.whatsapp ?? false;
+    }
+
+    return permissions[permissionKey];
+  };
+
   const hasPermission = (item: MenuItem) => {
     if (item.adminOnly && !isAdmin) return false;
     if (isAdmin) return true;
-    const hasPerm = permissions[item.permissionKey];
+    const hasPerm = resolvePermission(item.permissionKey);
     return hasPerm !== false;
   };
 
