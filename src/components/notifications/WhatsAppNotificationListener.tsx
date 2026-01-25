@@ -84,6 +84,8 @@ export function WhatsAppNotificationListener({ enabled = true }: WhatsAppNotific
               ? getDisplayName(guardian.name)
               : formatPhone(newMessage.phone);
             
+            const avatarUrl = guardian?.avatar_url || null;
+            
             // Truncate message for preview
             const messagePreview = newMessage.message.length > 80
               ? newMessage.message.substring(0, 80) + '...'
@@ -94,6 +96,7 @@ export function WhatsAppNotificationListener({ enabled = true }: WhatsAppNotific
               <WhatsAppToast
                 senderName={senderName}
                 message={messagePreview}
+                avatarUrl={avatarUrl}
                 onClose={() => sonnerToast.dismiss(toastId)}
               />
             ), {
