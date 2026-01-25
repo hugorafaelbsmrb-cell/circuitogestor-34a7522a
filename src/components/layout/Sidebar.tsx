@@ -22,6 +22,7 @@ import {
   Send,
   Kanban,
   ChevronDown,
+  UtensilsCrossed,
   X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -107,6 +108,7 @@ const menuSections: MenuSection[] = [
     items: [
       { icon: ClipboardList, label: 'Relatórios', path: '/relatorios', permissionKey: 'reports', adminOnly: false },
       { icon: Package, label: 'Inventário', path: '/inventario', permissionKey: 'inventory', adminOnly: false },
+      { icon: UtensilsCrossed, label: 'Cantina', path: '/cantina-admin', permissionKey: 'canteen', adminOnly: false },
     ]
   },
   {

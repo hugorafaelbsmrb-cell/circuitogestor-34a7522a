@@ -131,6 +131,134 @@ export type Database = {
         }
         Relationships: []
       }
+      canteen_consumptions: {
+        Row: {
+          consumed_at: string
+          created_at: string
+          id: string
+          product_id: string
+          quantity: number
+          student_id: string
+          total_price: number
+          unit_price: number
+          week_reference: string
+        }
+        Insert: {
+          consumed_at?: string
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity?: number
+          student_id: string
+          total_price: number
+          unit_price: number
+          week_reference: string
+        }
+        Update: {
+          consumed_at?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          student_id?: string
+          total_price?: number
+          unit_price?: number
+          week_reference?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canteen_consumptions_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "canteen_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canteen_consumptions_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canteen_products: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      canteen_weekly_summaries: {
+        Row: {
+          created_at: string
+          guardian_id: string
+          id: string
+          items_count: number
+          sent_at: string | null
+          status: string
+          total_value: number
+          updated_at: string
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          guardian_id: string
+          id?: string
+          items_count: number
+          sent_at?: string | null
+          status?: string
+          total_value: number
+          updated_at?: string
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          guardian_id?: string
+          id?: string
+          items_count?: number
+          sent_at?: string | null
+          status?: string
+          total_value?: number
+          updated_at?: string
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canteen_weekly_summaries_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       carnes: {
         Row: {
           asaas_installment_id: string
