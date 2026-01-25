@@ -129,10 +129,34 @@ Deno.serve(async (req) => {
 
     // ========================================
     // STEP 2: Function to fetch messages using correct W-API PRO format
-    // GET /getMessages?chatId=5511999999999@c.us&count=50
+    // Based on documentation:
+    // - Main domain: https://api.wapi.com.br
+    // - Alternative (V3/PRO): https://v3.wapi.com.br
+    // - Format: GET /getMessages?chatId=5511999999999@c.us&count=50
+    // - Some versions need /{instanceId}/getMessages
     // Headers: apikey, Content-Type
     // ========================================
     type Attempt = { endpoint: string; status: number | null; ok: boolean; note?: string };
+
+    // Determine correct base URL
+    // Try to extract the correct provider domain, prioritize api.wapi.com.br
+    const getBaseUrls = (): string[] => {
+      const configuredUrl = wapiUrl.toLowerCase();
+      
+      // If user configured a specific URL that's NOT the generic w-api.app, use it
+      if (!configuredUrl.includes('w-api.app') && !configuredUrl.includes('wapi.app')) {
+        return [wapiUrl];
+      }
+      
+      // Use the correct W-API PRO domains
+      return [
+        'https://api.wapi.com.br',
+        'https://v3.wapi.com.br',
+      ];
+    };
+
+    const baseUrls = getBaseUrls();
+    console.log(`Using base URLs: ${baseUrls.join(', ')}`);
 
     const fetchMessagesForPhone = async (
       phone: string,
@@ -142,159 +166,91 @@ Deno.serve(async (req) => {
       
       const attempts: Attempt[] = [];
 
-      // ========================================
-      // CORRECT FORMAT: GET /getMessages?chatId=PHONE@c.us&count=50
-      // Headers: apikey (not Authorization: Bearer)
-      // W-API PRO uses "get" prefix: getMessages, getChats, getContacts
-      // ========================================
-      const messagesUrl = `${wapiUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50&instanceId=${encodeURIComponent(session)}`;
-      
-      console.log(`Fetching messages for chatId: ${chatId} at ${messagesUrl}`);
-      
-      try {
-        const res = await fetch(messagesUrl, {
-          method: 'GET',
-          headers: {
-            'apikey': apiToken,
-            'Content-Type': 'application/json',
-          },
+      // Build all candidate URLs following W-API PRO documentation
+      const candidates: Array<{ url: string; headers: Record<string, string>; note: string }> = [];
+
+      for (const baseUrl of baseUrls) {
+        // Format 1: GET /getMessages?chatId=...&count=... (apikey header)
+        candidates.push({
+          url: `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
+          headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
+          note: `${baseUrl}/getMessages (apikey header)`,
         });
 
-        attempts.push({ endpoint: '/getMessages', status: res.status, ok: res.ok });
+        // Format 2: GET /{instanceId}/getMessages?chatId=...&count=... (Instance ID in path)
+        candidates.push({
+          url: `${baseUrl}/${session}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
+          headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
+          note: `${baseUrl}/{instanceId}/getMessages`,
+        });
 
-        if (res.ok) {
-          const text = await res.text();
-          console.log(`Response for ${chatId.slice(-12)}: ${text.slice(0, 300)}`);
-          
-          try {
-            const parsed = JSON.parse(text);
+        // Format 3: Instance ID as query param
+        candidates.push({
+          url: `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50&instanceId=${encodeURIComponent(session)}`,
+          headers: { 'apikey': apiToken, 'Content-Type': 'application/json' },
+          note: `${baseUrl}/getMessages?instanceId=...`,
+        });
+
+        // Format 4: Instance ID in header
+        candidates.push({
+          url: `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
+          headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
+          note: `${baseUrl}/getMessages (instanceId header)`,
+        });
+
+        // Format 5: Authorization Bearer instead of apikey
+        candidates.push({
+          url: `${baseUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
+          headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+          note: `${baseUrl}/getMessages (Bearer token)`,
+        });
+
+        // Format 6: v1 prefix
+        candidates.push({
+          url: `${baseUrl}/v1/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`,
+          headers: { 'apikey': apiToken, 'instanceId': session, 'Content-Type': 'application/json' },
+          note: `${baseUrl}/v1/getMessages`,
+        });
+      }
+
+      console.log(`Trying ${candidates.length} endpoint candidates for chatId: ${chatId}`);
+      
+      for (const candidate of candidates) {
+        try {
+          const res = await fetch(candidate.url, {
+            method: 'GET',
+            headers: candidate.headers,
+          });
+
+          attempts.push({ endpoint: candidate.note, status: res.status, ok: res.ok });
+
+          if (res.ok) {
+            const text = await res.text();
+            console.log(`SUCCESS ${candidate.note}: ${text.slice(0, 200)}`);
             
-            // Extract messages from various possible response structures
-            const msgs: WapiMessage[] = Array.isArray(parsed)
-              ? parsed
-              : (parsed.messages ?? parsed.data?.messages ?? parsed.data ?? parsed.result ?? []);
+            try {
+              const parsed = JSON.parse(text);
+              
+              // Extract messages from various possible response structures
+              const msgs: WapiMessage[] = Array.isArray(parsed)
+                ? parsed
+                : (parsed.messages ?? parsed.data?.messages ?? parsed.data ?? parsed.result ?? []);
 
-            if (Array.isArray(msgs) && msgs.length > 0) {
-              console.log(`Found ${msgs.length} messages for ${chatId.slice(-12)}`);
-              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/getMessages', attempts };
+              if (Array.isArray(msgs) && msgs.length > 0) {
+                console.log(`Found ${msgs.length} messages using: ${candidate.note}`);
+                return { messages: msgs.slice(0, 30), success: true, workingEndpoint: candidate.note, attempts };
+              }
+            } catch (parseError) {
+              console.log(`Parse error for ${candidate.note}: ${parseError}`);
             }
-          } catch (parseError) {
-            console.log(`Parse error: ${parseError}`);
-            attempts.push({ endpoint: '/getMessages', status: res.status, ok: false, note: 'parse_error' });
+          } else if (res.status !== 404) {
+            // Log non-404 errors for debugging
+            const errText = await res.text();
+            console.log(`Error ${res.status} at ${candidate.note}: ${errText.slice(0, 100)}`);
           }
-        } else {
-          const errText = await res.text();
-          console.log(`Error ${res.status} for ${chatId.slice(-12)}: ${errText.slice(0, 200)}`);
+        } catch (fetchError) {
+          attempts.push({ endpoint: candidate.note, status: null, ok: false, note: 'fetch_error' });
         }
-      } catch (fetchError) {
-        console.log(`Fetch error: ${fetchError}`);
-        attempts.push({ endpoint: '/getMessages', status: null, ok: false, note: 'fetch_error' });
-      }
-
-      // ========================================
-      // FALLBACK 1: Try with instanceId in headers instead of query
-      // ========================================
-      const fallbackUrl1 = `${wapiUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`;
-      
-      try {
-        const res = await fetch(fallbackUrl1, {
-          method: 'GET',
-          headers: {
-            'apikey': apiToken,
-            'instanceId': session,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        attempts.push({ endpoint: '/getMessages (header instanceId)', status: res.status, ok: res.ok });
-
-        if (res.ok) {
-          const text = await res.text();
-          try {
-            const parsed = JSON.parse(text);
-            const msgs: WapiMessage[] = Array.isArray(parsed)
-              ? parsed
-              : (parsed.messages ?? parsed.data ?? parsed.result ?? []);
-
-            if (Array.isArray(msgs) && msgs.length > 0) {
-              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/getMessages (header)', attempts };
-            }
-          } catch {
-            // ignore parse error
-          }
-        }
-      } catch {
-        attempts.push({ endpoint: '/getMessages (header instanceId)', status: null, ok: false, note: 'fetch_error' });
-      }
-
-      // ========================================
-      // FALLBACK 2: Try v1 endpoint variant
-      // ========================================
-      const fallbackUrl2 = `${wapiUrl}/v1/getMessages?chatId=${encodeURIComponent(chatId)}&count=50&instanceId=${encodeURIComponent(session)}`;
-      
-      try {
-        const res = await fetch(fallbackUrl2, {
-          method: 'GET',
-          headers: {
-            'apikey': apiToken,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        attempts.push({ endpoint: '/v1/getMessages', status: res.status, ok: res.ok });
-
-        if (res.ok) {
-          const text = await res.text();
-          try {
-            const parsed = JSON.parse(text);
-            const msgs: WapiMessage[] = Array.isArray(parsed)
-              ? parsed
-              : (parsed.messages ?? parsed.data ?? parsed.result ?? []);
-
-            if (Array.isArray(msgs) && msgs.length > 0) {
-              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/v1/getMessages', attempts };
-            }
-          } catch {
-            // ignore
-          }
-        }
-      } catch {
-        attempts.push({ endpoint: '/v1/getMessages', status: null, ok: false, note: 'fetch_error' });
-      }
-
-      // ========================================
-      // FALLBACK 3: Try without /v1 prefix but session in path (some W-API versions)
-      // ========================================
-      const fallbackUrl3 = `${wapiUrl}/${session}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`;
-      
-      try {
-        const res = await fetch(fallbackUrl3, {
-          method: 'GET',
-          headers: {
-            'apikey': apiToken,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        attempts.push({ endpoint: '/{session}/getMessages', status: res.status, ok: res.ok });
-
-        if (res.ok) {
-          const text = await res.text();
-          try {
-            const parsed = JSON.parse(text);
-            const msgs: WapiMessage[] = Array.isArray(parsed)
-              ? parsed
-              : (parsed.messages ?? parsed.data ?? parsed.result ?? []);
-
-            if (Array.isArray(msgs) && msgs.length > 0) {
-              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/{session}/getMessages', attempts };
-            }
-          } catch {
-            // ignore
-          }
-        }
-      } catch {
-        attempts.push({ endpoint: '/{session}/getMessages', status: null, ok: false, note: 'fetch_error' });
       }
 
       return { messages: [], success: false, attempts };
