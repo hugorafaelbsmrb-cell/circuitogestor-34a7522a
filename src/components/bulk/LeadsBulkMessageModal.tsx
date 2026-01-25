@@ -409,8 +409,8 @@ export function LeadsBulkMessageModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5" />
             Envio em Massa para Leads
@@ -420,7 +420,7 @@ export function LeadsBulkMessageModal({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 max-h-[60vh] pr-4">
           <div className="space-y-4 py-2">
             {/* Course Filter - always visible */}
             <div className="space-y-2">
