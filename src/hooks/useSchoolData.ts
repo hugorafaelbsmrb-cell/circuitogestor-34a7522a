@@ -285,6 +285,55 @@ export function useSchoolData() {
     }
   }, [sessionChecked, session, fetchData]);
 
+  // Subscribe to realtime updates for key tables
+  useEffect(() => {
+    if (!session) return;
+
+    const channel = supabase
+      .channel('school-data-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'guardians' },
+        () => {
+          supabase.from('guardians').select('*').order('name').then(({ data }) => {
+            if (data) setGuardians(data);
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'students' },
+        () => {
+          supabase.from('students').select('*').order('name').then(({ data }) => {
+            if (data) setStudents(data);
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'enrollments' },
+        () => {
+          supabase.from('enrollments').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+            if (data) setEnrollments(data);
+          });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payments' },
+        () => {
+          supabase.from('payments').select('*').order('due_date', { ascending: false }).then(({ data }) => {
+            if (data) setPayments(data);
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session]);
+
   // Guardian CRUD
   const createGuardian = async (data: Omit<DbGuardian, 'id' | 'created_at' | 'updated_at'>) => {
     const { data: result, error } = await supabase
