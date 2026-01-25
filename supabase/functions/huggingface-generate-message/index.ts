@@ -40,7 +40,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
 - Contexto adicional: ${context || 'mensagem para responsáveis de alunos'}`;
 
     const response = await fetch(
-      "https://router.huggingface.co/hf-inference/models/meta-llama/Llama-3.1-8B-Instruct/v1/chat/completions",
+      "https://router.huggingface.co/novita/v3/openai/chat/completions",
       {
         method: "POST",
         headers: {
@@ -48,7 +48,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "meta-llama/Llama-3.1-8B-Instruct",
+          model: "meta-llama/llama-3.1-8b-instruct",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
