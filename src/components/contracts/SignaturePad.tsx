@@ -6,6 +6,7 @@ import { Eraser, RotateCcw } from 'lucide-react';
 interface SignaturePadProps {
   onEnd?: () => void;
   className?: string;
+  height?: number;
 }
 
 export interface SignaturePadRef {
@@ -15,7 +16,7 @@ export interface SignaturePadRef {
 }
 
 export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
-  ({ onEnd, className = '' }, ref) => {
+  ({ onEnd, className = '', height = 200 }, ref) => {
     const signatureRef = useRef<SignatureCanvas>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -88,8 +89,8 @@ export const SignaturePad = forwardRef<SignaturePadRef, SignaturePadProps>(
           ref={containerRef}
           className="relative border-2 border-dashed border-muted-foreground/30 rounded-lg bg-white overflow-hidden touch-none"
           style={{ 
-            height: '200px',
-            minHeight: '200px',
+            height: `${height}px`,
+            minHeight: `${height}px`,
             width: '100%',
             WebkitUserSelect: 'none',
             WebkitTouchCallout: 'none'

@@ -7,6 +7,8 @@ interface ContractContent {
   schoolName: string;
   schoolCnpj: string;
   schoolAddress: string;
+  schoolSignatureUrl?: string | null;
+  schoolRepresentativeName?: string | null;
   guardianName: string;
   guardianCpf: string;
   guardianRg?: string;
@@ -161,7 +163,15 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   const sigWidth = 70;
   const sigStartRight = pageWidth - margin - sigWidth;
   
-  // Left signature (CONTRATADA) - always just a line
+  // Left signature (CONTRATADA) - show school signature if available
+  if (content.schoolSignatureUrl) {
+    try {
+      // Add school signature image above the line
+      doc.addImage(content.schoolSignatureUrl, 'PNG', margin, yPos - 20, sigWidth, 18);
+    } catch {
+      // If image fails, just draw line
+    }
+  }
   doc.line(margin, yPos, margin + sigWidth, yPos);
   
   // Right signature (CONTRATANTE) - show digital signature if available
@@ -179,7 +189,7 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   
   doc.setFontSize(8);
   doc.setFont('helvetica', 'bold');
-  doc.text(content.schoolName || 'CIRCUITO KIDS', margin, yPos);
+  doc.text(content.schoolRepresentativeName || content.schoolName || 'CIRCUITO KIDS', margin, yPos);
   doc.text(content.guardianName || 'RESPONSÁVEL LEGAL', sigStartRight, yPos);
   yPos += 3;
   

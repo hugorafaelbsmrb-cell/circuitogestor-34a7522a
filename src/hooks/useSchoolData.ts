@@ -141,6 +141,8 @@ export interface DbContractConfig {
   school_name: string;
   school_cnpj: string;
   school_address: string;
+  representative_signature_url: string | null;
+  representative_name: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -19,6 +19,8 @@ interface ContractContent {
   schoolCnpj: string;
   schoolAddress: string;
   schoolLogo?: string;
+  schoolSignatureUrl?: string | null;
+  schoolRepresentativeName?: string | null;
   guardianName: string;
   guardianCpf: string;
   guardianRg?: string;
@@ -216,10 +218,29 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px' }}>
               <div style={{ textAlign: 'center', width: '45%' }}>
-                <div style={{ borderTop: '1px solid black', paddingTop: '2px' }}>
-                  <p style={{ fontWeight: 'bold', fontSize: '8pt', margin: 0 }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
-                  <p style={{ fontSize: '7pt', margin: 0 }}>(CONTRATADA)</p>
-                </div>
+                {content.schoolSignatureUrl ? (
+                  <div>
+                    <img 
+                      src={content.schoolSignatureUrl} 
+                      alt="Assinatura da contratada" 
+                      style={{ 
+                        maxHeight: '45px', 
+                        maxWidth: '150px', 
+                        margin: '0 auto 2px',
+                        display: 'block'
+                      }} 
+                    />
+                    <div style={{ borderTop: '1px solid black', paddingTop: '2px' }}>
+                      <p style={{ fontWeight: 'bold', fontSize: '8pt', margin: 0 }}>{content.schoolRepresentativeName || content.schoolName || 'CIRCUITO KIDS'}</p>
+                      <p style={{ fontSize: '7pt', margin: 0 }}>(CONTRATADA)</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ borderTop: '1px solid black', paddingTop: '2px' }}>
+                    <p style={{ fontWeight: 'bold', fontSize: '8pt', margin: 0 }}>{content.schoolName || 'CIRCUITO KIDS'}</p>
+                    <p style={{ fontSize: '7pt', margin: 0 }}>(CONTRATADA)</p>
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: 'center', width: '45%' }}>
                 {content.signatureImage ? (
