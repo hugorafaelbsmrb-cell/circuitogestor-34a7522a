@@ -69,12 +69,11 @@ Deno.serve(async (req) => {
       if (s.value) config[s.key] = s.value;
     });
 
-    if (!config.W_API_URL || !config.W_API_TOKEN || !config.W_API_SESSION) {
+    if (!config.W_API_TOKEN || !config.W_API_SESSION) {
       return new Response(
         JSON.stringify({ 
           error: 'Configurações W-API incompletas',
           missing: {
-            url: !config.W_API_URL,
             token: !config.W_API_TOKEN,
             session: !config.W_API_SESSION,
           }
@@ -84,36 +83,22 @@ Deno.serve(async (req) => {
     }
 
     // ========================================
-    // W-API PRO CONFIGURATION
-    // IMPORTANT: api.w-api.app = LITE version (no history retrieval)
-    //            api.wapi.com.br = PRO version (supports getMessages)
+    // W-API PRO - EXACT CONFIGURATION
+    // URL: https://api.wapi.com.br/getMessages
+    // Method: POST
+    // Headers: apikey, Content-Type: application/json
+    // Body: { chatId, count }
     // ========================================
     
-    // Normalize configured URL
-    let configuredUrl = (config.W_API_URL || '').trim().replace(/\/+$/, '');
-    if (!/^https?:\/\//i.test(configuredUrl) && configuredUrl) {
-      configuredUrl = `https://${configuredUrl}`;
-    }
-    // Remove /v1 suffix if present
-    configuredUrl = configuredUrl.replace(/\/v1\/?$/, '');
-    
-    // Detect if user configured LITE domain instead of PRO
-    const isLiteDomain = configuredUrl.includes('w-api.app');
-    
-    // PRO domain - this is what supports getMessages API
-    const proBaseUrl = 'https://api.wapi.com.br';
-    
-    // Use PRO domain as primary, fall back to configured
-    const baseUrl = isLiteDomain ? proBaseUrl : (configuredUrl || proBaseUrl);
-    
-    const apiToken = config.W_API_TOKEN;
+    // ALWAYS use PRO domain for getMessages
+    const PRO_BASE_URL = 'https://api.wapi.com.br';
+    const apiKey = config.W_API_TOKEN;
     const instanceId = config.W_API_SESSION;
 
-    console.log(`W-API Config URL: ${configuredUrl}`);
-    console.log(`W-API Is LITE domain: ${isLiteDomain}`);
-    console.log(`W-API Using Base URL: ${baseUrl}`);
-    console.log(`W-API Instance ID: ${instanceId}`);
-    console.log(`W-API Using POST /getMessages with apikey header`);
+    console.log('=== W-API PRO Sync Started ===');
+    console.log(`PRO Base URL: ${PRO_BASE_URL}`);
+    console.log(`Instance ID: ${instanceId}`);
+    console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
     let syncedCount = 0;
     let errorCount = 0;
@@ -147,167 +132,94 @@ Deno.serve(async (req) => {
     };
 
     // ========================================
-    // FETCH MESSAGES - W-API PRO
-    // Primary: POST /getMessages with apikey header and JSON body
-    // Fallbacks for different W-API versions
+    // FETCH MESSAGES - W-API PRO EXACT IMPLEMENTATION
+    // Based on user-provided documentation
     // ========================================
-    type EndpointCandidate = {
-      url: string;
-      method: 'GET' | 'POST';
-      headers: Record<string, string>;
-      body?: string;
-      note: string;
-    };
+    const fetchMessagesForPhone = async (chatId: string): Promise<{ messages: WapiMessage[]; status: number; error?: string }> => {
+      const url = `${PRO_BASE_URL}/getMessages`;
+      
+      console.log(`Fetching: POST ${url}`);
+      console.log(`ChatId: ${chatId}`);
+      console.log(`Headers: apikey=${apiKey.slice(0, 8)}..., Content-Type=application/json`);
+      
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-    const fetchMessagesForPhone = async (chatId: string): Promise<{ messages: WapiMessage[]; workingEndpoint?: string }> => {
-      const candidates: EndpointCandidate[] = [];
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'apikey': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            chatId: chatId,
+            count: 20 
+          }),
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
 
-      // ===== PRIMARY: W-API PRO documented endpoint =====
-      // POST /getMessages with apikey header and body { chatId, count }
-      candidates.push({
-        url: `${baseUrl}/getMessages`,
-        method: 'POST',
-        headers: {
-          'apikey': apiToken,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, count: 20 }),
-        note: 'POST /getMessages (apikey header) [PRIMARY]',
-      });
+        const responseText = await response.text();
+        console.log(`Response status: ${response.status}`);
+        console.log(`Response preview: ${responseText.slice(0, 200)}`);
 
-      // ===== FALLBACK 1: With instanceId in body =====
-      candidates.push({
-        url: `${baseUrl}/getMessages`,
-        method: 'POST',
-        headers: {
-          'apikey': apiToken,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, count: 20, instanceId }),
-        note: 'POST /getMessages (with instanceId in body)',
-      });
-
-      // ===== FALLBACK 2: Instance in path =====
-      candidates.push({
-        url: `${baseUrl}/${instanceId}/getMessages`,
-        method: 'POST',
-        headers: {
-          'apikey': apiToken,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, count: 20 }),
-        note: 'POST /{instance}/getMessages',
-      });
-
-      // ===== FALLBACK 3: With Bearer token instead =====
-      candidates.push({
-        url: `${baseUrl}/getMessages`,
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, count: 20 }),
-        note: 'POST /getMessages (Bearer token)',
-      });
-
-      // ===== FALLBACK 4: api.wapi.com.br domain =====
-      candidates.push({
-        url: `https://api.wapi.com.br/getMessages`,
-        method: 'POST',
-        headers: {
-          'apikey': apiToken,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, count: 20 }),
-        note: 'POST api.wapi.com.br/getMessages',
-      });
-
-      // ===== FALLBACK 5: Instance header instead of body =====
-      candidates.push({
-        url: `${baseUrl}/getMessages`,
-        method: 'POST',
-        headers: {
-          'apikey': apiToken,
-          'instanceId': instanceId,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ chatId, count: 20 }),
-        note: 'POST /getMessages (instanceId header)',
-      });
-
-      for (const candidate of candidates) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 12000);
-
-          const fetchOptions: RequestInit = {
-            method: candidate.method,
-            headers: candidate.headers,
-            signal: controller.signal,
+        if (!response.ok) {
+          return { 
+            messages: [], 
+            status: response.status, 
+            error: responseText.slice(0, 100) 
           };
-          
-          if (candidate.body) {
-            fetchOptions.body = candidate.body;
-          }
-
-          const response = await fetch(candidate.url, fetchOptions);
-          clearTimeout(timeoutId);
-
-          if (response.ok) {
-            const text = await response.text();
-            console.log(`SUCCESS with ${candidate.note}: status=${response.status}, preview=${text.slice(0, 150)}`);
-            
-            try {
-              const data = JSON.parse(text);
-              
-              // Extract messages from various response structures
-              let messages: WapiMessage[] = [];
-              
-              if (Array.isArray(data)) {
-                messages = data;
-              } else if (data.messages && Array.isArray(data.messages)) {
-                messages = data.messages;
-              } else if (data.data?.messages && Array.isArray(data.data.messages)) {
-                messages = data.data.messages;
-              } else if (data.data && Array.isArray(data.data)) {
-                messages = data.data;
-              } else if (data.result && Array.isArray(data.result)) {
-                messages = data.result;
-              } else if (data.response && Array.isArray(data.response)) {
-                messages = data.response;
-              }
-              
-              if (messages.length > 0) {
-                console.log(`Found ${messages.length} messages using: ${candidate.note}`);
-                return { messages: messages.slice(0, 20), workingEndpoint: candidate.note };
-              }
-            } catch (parseErr) {
-              console.log(`Parse error for ${candidate.note}: ${parseErr}`);
-            }
-          } else {
-            const errText = await response.text();
-            // Only log first few characters to avoid spam
-            console.log(`${candidate.note}: ${response.status} - ${errText.slice(0, 80)}`);
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          // Don't log timeout errors to reduce noise
-          if (!msg.includes('abort')) {
-            console.log(`${candidate.note}: ${msg.slice(0, 60)}`);
-          }
         }
-      }
 
-      return { messages: [] };
+        try {
+          const data = JSON.parse(responseText);
+          
+          // Extract messages from various response structures
+          let messages: WapiMessage[] = [];
+          
+          if (Array.isArray(data)) {
+            messages = data;
+          } else if (data.messages && Array.isArray(data.messages)) {
+            messages = data.messages;
+          } else if (data.data?.messages && Array.isArray(data.data.messages)) {
+            messages = data.data.messages;
+          } else if (data.data && Array.isArray(data.data)) {
+            messages = data.data;
+          } else if (data.result && Array.isArray(data.result)) {
+            messages = data.result;
+          } else if (data.response && Array.isArray(data.response)) {
+            messages = data.response;
+          }
+          
+          console.log(`Parsed ${messages.length} messages from response`);
+          return { messages: messages.slice(0, 20), status: response.status };
+          
+        } catch (parseErr) {
+          console.error(`JSON parse error: ${parseErr}`);
+          return { messages: [], status: response.status, error: 'Parse error' };
+        }
+        
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Fetch error: ${msg}`);
+        
+        if (msg.includes('abort')) {
+          return { messages: [], status: 408, error: 'Timeout' };
+        }
+        
+        return { messages: [], status: 0, error: msg };
+      }
     };
 
     // ========================================
     // PROCESS GUARDIANS
     // ========================================
-    const debugInfo: Array<{ phoneSuffix: string; chatId: string; messagesFound: number; endpoint?: string }> = [];
+    const debugInfo: Array<{ phoneSuffix: string; chatId: string; messagesFound: number; status: number; error?: string }> = [];
     let guardiansWithMessages = 0;
-    let workingEndpointFound: string | undefined;
+    let lastStatus = 0;
+    let lastError: string | undefined;
 
     for (const guardian of guardians) {
       const phone = normalizeToBR(guardian.phone);
@@ -317,11 +229,10 @@ Deno.serve(async (req) => {
 
       const chatId = `${phone}@c.us`;
       
-      const { messages, workingEndpoint } = await fetchMessagesForPhone(chatId);
+      const { messages, status, error } = await fetchMessagesForPhone(chatId);
       
-      if (workingEndpoint && !workingEndpointFound) {
-        workingEndpointFound = workingEndpoint;
-      }
+      lastStatus = status;
+      lastError = error;
       
       // Store debug info for first 5 phones
       if (debugInfo.length < 5) {
@@ -329,7 +240,8 @@ Deno.serve(async (req) => {
           phoneSuffix: phone.slice(-4),
           chatId,
           messagesFound: messages.length,
-          endpoint: workingEndpoint,
+          status,
+          error,
         });
       }
 
@@ -380,29 +292,43 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`Sync complete: ${syncedCount} messages, ${errorCount} errors`);
+    console.log(`=== Sync Complete ===`);
+    console.log(`Messages synced: ${syncedCount}`);
+    console.log(`Errors: ${errorCount}`);
     console.log(`Guardians: ${processedPhones.size} checked, ${guardiansWithMessages} with messages`);
 
     // Build response message
     let message = `Sincronização concluída: ${syncedCount} mensagens importadas`;
+    
     if (guardiansWithMessages === 0 && syncedCount === 0) {
-      message = 'Nenhuma mensagem encontrada. Verifique se a instância está conectada e há histórico de conversa.';
+      if (lastStatus === 404) {
+        message = 'Endpoint não encontrado (404). Verifique se sua instância W-API é PRO e se a API Key está correta.';
+      } else if (lastStatus === 401 || lastStatus === 403) {
+        message = 'Erro de autenticação. Verifique se a API Key está correta no painel W-API.';
+      } else if (lastStatus === 408 || lastError?.includes('Timeout')) {
+        message = 'Timeout na conexão. O servidor W-API pode estar sobrecarregado. Tente novamente em alguns minutos.';
+      } else if (lastError) {
+        message = `Erro na conexão: ${lastError}. Verifique as configurações no painel W-API.`;
+      } else {
+        message = 'Nenhuma mensagem encontrada. Verifique se a instância está conectada e há histórico de conversa.';
+      }
     }
 
     return new Response(
       JSON.stringify({
-        success: true,
+        success: syncedCount > 0 || errorCount === 0,
         message,
         synced: syncedCount,
         errors: errorCount,
         guardiansProcessed: processedPhones.size,
         guardiansWithMessages,
-        workingEndpoint: workingEndpointFound,
-        debug: syncedCount === 0 ? {
-          baseUrl,
+        debug: {
+          proBaseUrl: PRO_BASE_URL,
           instanceId: instanceId.slice(0, 8) + '...',
+          lastStatus,
+          lastError,
           samples: debugInfo,
-        } : undefined,
+        },
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
