@@ -21,6 +21,9 @@ interface ContractData {
     studentName?: string;
     courseName?: string;
     guardianName?: string;
+    installments?: number;
+    installmentValue?: number;
+    selectedDays?: { day: string; time: string }[];
     clauses?: { title: string; content: string }[];
     [key: string]: any;
   };
@@ -294,30 +297,38 @@ export default function ContractSign() {
 
           <div className="p-6 space-y-6">
             {/* Contract Summary */}
-            <div className="bg-secondary/30 rounded-lg p-4 space-y-4">
-              <h2 className="font-semibold text-foreground flex items-center gap-2">
+            <div className="bg-secondary/30 rounded-lg p-4">
+              <h2 className="font-semibold text-foreground flex items-center gap-2 mb-3">
                 <FileText className="w-4 h-4" />
                 Resumo do Contrato
               </h2>
               
-              <div className="grid gap-3">
-                <div className="flex justify-between items-center py-2 border-b border-border/50">
-                  <span className="text-sm text-muted-foreground">Aluno(a)</span>
-                  <span className="font-medium">{content?.studentName || '-'}</span>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div className="flex justify-between col-span-2 py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground">Aluno(a)</span>
+                  <span className="font-medium text-right">{content?.studentName || '-'}</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-border/50">
-                  <span className="text-sm text-muted-foreground">Curso</span>
-                  <span className="font-medium">{content?.courseName || '-'}</span>
+                <div className="flex justify-between col-span-2 py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground">Responsável</span>
+                  <span className="font-medium text-right">{content?.guardianName || '-'}</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-b border-border/50">
-                  <span className="text-sm text-muted-foreground">Responsável</span>
-                  <span className="font-medium">{content?.guardianName || '-'}</span>
+                <div className="py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground">Curso</span>
+                  <p className="font-medium">{content?.courseName || '-'}</p>
                 </div>
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm text-muted-foreground">Valor Total</span>
-                  <span className="font-bold text-lg text-primary">
-                    R$ {contract?.total_value?.toFixed(2).replace('.', ',') || '-'}
-                  </span>
+                <div className="py-1.5 border-b border-border/50">
+                  <span className="text-muted-foreground">Frequência</span>
+                  <p className="font-medium">{content?.selectedDays?.length || contract?.installment_count || 1}x por semana</p>
+                </div>
+                <div className="py-1.5">
+                  <span className="text-muted-foreground">Parcelas</span>
+                  <p className="font-medium">{content?.installments || contract?.installment_count || '-'}x</p>
+                </div>
+                <div className="py-1.5">
+                  <span className="text-muted-foreground">Valor/Parcela</span>
+                  <p className="font-bold text-primary">
+                    R$ {content?.installmentValue?.toFixed(2).replace('.', ',') || (contract?.total_value && contract?.installment_count ? (contract.total_value / contract.installment_count).toFixed(2).replace('.', ',') : '-')}
+                  </p>
                 </div>
               </div>
             </div>
