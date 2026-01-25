@@ -3,6 +3,7 @@ import { Sidebar } from './Sidebar';
 import { MobileHeader } from './MobileHeader';
 import { useInactivityTimeout } from '@/hooks/useInactivityTimeout';
 import { WhatsAppNotificationListener } from '@/components/notifications/WhatsAppNotificationListener';
+import { PreEnrollmentNotificationListener } from '@/components/notifications/PreEnrollmentNotificationListener';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -18,6 +19,9 @@ export function MainLayout({ children }: MainLayoutProps) {
     <div className="min-h-screen bg-background">
       {/* Global WhatsApp message notifications */}
       <WhatsAppNotificationListener />
+      
+      {/* Global pre-enrollment notifications */}
+      <PreEnrollmentNotificationListener />
       
       {/* Mobile Header */}
       <MobileHeader onMenuClick={() => setSidebarOpen(true)} />
