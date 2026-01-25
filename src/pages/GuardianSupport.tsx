@@ -442,6 +442,10 @@ export default function GuardianSupport() {
           guardianData.category = column;
           result[column].push(guardianData);
         }
+      } else {
+        // No active enrollments - goes to "Não Matriculados" (unknown)
+        guardianData.category = 'unknown';
+        result.unknown.push(guardianData);
       }
     });
 
