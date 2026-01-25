@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Send, Loader2, MessageSquare, Image, FileText, Video, Paperclip, X, Smile, MapPin, Contact, MousePointerClick, List } from 'lucide-react';
+import { Send, Loader2, MessageSquare, Image, FileText, Video, Paperclip, X, Smile, MapPin, Contact, MousePointerClick, List, Zap } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -56,6 +56,17 @@ type MediaType = 'image' | 'document' | 'video' | 'audio';
 
 const REACTION_EMOJIS = ['👍', '❤️', '✅', '🙏', '👏', '🔥'];
 
+const MESSAGE_EMOJIS = ['😀', '😊', '🙂', '😄', '😁', '😆', '🥰', '😍', '🤗', '👋', '👍', '👏', '🙌', '🎉', '✨', '💪', '🙏', '❤️', '💙', '💚', '✅', '⭐', '🎯', '📚', '📝', '🎓', '🏆', '🥇', '👨‍🏫', '👩‍🎓'];
+
+const QUICK_REPLIES = [
+  { label: 'Saudação', text: 'Olá! Tudo bem? Em que posso ajudar?' },
+  { label: 'Confirmação', text: 'Perfeito! Confirmado. ✅' },
+  { label: 'Agradecimento', text: 'Muito obrigado pelo contato! 🙏' },
+  { label: 'Aguardar', text: 'Aguarde um momento, por favor. Já retorno!' },
+  { label: 'Até logo', text: 'Foi um prazer atendê-lo! Qualquer dúvida, estamos à disposição. 👋' },
+  { label: 'Horário', text: 'Nosso horário de atendimento é de segunda a sexta, das 8h às 18h.' },
+];
+
 export function MessageHistoryModal({
   open,
   onOpenChange,
@@ -73,14 +84,17 @@ export function MessageHistoryModal({
     sendList, 
     sendLocation,
     sendContact,
+    sendTypingIndicator,
     isReactionsEnabled,
     isButtonsEnabled,
     isListsEnabled,
     isLocationEnabled,
     isVcardEnabled,
+    isTypingEnabled,
   } = useWapiAdvanced();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -90,6 +104,7 @@ export function MessageHistoryModal({
   const [isLoading, setIsLoading] = useState(true);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   
   // Media attachment state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -688,7 +703,26 @@ export function MessageHistoryModal({
           )}
 
           {/* Input Area */}
-          <div className="p-4 border-t bg-muted/30">
+          <div className="p-4 border-t bg-muted/30 space-y-2">
+            {/* Quick Replies Row */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <span className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
+                <Zap className="h-3 w-3" />
+                Rápidas:
+              </span>
+              {QUICK_REPLIES.map((reply, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs shrink-0"
+                  onClick={() => setNewMessage(reply.text)}
+                >
+                  {reply.label}
+                </Button>
+              ))}
+            </div>
+
             <div className="flex gap-2">
               {/* Attachment Menu */}
               <DropdownMenu>
@@ -744,7 +778,57 @@ export function MessageHistoryModal({
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              {/* Emoji Picker */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="shrink-0">
+                    <Smile className="h-5 w-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-2" side="top" align="start">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Inserir Emoji</p>
+                    <div className="grid grid-cols-10 gap-1">
+                      {MESSAGE_EMOJIS.map((emoji, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            setNewMessage(prev => prev + emoji);
+                          }}
+                          className="text-lg hover:scale-125 transition-transform p-1 rounded hover:bg-muted"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+
+              {/* Typing Indicator Button */}
+              {isTypingEnabled() && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="shrink-0"
+                  disabled={isTyping}
+                  onClick={async () => {
+                    setIsTyping(true);
+                    await sendTypingIndicator(guardianPhone, 3000);
+                    setIsTyping(false);
+                  }}
+                  title="Enviar indicador de digitação"
+                >
+                  {isTyping ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <span className="text-sm font-medium">...</span>
+                  )}
+                </Button>
+              )}
+
               <Textarea
+                ref={textareaRef}
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
