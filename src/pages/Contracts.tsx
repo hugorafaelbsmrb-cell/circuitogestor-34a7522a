@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
-import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Link as LinkIcon, Copy } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Link as LinkIcon, Copy, MessageCircle, Send } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
+import { useWapiMessage } from '@/hooks/useWapiMessage';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -35,6 +36,25 @@ export default function Contracts() {
   } = useSchool();
   const { branding } = useSystemBranding();
   const { createCustomer, createCarne: createAsaasCarne, createBoleto: createAsaasBoleto, isLoading: isAsaasLoading } = useAsaasPayment();
+  const { sendMessage, isSending: isSendingWhatsApp } = useWapiMessage();
+  
+  // Template for contract signature WhatsApp message
+  const [signatureTemplate, setSignatureTemplate] = useState<string>('');
+  
+  useEffect(() => {
+    const fetchTemplate = async () => {
+      const { data } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'whatsapp_template_contract_signature')
+        .single();
+      
+      if (data?.value) {
+        setSignatureTemplate(data.value);
+      }
+    };
+    fetchTemplate();
+  }, []);
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewContract, setPreviewContract] = useState<any | null>(null);
@@ -125,6 +145,57 @@ export default function Contracts() {
     }
   };
 
+  // Send signature link via WhatsApp
+  const handleSendSignatureLinkWhatsApp = async (enrollment: typeof enrollments[0]) => {
+    const link = getSignatureLink(enrollment.id);
+    if (!link) {
+      toast({
+        title: 'Erro',
+        description: 'Link de assinatura não encontrado.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const student = getStudentById(enrollment.student_id);
+    const guardian = getGuardianById(enrollment.guardian_id);
+    const classGroup = getClassGroupById(enrollment.class_group_id);
+    const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
+
+    if (!guardian || !student || !course) {
+      toast({
+        title: 'Erro',
+        description: 'Dados incompletos para envio.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Get first name of guardian
+    const guardianFirstName = guardian.name.split(' ')[0];
+
+    // Build message from template
+    let message = signatureTemplate || `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
+    
+    message = message
+      .replace('{nome}', guardianFirstName)
+      .replace('{aluno}', student.name)
+      .replace('{curso}', course.name)
+      .replace('{link}', link)
+      .replace(/\\n/g, '\n');
+
+    const success = await sendMessage({
+      phone: guardian.phone,
+      message,
+    });
+
+    if (success) {
+      toast({
+        title: 'Link enviado!',
+        description: `Link de assinatura enviado para ${guardian.name} via WhatsApp.`,
+      });
+    }
+  };
   // Open signature modal
   const handleOpenSignatureModal = (enrollment: typeof enrollments[0]) => {
     const contract = getContractForEnrollment(enrollment.id);
@@ -501,7 +572,28 @@ export default function Contracts() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Copiar link de assinatura para enviar ao responsável</p>
+                              <p>Copiar link de assinatura</p>
+                            </TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="gap-2 text-success border-success/50 hover:bg-success/10"
+                                onClick={() => handleSendSignatureLinkWhatsApp(enrollment)}
+                                disabled={isSendingWhatsApp}
+                              >
+                                {isSendingWhatsApp ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <MessageCircle className="w-4 h-4" />
+                                )}
+                                WhatsApp
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Enviar link de assinatura via WhatsApp</p>
                             </TooltipContent>
                           </Tooltip>
                         </>
