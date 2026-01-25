@@ -5,6 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// W-API PRO uses api.wapi.com.br exclusively
+const PRO_BASE_URL = 'https://api.wapi.com.br';
+
 interface SendMessageRequest {
   phone: string;
   message: string;
@@ -12,13 +15,11 @@ interface SendMessageRequest {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return new Response(
@@ -36,8 +37,8 @@ Deno.serve(async (req) => {
 
     // Verify user
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData?.user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -48,7 +49,7 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION']);
+      .in('key', ['W_API_TOKEN', 'W_API_SESSION']);
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
@@ -63,12 +64,11 @@ Deno.serve(async (req) => {
       if (s.value) config[s.key] = s.value;
     });
 
-    if (!config.W_API_URL || !config.W_API_TOKEN || !config.W_API_SESSION) {
+    if (!config.W_API_TOKEN || !config.W_API_SESSION) {
       return new Response(
         JSON.stringify({ 
           error: 'Configurações W-API incompletas',
           missing: {
-            url: !config.W_API_URL,
             token: !config.W_API_TOKEN,
             session: !config.W_API_SESSION,
           }
@@ -91,69 +91,54 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
 
-    // ====== BEST PRACTICE: Save message BEFORE sending ======
-    // This ensures we never lose track of messages even if send fails
+    const apiKey = config.W_API_TOKEN;
+    const instanceId = config.W_API_SESSION;
+    const encoded = encodeURIComponent(instanceId);
+
+    console.log('=== W-API PRO Send Message ===');
+    console.log(`PRO Base URL: ${PRO_BASE_URL}`);
+    console.log(`Instance ID: ${instanceId}`);
+    console.log(`Phone: ${formattedPhone}`);
+    console.log(`API Key: ${apiKey.slice(0, 8)}...`);
+
+    // Save message BEFORE sending (resilience pattern)
     const { data: savedMsg, error: saveError } = await supabase
       .from('whatsapp_messages')
       .insert({
         phone: formattedPhone,
         message: message,
         direction: 'outgoing',
-        status: 'pending', // Will be updated after send
+        status: 'pending',
       })
       .select('id')
       .single();
 
     if (saveError) {
       console.error('Error saving outgoing message:', saveError);
-      // Continue anyway - sending is more important than logging
     }
 
     const savedMsgId = savedMsg?.id;
 
-    // Normalize base URL
-    let wapiUrl = config.W_API_URL.replace(/\/$/, '');
-    wapiUrl = wapiUrl.replace(/^http:\/\//i, 'https://');
-    wapiUrl = wapiUrl.replace(/\/api$/i, '');
-    if (/\/\/(app\.)?wawp\.net\b/i.test(wapiUrl)) {
-      wapiUrl = 'https://api.w-api.app';
-    }
-
-    const session = config.W_API_SESSION;
-    const encoded = encodeURIComponent(session);
-
-    // Endpoint candidates - ordered by what worked in production
-    // The confirmed working endpoint is: /v1/message/send-text?instanceId=...
+    // W-API PRO send message endpoints
+    // Using apikey header (not Bearer Authorization)
     const candidates: Array<{
       url: string;
       body: Record<string, unknown>;
-      extraHeaders?: Record<string, string>;
     }> = [
-      // ✅ CONFIRMED WORKING: /v1/message/send-text (singular) with query param
+      // POST /sendText with phone + message in body
       {
-        url: `${wapiUrl}/v1/message/send-text?instanceId=${encoded}`,
+        url: `${PRO_BASE_URL}/sendText?instanceId=${encoded}`,
         body: { phone: formattedPhone, message, isGroup },
       },
-      // Fallback: /v1/messages/send-text (plural) with query param
+      // Alternative: chatId format
       {
-        url: `${wapiUrl}/v1/messages/send-text?instanceId=${encoded}`,
-        body: { phone: formattedPhone, message, isGroup },
-      },
-      // Fallback: with header instead of query param
-      {
-        url: `${wapiUrl}/v1/message/send-text`,
-        body: { phone: formattedPhone, message, isGroup },
-        extraHeaders: { instanceId: session },
-      },
-      // Legacy: /message/send-text (no /v1)
-      {
-        url: `${wapiUrl}/message/send-text?instanceId=${encoded}`,
-        body: { session, phone: formattedPhone, message, isGroup },
-      },
-      // Some APIs use chatId format
-      {
-        url: `${wapiUrl}/v1/message/send-text?instanceId=${encoded}`,
+        url: `${PRO_BASE_URL}/sendText?instanceId=${encoded}`,
         body: { chatId: `${formattedPhone}@c.us`, message, isGroup },
+      },
+      // Legacy: /message/send-text
+      {
+        url: `${PRO_BASE_URL}/message/send-text?instanceId=${encoded}`,
+        body: { phone: formattedPhone, message, isGroup },
       },
     ];
 
@@ -163,35 +148,36 @@ Deno.serve(async (req) => {
 
     for (const c of candidates) {
       try {
+        console.log(`Trying: POST ${c.url}`);
+        
         const res = await fetch(c.url, {
           method: 'POST',
           headers: {
+            'apikey': apiKey,
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.W_API_TOKEN}`,
             'Accept': 'application/json',
-            ...(c.extraHeaders ?? {}),
           },
           body: JSON.stringify(c.body),
         });
 
         lastStatus = res.status;
         const text = await res.text();
+        console.log(`Response ${res.status}: ${text.slice(0, 200)}`);
+        
         attempts.push({ url: c.url, status: res.status, ok: res.ok });
 
         let parsed: any = null;
         try {
           parsed = JSON.parse(text);
         } catch {
-          // Not JSON - skip this endpoint
           attempts[attempts.length - 1].error = 'Non-JSON response';
           continue;
         }
 
-        // Success case
         if (res.ok) {
-          console.log('Message sent successfully via:', c.url, { phone: formattedPhone });
+          console.log('Message sent successfully via:', c.url);
           
-          // Update message status to 'sent' and store wapi_message_id
+          // Update message status to 'sent'
           const wapiMessageId = parsed?.id || parsed?.key?.id || parsed?.messageId || null;
           if (savedMsgId) {
             await supabase
@@ -215,7 +201,6 @@ Deno.serve(async (req) => {
           );
         }
 
-        // If we got a JSON error, store it for later
         lastError = parsed?.message || parsed?.error || JSON.stringify(parsed);
         attempts[attempts.length - 1].error = lastError || undefined;
       } catch (e) {
@@ -225,7 +210,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.error('All W-API send endpoints failed:', { attempts, lastStatus, lastError });
+    console.error('All W-API PRO send endpoints failed:', { attempts, lastStatus, lastError });
     
     // Update message status to 'failed'
     if (savedMsgId) {
@@ -237,7 +222,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        error: 'Não foi possível enviar mensagem via W-API',
+        error: 'Não foi possível enviar mensagem via W-API PRO',
         lastStatus,
         details: lastError,
         attempts,
