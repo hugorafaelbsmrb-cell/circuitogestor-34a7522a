@@ -5,6 +5,27 @@ import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
+/**
+ * Pre-loads an image and returns a promise that resolves when loaded
+ */
+function preloadImage(url: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!url) {
+      resolve();
+      return;
+    }
+    
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve();
+    img.onerror = () => resolve(); // Resolve even on error to not block PDF generation
+    img.src = url;
+    
+    // Timeout after 5 seconds
+    setTimeout(() => resolve(), 5000);
+  });
+}
+
 interface ContractPDFData {
   contractId: string;
   schoolName: string;
@@ -44,12 +65,24 @@ interface ContractPDFData {
  * and returns the public URL.
  */
 export async function generateAndUploadContractPDF(data: ContractPDFData): Promise<string> {
+  // Pre-load all images to ensure they're available for html2canvas
+  const imagesToLoad = [
+    data.schoolLogo,
+    data.schoolSignatureUrl,
+    data.signatureImage,
+  ].filter(Boolean) as string[];
+  
+  console.log('Pre-loading images:', imagesToLoad);
+  await Promise.all(imagesToLoad.map(url => preloadImage(url)));
+  console.log('Images loaded, starting PDF generation');
+  
   // Create a temporary container
   const container = document.createElement('div');
   container.style.position = 'fixed';
   container.style.top = '-9999px';
   container.style.left = '-9999px';
   container.style.width = '210mm'; // A4 width
+  container.style.backgroundColor = 'white';
   document.body.appendChild(container);
 
   try {
@@ -57,9 +90,11 @@ export async function generateAndUploadContractPDF(data: ContractPDFData): Promi
     const root = createRoot(container);
     await new Promise<void>((resolve) => {
       root.render(React.createElement(ContractPrintView, { content: data }));
-      // Wait for rendering to complete
-      setTimeout(resolve, 500);
+      // Wait for rendering to complete and images to settle
+      setTimeout(resolve, 1500);
     });
+
+    console.log('Component rendered, generating PDF...');
 
     // Configure html2pdf options
     const options = {
@@ -70,7 +105,9 @@ export async function generateAndUploadContractPDF(data: ContractPDFData): Promi
         scale: 2,
         useCORS: true,
         logging: false,
-        letterRendering: true
+        letterRendering: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
       },
       jsPDF: { 
         unit: 'mm', 
@@ -85,6 +122,8 @@ export async function generateAndUploadContractPDF(data: ContractPDFData): Promi
       .set(options)
       .from(container.firstChild)
       .outputPdf('blob');
+    
+    console.log('PDF blob generated, size:', pdfBlob.size);
   
     // Create a safe filename
     const studentNameSafe = data.studentName
