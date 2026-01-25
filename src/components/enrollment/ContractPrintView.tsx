@@ -95,19 +95,56 @@ export const ContractPrintView = forwardRef<HTMLDivElement, ContractPrintViewPro
     const formattedDate = formatContractDate(content.createdAt);
 
     return (
-      <div ref={ref} className="bg-white text-black">
-        {/* Estilos de impressão inline */}
+      <div ref={ref} className="contract-print-container bg-white text-black">
+        {/* Estilos de impressão inline - sobrescreve print.css para contratos */}
         <style>{`
+          .contract-print-container,
+          .contract-print-container * {
+            font-family: 'Times New Roman', serif !important;
+            color: black !important;
+            background: white !important;
+          }
+          .contract-print-container p,
+          .contract-print-container h1,
+          .contract-print-container h2,
+          .contract-print-container h3,
+          .contract-print-container li,
+          .contract-print-container td,
+          .contract-print-container th {
+            margin: 0;
+            padding: 0;
+          }
           @media print {
             @page {
               size: A4;
               margin: 8mm 10mm 8mm 10mm;
+            }
+            body {
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            .contract-print-container {
+              width: 100% !important;
+              max-width: 100% !important;
             }
             .contract-page {
               page-break-after: always;
             }
             .annex-page {
               page-break-before: always;
+            }
+            /* Desativa estilos globais de print.css para contratos */
+            .contract-print-container p {
+              margin: 0 !important;
+              orphans: auto !important;
+              widows: auto !important;
+            }
+            .contract-print-container h2 {
+              border-bottom: none !important;
+              padding-bottom: 0 !important;
+            }
+            .contract-print-container a::after {
+              content: none !important;
             }
           }
         `}</style>
