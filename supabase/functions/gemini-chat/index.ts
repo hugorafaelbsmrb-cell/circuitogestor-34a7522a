@@ -113,7 +113,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
 
     // Call Google Gemini API directly
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -138,30 +138,42 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
       const errorText = await response.text();
       console.error("Gemini API error:", response.status, errorText);
 
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({
-            error: "Créditos de IA esgotados. Adicione créditos em Settings → Workspace → Usage.",
-            status: 402,
-          }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      let errorJson: any = null;
+      try {
+        errorJson = JSON.parse(errorText);
+      } catch {
+        // ignore
       }
 
+      // Google Gemini quota / rate limit
       if (response.status === 429) {
-        const retryAfter = response.headers.get("retry-after");
+        const retryAfterHeader = response.headers.get("retry-after");
+        const retryInfo = Array.isArray(errorJson?.error?.details)
+          ? errorJson.error.details.find((d: any) => d?.["@type"] === "type.googleapis.com/google.rpc.RetryInfo")
+          : null;
+
+        const retryDelayRaw: string | undefined = retryInfo?.retryDelay; // ex: "44s"
+        const retryAfterSecondsFromBody = retryDelayRaw ? Number(String(retryDelayRaw).replace(/[^0-9.]/g, "")) : undefined;
+        const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : retryAfterSecondsFromBody;
+
+        // Se o Google devolver "limit: 0", é cota zerada (billing/plano)
+        const isQuotaZero = typeof errorJson?.error?.message === "string" && errorJson.error.message.includes("limit: 0");
+
         return new Response(
           JSON.stringify({
-            error: "Limite de requisições excedido. Tente novamente em alguns minutos.",
+            error: isQuotaZero
+              ? "Cota da API externa do Google está zerada (limite 0). Ative billing/um plano no Google AI e tente novamente."
+              : "Limite de requisições excedido. Aguarde e tente novamente.",
             status: 429,
-            retry_after_seconds: retryAfter ? Number(retryAfter) : undefined,
+            retry_after_seconds: retryAfterSeconds,
+            provider_details: errorJson?.error?.status || undefined,
           }),
           {
             status: 429,
             headers: {
               ...corsHeaders,
               "Content-Type": "application/json",
-              ...(retryAfter ? { "Retry-After": retryAfter } : {}),
+              ...(retryAfterSeconds ? { "Retry-After": String(retryAfterSeconds) } : {}),
             },
           }
         );

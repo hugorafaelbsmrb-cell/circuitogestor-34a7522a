@@ -41,7 +41,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
 
     // Call Google Gemini API directly
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -63,22 +63,49 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
     );
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos de IA esgotados. Adicione créditos na sua conta." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "Erro ao gerar mensagem com IA" }), {
-        status: 500,
+      console.error("Gemini API error:", response.status, errorText);
+
+      let errorJson: any = null;
+      try {
+        errorJson = JSON.parse(errorText);
+      } catch {
+        // ignore
+      }
+
+      if (response.status === 429) {
+        const retryAfterHeader = response.headers.get("retry-after");
+        const retryInfo = Array.isArray(errorJson?.error?.details)
+          ? errorJson.error.details.find((d: any) => d?.["@type"] === "type.googleapis.com/google.rpc.RetryInfo")
+          : null;
+
+        const retryDelayRaw: string | undefined = retryInfo?.retryDelay;
+        const retryAfterSecondsFromBody = retryDelayRaw ? Number(String(retryDelayRaw).replace(/[^0-9.]/g, "")) : undefined;
+        const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : retryAfterSecondsFromBody;
+
+        const isQuotaZero = typeof errorJson?.error?.message === "string" && errorJson.error.message.includes("limit: 0");
+
+        return new Response(
+          JSON.stringify({
+            error: isQuotaZero
+              ? "Cota da API externa do Google está zerada (limite 0). Ative billing/um plano no Google AI e tente novamente."
+              : "Limite de requisições excedido. Aguarde e tente novamente.",
+            status: 429,
+            retry_after_seconds: retryAfterSeconds,
+          }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              ...(retryAfterSeconds ? { "Retry-After": String(retryAfterSeconds) } : {}),
+            },
+          }
+        );
+      }
+
+      return new Response(JSON.stringify({ error: "Erro ao gerar mensagem com IA", status: response.status, details: errorText }), {
+        status: response.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
