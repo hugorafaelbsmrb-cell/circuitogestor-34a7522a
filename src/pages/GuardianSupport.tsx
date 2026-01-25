@@ -739,6 +739,28 @@ export default function GuardianSupport() {
                           );
                         })()}
 
+                        {/* Ver Mensagens Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2 text-xs h-7"
+                          onClick={() => {
+                            const guardianStudentNames = students
+                              .filter(s => s.guardian_id === guardian.id)
+                              .map(s => s.name);
+                            setSelectedGuardianForMessages({
+                              id: guardian.id,
+                              name: getFirstName(guardian.name),
+                              phone: guardian.phone,
+                              studentNames: guardianStudentNames,
+                            });
+                            setShowMessagesModal(true);
+                          }}
+                        >
+                          <MessageSquare className="h-3 w-3 mr-1" />
+                          Ver Mensagens
+                        </Button>
+
                         {/* VIP Info */}
                         {guardian.category === 'vip' && (
                           <div className="flex flex-wrap gap-1 mt-2">
