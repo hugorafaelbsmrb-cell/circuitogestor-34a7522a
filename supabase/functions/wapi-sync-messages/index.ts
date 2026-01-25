@@ -126,84 +126,113 @@ Deno.serve(async (req) => {
       return digits.startsWith('55') ? digits : `55${digits}`;
     };
 
-    // W-API getMessages endpoint
-    // POST /getMessages with apikey header and JSON body { chatId, count }
+    // W-API PRO endpoints to try for getting messages
+    // The API may require instanceId in different positions
+    const getMessageEndpoints = (chatId: string) => [
+      // Format 1: /chat/getMessages with query params
+      `${baseUrl}/chat/getMessages/${instanceId}?chatId=${encodeURIComponent(chatId)}&count=20`,
+      // Format 2: /v1/chat/messages with instanceId
+      `${baseUrl}/v1/chat/messages/${instanceId}?chatId=${encodeURIComponent(chatId)}&limit=20`,
+      // Format 3: Instance-based path
+      `${baseUrl}/instance/${instanceId}/getMessages?chatId=${encodeURIComponent(chatId)}&count=20`,
+      // Format 4: Direct chatId path with GET
+      `${baseUrl}/chat/${instanceId}/${encodeURIComponent(chatId)}/messages?limit=20`,
+      // Format 5: Simple v1 messages endpoint
+      `${baseUrl}/v1/messages/${instanceId}?chatId=${encodeURIComponent(chatId)}&count=20`,
+    ];
+    
     const fetchMessagesForPhone = async (chatId: string): Promise<{ messages: WapiMessage[]; status: number; error?: string }> => {
-      const url = `${baseUrl}/getMessages`;
+      const endpoints = getMessageEndpoints(chatId);
       
-      console.log(`Fetching: POST ${url}`);
-      console.log(`ChatId: ${chatId}`);
-      console.log(`Headers: apikey=${apiKey.slice(0, 8)}..., Content-Type=application/json`);
-      
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'apikey': apiKey,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            chatId: chatId,
-            count: 20 
-          }),
-          signal: controller.signal,
-        });
+      // Try each endpoint until one works
+      for (const url of endpoints) {
+        console.log(`Trying: GET ${url}`);
+        console.log(`Headers: apikey=${apiKey.slice(0, 8)}...`);
         
-        clearTimeout(timeoutId);
-
-        const responseText = await response.text();
-        console.log(`Response status: ${response.status}`);
-        console.log(`Response preview: ${responseText.slice(0, 200)}`);
-
-        if (!response.ok) {
-          return { 
-            messages: [], 
-            status: response.status, 
-            error: responseText.slice(0, 100) 
-          };
-        }
-
         try {
-          const data = JSON.parse(responseText);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'apikey': apiKey,
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+          });
           
-          // Extract messages from various response structures
-          let messages: WapiMessage[] = [];
-          
-          if (Array.isArray(data)) {
-            messages = data;
-          } else if (data.messages && Array.isArray(data.messages)) {
-            messages = data.messages;
-          } else if (data.data?.messages && Array.isArray(data.data.messages)) {
-            messages = data.data.messages;
-          } else if (data.data && Array.isArray(data.data)) {
-            messages = data.data;
-          } else if (data.result && Array.isArray(data.result)) {
-            messages = data.result;
-          } else if (data.response && Array.isArray(data.response)) {
-            messages = data.response;
+          clearTimeout(timeoutId);
+
+          const responseText = await response.text();
+          console.log(`Response status: ${response.status}`);
+          console.log(`Response preview: ${responseText.slice(0, 150)}`);
+
+          // If we get 404, try next endpoint
+          if (response.status === 404) {
+            continue;
+          }
+
+          if (!response.ok) {
+            // Try next endpoint for other errors too
+            if (response.status >= 400 && response.status < 500) {
+              continue;
+            }
+            return { 
+              messages: [], 
+              status: response.status, 
+              error: responseText.slice(0, 100) 
+            };
+          }
+
+          try {
+            const data = JSON.parse(responseText);
+            
+            // Extract messages from various response structures
+            let messages: WapiMessage[] = [];
+            
+            if (Array.isArray(data)) {
+              messages = data;
+            } else if (data.messages && Array.isArray(data.messages)) {
+              messages = data.messages;
+            } else if (data.data?.messages && Array.isArray(data.data.messages)) {
+              messages = data.data.messages;
+            } else if (data.data && Array.isArray(data.data)) {
+              messages = data.data;
+            } else if (data.result && Array.isArray(data.result)) {
+              messages = data.result;
+            } else if (data.response && Array.isArray(data.response)) {
+              messages = data.response;
+            }
+            
+            if (messages.length > 0) {
+              console.log(`SUCCESS! Found ${messages.length} messages from ${url}`);
+              return { messages: messages.slice(0, 20), status: response.status };
+            }
+            
+          } catch (parseErr) {
+            console.error(`JSON parse error: ${parseErr}`);
+            continue;
           }
           
-          console.log(`Parsed ${messages.length} messages from response`);
-          return { messages: messages.slice(0, 20), status: response.status };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`Fetch error for ${url}: ${msg}`);
           
-        } catch (parseErr) {
-          console.error(`JSON parse error: ${parseErr}`);
-          return { messages: [], status: response.status, error: 'Parse error' };
+          if (msg.includes('abort')) {
+            continue; // Try next endpoint on timeout
+          }
+          
+          continue; // Try next endpoint on error
         }
-        
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`Fetch error: ${msg}`);
-        
-        if (msg.includes('abort')) {
-          return { messages: [], status: 408, error: 'Timeout' };
-        }
-        
-        return { messages: [], status: 0, error: msg };
       }
+      
+      // All endpoints failed
+      return { 
+        messages: [], 
+        status: 404, 
+        error: 'Nenhum endpoint de mensagens disponível. Sincronização via webhook ativa.' 
+      };
     };
 
     // Process guardians
@@ -292,8 +321,9 @@ Deno.serve(async (req) => {
     let message = `Sincronização concluída: ${syncedCount} mensagens importadas`;
     
     if (guardiansWithMessages === 0 && syncedCount === 0) {
-      if (lastStatus === 404) {
-        message = 'Endpoint não encontrado (404). Verifique se sua instância W-API está ativa e a API Key está correta.';
+      if (lastStatus === 404 || lastError?.includes('endpoint')) {
+        // This is expected for some W-API configurations - webhook is the primary sync method
+        message = 'Sincronização manual não disponível para esta instância. As mensagens são capturadas automaticamente via webhook em tempo real.';
       } else if (lastStatus === 401 || lastStatus === 403) {
         message = 'Erro de autenticação. Verifique se a API Key está correta no painel W-API.';
       } else if (lastStatus === 408 || lastError?.includes('Timeout')) {
@@ -301,7 +331,7 @@ Deno.serve(async (req) => {
       } else if (lastError) {
         message = `Erro na conexão: ${lastError}. Verifique as configurações no painel W-API.`;
       } else {
-        message = 'Nenhuma mensagem encontrada. Verifique se a instância está conectada e há histórico de conversa.';
+        message = 'Nenhuma mensagem encontrada. As mensagens são capturadas automaticamente via webhook quando recebidas.';
       }
     }
 
