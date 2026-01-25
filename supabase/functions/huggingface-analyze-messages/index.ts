@@ -80,7 +80,7 @@ Regras:
     }
 
     const response = await fetch(
-      "https://router.huggingface.co/novita/v3/openai/chat/completions",
+      "https://router.huggingface.co/hf-inference/models/zai-org/GLM-4.7-Flash/v1/chat/completions",
       {
         method: "POST",
         headers: {
@@ -88,7 +88,7 @@ Regras:
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "meta-llama/llama-3.1-8b-instruct",
+          model: "zai-org/GLM-4.7-Flash",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
