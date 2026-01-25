@@ -669,6 +669,25 @@ export default function GuardianSupport() {
                             {format(new Date(contact.lastMessageAt), "dd/MM HH:mm", { locale: ptBR })}
                           </span>
                         </div>
+
+                        {/* Ver Mensagens Button */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full mt-2 text-xs h-7"
+                          onClick={() => {
+                            setSelectedGuardianForMessages({
+                              id: null,
+                              name: formatPhone(contact.phone),
+                              phone: contact.phone,
+                              studentNames: [],
+                            });
+                            setShowMessagesModal(true);
+                          }}
+                        >
+                          <MessageSquare className="h-3 w-3 mr-1" />
+                          Ver Mensagens
+                        </Button>
                       </CardContent>
                     </Card>
                   ))}
