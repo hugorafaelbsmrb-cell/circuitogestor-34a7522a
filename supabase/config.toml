@@ -21,3 +21,9 @@ verify_jwt = false
 
 [functions.lms-sync]
 verify_jwt = false
+
+[functions.huggingface-generate-message]
+verify_jwt = false
+
+[functions.huggingface-analyze-messages]
+verify_jwt = false
