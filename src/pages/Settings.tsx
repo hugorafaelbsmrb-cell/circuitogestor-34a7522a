@@ -49,6 +49,7 @@ import { MessageLogsViewer } from '@/components/settings/MessageLogsViewer';
 import { QuickRepliesConfigCard } from '@/components/settings/QuickRepliesConfigCard';
 import { AIProviderConfigCard } from '@/components/settings/AIProviderConfigCard';
 import { SystemDocumentation } from '@/components/settings/SystemDocumentation';
+import { CanteenMessageConfigCard } from '@/components/settings/CanteenMessageConfigCard';
 import { cn } from '@/lib/utils';
 import '@/styles/print.css';
 
@@ -723,6 +724,7 @@ export default function Settings() {
               setEditedSettings={setEditedSettings} 
             />
             <QuickRepliesConfigCard />
+            <CanteenMessageConfigCard />
           </div>
         );
 
