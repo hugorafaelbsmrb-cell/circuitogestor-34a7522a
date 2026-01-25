@@ -40,7 +40,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
 - Contexto adicional: ${context || 'mensagem para responsáveis de alunos'}`;
 
     const response = await fetch(
-      "https://api-inference.huggingface.co/models/THUDM/glm-4-9b-chat/v1/chat/completions",
+      "https://router.huggingface.co/novita/v3/openai/chat/completions",
       {
         method: "POST",
         headers: {
@@ -48,7 +48,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "THUDM/glm-4-9b-chat",
+          model: "zai-org/GLM-4.7-Flash",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
@@ -60,18 +60,41 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
     );
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns minutos." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const errorText = await response.text();
       console.error("Hugging Face API error:", response.status, errorText);
-      return new Response(JSON.stringify({ error: "Erro ao gerar mensagem com IA" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+
+      // Repasse o status quando fizer sentido (ajuda a debugar no client)
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({
+            error: "Limite de requisições excedido. Tente novamente em alguns minutos.",
+            status: 429,
+          }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({
+            error: "Créditos insuficientes/Payment required no provedor de IA.",
+            status: 402,
+            details: errorText,
+          }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // 404/410 etc: devolve o erro real
+      const status = response.status || 500;
+      return new Response(
+        JSON.stringify({
+          error: "Erro ao gerar mensagem com IA",
+          status,
+          details: errorText,
+        }),
+        { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const data = await response.json();
