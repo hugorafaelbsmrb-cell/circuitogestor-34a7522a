@@ -1,0 +1,311 @@
+ <!DOCTYPE html>
+ <html lang="pt-BR">
+ <head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Assinatura de Contrato - Circuito Kids</title>
+   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.1.7/dist/signature_pad.umd.min.js"></script>
+   <style>
+     * { margin: 0; padding: 0; box-sizing: border-box; }
+     body {
+       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+       min-height: 100vh;
+       padding: 20px;
+     }
+     .container {
+       max-width: 800px;
+       margin: 0 auto;
+       background: white;
+       border-radius: 12px;
+       padding: 30px;
+       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+     }
+     h1 { color: #1a1a1a; margin-bottom: 20px; font-size: 24px; }
+     .contract-content {
+       background: #f9fafb;
+       padding: 20px;
+       border-radius: 8px;
+       margin: 20px 0;
+       max-height: 400px;
+       overflow-y: auto;
+       border: 1px solid #e5e7eb;
+     }
+     .signature-section {
+       margin-top: 30px;
+       border-top: 2px solid #e5e7eb;
+       padding-top: 30px;
+     }
+     canvas {
+       border: 2px solid #d1d5db;
+       border-radius: 8px;
+       width: 100%;
+       max-width: 600px;
+       height: 200px;
+       touch-action: none;
+       cursor: crosshair;
+     }
+     .buttons {
+       display: flex;
+       gap: 10px;
+       margin-top: 20px;
+       flex-wrap: wrap;
+     }
+     button {
+       padding: 12px 24px;
+       border: none;
+       border-radius: 8px;
+       font-size: 16px;
+       font-weight: 600;
+       cursor: pointer;
+       transition: all 0.2s;
+     }
+     .btn-primary {
+       background: #667eea;
+       color: white;
+     }
+     .btn-primary:hover { background: #5568d3; }
+     .btn-primary:disabled {
+       background: #9ca3af;
+       cursor: not-allowed;
+     }
+     .btn-secondary {
+       background: #e5e7eb;
+       color: #1a1a1a;
+     }
+     .btn-secondary:hover { background: #d1d5db; }
+     .loading {
+       text-align: center;
+       padding: 40px;
+       color: #6b7280;
+     }
+     .error {
+       background: #fef2f2;
+       border: 1px solid #fecaca;
+       color: #991b1b;
+       padding: 15px;
+       border-radius: 8px;
+       margin: 20px 0;
+     }
+     .success {
+       background: #f0fdf4;
+       border: 1px solid #bbf7d0;
+       color: #166534;
+       padding: 15px;
+       border-radius: 8px;
+       margin: 20px 0;
+     }
+     .debug {
+       background: #1a1a1a;
+       color: #00ff00;
+       padding: 10px;
+       border-radius: 4px;
+       font-family: monospace;
+       font-size: 12px;
+       margin-top: 20px;
+       max-height: 200px;
+       overflow-y: auto;
+     }
+   </style>
+ </head>
+ <body>
+   <div class="container" id="app">
+     <div class="loading">
+       <h2>Carregando contrato...</h2>
+       <p id="debug-info" style="margin-top: 10px; font-size: 14px;"></p>
+     </div>
+   </div>
+ 
+   <script>
+     // Debug logging
+     const debugLog = (msg) => {
+       console.log('🔴 SAFARI:', msg);
+       const debugEl = document.getElementById('debug-info');
+       if (debugEl) {
+         debugEl.innerHTML += `<br>${new Date().toLocaleTimeString()}: ${msg}`;
+       }
+     };
+ 
+     debugLog('Página HTML pura iniciada');
+     debugLog('UserAgent: ' + navigator.userAgent.substring(0, 50));
+     debugLog('URL: ' + window.location.href);
+ 
+     // Initialize Supabase
+     const SUPABASE_URL = 'https://akxpcfqcasuabxbwyrew.supabase.co';
+     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFreHBjZnFjYXN1YWJ4Ynd5cmV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc5OTQ2OTksImV4cCI6MjA4MzU3MDY5OX0.i8o_GrdfMlNClnly4s87jx-ACgh1XFi18hpBhJNlmbU';
+     
+     const { createClient } = supabase;
+     const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+     
+     debugLog('Supabase inicializado');
+ 
+     // Get token from URL
+     const urlParams = new URLSearchParams(window.location.search);
+     const token = urlParams.get('token');
+     
+     debugLog('Token: ' + (token ? token.substring(0, 8) + '...' : 'nenhum'));
+ 
+     let signaturePad = null;
+     let contractData = null;
+ 
+     // Load contract
+     async function loadContract() {
+       try {
+         debugLog('Buscando contrato...');
+         
+         const { data, error } = await supabaseClient
+           .from('contracts')
+           .select(`
+             *,
+             student:students(name),
+             guardian:guardians(name, email, cpf),
+             course:courses(name, price)
+           `)
+           .eq('signature_token', token)
+           .maybeSingle();
+ 
+         if (error) throw error;
+         if (!data) throw new Error('Contrato não encontrado');
+ 
+         debugLog('Contrato carregado com sucesso');
+         contractData = data;
+         renderContract();
+       } catch (err) {
+         debugLog('ERRO: ' + err.message);
+         document.getElementById('app').innerHTML = `
+           <h1>Erro ao carregar contrato</h1>
+           <div class="error">${err.message}</div>
+           <div class="debug">${document.getElementById('debug-info').innerHTML}</div>
+         `;
+       }
+     }
+ 
+     // Render contract
+     function renderContract() {
+       const app = document.getElementById('app');
+       
+       if (contractData.status === 'signed') {
+         app.innerHTML = `
+           <h1>✅ Contrato já assinado</h1>
+           <div class="success">
+             Este contrato foi assinado em ${new Date(contractData.signed_at).toLocaleString('pt-BR')}.
+           </div>
+         `;
+         return;
+       }
+ 
+       app.innerHTML = `
+         <h1>📝 Assinatura de Contrato</h1>
+         <p><strong>Aluno:</strong> ${contractData.student.name}</p>
+         <p><strong>Responsável:</strong> ${contractData.guardian.name}</p>
+         <p><strong>Curso:</strong> ${contractData.course.name}</p>
+         
+         <div class="contract-content">
+           <div>${JSON.stringify(contractData.contract_content)}</div>
+         </div>
+ 
+         <div class="signature-section">
+           <h2>Assinatura do Responsável</h2>
+           <p style="color: #6b7280; margin: 10px 0;">Assine no campo abaixo:</p>
+           <canvas id="signature-pad"></canvas>
+           <div class="buttons">
+             <button class="btn-secondary" onclick="clearSignature()">Limpar</button>
+             <button class="btn-primary" id="sign-btn" onclick="submitSignature()">Assinar Contrato</button>
+           </div>
+         </div>
+         
+         <div class="debug" id="debug-panel">${document.getElementById('debug-info').innerHTML}</div>
+       `;
+ 
+       // Initialize signature pad
+       const canvas = document.getElementById('signature-pad');
+       signaturePad = new SignaturePad(canvas, {
+         backgroundColor: 'rgb(255, 255, 255)',
+         penColor: 'rgb(0, 0, 0)'
+       });
+ 
+       // Resize canvas
+       function resizeCanvas() {
+         const ratio = Math.max(window.devicePixelRatio || 1, 1);
+         canvas.width = canvas.offsetWidth * ratio;
+         canvas.height = canvas.offsetHeight * ratio;
+         canvas.getContext('2d').scale(ratio, ratio);
+         signaturePad.clear();
+       }
+       
+       window.addEventListener('resize', resizeCanvas);
+       resizeCanvas();
+       
+       debugLog('Pad de assinatura inicializado');
+     }
+ 
+     // Clear signature
+     window.clearSignature = function() {
+       if (signaturePad) {
+         signaturePad.clear();
+         debugLog('Assinatura limpa');
+       }
+     };
+ 
+     // Submit signature
+     window.submitSignature = async function() {
+       if (!signaturePad || signaturePad.isEmpty()) {
+         alert('Por favor, assine o contrato antes de continuar.');
+         return;
+       }
+ 
+       const btn = document.getElementById('sign-btn');
+       btn.disabled = true;
+       btn.textContent = 'Enviando...';
+       
+       debugLog('Enviando assinatura...');
+ 
+       try {
+         const signatureData = signaturePad.toDataURL();
+         
+         const response = await fetch(`${SUPABASE_URL}/functions/v1/contract-sign`, {
+           method: 'POST',
+           headers: {
+             'Content-Type': 'application/json',
+             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+           },
+           body: JSON.stringify({
+             token: token,
+             signature: signatureData
+           })
+         });
+ 
+         const result = await response.json();
+ 
+         if (!response.ok) throw new Error(result.error || 'Erro ao processar assinatura');
+ 
+         debugLog('Assinatura enviada com sucesso!');
+         
+         document.getElementById('app').innerHTML = `
+           <h1>✅ Contrato Assinado com Sucesso!</h1>
+           <div class="success">
+             Seu contrato foi assinado e registrado. Você receberá uma confirmação em breve.
+           </div>
+         `;
+       } catch (err) {
+         debugLog('ERRO ao assinar: ' + err.message);
+         alert('Erro ao assinar contrato: ' + err.message);
+         btn.disabled = false;
+         btn.textContent = 'Assinar Contrato';
+       }
+     };
+ 
+     // Start loading
+     if (!token) {
+       debugLog('Token não encontrado na URL');
+       document.getElementById('app').innerHTML = `
+         <h1>❌ Token inválido</h1>
+         <div class="error">O link de assinatura está incompleto ou inválido.</div>
+       `;
+     } else {
+       loadContract();
+     }
+   </script>
+ </body>
+ </html>
