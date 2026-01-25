@@ -948,7 +948,9 @@ export default function GuardianSupport() {
                     <p className="text-xs opacity-75">{config.description}</p>
                   </div>
                   <Badge variant="secondary" className="bg-background">
-                    {isUnknownColumn ? unknownContacts.length : guardiansInColumn.length}
+                    {isUnknownColumn 
+                      ? unknownContacts.length + guardiansInColumn.length
+                      : guardiansInColumn.length}
                   </Badge>
                 </div>
               </div>
@@ -1082,7 +1084,7 @@ export default function GuardianSupport() {
                   })}
 
                   {/* Guardians in Category */}
-                  {!isUnknownColumn && guardiansInColumn.map((guardian) => (
+                  {guardiansInColumn.map((guardian) => (
                     <Card 
                       key={guardian.id} 
                       className={`hover:shadow-md transition-shadow ${
