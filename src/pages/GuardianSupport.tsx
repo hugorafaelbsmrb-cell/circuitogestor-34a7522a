@@ -444,7 +444,7 @@ export default function GuardianSupport() {
       }
     });
 
-    // Sort each column: unread first, then by last message date
+    // Sort each column: unread first (by most recent), then read ones (oldest first to go to bottom)
     Object.keys(result).forEach((key) => {
       const column = key as ColumnType;
       result[column].sort((a, b) => {
@@ -452,12 +452,21 @@ export default function GuardianSupport() {
         if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
         if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
         
-        // Then by last message date (most recent first)
-        if (a.lastMessageAt && b.lastMessageAt) {
-          return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        // Both have unread: most recent first (urgent ones on top)
+        if (a.unreadCount > 0 && b.unreadCount > 0) {
+          if (a.lastMessageAt && b.lastMessageAt) {
+            return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+          }
         }
-        if (a.lastMessageAt) return -1;
-        if (b.lastMessageAt) return 1;
+        
+        // Both are read: oldest last message goes to bottom (least recently active)
+        if (a.unreadCount === 0 && b.unreadCount === 0) {
+          if (a.lastMessageAt && b.lastMessageAt) {
+            return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+          }
+          if (a.lastMessageAt) return -1;
+          if (b.lastMessageAt) return 1;
+        }
         
         // Finally alphabetically
         return a.name.localeCompare(b.name);
@@ -523,10 +532,18 @@ export default function GuardianSupport() {
       };
     });
 
-    // Sort: unread first, then by last message date
+    // Sort: unread first (most recent), then read ones (most recent first among read)
     return contacts.sort((a, b) => {
+      // Unread messages first
       if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
       if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
+      
+      // Both have unread: most recent first
+      if (a.unreadCount > 0 && b.unreadCount > 0) {
+        return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+      }
+      
+      // Both are read: most recent first
       return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
     });
   }, [unknownMessages, guardians, whatsappContactsMap]);
