@@ -129,8 +129,8 @@ Deno.serve(async (req) => {
     };
 
     // ========================================
-    // STEP 2: Function to fetch messages using correct W-API format
-    // GET /messages?chatId=5511999999999@c.us&count=50
+    // STEP 2: Function to fetch messages using correct W-API PRO format
+    // GET /getMessages?chatId=5511999999999@c.us&count=50
     // Headers: apikey, Content-Type
     // ========================================
     type Attempt = { endpoint: string; status: number | null; ok: boolean; note?: string };
@@ -144,12 +144,13 @@ Deno.serve(async (req) => {
       const attempts: Attempt[] = [];
 
       // ========================================
-      // CORRECT FORMAT: GET /messages?chatId=PHONE@c.us&count=50
+      // CORRECT FORMAT: GET /getMessages?chatId=PHONE@c.us&count=50
       // Headers: apikey (not Authorization: Bearer)
+      // W-API PRO uses "get" prefix: getMessages, getChats, getContacts
       // ========================================
-      const messagesUrl = `${wapiUrl}/messages?chatId=${encodeURIComponent(chatId)}&count=50&instanceId=${encodeURIComponent(session)}`;
+      const messagesUrl = `${wapiUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50&instanceId=${encodeURIComponent(session)}`;
       
-      console.log(`Fetching messages for chatId: ${chatId}`);
+      console.log(`Fetching messages for chatId: ${chatId} at ${messagesUrl}`);
       
       try {
         const res = await fetch(messagesUrl, {
@@ -160,7 +161,7 @@ Deno.serve(async (req) => {
           },
         });
 
-        attempts.push({ endpoint: '/messages', status: res.status, ok: res.ok });
+        attempts.push({ endpoint: '/getMessages', status: res.status, ok: res.ok });
 
         if (res.ok) {
           const text = await res.text();
@@ -176,11 +177,11 @@ Deno.serve(async (req) => {
 
             if (Array.isArray(msgs) && msgs.length > 0) {
               console.log(`Found ${msgs.length} messages for ${chatId.slice(-12)}`);
-              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/messages', attempts };
+              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/getMessages', attempts };
             }
           } catch (parseError) {
             console.log(`Parse error: ${parseError}`);
-            attempts.push({ endpoint: '/messages', status: res.status, ok: false, note: 'parse_error' });
+            attempts.push({ endpoint: '/getMessages', status: res.status, ok: false, note: 'parse_error' });
           }
         } else {
           const errText = await res.text();
@@ -188,13 +189,13 @@ Deno.serve(async (req) => {
         }
       } catch (fetchError) {
         console.log(`Fetch error: ${fetchError}`);
-        attempts.push({ endpoint: '/messages', status: null, ok: false, note: 'fetch_error' });
+        attempts.push({ endpoint: '/getMessages', status: null, ok: false, note: 'fetch_error' });
       }
 
       // ========================================
       // FALLBACK 1: Try with instanceId in headers instead of query
       // ========================================
-      const fallbackUrl1 = `${wapiUrl}/messages?chatId=${encodeURIComponent(chatId)}&count=50`;
+      const fallbackUrl1 = `${wapiUrl}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`;
       
       try {
         const res = await fetch(fallbackUrl1, {
@@ -206,7 +207,7 @@ Deno.serve(async (req) => {
           },
         });
 
-        attempts.push({ endpoint: '/messages (header instanceId)', status: res.status, ok: res.ok });
+        attempts.push({ endpoint: '/getMessages (header instanceId)', status: res.status, ok: res.ok });
 
         if (res.ok) {
           const text = await res.text();
@@ -217,20 +218,20 @@ Deno.serve(async (req) => {
               : (parsed.messages ?? parsed.data ?? parsed.result ?? []);
 
             if (Array.isArray(msgs) && msgs.length > 0) {
-              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/messages (header)', attempts };
+              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/getMessages (header)', attempts };
             }
           } catch {
             // ignore parse error
           }
         }
       } catch {
-        attempts.push({ endpoint: '/messages (header instanceId)', status: null, ok: false, note: 'fetch_error' });
+        attempts.push({ endpoint: '/getMessages (header instanceId)', status: null, ok: false, note: 'fetch_error' });
       }
 
       // ========================================
       // FALLBACK 2: Try v1 endpoint variant
       // ========================================
-      const fallbackUrl2 = `${wapiUrl}/v1/messages?chatId=${encodeURIComponent(chatId)}&count=50&instanceId=${encodeURIComponent(session)}`;
+      const fallbackUrl2 = `${wapiUrl}/v1/getMessages?chatId=${encodeURIComponent(chatId)}&count=50&instanceId=${encodeURIComponent(session)}`;
       
       try {
         const res = await fetch(fallbackUrl2, {
@@ -241,7 +242,7 @@ Deno.serve(async (req) => {
           },
         });
 
-        attempts.push({ endpoint: '/v1/messages', status: res.status, ok: res.ok });
+        attempts.push({ endpoint: '/v1/getMessages', status: res.status, ok: res.ok });
 
         if (res.ok) {
           const text = await res.text();
@@ -252,20 +253,20 @@ Deno.serve(async (req) => {
               : (parsed.messages ?? parsed.data ?? parsed.result ?? []);
 
             if (Array.isArray(msgs) && msgs.length > 0) {
-              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/v1/messages', attempts };
+              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/v1/getMessages', attempts };
             }
           } catch {
             // ignore
           }
         }
       } catch {
-        attempts.push({ endpoint: '/v1/messages', status: null, ok: false, note: 'fetch_error' });
+        attempts.push({ endpoint: '/v1/getMessages', status: null, ok: false, note: 'fetch_error' });
       }
 
       // ========================================
-      // FALLBACK 3: Try chats/messages variant used by some W-API versions
+      // FALLBACK 3: Try without /v1 prefix but session in path (some W-API versions)
       // ========================================
-      const fallbackUrl3 = `${wapiUrl}/chats/messages?chatId=${encodeURIComponent(chatId)}&count=50&instanceId=${encodeURIComponent(session)}`;
+      const fallbackUrl3 = `${wapiUrl}/${session}/getMessages?chatId=${encodeURIComponent(chatId)}&count=50`;
       
       try {
         const res = await fetch(fallbackUrl3, {
@@ -276,7 +277,7 @@ Deno.serve(async (req) => {
           },
         });
 
-        attempts.push({ endpoint: '/chats/messages', status: res.status, ok: res.ok });
+        attempts.push({ endpoint: '/{session}/getMessages', status: res.status, ok: res.ok });
 
         if (res.ok) {
           const text = await res.text();
@@ -287,14 +288,14 @@ Deno.serve(async (req) => {
               : (parsed.messages ?? parsed.data ?? parsed.result ?? []);
 
             if (Array.isArray(msgs) && msgs.length > 0) {
-              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/chats/messages', attempts };
+              return { messages: msgs.slice(0, 30), success: true, workingEndpoint: '/{session}/getMessages', attempts };
             }
           } catch {
             // ignore
           }
         }
       } catch {
-        attempts.push({ endpoint: '/chats/messages', status: null, ok: false, note: 'fetch_error' });
+        attempts.push({ endpoint: '/{session}/getMessages', status: null, ok: false, note: 'fetch_error' });
       }
 
       return { messages: [], success: false, attempts };
@@ -410,7 +411,7 @@ Deno.serve(async (req) => {
     const derivedMessage = hasAuthError
       ? 'A API recusou acesso (401/403). Verifique se o token (apikey) está correto.'
       : allNotFound
-        ? 'Endpoint /messages retornou 404. Verifique se sua instância W-API está no plano PRO com histórico habilitado.'
+        ? 'Endpoint /getMessages retornou 404. Verifique se sua instância W-API está no plano PRO com histórico habilitado.'
         : syncedCount === 0
           ? 'Nenhuma mensagem encontrada. Pode ser que não haja conversas recentes ou o endpoint não está correto.'
           : `Sincronização concluída: ${syncedCount} mensagens de ${guardiansWithMessages} responsáveis`;
