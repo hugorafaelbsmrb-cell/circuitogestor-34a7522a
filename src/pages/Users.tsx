@@ -67,15 +67,21 @@ interface UserPermissions {
   dashboard?: boolean;
   enrollment?: boolean;
   students?: boolean;
+  guardians?: boolean;
   leads?: boolean;
   classes?: boolean;
   courses?: boolean;
   schedules?: boolean;
+  lms?: boolean;
+  soroban?: boolean;
+  teachers?: boolean;
   financial?: boolean;
   carnes?: boolean;
   contracts?: boolean;
   discounts?: boolean;
   reports?: boolean;
+  whatsapp?: boolean;
+  inventory?: boolean;
   contract_config?: boolean;
   users?: boolean;
   settings?: boolean;
@@ -97,15 +103,21 @@ const moduleLabels: Record<string, string> = {
   dashboard: 'Dashboard',
   enrollment: 'Nova Matrícula',
   students: 'Alunos',
+  guardians: 'Responsáveis',
   leads: 'Leads',
   classes: 'Turmas',
   courses: 'Cursos',
   schedules: 'Horários',
+  lms: 'Alunos LMS',
+  soroban: 'Alunos Soroban',
+  teachers: 'Professores (Admin)',
   financial: 'Financeiro',
   carnes: 'Carnês',
   contracts: 'Contratos',
   discounts: 'Descontos',
   reports: 'Relatórios',
+  whatsapp: 'Envio em Massa (Admin)',
+  inventory: 'Patrimônio',
   contract_config: 'Config. Contrato',
   users: 'Usuários (Admin)',
   settings: 'Configurações (Admin)',
@@ -115,15 +127,21 @@ const defaultPermissions: UserPermissions = {
   dashboard: true,
   enrollment: true,
   students: true,
+  guardians: true,
   leads: true,
   classes: true,
   courses: true,
   schedules: true,
+  lms: true,
+  soroban: true,
+  teachers: false,
   financial: true,
   carnes: true,
   contracts: true,
   discounts: true,
   reports: true,
+  whatsapp: false,
+  inventory: true,
   contract_config: true,
 };
 
@@ -762,7 +780,8 @@ export default function Users() {
             <div className="grid grid-cols-1 gap-3">
               {Object.entries(moduleLabels).map(([key, label]) => {
                 // Hide admin-only modules for non-admin users
-                if ((key === 'users' || key === 'settings') && editingUser?.role !== 'admin') {
+                const adminOnlyModules = ['users', 'settings', 'teachers', 'whatsapp'];
+                if (adminOnlyModules.includes(key) && editingUser?.role !== 'admin') {
                   return null;
                 }
                 
