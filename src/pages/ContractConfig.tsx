@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Settings, Plus, Pencil, Trash2, GripVertical, Eye, Save, FileText } from 'lucide-react';
-import { useSchool, ContractClause, ContractConfig as ContractConfigType } from '@/contexts/SchoolContext';
+import { useState, useRef, useEffect } from 'react';
+import { Settings, Plus, Pencil, Trash2, GripVertical, Eye, Save, FileText, PenLine, Loader2 } from 'lucide-react';
+import { useSchool, ContractClause } from '@/contexts/SchoolContext';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SignaturePad, SignaturePadRef } from '@/components/contracts/SignaturePad';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ContractConfig() {
   const { contractConfig, contractClauses, updateContractConfig, addContractClause, updateContractClause, deleteContractClause } = useSchool();
+  const { toast } = useToast();
+  const signatureRef = useRef<SignaturePadRef>(null);
   const [isClauseDialogOpen, setIsClauseDialogOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [editingClause, setEditingClause] = useState<ContractClause | null>(null);
+  const [isSavingSignature, setIsSavingSignature] = useState(false);
   const [clauseFormData, setClauseFormData] = useState({
     title: '',
     content: '',
@@ -24,7 +30,21 @@ export default function ContractConfig() {
     school_name: contractConfig?.school_name || '',
     school_cnpj: contractConfig?.school_cnpj || '',
     school_address: contractConfig?.school_address || '',
+    representative_name: (contractConfig as any)?.representative_name || '',
   });
+  const [currentSignatureUrl, setCurrentSignatureUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (contractConfig) {
+      setConfigFormData({
+        school_name: contractConfig.school_name || '',
+        school_cnpj: contractConfig.school_cnpj || '',
+        school_address: contractConfig.school_address || '',
+        representative_name: (contractConfig as any)?.representative_name || '',
+      });
+      setCurrentSignatureUrl((contractConfig as any)?.representative_signature_url || null);
+    }
+  }, [contractConfig]);
 
   const sortedClauses = [...contractClauses].sort((a, b) => a.clause_order - b.clause_order);
 
@@ -71,7 +91,105 @@ export default function ContractConfig() {
   };
 
   const handleSaveConfig = () => {
-    updateContractConfig(configFormData);
+    updateContractConfig({
+      school_name: configFormData.school_name,
+      school_cnpj: configFormData.school_cnpj,
+      school_address: configFormData.school_address,
+      representative_name: configFormData.representative_name,
+    } as any);
+    toast({
+      title: 'Dados salvos',
+      description: 'As informações da escola foram atualizadas.',
+    });
+  };
+
+  const handleSaveSignature = async () => {
+    if (!contractConfig) return;
+    
+    if (signatureRef.current?.isEmpty()) {
+      toast({
+        title: 'Assinatura vazia',
+        description: 'Por favor, desenhe a assinatura antes de salvar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSavingSignature(true);
+
+    try {
+      const signatureDataUrl = signatureRef.current?.toDataURL() || '';
+      
+      // Convert base64 to blob
+      const response = await fetch(signatureDataUrl);
+      const blob = await response.blob();
+      
+      // Upload to storage
+      const fileName = `school-signature-${Date.now()}.png`;
+      const { error: uploadError } = await supabase.storage
+        .from('system-branding')
+        .upload(fileName, blob, {
+          contentType: 'image/png',
+          upsert: true,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('system-branding')
+        .getPublicUrl(fileName);
+
+      // Update contract config with signature URL
+      const { error: updateError } = await supabase
+        .from('contract_config')
+        .update({ 
+          representative_signature_url: urlData.publicUrl,
+          representative_name: configFormData.representative_name,
+        })
+        .eq('id', contractConfig.id);
+
+      if (updateError) throw updateError;
+
+      setCurrentSignatureUrl(urlData.publicUrl);
+      
+      toast({
+        title: 'Assinatura salva',
+        description: 'A assinatura da contratada foi salva com sucesso.',
+      });
+    } catch (error) {
+      console.error('Error saving signature:', error);
+      toast({
+        title: 'Erro ao salvar',
+        description: 'Não foi possível salvar a assinatura. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingSignature(false);
+    }
+  };
+
+  const handleClearSignature = async () => {
+    signatureRef.current?.clear();
+    
+    if (currentSignatureUrl && contractConfig) {
+      try {
+        // Remove signature URL from database
+        await supabase
+          .from('contract_config')
+          .update({ representative_signature_url: null })
+          .eq('id', contractConfig.id);
+        
+        setCurrentSignatureUrl(null);
+        
+        toast({
+          title: 'Assinatura removida',
+          description: 'A assinatura foi removida com sucesso.',
+        });
+      } catch (error) {
+        console.error('Error removing signature:', error);
+      }
+    }
   };
 
   const toggleClauseActive = (clause: ContractClause) => {
@@ -117,13 +235,85 @@ export default function ContractConfig() {
                 id="school_address"
                 value={configFormData.school_address}
                 onChange={(e) => setConfigFormData({ ...configFormData, school_address: e.target.value })}
-                rows={3}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="representative_name">Nome do Representante</Label>
+              <Input
+                id="representative_name"
+                value={configFormData.representative_name}
+                onChange={(e) => setConfigFormData({ ...configFormData, representative_name: e.target.value })}
+                placeholder="Nome que aparecerá abaixo da assinatura"
               />
             </div>
             <Button onClick={handleSaveConfig} className="w-full gap-2">
               <Save className="w-4 h-4" />
               Salvar Dados
             </Button>
+
+            {/* Assinatura da Contratada */}
+            <div className="pt-4 border-t">
+              <Label className="flex items-center gap-2 mb-2">
+                <PenLine className="w-4 h-4" />
+                Assinatura da Contratada
+              </Label>
+              <p className="text-xs text-muted-foreground mb-3">
+                Esta assinatura será exibida em todos os contratos gerados.
+              </p>
+              
+              {currentSignatureUrl ? (
+                <div className="space-y-3">
+                  <div className="border rounded-lg p-3 bg-secondary/30">
+                    <img 
+                      src={currentSignatureUrl} 
+                      alt="Assinatura atual" 
+                      className="max-h-16 mx-auto"
+                    />
+                    <p className="text-xs text-center text-muted-foreground mt-2">
+                      Assinatura atual
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleClearSignature}
+                    className="w-full"
+                  >
+                    Remover e Desenhar Nova
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <SignaturePad ref={signatureRef} height={120} />
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => signatureRef.current?.clear()}
+                      className="flex-1"
+                    >
+                      Limpar
+                    </Button>
+                    <Button 
+                      onClick={handleSaveSignature}
+                      disabled={isSavingSignature}
+                      className="flex-1 gap-2"
+                    >
+                      {isSavingSignature ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          Salvar Assinatura
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 

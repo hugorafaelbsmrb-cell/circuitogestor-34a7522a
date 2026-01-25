@@ -458,6 +458,8 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          representative_name: string | null
+          representative_signature_url: string | null
           school_address: string
           school_cnpj: string
           school_name: string
@@ -466,6 +468,8 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          representative_name?: string | null
+          representative_signature_url?: string | null
           school_address: string
           school_cnpj: string
           school_name: string
@@ -474,6 +478,8 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          representative_name?: string | null
+          representative_signature_url?: string | null
           school_address?: string
           school_cnpj?: string
           school_name?: string

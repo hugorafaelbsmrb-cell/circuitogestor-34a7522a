@@ -265,6 +265,8 @@ export default function Contracts() {
       schoolCnpj: contractConfig?.school_cnpj || '',
       schoolAddress: contractConfig?.school_address || '',
       schoolLogo: branding?.logo || '',
+      schoolSignatureUrl: (contractConfig as any)?.representative_signature_url || null,
+      schoolRepresentativeName: (contractConfig as any)?.representative_name || null,
       guardianName: guardian?.name || '',
       guardianCpf: guardian?.cpf || '',
       guardianAddress: guardian?.address || '',
