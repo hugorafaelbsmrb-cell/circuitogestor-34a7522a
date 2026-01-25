@@ -468,6 +468,32 @@ export function LeadsBulkMessageModal({
               </div>
             </div>
 
+            {/* Scheduling section - compact, visible early */}
+            <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/20">
+              <Calendar className="w-4 h-4 text-primary flex-shrink-0" />
+              <Label className="text-sm font-medium whitespace-nowrap">Agendar:</Label>
+              <Input
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="h-8 w-36"
+                placeholder="Data"
+              />
+              <Input
+                type="time"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+                className="h-8 w-28"
+                placeholder="Hora"
+              />
+              {scheduleDate && scheduleTime && (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  ✓ Agendado
+                </span>
+              )}
+            </div>
+
             {/* W-API warning */}
             {!isWapiConfigured && (
               <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
@@ -630,36 +656,6 @@ export function LeadsBulkMessageModal({
                 <p className="text-sm whitespace-pre-wrap">{getMessage()}</p>
               </div>
             )}
-
-            {/* Scheduling section - always visible */}
-            <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-primary" />
-                <Label className="font-medium">Agendar Envio (opcional)</Label>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="scheduleDate" className="text-sm">Data</Label>
-                  <Input
-                    id="scheduleDate"
-                    type="date"
-                    value={scheduleDate}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="scheduleTime" className="text-sm">Hora</Label>
-                  <Input
-                    id="scheduleTime"
-                    type="time"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
 
             {/* Progress and results */}
             {(isSending || sendResults.length > 0) && (
