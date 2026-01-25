@@ -193,6 +193,13 @@ export default function Enrollment() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingStudentId, isDataLoading, students.length > 0]);
 
+  // Helper to validate phone format (10 or 11 digits for Brazilian phones)
+  const isValidPhoneFormat = (phone: string): boolean => {
+    const digits = phone.replace(/\D/g, '');
+    // Valid formats: 10 digits (landline) or 11 digits (mobile with 9)
+    return digits.length >= 10 && digits.length <= 11;
+  };
+
   // Check WhatsApp when phone number changes (debounced)
   useEffect(() => {
     const phone = formData.guardian.phone.replace(/\D/g, '');
@@ -213,18 +220,24 @@ export default function Enrollment() {
         
         if (error) {
           console.error('Error checking WhatsApp:', error);
-          setWhatsAppStatus('error');
+          // API error - allow if format is valid
+          setWhatsAppStatus(isValidPhoneFormat(formData.guardian.phone) ? 'idle' : 'error');
         } else if (data?.hasWhatsApp === true) {
           setWhatsAppStatus('valid');
         } else if (data?.hasWhatsApp === false) {
           setWhatsAppStatus('invalid');
+        } else if (data?.hasWhatsApp === null || data?.error) {
+          // API not configured or returned error - allow if format is valid
+          console.log('W-API not configured, allowing valid format:', data?.error);
+          setWhatsAppStatus(isValidPhoneFormat(formData.guardian.phone) ? 'idle' : 'error');
         } else {
-          // API not configured or null response
+          // Unknown response - allow if format is valid
           setWhatsAppStatus('idle');
         }
       } catch (err) {
         console.error('Error checking WhatsApp:', err);
-        setWhatsAppStatus('error');
+        // API error - allow if format is valid
+        setWhatsAppStatus(isValidPhoneFormat(formData.guardian.phone) ? 'idle' : 'error');
       }
     }, 800); // Debounce 800ms
     
