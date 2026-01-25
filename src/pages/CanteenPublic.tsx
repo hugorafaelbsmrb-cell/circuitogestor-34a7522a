@@ -159,9 +159,17 @@ export default function CanteenPublic() {
       {/* Header */}
       <div className="bg-primary text-primary-foreground p-4 sticky top-0 z-10">
         <div className="max-w-lg mx-auto flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center">
-            <UtensilsCrossed className="w-5 h-5" />
-          </div>
+          {branding.logo ? (
+            <img 
+              src={branding.logo} 
+              alt={branding.name} 
+              className="w-10 h-10 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center">
+              <UtensilsCrossed className="w-5 h-5" />
+            </div>
+          )}
           <div>
             <h1 className="font-bold">Cantina</h1>
             <p className="text-sm opacity-80">{branding.name}</p>
