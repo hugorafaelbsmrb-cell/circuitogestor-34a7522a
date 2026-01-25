@@ -24,10 +24,10 @@ serve(async (req) => {
       }
     }
     
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GOOGLE_API_KEY) {
+      throw new Error("GOOGLE_API_KEY is not configured");
     }
 
     let systemPrompt = "";
@@ -111,21 +111,25 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
       throw new Error("Tipo de operação não suportado");
     }
 
-    // Call Lovable AI Gateway (uses auto-provisioned LOVABLE_API_KEY)
+    // Call Google Gemini API directly
     const response = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }],
+            },
           ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1024,
+          },
         }),
       }
     );
@@ -185,7 +189,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
     }
 
     const data = await response.json();
-    const generatedText = data.choices?.[0]?.message?.content || "";
+    const generatedText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     // Parse response based on type
     if (type === "suggest") {
