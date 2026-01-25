@@ -80,46 +80,31 @@ Deno.serve(async (req) => {
     console.log(`=== W-API Typing Indicator ===`);
     console.log(`Chat ID: ${chatId}`);
 
-    // Tenta múltiplos endpoints possíveis para compatibilidade
-    const endpoints = [
-      { url: `${baseUrl}/v1/chat/presence?instanceId=${instanceId}`, body: { chatId, presence: 'composing' } },
-      { url: `${baseUrl}/v1/chat/start-typing?instanceId=${instanceId}`, body: { chatId } },
-      { url: `${baseUrl}/chat/presence/${instanceId}`, body: { chatId, presence: 'composing' } },
-    ];
+    // Endpoint oficial da W-API PRO: /v1/chats/send-presence
+    const endpoint = `${baseUrl}/v1/chats/send-presence?instanceId=${instanceId}`;
+    
+    console.log(`Endpoint: ${endpoint}`);
 
     let success = false;
-    for (const { url, body } of endpoints) {
-      console.log(`Trying: ${url}`);
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.W_API_TOKEN}`,
-          },
-          body: JSON.stringify(body),
-        });
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.W_API_TOKEN}`,
+        },
+        body: JSON.stringify({ 
+          chatId,
+          presence: 'composing' // "composing" = digitando, "recording" = gravando áudio
+        }),
+      });
 
-        if (response.ok) {
-          console.log(`Success with endpoint: ${url}`);
-          success = true;
-          break;
-        }
-        
-        const status = response.status;
-        console.log(`Endpoint returned ${status}`);
-        
-        // Se não for 404, pode ser outro erro - não tentar mais
-        if (status !== 404) break;
-      } catch (err) {
-        console.log(`Endpoint error: ${err}`);
-      }
-    }
-
-    // Se nenhum endpoint funcionou, ainda consideramos sucesso
-    // pois typing indicator é uma feature opcional e não deve bloquear o fluxo
-    if (!success) {
-      console.log('No typing endpoint available - feature not supported by this W-API instance');
+      const responseText = await response.text();
+      console.log(`Response ${response.status}: ${responseText.slice(0, 200)}`);
+      
+      success = response.ok;
+    } catch (err) {
+      console.error(`Error calling W-API:`, err);
     }
 
     // Wait for the specified duration to simulate typing
