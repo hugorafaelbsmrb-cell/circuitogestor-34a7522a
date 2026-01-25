@@ -117,6 +117,7 @@ export default function Enrollment() {
   const [useProRata, setUseProRata] = useState(true);
   const [useEntryBoleto, setUseEntryBoleto] = useState(true); // Boleto de entrada com valor cheio
   const [generateCarneNow, setGenerateCarneNow] = useState(true); // Gerar carnê no ato da matrícula
+  const [sendSignatureLinkWhatsApp, setSendSignatureLinkWhatsApp] = useState(true); // Enviar link de assinatura via WhatsApp
   const [customPrice, setCustomPrice] = useState<string>(''); // Valor personalizado
   const [formData, setFormData] = useState({
     student: { 
@@ -1273,6 +1274,55 @@ export default function Enrollment() {
         }
       } catch (welcomeError) {
         console.warn('Failed to send enrollment welcome (non-blocking):', welcomeError);
+      }
+
+      // 10. Send signature link via WhatsApp if enabled
+      if (sendSignatureLinkWhatsApp && contract) {
+        try {
+          // Fetch signature template
+          const { data: templateData } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'whatsapp_template_contract_signature')
+            .single();
+
+          // Get signature token from contract
+          const { data: contractData } = await supabase
+            .from('contracts')
+            .select('signature_token')
+            .eq('id', contract.id)
+            .single();
+
+          if (contractData?.signature_token) {
+            const signatureLink = `${window.location.origin}/assinar/${contractData.signature_token}`;
+            const guardianFirstName = guardian.name.split(' ')[0];
+            
+            let message = templateData?.value || 
+              `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
+            
+            message = message
+              .replace('{nome}', guardianFirstName)
+              .replace('{aluno}', student.name)
+              .replace('{curso}', selectedCourse.name)
+              .replace('{link}', signatureLink)
+              .replace(/\\n/g, '\n');
+
+            const signatureResponse = await supabase.functions.invoke('wapi-send-message', {
+              body: {
+                phone: guardian.phone,
+                message,
+              },
+            });
+
+            if (signatureResponse.data?.success) {
+              console.log('Signature link sent successfully via WhatsApp');
+            } else if (signatureResponse.error) {
+              console.warn('Signature link send error:', signatureResponse.error);
+            }
+          }
+        } catch (signatureError) {
+          console.warn('Failed to send signature link (non-blocking):', signatureError);
+        }
       }
 
       setCurrentStep('summary');
@@ -2459,6 +2509,28 @@ export default function Enrollment() {
                     {generateCarneNow 
                       ? `Serão gerados ${formData.payment.installments} boletos para pagamento.`
                       : "O carnê será gerado posteriormente na página de Contratos."}
+                  </p>
+                </div>
+              </div>
+              <div 
+                className={cn(
+                  "rounded-xl p-4 flex items-start gap-3 cursor-pointer transition-all",
+                  sendSignatureLinkWhatsApp ? "bg-success/10 border border-success/30" : "bg-muted/50 border border-transparent"
+                )}
+                onClick={() => setSendSignatureLinkWhatsApp(!sendSignatureLinkWhatsApp)}
+              >
+                <div className={cn(
+                  "w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors",
+                  sendSignatureLinkWhatsApp ? "border-success bg-success" : "border-muted-foreground"
+                )}>
+                  {sendSignatureLinkWhatsApp && <Check className="w-3 h-3 text-success-foreground" />}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">Enviar link de assinatura via WhatsApp</p>
+                  <p className="text-sm text-muted-foreground">
+                    {sendSignatureLinkWhatsApp 
+                      ? "O responsável receberá o link para assinar o contrato digitalmente."
+                      : "O link de assinatura NÃO será enviado automaticamente."}
                   </p>
                 </div>
               </div>
