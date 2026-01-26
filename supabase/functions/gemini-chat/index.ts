@@ -7,6 +7,13 @@ const corsHeaders = {
 };
 
 async function getGoogleApiKey(): Promise<string | null> {
+  // First try to get from environment (Supabase Secrets)
+  const envKey = Deno.env.get("GOOGLE_API_KEY");
+  if (envKey) {
+    return envKey;
+  }
+
+  // Fallback to app_settings table
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
