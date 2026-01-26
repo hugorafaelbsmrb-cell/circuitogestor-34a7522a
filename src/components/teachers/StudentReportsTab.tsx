@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Printer, Send, Eye, Loader2, Search, Calendar, User, RefreshCw } from 'lucide-react';
+import { FileText, Printer, Send, Eye, Loader2, Search, Calendar, User, RefreshCw, ClipboardList, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,11 +8,32 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
+
+const API_URL = 'https://uvnkqzwzsokyonxonzot.supabase.co/functions/v1/teacher-api/reports';
+const API_KEY = 'teacher_api_circuitokids_2025';
+
+interface ApiReport {
+  id: string;
+  student_id: string | null;
+  teacher_id: string | null;
+  title: string;
+  content: string;
+  report_date: string;
+  report_type: string | null;
+  status: string | null;
+  sent_at: string | null;
+  created_at: string;
+  student_name?: string;
+  teacher_name?: string;
+  guardian_name?: string;
+  guardian_phone?: string;
+}
 
 interface StudentReport {
   id: string;
@@ -48,7 +69,8 @@ interface Teacher {
 export default function StudentReportsTab() {
   const { toast } = useToast();
   const { branding } = useSystemBranding();
-  const [reports, setReports] = useState<StudentReport[]>([]);
+  const [weeklyReports, setWeeklyReports] = useState<StudentReport[]>([]);
+  const [pedagogicalReports, setPedagogicalReports] = useState<StudentReport[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,43 +79,83 @@ export default function StudentReportsTab() {
   const [selectedReport, setSelectedReport] = useState<StudentReport | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [activeTab, setActiveTab] = useState('pedagogical');
 
   useEffect(() => {
-    fetchReports();
+    fetchReportsFromAPI();
     fetchTeachers();
-
-    // Subscribe to realtime updates
-    const channel = supabase
-      .channel('student-reports-changes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'student_reports',
-      }, () => {
-        fetchReports();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
 
-  const fetchReports = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('student_reports')
-        .select(`
-          *,
-          student:students(id, name, guardian:guardians(id, name, phone)),
-          teacher:teachers(id, name)
-        `)
-        .order('created_at', { ascending: false });
+  const mapApiReportToStudentReport = (apiReport: ApiReport): StudentReport => {
+    return {
+      id: apiReport.id,
+      student_id: apiReport.student_id,
+      teacher_id: apiReport.teacher_id,
+      title: apiReport.title,
+      content: apiReport.content,
+      report_date: apiReport.report_date,
+      report_type: apiReport.report_type,
+      status: apiReport.status,
+      sent_at: apiReport.sent_at,
+      created_at: apiReport.created_at,
+      student: apiReport.student_name ? {
+        id: apiReport.student_id || '',
+        name: apiReport.student_name,
+        guardian: apiReport.guardian_name ? {
+          id: '',
+          name: apiReport.guardian_name,
+          phone: apiReport.guardian_phone || '',
+        } : undefined,
+      } : undefined,
+      teacher: apiReport.teacher_name ? {
+        id: apiReport.teacher_id || '',
+        name: apiReport.teacher_name,
+      } : undefined,
+    };
+  };
 
-      if (error) throw error;
-      setReports(data || []);
+  const fetchReportsFromAPI = async () => {
+    setIsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (teacherFilter !== 'all') {
+        params.append('teacher_id', teacherFilter);
+      }
+      if (statusFilter !== 'all') {
+        const statusMap: Record<string, string> = {
+          'pending': 'rascunho',
+          'sent': 'finalizado',
+        };
+        params.append('status', statusMap[statusFilter] || statusFilter);
+      }
+
+      const url = params.toString() ? `${API_URL}?${params.toString()}` : API_URL;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'x-api-key': API_KEY,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        const weeklyMapped = (data.weekly_reports?.reports || []).map(mapApiReportToStudentReport);
+        const pedagogicalMapped = (data.pedagogical_reports?.reports || []).map(mapApiReportToStudentReport);
+        
+        setWeeklyReports(weeklyMapped);
+        setPedagogicalReports(pedagogicalMapped);
+      } else {
+        throw new Error(data.error || 'Erro ao buscar relatórios');
+      }
     } catch (error) {
-      console.error('Error fetching reports:', error);
+      console.error('Error fetching reports from API:', error);
       toast({
         title: 'Erro ao carregar relatórios',
         description: 'Tente novamente mais tarde',
@@ -119,24 +181,25 @@ export default function StudentReportsTab() {
     }
   };
 
-  const filteredReports = reports.filter(report => {
-    const matchesSearch = 
-      report.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      report.teacher?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesTeacher = teacherFilter === 'all' || report.teacher_id === teacherFilter;
-    const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
-    
-    return matchesSearch && matchesTeacher && matchesStatus;
-  });
+  const getFilteredReports = (reports: StudentReport[]) => {
+    return reports.filter(report => {
+      const matchesSearch = 
+        report.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        report.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        report.teacher?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return matchesSearch;
+    });
+  };
 
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case 'sent':
+      case 'finalizado':
         return <Badge className="bg-primary text-primary-foreground">Enviado</Badge>;
       case 'pending':
-        return <Badge variant="secondary">Pendente</Badge>;
+      case 'rascunho':
+        return <Badge variant="secondary">Rascunho</Badge>;
       case 'viewed':
         return <Badge className="bg-accent text-accent-foreground">Visualizado</Badge>;
       default:
@@ -149,12 +212,13 @@ export default function StudentReportsTab() {
     setIsViewModalOpen(true);
   };
 
+  const handleRefresh = () => {
+    fetchReportsFromAPI();
+  };
+
   const handlePrint = () => {
     if (!selectedReport) return;
     
-    const printContent = document.getElementById('report-print-content');
-    if (!printContent) return;
-
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -250,7 +314,7 @@ export default function StudentReportsTab() {
           </div>
           <div class="meta-item">
             <span class="meta-label">Data do Relatório</span>
-            <span class="meta-value">${format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })}</span>
+            <span class="meta-value">${selectedReport.report_date ? format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</span>
           </div>
         </div>
         
@@ -284,7 +348,6 @@ export default function StudentReportsTab() {
     setIsSending(true);
 
     try {
-      // Get W-API settings
       const { data: settings } = await supabase
         .from('app_settings')
         .select('key, value')
@@ -307,7 +370,7 @@ Olá ${guardianName}! 👋
 Segue o relatório do(a) aluno(a) *${selectedReport.student.name}*:
 
 📌 *${selectedReport.title}*
-📅 Data: ${format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })}
+📅 Data: ${selectedReport.report_date ? format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
 👨‍🏫 Professor(a): ${selectedReport.teacher?.name || '-'}
 
 ${selectedReport.content}
@@ -315,7 +378,6 @@ ${selectedReport.content}
 ---
 ${branding?.name || 'Circuito Kids'}`;
 
-      // Send message via Edge Function
       const { error } = await supabase.functions.invoke('wapi-send-message', {
         body: {
           phone,
@@ -326,14 +388,12 @@ ${branding?.name || 'Circuito Kids'}`;
 
       if (error) throw error;
 
-      // Update report status
-      await supabase
-        .from('student_reports')
-        .update({ 
-          status: 'sent', 
-          sent_at: new Date().toISOString() 
-        })
-        .eq('id', selectedReport.id);
+      // Update report status locally
+      const updateReports = (reports: StudentReport[]) =>
+        reports.map(r => r.id === selectedReport.id ? { ...r, status: 'sent', sent_at: new Date().toISOString() } : r);
+      
+      setWeeklyReports(updateReports);
+      setPedagogicalReports(updateReports);
 
       toast({
         title: 'Relatório enviado!',
@@ -341,7 +401,6 @@ ${branding?.name || 'Circuito Kids'}`;
       });
 
       setIsViewModalOpen(false);
-      fetchReports();
     } catch (error) {
       console.error('Error sending report:', error);
       toast({
@@ -352,6 +411,79 @@ ${branding?.name || 'Circuito Kids'}`;
     } finally {
       setIsSending(false);
     }
+  };
+
+  const renderReportsTable = (reports: StudentReport[]) => {
+    const filtered = getFilteredReports(reports);
+
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+
+    if (filtered.length === 0) {
+      return (
+        <div className="text-center py-8 text-muted-foreground">
+          <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+          <p>Nenhum relatório encontrado</p>
+          <p className="text-sm">Os relatórios enviados pelo sistema externo aparecerão aqui</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Aluno</TableHead>
+              <TableHead>Título</TableHead>
+              <TableHead>Professor</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map((report) => (
+              <TableRow key={report.id}>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{report.student?.name || '-'}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="max-w-[200px] truncate">
+                  {report.title}
+                </TableCell>
+                <TableCell>{report.teacher?.name || '-'}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                    {report.report_date ? format(parseISO(report.report_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                  </div>
+                </TableCell>
+                <TableCell>{getStatusBadge(report.status)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleViewReport(report)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    );
   };
 
   return (
@@ -365,10 +497,10 @@ ${branding?.name || 'Circuito Kids'}`;
                 Relatórios de Alunos
               </CardTitle>
               <CardDescription>
-                Visualize, imprima e envie relatórios recebidos do sistema externo
+                Visualize, imprima e envie relatórios recebidos via API
               </CardDescription>
             </div>
-            <Button variant="outline" onClick={fetchReports} disabled={isLoading}>
+            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               Atualizar
             </Button>
@@ -386,7 +518,7 @@ ${branding?.name || 'Circuito Kids'}`;
                 className="pl-10"
               />
             </div>
-            <Select value={teacherFilter} onValueChange={setTeacherFilter}>
+            <Select value={teacherFilter} onValueChange={(v) => { setTeacherFilter(v); }}>
               <SelectTrigger className="w-full md:w-[200px]">
                 <SelectValue placeholder="Professor" />
               </SelectTrigger>
@@ -399,80 +531,39 @@ ${branding?.name || 'Circuito Kids'}`;
                 ))}
               </SelectContent>
             </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); }}>
               <SelectTrigger className="w-full md:w-[150px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="pending">Pendente</SelectItem>
-                <SelectItem value="sent">Enviado</SelectItem>
-                <SelectItem value="viewed">Visualizado</SelectItem>
+                <SelectItem value="pending">Rascunho</SelectItem>
+                <SelectItem value="sent">Finalizado</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* Reports Table */}
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : filteredReports.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhum relatório encontrado</p>
-              <p className="text-sm">Os relatórios enviados pelo sistema externo aparecerão aqui</p>
-            </div>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Aluno</TableHead>
-                    <TableHead>Título</TableHead>
-                    <TableHead>Professor</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredReports.map((report) => (
-                    <TableRow key={report.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{report.student?.name || '-'}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {report.title}
-                      </TableCell>
-                      <TableCell>{report.teacher?.name || '-'}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {format(parseISO(report.report_date), 'dd/MM/yyyy', { locale: ptBR })}
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(report.status)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleViewReport(report)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+          {/* Tabs for report types */}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="pedagogical" className="gap-2">
+                <BookOpen className="h-4 w-4" />
+                Pedagógicos ({pedagogicalReports.length})
+              </TabsTrigger>
+              <TabsTrigger value="weekly" className="gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Semanais ({weeklyReports.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="pedagogical">
+              {renderReportsTable(pedagogicalReports)}
+            </TabsContent>
+
+            <TabsContent value="weekly">
+              {renderReportsTable(weeklyReports)}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
