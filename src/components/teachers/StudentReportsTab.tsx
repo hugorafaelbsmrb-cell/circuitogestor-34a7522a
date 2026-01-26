@@ -61,6 +61,14 @@ interface ApiPedagogicalReport {
   guardian_phone?: string;
 }
 
+interface WeeklyContent {
+  desempenho_geral?: string | null;
+  pontos_positivos?: string | null;
+  dificuldades?: string | null;
+  recomendacoes?: string | null;
+  observacoes?: string | null;
+}
+
 interface StudentReport {
   id: string;
   student_id: string | null;
@@ -72,6 +80,11 @@ interface StudentReport {
   status: string | null;
   sent_at: string | null;
   created_at: string;
+  // For weekly reports
+  week_start?: string;
+  week_end?: string;
+  turma?: string;
+  weekly_content?: WeeklyContent;
   student?: {
     id: string;
     name: string;
@@ -125,13 +138,18 @@ export default function StudentReportsTab() {
       id: apiReport.id,
       student_id: null,
       teacher_id: apiReport.teacher?.id || null,
-      title: `Relatório Semanal - ${apiReport.turma}`,
+      title: `Relatório Semanal`,
       content: contentParts.join('\n\n') || 'Sem conteúdo disponível',
       report_date: apiReport.week?.start || apiReport.created_at,
       report_type: 'weekly',
       status: apiReport.status,
       sent_at: null,
       created_at: apiReport.created_at,
+      // Weekly-specific fields
+      week_start: apiReport.week?.start,
+      week_end: apiReport.week?.end,
+      turma: apiReport.turma,
+      weekly_content: apiReport.content,
       student: {
         id: '',
         name: apiReport.turma || 'Turma não especificada',
@@ -498,10 +516,9 @@ ${branding?.name || 'Circuito Kids'}`;
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Aluno</TableHead>
-              <TableHead>Título</TableHead>
+              <TableHead>Turma/Aluno</TableHead>
               <TableHead>Professor</TableHead>
-              <TableHead>Data</TableHead>
+              <TableHead>Período</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
@@ -512,17 +529,20 @@ ${branding?.name || 'Circuito Kids'}`;
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{report.student?.name || '-'}</span>
+                    <span className="font-medium">{report.turma || report.student?.name || '-'}</span>
                   </div>
-                </TableCell>
-                <TableCell className="max-w-[200px] truncate">
-                  {report.title}
                 </TableCell>
                 <TableCell>{report.teacher?.name || '-'}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">
                     <Calendar className="h-3 w-3 text-muted-foreground" />
-                    {report.report_date ? format(parseISO(report.report_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                    {report.week_start && report.week_end ? (
+                      <span>
+                        {format(parseISO(report.week_start), 'dd/MM', { locale: ptBR })} - {format(parseISO(report.week_end), 'dd/MM/yyyy', { locale: ptBR })}
+                      </span>
+                    ) : report.report_date ? (
+                      format(parseISO(report.report_date), 'dd/MM/yyyy', { locale: ptBR })
+                    ) : '-'}
                   </div>
                 </TableCell>
                 <TableCell>{getStatusBadge(report.status)}</TableCell>
@@ -641,29 +661,69 @@ ${branding?.name || 'Circuito Kids'}`;
               {/* Meta Info */}
               <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
                 <div>
-                  <span className="text-xs text-muted-foreground block">Aluno</span>
-                  <span className="font-medium">{selectedReport?.student?.name || '-'}</span>
+                  <span className="text-xs text-muted-foreground block">Turma/Aluno</span>
+                  <span className="font-medium">{selectedReport?.turma || selectedReport?.student?.name || '-'}</span>
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground block">Professor</span>
                   <span className="font-medium">{selectedReport?.teacher?.name || '-'}</span>
                 </div>
                 <div>
-                  <span className="text-xs text-muted-foreground block">Data</span>
+                  <span className="text-xs text-muted-foreground block">Período</span>
                   <span className="font-medium">
-                    {selectedReport?.report_date
-                      ? format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
-                      : '-'}
+                    {selectedReport?.week_start && selectedReport?.week_end ? (
+                      `${format(parseISO(selectedReport.week_start), 'dd/MM', { locale: ptBR })} - ${format(parseISO(selectedReport.week_end), 'dd/MM/yyyy', { locale: ptBR })}`
+                    ) : selectedReport?.report_date ? (
+                      format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
+                    ) : '-'}
                   </span>
                 </div>
               </div>
 
-              {/* Content */}
-              <div className="prose prose-sm max-w-none">
-                <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {selectedReport?.content}
+              {/* Weekly Content Sections */}
+              {selectedReport?.weekly_content && (
+                <div className="space-y-4">
+                  {selectedReport.weekly_content.desempenho_geral && (
+                    <div className="p-4 border rounded-lg">
+                      <span className="text-xs text-muted-foreground block mb-1">📊 Desempenho Geral</span>
+                      <p className="text-sm">{selectedReport.weekly_content.desempenho_geral}</p>
+                    </div>
+                  )}
+                  {selectedReport.weekly_content.pontos_positivos && (
+                    <div className="p-4 border rounded-lg border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900">
+                      <span className="text-xs text-green-700 dark:text-green-400 block mb-1">✅ Pontos Positivos</span>
+                      <p className="text-sm">{selectedReport.weekly_content.pontos_positivos}</p>
+                    </div>
+                  )}
+                  {selectedReport.weekly_content.dificuldades && (
+                    <div className="p-4 border rounded-lg border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
+                      <span className="text-xs text-amber-700 dark:text-amber-400 block mb-1">⚠️ Dificuldades</span>
+                      <p className="text-sm">{selectedReport.weekly_content.dificuldades}</p>
+                    </div>
+                  )}
+                  {selectedReport.weekly_content.recomendacoes && (
+                    <div className="p-4 border rounded-lg border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
+                      <span className="text-xs text-blue-700 dark:text-blue-400 block mb-1">💡 Recomendações</span>
+                      <p className="text-sm">{selectedReport.weekly_content.recomendacoes}</p>
+                    </div>
+                  )}
+                  {selectedReport.weekly_content.observacoes && (
+                    <div className="p-4 border rounded-lg">
+                      <span className="text-xs text-muted-foreground block mb-1">📝 Observações</span>
+                      <p className="text-sm">{selectedReport.weekly_content.observacoes}</p>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
+
+              {/* Fallback for non-weekly content */}
+              {!selectedReport?.weekly_content && selectedReport?.content && (
+                <div className="prose prose-sm max-w-none">
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {selectedReport.content}
+                  </div>
+                </div>
+              )}
 
               {/* Guardian Info */}
               {selectedReport?.student?.guardian && (
