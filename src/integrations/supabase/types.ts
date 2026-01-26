@@ -1533,6 +1533,50 @@ export type Database = {
           },
         ]
       }
+      teacher_credentials: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean | null
+          last_login_at: string | null
+          matricula: string
+          password: string
+          teacher_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean | null
+          last_login_at?: string | null
+          matricula: string
+          password: string
+          teacher_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean | null
+          last_login_at?: string | null
+          matricula?: string
+          password?: string
+          teacher_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_credentials_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teachers: {
         Row: {
           class_group_id: string | null
