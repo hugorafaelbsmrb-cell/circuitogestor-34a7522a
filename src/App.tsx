@@ -38,6 +38,7 @@ import Teachers from "./pages/Teachers";
 import CanteenPublic from "./pages/CanteenPublic";
 import CanteenAdminPage from "./pages/CanteenAdmin";
 import InstallApp from "./pages/InstallApp";
+import TeacherLogin from "./pages/TeacherLogin";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 
@@ -74,6 +75,7 @@ const App = () => (
           <Route path="/campanha" element={<CampaignLanding />} />
           <Route path="/cantina" element={<CanteenPublic />} />
           <Route path="/instalar" element={<InstallApp />} />
+          <Route path="/professor-login" element={<TeacherLogin />} />
           
           {/* Auth route */}
           <Route path="/auth" element={
