@@ -40,6 +40,8 @@ export default function CampaignLanding() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string | undefined>();
   const [isActive, setIsActive] = useState(true);
+  const [coursesSectionTitle, setCoursesSectionTitle] = useState('');
+  const [coursesSectionSubtitle, setCoursesSectionSubtitle] = useState('');
   
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -59,6 +61,8 @@ export default function CampaignLanding() {
           'campaign_hero_image',
           'campaign_benefits',
           'campaign_is_active',
+          'campaign_courses_title',
+          'campaign_courses_subtitle',
         ]);
 
       settings?.forEach((s) => {
@@ -84,6 +88,12 @@ export default function CampaignLanding() {
             break;
           case 'campaign_is_active':
             setIsActive(s.value === 'true');
+            break;
+          case 'campaign_courses_title':
+            if (s.value) setCoursesSectionTitle(s.value);
+            break;
+          case 'campaign_courses_subtitle':
+            if (s.value) setCoursesSectionSubtitle(s.value);
             break;
         }
       });
@@ -167,7 +177,12 @@ export default function CampaignLanding() {
 
       {/* Courses */}
       {courses.length > 0 && (
-        <CourseCards courses={courses} onSelectCourse={handleSelectCourse} />
+        <CourseCards 
+          courses={courses} 
+          onSelectCourse={handleSelectCourse}
+          sectionTitle={coursesSectionTitle}
+          sectionSubtitle={coursesSectionSubtitle}
+        />
       )}
 
       {/* Lead Capture Form */}

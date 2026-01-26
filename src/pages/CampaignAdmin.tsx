@@ -59,6 +59,8 @@ export default function CampaignAdmin() {
   const [isActive, setIsActive] = useState(true);
   const [welcomeTemplate, setWelcomeTemplate] = useState('');
   const [autoWelcomeEnabled, setAutoWelcomeEnabled] = useState(true);
+  const [coursesSectionTitle, setCoursesSectionTitle] = useState('');
+  const [coursesSectionSubtitle, setCoursesSectionSubtitle] = useState('');
   
   // Images
   const [images, setImages] = useState<CampaignImage[]>([]);
@@ -90,6 +92,8 @@ export default function CampaignAdmin() {
           'campaign_benefits',
           'campaign_is_active',
           'whatsapp_template_lead_welcome',
+          'campaign_courses_title',
+          'campaign_courses_subtitle',
         ]);
 
       settings?.forEach((s) => {
@@ -114,6 +118,12 @@ export default function CampaignAdmin() {
             break;
           case 'whatsapp_template_lead_welcome':
             setWelcomeTemplate(s.value || '');
+            break;
+          case 'campaign_courses_title':
+            setCoursesSectionTitle(s.value || '');
+            break;
+          case 'campaign_courses_subtitle':
+            setCoursesSectionSubtitle(s.value || '');
             break;
         }
       });
@@ -163,6 +173,8 @@ export default function CampaignAdmin() {
         saveSetting('campaign_hero_image', heroImage),
         saveSetting('campaign_benefits', JSON.stringify(benefits)),
         saveSetting('campaign_is_active', isActive ? 'true' : 'false'),
+        saveSetting('campaign_courses_title', coursesSectionTitle),
+        saveSetting('campaign_courses_subtitle', coursesSectionSubtitle),
       ]);
       toast.success('Configurações salvas!');
     } catch (error) {
@@ -702,6 +714,37 @@ export default function CampaignAdmin() {
                   <p className="text-xs text-muted-foreground">
                     Deixe vazio para usar o gradiente padrão
                   </p>
+                </div>
+
+                {/* Courses Section Texts */}
+                <div className="border-t border-border pt-6 mt-6">
+                  <h3 className="text-lg font-medium mb-4">Seção de Cursos</h3>
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Título da Seção de Cursos</Label>
+                      <Input
+                        value={coursesSectionTitle}
+                        onChange={(e) => setCoursesSectionTitle(e.target.value)}
+                        placeholder="Ex: Nossos Cursos"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Deixe vazio para usar "Nossos Cursos"
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Subtítulo da Seção de Cursos</Label>
+                      <Input
+                        value={coursesSectionSubtitle}
+                        onChange={(e) => setCoursesSectionSubtitle(e.target.value)}
+                        placeholder="Ex: Escolha o melhor curso para o seu filho"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Deixe vazio para usar "Escolha o melhor curso para o seu filho"
+                      </p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
