@@ -102,7 +102,6 @@ export default function Teachers() {
     name: '',
     phone: '',
     email: '',
-    class_group_id: '',
   });
 
   const [credentialForm, setCredentialForm] = useState({
@@ -201,7 +200,6 @@ export default function Teachers() {
         name: teacher.name,
         phone: teacher.phone,
         email: teacher.email || '',
-        class_group_id: teacher.class_group_id || '',
       });
     } else {
       setEditingTeacher(null);
@@ -209,7 +207,6 @@ export default function Teachers() {
         name: '',
         phone: '',
         email: '',
-        class_group_id: '',
       });
     }
     setIsModalOpen(true);
@@ -288,7 +285,6 @@ export default function Teachers() {
         name: formData.name.trim(),
         phone: phoneWithCode,
         email: formData.email.trim() || null,
-        class_group_id: formData.class_group_id || null,
       };
 
       if (editingTeacher) {
@@ -921,36 +917,6 @@ export default function Teachers() {
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 placeholder="professor@email.com"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="class_group">Turma (Reforço Escolar)</Label>
-              <Select
-                value={formData.class_group_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, class_group_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a turma" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classGroups.length === 0 ? (
-                    <SelectItem value="none" disabled>
-                      Nenhuma turma de Reforço encontrada
-                    </SelectItem>
-                  ) : (
-                    classGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-              {classGroups.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Cadastre turmas do curso "Reforço Escolar" primeiro
-                </p>
-              )}
             </div>
           </div>
 
