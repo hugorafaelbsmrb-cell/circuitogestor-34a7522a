@@ -11,6 +11,7 @@ interface HeroSectionProps {
 
 export function HeroSection({ title, subtitle, backgroundImage, onCtaClick }: HeroSectionProps) {
   const heroImageUrl = backgroundImage || defaultHeroImage;
+  console.log('🎨 HeroSection rendering:', { title, subtitle, backgroundImage, heroImageUrl });
   
   return (
     <section 
