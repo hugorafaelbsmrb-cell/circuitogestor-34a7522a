@@ -102,6 +102,7 @@ export default function CampaignAdmin() {
             break;
           case 'campaign_hero_image':
             setHeroImage(s.value || '');
+            console.log('🖼️ Hero image loaded:', s.value);
             break;
           case 'campaign_benefits':
             if (s.value) {
@@ -681,6 +682,7 @@ export default function CampaignAdmin() {
                     </label>
                   </div>
                   {heroImage && (
+                    /* Preview image: {heroImage} */
                     <div className="relative mt-2 rounded-lg overflow-hidden border">
                       <img 
                         src={heroImage} 
