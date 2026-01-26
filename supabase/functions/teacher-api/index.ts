@@ -113,32 +113,84 @@ Deno.serve(async (req) => {
       );
     }
 
-    // GET /teacher-api/teachers - List teachers with credentials
+    // GET /teacher-api/teachers - List all teachers with their linked students
     if (req.method === 'GET' && path === 'teachers') {
-      const { data: teachers, error } = await supabase
-        .from('teacher_credentials')
-        .select(`
-          id,
-          email,
-          matricula,
-          is_active,
-          teacher:teachers(id, name, phone, class_group_id)
-        `)
-        .eq('is_active', true);
+      // Get all active teachers
+      const { data: teachers, error: teachersError } = await supabase
+        .from('teachers')
+        .select('id, name, phone, email, is_active')
+        .eq('is_active', true)
+        .order('name');
 
-      if (error) {
-        console.error('Error fetching teachers:', error);
+      if (teachersError) {
+        console.error('Error fetching teachers:', teachersError);
         return new Response(
           JSON.stringify({ error: 'Failed to fetch teachers' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
+      // Get all students with their teacher links and guardian info
+      const { data: students, error: studentsError } = await supabase
+        .from('students')
+        .select(`
+          id,
+          name,
+          birth_date,
+          sex,
+          teacher_id,
+          guardian:guardians(id, name, phone, email)
+        `)
+        .eq('is_active', true)
+        .order('name');
+
+      if (studentsError) {
+        console.error('Error fetching students:', studentsError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch students' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get credentials for each teacher
+      const { data: credentials, error: credError } = await supabase
+        .from('teacher_credentials')
+        .select('teacher_id, email, matricula')
+        .eq('is_active', true);
+
+      // Build response with teachers and their students
+      const teachersWithStudents = teachers?.map(teacher => {
+        const teacherStudents = students?.filter(s => s.teacher_id === teacher.id) || [];
+        const teacherCredential = credentials?.find(c => c.teacher_id === teacher.id);
+        
+        return {
+          id: teacher.id,
+          name: teacher.name,
+          phone: teacher.phone,
+          email: teacher.email,
+          credential: teacherCredential ? {
+            email: teacherCredential.email,
+            matricula: teacherCredential.matricula,
+          } : null,
+          students_count: teacherStudents.length,
+          students: teacherStudents.map(s => ({
+            id: s.id,
+            name: s.name,
+            birth_date: s.birth_date,
+            sex: s.sex,
+            guardian_name: (s.guardian as { name?: string })?.name,
+            guardian_phone: (s.guardian as { phone?: string })?.phone,
+            guardian_email: (s.guardian as { email?: string })?.email,
+          })),
+        };
+      }) || [];
+
       return new Response(
         JSON.stringify({ 
           success: true, 
-          count: teachers?.length || 0,
-          teachers 
+          count: teachersWithStudents.length,
+          total_students: students?.filter(s => s.teacher_id).length || 0,
+          teachers: teachersWithStudents 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
