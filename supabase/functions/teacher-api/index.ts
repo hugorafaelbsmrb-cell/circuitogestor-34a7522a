@@ -144,6 +144,77 @@ Deno.serve(async (req) => {
       );
     }
 
+    // GET /teacher-api/teacher-students?teacher_id=xxx - Get teacher with linked students
+    if (req.method === 'GET' && path === 'teacher-students') {
+      const teacherId = url.searchParams.get('teacher_id');
+      
+      if (!teacherId) {
+        return new Response(
+          JSON.stringify({ error: 'teacher_id is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get teacher info
+      const { data: teacher, error: teacherError } = await supabase
+        .from('teachers')
+        .select('id, name, phone, email, is_active')
+        .eq('id', teacherId)
+        .single();
+
+      if (teacherError || !teacher) {
+        return new Response(
+          JSON.stringify({ error: 'Teacher not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get students linked to this teacher
+      const { data: students, error: studentsError } = await supabase
+        .from('students')
+        .select(`
+          id,
+          name,
+          birth_date,
+          sex,
+          is_active,
+          guardian:guardians(id, name, phone, email)
+        `)
+        .eq('teacher_id', teacherId)
+        .eq('is_active', true)
+        .order('name');
+
+      if (studentsError) {
+        console.error('Error fetching students:', studentsError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch students' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          teacher: {
+            id: teacher.id,
+            name: teacher.name,
+            phone: teacher.phone,
+            email: teacher.email,
+          },
+          students_count: students?.length || 0,
+          students: students?.map(s => ({
+            id: s.id,
+            name: s.name,
+            birth_date: s.birth_date,
+            sex: s.sex,
+            guardian_name: (s.guardian as { name?: string })?.name,
+            guardian_phone: (s.guardian as { phone?: string })?.phone,
+          })) || [],
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // POST /teacher-api/auth - Authenticate teacher
     if (req.method === 'POST' && path === 'auth') {
       const { email, password } = await req.json();
@@ -315,7 +386,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ error: 'Not found', endpoints: ['/students', '/teachers', '/auth', '/sync'] }),
+      JSON.stringify({ error: 'Not found', endpoints: ['/students', '/teachers', '/teacher-students', '/auth', '/sync'] }),
       { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
