@@ -300,74 +300,189 @@ export default function StudentReportsTab() {
     if (!printWindow) return;
 
     const logoUrl = branding?.logo;
+    const isWeekly = selectedReport.report_type === 'weekly' && selectedReport.weekly_content;
+    
+    // Format period for weekly reports
+    const periodText = selectedReport.week_start && selectedReport.week_end
+      ? `${format(parseISO(selectedReport.week_start), 'dd/MM/yyyy', { locale: ptBR })} a ${format(parseISO(selectedReport.week_end), 'dd/MM/yyyy', { locale: ptBR })}`
+      : selectedReport.report_date 
+        ? format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
+        : '-';
+
+    // Build content sections for weekly reports
+    let contentHtml = '';
+    if (isWeekly && selectedReport.weekly_content) {
+      const wc = selectedReport.weekly_content;
+      if (wc.desempenho_geral) {
+        contentHtml += `
+          <div class="section">
+            <div class="section-title">📊 Desempenho Geral</div>
+            <div class="section-content">${wc.desempenho_geral}</div>
+          </div>`;
+      }
+      if (wc.pontos_positivos) {
+        contentHtml += `
+          <div class="section positive">
+            <div class="section-title">✅ Pontos Positivos</div>
+            <div class="section-content">${wc.pontos_positivos}</div>
+          </div>`;
+      }
+      if (wc.dificuldades) {
+        contentHtml += `
+          <div class="section warning">
+            <div class="section-title">⚠️ Dificuldades</div>
+            <div class="section-content">${wc.dificuldades}</div>
+          </div>`;
+      }
+      if (wc.recomendacoes) {
+        contentHtml += `
+          <div class="section info">
+            <div class="section-title">💡 Recomendações</div>
+            <div class="section-content">${wc.recomendacoes}</div>
+          </div>`;
+      }
+      if (wc.observacoes) {
+        contentHtml += `
+          <div class="section">
+            <div class="section-title">📝 Observações</div>
+            <div class="section-content">${wc.observacoes}</div>
+          </div>`;
+      }
+    } else {
+      contentHtml = `<div class="content">${selectedReport.content}</div>`;
+    }
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Relatório - ${selectedReport.student?.name || 'Aluno'}</title>
+        <title>Relatório - ${selectedReport.turma || selectedReport.student?.name || 'Aluno'}</title>
         <style>
+          * {
+            box-sizing: border-box;
+          }
           body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 40px;
+            padding: 30px;
             max-width: 800px;
             margin: 0 auto;
             color: #333;
+            font-size: 14px;
           }
           .header {
             text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #333;
+            margin-bottom: 25px;
+            border-bottom: 3px solid #2563eb;
             padding-bottom: 20px;
           }
           .logo {
-            max-height: 60px;
+            max-height: 70px;
             margin-bottom: 10px;
           }
           .school-name {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
+            color: #1e40af;
             margin-bottom: 5px;
           }
-          .report-title {
-            font-size: 24px;
-            font-weight: bold;
-            margin: 20px 0 10px;
+          .report-type {
+            font-size: 16px;
+            color: #666;
+            font-weight: 500;
           }
-          .meta-info {
+          .meta-box {
             display: flex;
             justify-content: space-between;
             margin: 20px 0;
-            padding: 15px;
-            background: #f5f5f5;
-            border-radius: 8px;
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-radius: 10px;
+            border: 1px solid #bae6fd;
           }
           .meta-item {
             text-align: center;
+            flex: 1;
+          }
+          .meta-item:not(:last-child) {
+            border-right: 1px solid #bae6fd;
           }
           .meta-label {
-            font-size: 12px;
-            color: #666;
+            font-size: 11px;
+            color: #64748b;
             display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
           }
           .meta-value {
             font-size: 14px;
-            font-weight: bold;
+            font-weight: 600;
+            color: #1e3a5f;
+          }
+          .sections {
+            margin-top: 25px;
+          }
+          .section {
+            margin-bottom: 18px;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: #fafafa;
+            page-break-inside: avoid;
+          }
+          .section.positive {
+            background: #f0fdf4;
+            border-color: #86efac;
+          }
+          .section.warning {
+            background: #fffbeb;
+            border-color: #fcd34d;
+          }
+          .section.info {
+            background: #eff6ff;
+            border-color: #93c5fd;
+          }
+          .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #475569;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e2e8f0;
+          }
+          .section.positive .section-title { color: #166534; border-color: #86efac; }
+          .section.warning .section-title { color: #92400e; border-color: #fcd34d; }
+          .section.info .section-title { color: #1e40af; border-color: #93c5fd; }
+          .section-content {
+            font-size: 13px;
+            line-height: 1.7;
+            color: #334155;
+            white-space: pre-wrap;
           }
           .content {
             line-height: 1.8;
             white-space: pre-wrap;
             text-align: justify;
-            margin-top: 30px;
+            margin-top: 25px;
+            padding: 15px;
+            background: #fafafa;
+            border-radius: 8px;
           }
           .footer {
-            margin-top: 50px;
+            margin-top: 40px;
             text-align: center;
-            font-size: 12px;
-            color: #666;
+            font-size: 11px;
+            color: #94a3b8;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
           }
           @media print {
-            body { padding: 20px; }
+            body { 
+              padding: 15px; 
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .section { break-inside: avoid; }
           }
         </style>
       </head>
@@ -375,30 +490,30 @@ export default function StudentReportsTab() {
         <div class="header">
           ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo" />` : ''}
           <div class="school-name">${branding?.name || 'Circuito Kids'}</div>
-          <div>Relatório Pedagógico</div>
+          <div class="report-type">${isWeekly ? 'Relatório Semanal' : 'Relatório Pedagógico'}</div>
         </div>
         
-        <h1 class="report-title">${selectedReport.title}</h1>
-        
-        <div class="meta-info">
+        <div class="meta-box">
           <div class="meta-item">
-            <span class="meta-label">Aluno</span>
-            <span class="meta-value">${selectedReport.student?.name || '-'}</span>
+            <span class="meta-label">Turma/Aluno</span>
+            <span class="meta-value">${selectedReport.turma || selectedReport.student?.name || '-'}</span>
           </div>
           <div class="meta-item">
-            <span class="meta-label">Professor</span>
+            <span class="meta-label">Professor(a)</span>
             <span class="meta-value">${selectedReport.teacher?.name || '-'}</span>
           </div>
           <div class="meta-item">
-            <span class="meta-label">Data do Relatório</span>
-            <span class="meta-value">${selectedReport.report_date ? format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR }) : '-'}</span>
+            <span class="meta-label">Período</span>
+            <span class="meta-value">${periodText}</span>
           </div>
         </div>
         
-        <div class="content">${selectedReport.content}</div>
+        <div class="sections">
+          ${contentHtml}
+        </div>
         
         <div class="footer">
-          Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+          Relatório gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} | ${branding?.name || 'Circuito Kids'}
         </div>
       </body>
       </html>
