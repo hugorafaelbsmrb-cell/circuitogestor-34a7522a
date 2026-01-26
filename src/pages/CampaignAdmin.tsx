@@ -27,7 +27,9 @@ import {
   X,
   Sparkles,
   ChevronDown,
-  Wand2
+  Wand2,
+  BookOpen,
+  Pencil
 } from 'lucide-react';
 
 interface CampaignImage {
@@ -43,6 +45,15 @@ interface Benefit {
   icon: string;
   title: string;
   description: string;
+}
+
+interface Course {
+  id: string;
+  name: string;
+  description: string | null;
+  duration: string;
+  price: number;
+  is_active: boolean | null;
 }
 
 export default function CampaignAdmin() {
@@ -65,6 +76,11 @@ export default function CampaignAdmin() {
   // Images
   const [images, setImages] = useState<CampaignImage[]>([]);
 
+  // Courses
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [isSavingCourse, setIsSavingCourse] = useState(false);
+
   // AI Generator
   const { getGenerateFunctionName } = useAIProvider();
   const [showAiGenerator, setShowAiGenerator] = useState(false);
@@ -77,6 +93,7 @@ export default function CampaignAdmin() {
 
   useEffect(() => {
     loadData();
+    loadCourses();
   }, []);
 
   const loadData = async () => {
@@ -153,6 +170,67 @@ export default function CampaignAdmin() {
       toast.error('Erro ao carregar dados');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadCourses = async () => {
+    try {
+      const { data: coursesData, error } = await supabase
+        .from('courses')
+        .select('id, name, description, duration, price, is_active')
+        .order('name');
+
+      if (error) throw error;
+      if (coursesData) {
+        setCourses(coursesData);
+      }
+    } catch (error) {
+      console.error('Error loading courses:', error);
+    }
+  };
+
+  const handleSaveCourse = async (course: Course) => {
+    setIsSavingCourse(true);
+    try {
+      const { error } = await supabase
+        .from('courses')
+        .update({
+          name: course.name,
+          description: course.description,
+          duration: course.duration,
+          price: course.price,
+          is_active: course.is_active,
+        })
+        .eq('id', course.id);
+
+      if (error) throw error;
+
+      setCourses(courses.map(c => c.id === course.id ? course : c));
+      setEditingCourse(null);
+      toast.success('Curso atualizado!');
+    } catch (error) {
+      console.error('Error saving course:', error);
+      toast.error('Erro ao salvar curso');
+    } finally {
+      setIsSavingCourse(false);
+    }
+  };
+
+  const handleToggleCourseActive = async (course: Course) => {
+    try {
+      const newValue = !course.is_active;
+      const { error } = await supabase
+        .from('courses')
+        .update({ is_active: newValue })
+        .eq('id', course.id);
+
+      if (error) throw error;
+
+      setCourses(courses.map(c => c.id === course.id ? { ...c, is_active: newValue } : c));
+      toast.success(newValue ? 'Curso ativado!' : 'Curso desativado!');
+    } catch (error) {
+      console.error('Error toggling course:', error);
+      toast.error('Erro ao atualizar curso');
     }
   };
 
@@ -440,7 +518,7 @@ export default function CampaignAdmin() {
         </div>
 
         <Tabs defaultValue="images" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-4">
+          <TabsList className="grid w-full max-w-xl grid-cols-5">
             <TabsTrigger value="images" className="gap-2">
               <ImageIcon className="w-4 h-4" />
               <span className="hidden sm:inline">Imagens</span>
@@ -448,6 +526,10 @@ export default function CampaignAdmin() {
             <TabsTrigger value="texts" className="gap-2">
               <FileText className="w-4 h-4" />
               <span className="hidden sm:inline">Textos</span>
+            </TabsTrigger>
+            <TabsTrigger value="courses" className="gap-2">
+              <BookOpen className="w-4 h-4" />
+              <span className="hidden sm:inline">Cursos</span>
             </TabsTrigger>
             <TabsTrigger value="whatsapp" className="gap-2">
               <MessageSquare className="w-4 h-4" />
@@ -795,6 +877,139 @@ export default function CampaignAdmin() {
                   {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   Salvar Textos
                 </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Courses Tab */}
+          <TabsContent value="courses">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cursos da Landing Page</CardTitle>
+                <CardDescription>Edite os cursos exibidos na página de captação</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {courses.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>Nenhum curso cadastrado</p>
+                    <p className="text-sm">Cadastre cursos na página de Cursos do sistema</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {courses.map((course) => (
+                      <div 
+                        key={course.id} 
+                        className={`p-4 border rounded-lg transition-colors ${
+                          course.is_active ? 'border-border bg-card' : 'border-muted bg-muted/30 opacity-60'
+                        }`}
+                      >
+                        {editingCourse?.id === course.id ? (
+                          <div className="space-y-4">
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label>Nome do Curso</Label>
+                                <Input
+                                  value={editingCourse.name}
+                                  onChange={(e) => setEditingCourse({ ...editingCourse, name: e.target.value })}
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Duração</Label>
+                                <Input
+                                  value={editingCourse.duration}
+                                  onChange={(e) => setEditingCourse({ ...editingCourse, duration: e.target.value })}
+                                  placeholder="Ex: 12 meses"
+                                />
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label>Descrição</Label>
+                              <Textarea
+                                value={editingCourse.description || ''}
+                                onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })}
+                                placeholder="Descrição do curso..."
+                                rows={3}
+                              />
+                            </div>
+                            
+                            <div className="grid gap-4 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label>Preço (R$)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={editingCourse.price}
+                                  onChange={(e) => setEditingCourse({ ...editingCourse, price: parseFloat(e.target.value) || 0 })}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2 pt-6">
+                                <Switch
+                                  checked={editingCourse.is_active ?? true}
+                                  onCheckedChange={(checked) => setEditingCourse({ ...editingCourse, is_active: checked })}
+                                />
+                                <Label>Exibir na landing page</Label>
+                              </div>
+                            </div>
+                            
+                            <div className="flex gap-2 pt-2">
+                              <Button 
+                                onClick={() => handleSaveCourse(editingCourse)}
+                                disabled={isSavingCourse}
+                              >
+                                {isSavingCourse ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Save className="w-4 h-4 mr-2" />
+                                )}
+                                Salvar
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => setEditingCourse(null)}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium">{course.name}</h4>
+                                {!course.is_active && (
+                                  <span className="text-xs bg-muted px-2 py-0.5 rounded">Oculto</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                {course.duration} • R$ {course.price.toFixed(2)}
+                              </p>
+                              {course.description && (
+                                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                                  {course.description}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={course.is_active ?? true}
+                                onCheckedChange={() => handleToggleCourseActive(course)}
+                              />
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => setEditingCourse(course)}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
