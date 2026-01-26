@@ -18,8 +18,10 @@ import {
   UserX,
   UserCheck,
   Filter,
-  Trash2
+  Trash2,
+  UserCog
 } from 'lucide-react';
+import { LinkTeacherModal } from '@/components/students/LinkTeacherModal';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -77,6 +79,7 @@ export default function Students() {
   const [showNewEnrollmentModal, setShowNewEnrollmentModal] = useState(false);
   const [showInactivateModal, setShowInactivateModal] = useState(false);
   const [showDeleteEnrollmentModal, setShowDeleteEnrollmentModal] = useState(false);
+  const [showLinkTeacherModal, setShowLinkTeacherModal] = useState(false);
   const [enrollmentToDelete, setEnrollmentToDelete] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -134,6 +137,16 @@ export default function Students() {
   const handleInactivateClick = (student: typeof students[0]) => {
     setSelectedStudent(student);
     setShowInactivateModal(true);
+  };
+
+  const handleLinkTeacherClick = (student: typeof students[0]) => {
+    setSelectedStudent(student);
+    setShowLinkTeacherModal(true);
+  };
+
+  const handleLinkTeacherSuccess = () => {
+    // Refresh student data - the SchoolContext should auto-refresh
+    window.location.reload();
   };
 
   const handleToggleActive = async () => {
@@ -395,6 +408,15 @@ export default function Students() {
                           title="Adicionar curso"
                         >
                           <BookOpen className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleLinkTeacherClick(student)}
+                          title="Vincular professor"
+                          className="text-primary hover:text-primary"
+                        >
+                          <UserCog className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 
@@ -892,6 +914,18 @@ export default function Students() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Link Teacher Modal */}
+      <LinkTeacherModal
+        open={showLinkTeacherModal}
+        onOpenChange={setShowLinkTeacherModal}
+        student={selectedStudent ? { 
+          id: selectedStudent.id, 
+          name: selectedStudent.name,
+          teacher_id: (selectedStudent as any).teacher_id 
+        } : null}
+        onSuccess={handleLinkTeacherSuccess}
+      />
     </div>
   );
 }

@@ -1501,6 +1501,7 @@ export type Database = {
           is_active: boolean
           name: string
           sex: string | null
+          teacher_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1511,6 +1512,7 @@ export type Database = {
           is_active?: boolean
           name: string
           sex?: string | null
+          teacher_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1521,6 +1523,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           sex?: string | null
+          teacher_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1529,6 +1532,13 @@ export type Database = {
             columns: ["guardian_id"]
             isOneToOne: false
             referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "students_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
             referencedColumns: ["id"]
           },
         ]
