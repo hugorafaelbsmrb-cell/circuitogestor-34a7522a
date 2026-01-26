@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -8,7 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { useAIProvider } from '@/hooks/useAIProvider';
 import { 
   Loader2, 
   Upload, 
@@ -21,7 +24,10 @@ import {
   Settings,
   GripVertical,
   Plus,
-  X
+  X,
+  Sparkles,
+  ChevronDown,
+  Wand2
 } from 'lucide-react';
 
 interface CampaignImage {
@@ -56,6 +62,16 @@ export default function CampaignAdmin() {
   
   // Images
   const [images, setImages] = useState<CampaignImage[]>([]);
+
+  // AI Generator
+  const { getGenerateFunctionName } = useAIProvider();
+  const [showAiGenerator, setShowAiGenerator] = useState(false);
+  const [aiTarget, setAiTarget] = useState<'title' | 'subtitle' | 'benefit'>('title');
+  const [aiPurpose, setAiPurpose] = useState('');
+  const [aiTone, setAiTone] = useState('profissional e envolvente');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiCooldownUntil, setAiCooldownUntil] = useState<number | null>(null);
+  const aiCooldownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadData();
@@ -267,6 +283,125 @@ export default function CampaignAdmin() {
     toast.success('Link copiado!');
   };
 
+  // Helper to parse edge function errors
+  const parseInvokeError = (err: any) => {
+    try {
+      if (err?.context?.body) return { status: err.context.status, body: JSON.parse(err.context.body) };
+      if (typeof err?.message === 'string') return { status: 500, body: { error: err.message } };
+    } catch { /* ignore */ }
+    return { status: 500, body: { error: 'Erro desconhecido' } };
+  };
+
+  const handleGenerateWithAI = async () => {
+    if (aiCooldownUntil && Date.now() < aiCooldownUntil) {
+      toast.error('Aguarde para tentar novamente');
+      return;
+    }
+
+    if (!aiPurpose.trim()) {
+      toast.error('Descreva o que deseja gerar');
+      return;
+    }
+
+    setIsGeneratingAI(true);
+    try {
+      let prompt = '';
+      let context = 'landing page de captação de leads para escola de cursos extracurriculares';
+      
+      switch (aiTarget) {
+        case 'title':
+          prompt = `Crie um título curto e impactante (máximo 8 palavras) para uma landing page de matrículas. Objetivo: ${aiPurpose}. Responda APENAS com o título, sem aspas ou explicações.`;
+          break;
+        case 'subtitle':
+          prompt = `Crie um subtítulo envolvente (máximo 20 palavras) para uma landing page de matrículas. Objetivo: ${aiPurpose}. Responda APENAS com o subtítulo, sem aspas ou explicações.`;
+          break;
+        case 'benefit':
+          prompt = `Crie um benefício/diferencial para uma landing page. Objetivo: ${aiPurpose}. Responda em formato JSON: {"icon": "NomeDoIcone", "title": "Título curto", "description": "Descrição breve"}. Ícones disponíveis: Users, Award, GraduationCap, Clock, Star, Heart, Lightbulb, Target.`;
+          break;
+      }
+
+      const functionName = getGenerateFunctionName();
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: {
+          purpose: prompt,
+          tone: aiTone,
+          context,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.message) {
+        const generatedText = data.message.trim();
+        
+        switch (aiTarget) {
+          case 'title':
+            setHeroTitle(generatedText.replace(/^["']|["']$/g, ''));
+            toast.success('Título gerado!');
+            break;
+          case 'subtitle':
+            setHeroSubtitle(generatedText.replace(/^["']|["']$/g, ''));
+            toast.success('Subtítulo gerado!');
+            break;
+          case 'benefit':
+            try {
+              // Try to extract JSON from the response
+              const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const benefitData = JSON.parse(jsonMatch[0]);
+                setBenefits([...benefits, {
+                  icon: benefitData.icon || 'Star',
+                  title: benefitData.title || '',
+                  description: benefitData.description || '',
+                }]);
+                toast.success('Benefício adicionado!');
+              } else {
+                throw new Error('JSON não encontrado');
+              }
+            } catch {
+              // Fallback: add as description
+              setBenefits([...benefits, {
+                icon: 'Star',
+                title: 'Novo Benefício',
+                description: generatedText.substring(0, 100),
+              }]);
+              toast.success('Benefício adicionado (revise os campos)');
+            }
+            break;
+        }
+        
+        setAiPurpose('');
+        setShowAiGenerator(false);
+      } else {
+        throw new Error('Nenhum texto gerado');
+      }
+    } catch (error: any) {
+      const parsed = parseInvokeError(error);
+      
+      if (parsed.status === 429) {
+        const retryAfterSeconds = Number(parsed.body?.retry_after_seconds ?? 60);
+        const ms = Math.min(Math.max(retryAfterSeconds, 5), 600) * 1000;
+        setAiCooldownUntil(Date.now() + ms);
+        if (aiCooldownTimeoutRef.current) clearTimeout(aiCooldownTimeoutRef.current);
+        aiCooldownTimeoutRef.current = setTimeout(() => setAiCooldownUntil(null), ms);
+        toast.error('Limite de requisições atingido. Aguarde um momento.');
+        return;
+      }
+
+      console.error('Error generating with AI:', error);
+      toast.error(parsed.body?.error || 'Erro ao gerar texto');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // Countdown display
+  const getCooldownText = () => {
+    if (!aiCooldownUntil) return null;
+    const remaining = Math.ceil((aiCooldownUntil - Date.now()) / 1000);
+    return remaining > 0 ? `Aguarde ${remaining}s` : null;
+  };
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -392,10 +527,87 @@ export default function CampaignAdmin() {
           <TabsContent value="texts">
             <Card>
               <CardHeader>
-                <CardTitle>Textos da Landing Page</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Textos da Landing Page</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAiGenerator(!showAiGenerator)}
+                    className="gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Assistente IA
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showAiGenerator ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CardTitle>
                 <CardDescription>Configure o conteúdo exibido na página</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                {/* AI Generator Panel */}
+                <Collapsible open={showAiGenerator} onOpenChange={setShowAiGenerator}>
+                  <CollapsibleContent>
+                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg space-y-4 mb-4">
+                      <div className="flex items-center gap-2 text-primary">
+                        <Wand2 className="w-5 h-5" />
+                        <span className="font-medium">Gerador de Textos com IA</span>
+                      </div>
+                      
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label>O que deseja gerar?</Label>
+                          <Select value={aiTarget} onValueChange={(v) => setAiTarget(v as any)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="title">Título Principal</SelectItem>
+                              <SelectItem value="subtitle">Subtítulo</SelectItem>
+                              <SelectItem value="benefit">Novo Benefício</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Tom da mensagem</Label>
+                          <Select value={aiTone} onValueChange={setAiTone}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="profissional e envolvente">Profissional e Envolvente</SelectItem>
+                              <SelectItem value="divertido e descontraído">Divertido e Descontraído</SelectItem>
+                              <SelectItem value="urgente e persuasivo">Urgente e Persuasivo</SelectItem>
+                              <SelectItem value="acolhedor e familiar">Acolhedor e Familiar</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Descreva o objetivo ou tema</Label>
+                        <Textarea
+                          value={aiPurpose}
+                          onChange={(e) => setAiPurpose(e.target.value)}
+                          placeholder="Ex: Destacar matrículas abertas para 2026 com foco em inovação tecnológica..."
+                          rows={2}
+                        />
+                      </div>
+                      
+                      <Button
+                        onClick={handleGenerateWithAI}
+                        disabled={isGeneratingAI || !aiPurpose.trim() || !!getCooldownText()}
+                        className="w-full"
+                      >
+                        {isGeneratingAI ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4 mr-2" />
+                        )}
+                        {getCooldownText() || 'Gerar com IA'}
+                      </Button>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
                 <div className="space-y-2">
                   <Label>Título Principal (Hero)</Label>
                   <Input
