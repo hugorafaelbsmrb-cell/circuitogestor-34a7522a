@@ -18,7 +18,33 @@ import { useSystemBranding } from '@/hooks/useSystemBranding';
 const API_URL = 'https://uvnkqzwzsokyonxonzot.supabase.co/functions/v1/teacher-api/reports';
 const API_KEY = 'teacher_api_circuitokids_2025';
 
-interface ApiReport {
+interface ApiWeeklyReport {
+  id: string;
+  type: string;
+  teacher: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  turma: string;
+  week: {
+    start: string;
+    end: string;
+  };
+  content: {
+    desempenho_geral: string | null;
+    pontos_positivos: string | null;
+    dificuldades: string | null;
+    recomendacoes: string | null;
+    observacoes: string | null;
+  };
+  student_observations: unknown[];
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ApiPedagogicalReport {
   id: string;
   student_id: string | null;
   teacher_id: string | null;
@@ -86,7 +112,39 @@ export default function StudentReportsTab() {
     fetchTeachers();
   }, []);
 
-  const mapApiReportToStudentReport = (apiReport: ApiReport): StudentReport => {
+  const mapWeeklyReportToStudentReport = (apiReport: ApiWeeklyReport): StudentReport => {
+    // Build content from the weekly report structure
+    const contentParts = [];
+    if (apiReport.content?.desempenho_geral) contentParts.push(`**Desempenho Geral:** ${apiReport.content.desempenho_geral}`);
+    if (apiReport.content?.pontos_positivos) contentParts.push(`**Pontos Positivos:** ${apiReport.content.pontos_positivos}`);
+    if (apiReport.content?.dificuldades) contentParts.push(`**Dificuldades:** ${apiReport.content.dificuldades}`);
+    if (apiReport.content?.recomendacoes) contentParts.push(`**Recomendações:** ${apiReport.content.recomendacoes}`);
+    if (apiReport.content?.observacoes) contentParts.push(`**Observações:** ${apiReport.content.observacoes}`);
+
+    return {
+      id: apiReport.id,
+      student_id: null,
+      teacher_id: apiReport.teacher?.id || null,
+      title: `Relatório Semanal - ${apiReport.turma}`,
+      content: contentParts.join('\n\n') || 'Sem conteúdo disponível',
+      report_date: apiReport.week?.start || apiReport.created_at,
+      report_type: 'weekly',
+      status: apiReport.status,
+      sent_at: null,
+      created_at: apiReport.created_at,
+      student: {
+        id: '',
+        name: apiReport.turma || 'Turma não especificada',
+        guardian: undefined,
+      },
+      teacher: apiReport.teacher ? {
+        id: apiReport.teacher.id,
+        name: apiReport.teacher.name,
+      } : undefined,
+    };
+  };
+
+  const mapPedagogicalReportToStudentReport = (apiReport: ApiPedagogicalReport): StudentReport => {
     return {
       id: apiReport.id,
       student_id: apiReport.student_id,
@@ -146,8 +204,8 @@ export default function StudentReportsTab() {
       const data = await response.json();
 
       if (data.success) {
-        const weeklyMapped = (data.weekly_reports?.reports || []).map(mapApiReportToStudentReport);
-        const pedagogicalMapped = (data.pedagogical_reports?.reports || []).map(mapApiReportToStudentReport);
+        const weeklyMapped = (data.weekly_reports?.reports || []).map(mapWeeklyReportToStudentReport);
+        const pedagogicalMapped = (data.pedagogical_reports?.reports || []).map(mapPedagogicalReportToStudentReport);
         
         setWeeklyReports(weeklyMapped);
         setPedagogicalReports(pedagogicalMapped);
