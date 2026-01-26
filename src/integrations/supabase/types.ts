@@ -1707,6 +1707,7 @@ export type Database = {
       teachers: {
         Row: {
           class_group_id: string | null
+          course_id: string | null
           created_at: string
           email: string | null
           id: string
@@ -1717,6 +1718,7 @@ export type Database = {
         }
         Insert: {
           class_group_id?: string | null
+          course_id?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -1727,6 +1729,7 @@ export type Database = {
         }
         Update: {
           class_group_id?: string | null
+          course_id?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -1741,6 +1744,13 @@ export type Database = {
             columns: ["class_group_id"]
             isOneToOne: false
             referencedRelation: "class_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teachers_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
             referencedColumns: ["id"]
           },
         ]

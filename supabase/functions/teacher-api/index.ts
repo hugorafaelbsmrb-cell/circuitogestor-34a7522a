@@ -113,14 +113,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // GET /teacher-api/teachers - List all teachers with their linked students
+    // GET /teacher-api/teachers - List all teachers with their linked students and courses
     if (req.method === 'GET' && path === 'teachers') {
-      // Get all active teachers
-      const { data: teachers, error: teachersError } = await supabase
+      // Get optional course filter
+      const courseFilter = url.searchParams.get('course_id');
+
+      // Get all active teachers with their associated course
+      let teachersQuery = supabase
         .from('teachers')
-        .select('id, name, phone, email, is_active')
+        .select(`
+          id, 
+          name, 
+          phone, 
+          email, 
+          is_active,
+          course_id,
+          course:courses(id, name)
+        `)
         .eq('is_active', true)
         .order('name');
+
+      // Apply course filter if provided
+      if (courseFilter) {
+        teachersQuery = teachersQuery.eq('course_id', courseFilter);
+      }
+
+      const { data: teachers, error: teachersError } = await teachersQuery;
 
       if (teachersError) {
         console.error('Error fetching teachers:', teachersError);
@@ -162,12 +180,17 @@ Deno.serve(async (req) => {
       const teachersWithStudents = teachers?.map(teacher => {
         const teacherStudents = students?.filter(s => s.teacher_id === teacher.id) || [];
         const teacherCredential = credentials?.find(c => c.teacher_id === teacher.id);
+        const courseData = teacher.course as unknown as { id: string; name: string } | null;
         
         return {
           id: teacher.id,
           name: teacher.name,
           phone: teacher.phone,
           email: teacher.email,
+          course: courseData ? {
+            id: courseData.id,
+            name: courseData.name,
+          } : null,
           credential: teacherCredential ? {
             email: teacherCredential.email,
             matricula: teacherCredential.matricula,
@@ -190,6 +213,7 @@ Deno.serve(async (req) => {
           success: true, 
           count: teachersWithStudents.length,
           total_students: students?.filter(s => s.teacher_id).length || 0,
+          course_filter: courseFilter || null,
           teachers: teachersWithStudents 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
