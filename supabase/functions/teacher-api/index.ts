@@ -206,7 +206,6 @@ Deno.serve(async (req) => {
       if (action === 'update_attendance') {
         // External system sending attendance data
         console.log('Received attendance update:', data);
-        // Process attendance data as needed
         return new Response(
           JSON.stringify({ success: true, message: 'Attendance data received' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -216,15 +215,101 @@ Deno.serve(async (req) => {
       if (action === 'update_progress') {
         // External system sending student progress
         console.log('Received progress update:', data);
-        // Process progress data as needed
         return new Response(
           JSON.stringify({ success: true, message: 'Progress data received' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
+      // NEW: Handle training/capacity progress updates
+      if (action === 'update_training' || action === 'update_capacitacao') {
+        console.log('Received training progress update:', data);
+        
+        // data format: { matricula, track_name, current_module, current_lesson, completed_lessons, total_lessons }
+        const { matricula, track_name, current_module, current_lesson, completed_lessons, total_lessons } = data;
+
+        if (!matricula || !track_name) {
+          return new Response(
+            JSON.stringify({ error: 'matricula and track_name are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Find teacher credential by matricula
+        const { data: credential, error: credError } = await supabase
+          .from('teacher_credentials')
+          .select('id, teacher_id')
+          .eq('matricula', matricula)
+          .single();
+
+        if (credError || !credential) {
+          console.error('Teacher credential not found:', matricula);
+          return new Response(
+            JSON.stringify({ error: 'Teacher credential not found', matricula }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const completedCount = completed_lessons || 0;
+        const totalCount = total_lessons || 0;
+        const percentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+
+        // Upsert training progress
+        const { error: upsertError } = await supabase
+          .from('teacher_training_progress')
+          .upsert({
+            teacher_id: credential.teacher_id,
+            teacher_credential_id: credential.id,
+            track_name,
+            current_module: current_module || null,
+            current_lesson: current_lesson || null,
+            completed_lessons: completedCount,
+            total_lessons: totalCount,
+            completion_percentage: percentage,
+            last_sync_at: new Date().toISOString(),
+          }, {
+            onConflict: 'teacher_credential_id,track_name',
+          });
+
+        if (upsertError) {
+          // Try insert if upsert fails (no unique constraint yet)
+          const { error: insertError } = await supabase
+            .from('teacher_training_progress')
+            .insert({
+              teacher_id: credential.teacher_id,
+              teacher_credential_id: credential.id,
+              track_name,
+              current_module: current_module || null,
+              current_lesson: current_lesson || null,
+              completed_lessons: completedCount,
+              total_lessons: totalCount,
+              completion_percentage: percentage,
+              last_sync_at: new Date().toISOString(),
+            });
+
+          if (insertError) {
+            console.error('Error saving training progress:', insertError);
+            return new Response(
+              JSON.stringify({ error: 'Failed to save training progress' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Training progress updated',
+            matricula,
+            track_name,
+            completion_percentage: percentage.toFixed(2),
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ error: 'Unknown action' }),
+        JSON.stringify({ error: 'Unknown action', supported: ['update_attendance', 'update_progress', 'update_training'] }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
