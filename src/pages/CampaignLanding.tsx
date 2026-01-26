@@ -62,6 +62,7 @@ export default function CampaignLanding() {
         ]);
 
       settings?.forEach((s) => {
+        console.log('⚙️ Loading setting:', s.key, '=', s.value);
         switch (s.key) {
           case 'campaign_hero_title':
             if (s.value) setHeroTitle(s.value);
