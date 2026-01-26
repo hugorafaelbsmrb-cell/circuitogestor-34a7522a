@@ -1492,6 +1492,63 @@ export type Database = {
           },
         ]
       }
+      student_reports: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          report_date: string
+          report_type: string | null
+          sent_at: string | null
+          status: string | null
+          student_id: string | null
+          teacher_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          report_date?: string
+          report_type?: string | null
+          sent_at?: string | null
+          status?: string | null
+          student_id?: string | null
+          teacher_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          report_date?: string
+          report_type?: string | null
+          sent_at?: string | null
+          status?: string | null
+          student_id?: string | null
+          teacher_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_reports_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_reports_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       students: {
         Row: {
           birth_date: string
