@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Loader2, User, Phone, Mail, GraduationCap, Key, Eye, EyeOff, Printer, Copy, Check, BookOpen, TrendingUp } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, User, Phone, Mail, GraduationCap, Key, Eye, EyeOff, Printer, Copy, Check, BookOpen, TrendingUp, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -39,6 +39,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
+import StudentReportsTab from '@/components/teachers/StudentReportsTab';
 
 interface Teacher {
   id: string;
@@ -510,6 +511,10 @@ export default function Teachers() {
           <TabsTrigger value="teachers">Professores</TabsTrigger>
           <TabsTrigger value="credentials">Credenciais de Acesso</TabsTrigger>
           <TabsTrigger value="training">Capacitação</TabsTrigger>
+          <TabsTrigger value="reports" className="flex items-center gap-1">
+            <FileText className="h-4 w-4" />
+            Relatórios
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="teachers">
@@ -869,6 +874,10 @@ export default function Teachers() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="reports">
+          <StudentReportsTab />
         </TabsContent>
       </Tabs>
 

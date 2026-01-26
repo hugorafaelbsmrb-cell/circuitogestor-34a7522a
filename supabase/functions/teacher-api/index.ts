@@ -431,14 +431,136 @@ Deno.serve(async (req) => {
         );
       }
 
+      // NEW: Handle student reports from external system
+      if (action === 'create_report' || action === 'send_report') {
+        console.log('Received student report:', data);
+        
+        const { student_id, teacher_id, title, content, report_date, report_type } = data;
+
+        if (!student_id || !title || !content) {
+          return new Response(
+            JSON.stringify({ error: 'student_id, title, and content are required' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Verify student exists
+        const { data: student, error: studentError } = await supabase
+          .from('students')
+          .select('id, name')
+          .eq('id', student_id)
+          .single();
+
+        if (studentError || !student) {
+          return new Response(
+            JSON.stringify({ error: 'Student not found', student_id }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Optionally verify teacher
+        let teacherId = teacher_id;
+        if (teacher_id) {
+          const { data: teacher, error: teacherError } = await supabase
+            .from('teachers')
+            .select('id')
+            .eq('id', teacher_id)
+            .single();
+
+          if (teacherError) {
+            console.warn('Teacher not found:', teacher_id);
+            teacherId = null;
+          }
+        }
+
+        // Create the report
+        const { data: report, error: insertError } = await supabase
+          .from('student_reports')
+          .insert({
+            student_id,
+            teacher_id: teacherId,
+            title,
+            content,
+            report_date: report_date || new Date().toISOString().split('T')[0],
+            report_type: report_type || 'pedagogical',
+            status: 'pending',
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error creating report:', insertError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to create report', details: insertError.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: 'Report created successfully',
+            report_id: report.id,
+            student_name: student.name,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       return new Response(
-        JSON.stringify({ error: 'Unknown action', supported: ['update_attendance', 'update_progress', 'update_training'] }),
+        JSON.stringify({ error: 'Unknown action', supported: ['update_attendance', 'update_progress', 'update_training', 'create_report'] }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // GET /teacher-api/reports - List all reports
+    if (req.method === 'GET' && path === 'reports') {
+      const studentId = url.searchParams.get('student_id');
+      const teacherId = url.searchParams.get('teacher_id');
+      const status = url.searchParams.get('status');
+
+      let query = supabase
+        .from('student_reports')
+        .select(`
+          id,
+          title,
+          content,
+          report_date,
+          report_type,
+          status,
+          sent_at,
+          created_at,
+          student:students(id, name),
+          teacher:teachers(id, name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (studentId) query = query.eq('student_id', studentId);
+      if (teacherId) query = query.eq('teacher_id', teacherId);
+      if (status) query = query.eq('status', status);
+
+      const { data: reports, error } = await query.limit(100);
+
+      if (error) {
+        console.error('Error fetching reports:', error);
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch reports' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          count: reports?.length || 0,
+          reports,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     return new Response(
-      JSON.stringify({ error: 'Not found', endpoints: ['/students', '/teachers', '/teacher-students', '/auth', '/sync'] }),
+      JSON.stringify({ error: 'Not found', endpoints: ['/students', '/teachers', '/teacher-students', '/auth', '/sync', '/reports'] }),
       { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
