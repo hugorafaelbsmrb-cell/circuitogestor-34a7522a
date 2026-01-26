@@ -300,6 +300,7 @@ export default function StudentReportsTab() {
     if (!printWindow) return;
 
     const logoUrl = branding?.logo;
+    const schoolName = branding?.name || 'Circuito Kids';
     const isWeekly = selectedReport.report_type === 'weekly' && selectedReport.weekly_content;
     
     // Format period for weekly reports
@@ -309,211 +310,253 @@ export default function StudentReportsTab() {
         ? format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
         : '-';
 
+    const studentName = selectedReport.turma || selectedReport.student?.name || 'Aluno';
+    const teacherName = selectedReport.teacher?.name || '-';
+    const generatedDate = format(new Date(), 'dd/MM/yyyy', { locale: ptBR });
+
     // Build content sections for weekly reports
     let contentHtml = '';
     if (isWeekly && selectedReport.weekly_content) {
       const wc = selectedReport.weekly_content;
       if (wc.desempenho_geral) {
         contentHtml += `
-          <div class="section">
-            <div class="section-title">📊 Desempenho Geral</div>
+          <div class="section section-orange">
+            <div class="section-title">DESEMPENHO GERAL</div>
             <div class="section-content">${wc.desempenho_geral}</div>
           </div>`;
       }
       if (wc.pontos_positivos) {
         contentHtml += `
-          <div class="section positive">
-            <div class="section-title">✅ Pontos Positivos</div>
+          <div class="section section-green">
+            <div class="section-title">PONTOS POSITIVOS</div>
             <div class="section-content">${wc.pontos_positivos}</div>
           </div>`;
       }
       if (wc.dificuldades) {
         contentHtml += `
-          <div class="section warning">
-            <div class="section-title">⚠️ Dificuldades</div>
+          <div class="section section-amber">
+            <div class="section-title">DIFICULDADES OBSERVADAS</div>
             <div class="section-content">${wc.dificuldades}</div>
           </div>`;
       }
       if (wc.recomendacoes) {
         contentHtml += `
-          <div class="section info">
-            <div class="section-title">💡 Recomendações</div>
+          <div class="section section-orange">
+            <div class="section-title">RECOMENDAÇÕES</div>
             <div class="section-content">${wc.recomendacoes}</div>
           </div>`;
       }
       if (wc.observacoes) {
         contentHtml += `
-          <div class="section">
-            <div class="section-title">📝 Observações</div>
+          <div class="section section-gray">
+            <div class="section-title">OBSERVAÇÕES ADICIONAIS</div>
             <div class="section-content">${wc.observacoes}</div>
           </div>`;
       }
     } else {
-      contentHtml = `<div class="content">${selectedReport.content}</div>`;
+      contentHtml = `
+        <div class="section section-orange">
+          <div class="section-title">CONTEÚDO DO RELATÓRIO</div>
+          <div class="section-content">${selectedReport.content}</div>
+        </div>`;
     }
 
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Relatório - ${selectedReport.turma || selectedReport.student?.name || 'Aluno'}</title>
+        <title>Relatório - ${studentName} - ${generatedDate.replace(/\//g, '')}</title>
         <style>
+          @page {
+            size: A4;
+            margin: 12mm;
+          }
           * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
           }
           body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 30px;
-            max-width: 800px;
-            margin: 0 auto;
-            color: #333;
-            font-size: 14px;
+            font-family: Helvetica, Arial, sans-serif;
+            color: #1a1a1a;
+            font-size: 9pt;
+            line-height: 1.4;
+            background: #fff;
           }
+          .page {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+          }
+          
+          /* Header - 38px height with gray background */
           .header {
-            text-align: center;
-            margin-bottom: 25px;
-            border-bottom: 3px solid #2563eb;
-            padding-bottom: 20px;
+            background: #F8F8F8;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 38px;
           }
           .logo {
-            max-height: 70px;
-            margin-bottom: 10px;
+            width: 22px;
+            height: 22px;
+            object-fit: contain;
+            flex-shrink: 0;
           }
-          .school-name {
-            font-size: 20px;
-            font-weight: bold;
-            color: #1e40af;
-            margin-bottom: 5px;
-          }
-          .report-type {
-            font-size: 16px;
-            color: #666;
-            font-weight: 500;
-          }
-          .meta-box {
-            display: flex;
-            justify-content: space-between;
-            margin: 20px 0;
-            padding: 15px 20px;
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-            border-radius: 10px;
-            border: 1px solid #bae6fd;
-          }
-          .meta-item {
-            text-align: center;
+          .header-text {
             flex: 1;
           }
-          .meta-item:not(:last-child) {
-            border-right: 1px solid #bae6fd;
+          .school-name {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #1a1a1a;
+            margin: 0;
           }
-          .meta-label {
-            font-size: 11px;
-            color: #64748b;
-            display: block;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
+          .report-subtitle {
+            font-size: 9pt;
+            color: #666;
+            margin: 2px 0 0 0;
           }
-          .meta-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1e3a5f;
+          
+          /* Info line below header */
+          .info-line {
+            font-size: 8pt;
+            padding: 6px 12px;
+            color: #333;
           }
-          .sections {
-            margin-top: 25px;
+          .info-line span {
+            margin-right: 8px;
           }
+          
+          /* Orange divider */
+          .divider {
+            height: 1.5px;
+            background: #EA580C;
+            margin: 0;
+          }
+          
+          /* Main content area */
+          .content-area {
+            flex: 1;
+            padding: 12px;
+          }
+          
+          /* Section styling with left colored border */
           .section {
-            margin-bottom: 18px;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-left: 3px solid #666;
             background: #fafafa;
             page-break-inside: avoid;
           }
-          .section.positive {
-            background: #f0fdf4;
-            border-color: #86efac;
-          }
-          .section.warning {
-            background: #fffbeb;
-            border-color: #fcd34d;
-          }
-          .section.info {
-            background: #eff6ff;
-            border-color: #93c5fd;
-          }
+          .section-orange { border-left-color: #EA580C; }
+          .section-green { border-left-color: #16a34a; }
+          .section-amber { border-left-color: #d97706; }
+          .section-gray { border-left-color: #6b7280; }
+          
           .section-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #475569;
-            margin-bottom: 8px;
-            padding-bottom: 6px;
-            border-bottom: 1px solid #e2e8f0;
+            font-size: 9pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            color: #333;
           }
-          .section.positive .section-title { color: #166534; border-color: #86efac; }
-          .section.warning .section-title { color: #92400e; border-color: #fcd34d; }
-          .section.info .section-title { color: #1e40af; border-color: #93c5fd; }
+          .section-orange .section-title { color: #EA580C; }
+          .section-green .section-title { color: #16a34a; }
+          .section-amber .section-title { color: #d97706; }
+          .section-gray .section-title { color: #6b7280; }
+          
           .section-content {
-            font-size: 13px;
-            line-height: 1.7;
-            color: #334155;
+            font-size: 9pt;
+            line-height: 1.5;
+            color: #1a1a1a;
             white-space: pre-wrap;
           }
-          .content {
-            line-height: 1.8;
-            white-space: pre-wrap;
-            text-align: justify;
-            margin-top: 25px;
-            padding: 15px;
-            background: #fafafa;
-            border-radius: 8px;
-          }
-          .footer {
+          
+          /* Signature area */
+          .signatures {
+            display: flex;
+            justify-content: space-between;
             margin-top: 40px;
-            text-align: center;
-            font-size: 11px;
-            color: #94a3b8;
-            padding-top: 15px;
-            border-top: 1px solid #e2e8f0;
+            padding: 0 30px;
           }
+          .signature-box {
+            width: 45%;
+            text-align: center;
+          }
+          .signature-line {
+            border-top: 1px solid #333;
+            padding-top: 6px;
+            font-size: 8pt;
+            color: #333;
+          }
+          
+          /* Footer */
+          .footer {
+            border-top: 1px solid #e5e5e5;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 8pt;
+            color: #666;
+            margin-top: auto;
+          }
+          .footer-left {
+            font-weight: 500;
+          }
+          .footer-right {
+            text-align: right;
+          }
+          
           @media print {
             body { 
-              padding: 15px; 
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
             .section { break-inside: avoid; }
+            .page { min-height: auto; }
           }
         </style>
       </head>
       <body>
-        <div class="header">
-          ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo" />` : ''}
-          <div class="school-name">${branding?.name || 'Circuito Kids'}</div>
-          <div class="report-type">${isWeekly ? 'Relatório Semanal' : 'Relatório Pedagógico'}</div>
-        </div>
-        
-        <div class="meta-box">
-          <div class="meta-item">
-            <span class="meta-label">Turma/Aluno</span>
-            <span class="meta-value">${selectedReport.turma || selectedReport.student?.name || '-'}</span>
+        <div class="page">
+          <div class="header">
+            ${logoUrl ? `<img src="${logoUrl}" class="logo" alt="Logo" />` : '<div class="logo" style="background:#EA580C;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:10px;">CK</div>'}
+            <div class="header-text">
+              <div class="school-name">${schoolName}</div>
+              <div class="report-subtitle">Relatório de Acompanhamento Semanal</div>
+            </div>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Professor(a)</span>
-            <span class="meta-value">${selectedReport.teacher?.name || '-'}</span>
+          
+          <div class="info-line">
+            <span><strong>Aluno(a):</strong> ${studentName}</span>
+            <span>•</span>
+            <span><strong>Professor(a):</strong> ${teacherName}</span>
+            <span>•</span>
+            <span><strong>Período:</strong> ${periodText}</span>
           </div>
-          <div class="meta-item">
-            <span class="meta-label">Período</span>
-            <span class="meta-value">${periodText}</span>
+          
+          <div class="divider"></div>
+          
+          <div class="content-area">
+            ${contentHtml}
+            
+            <div class="signatures">
+              <div class="signature-box">
+                <div class="signature-line">Assinatura do Professor(a)</div>
+              </div>
+              <div class="signature-box">
+                <div class="signature-line">Assinatura do Responsável</div>
+              </div>
+            </div>
           </div>
-        </div>
-        
-        <div class="sections">
-          ${contentHtml}
-        </div>
-        
-        <div class="footer">
-          Relatório gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })} | ${branding?.name || 'Circuito Kids'}
+          
+          <div class="footer">
+            <div class="footer-left">${schoolName}</div>
+            <div class="footer-right">Gerado em: ${generatedDate}</div>
+          </div>
         </div>
       </body>
       </html>
@@ -524,7 +567,7 @@ export default function StudentReportsTab() {
     setTimeout(() => {
       printWindow.print();
       printWindow.close();
-    }, 250);
+    }, 300);
   };
 
   const handleSendWhatsApp = async () => {
