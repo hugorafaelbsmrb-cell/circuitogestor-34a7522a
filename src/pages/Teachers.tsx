@@ -47,8 +47,14 @@ interface Teacher {
   phone: string;
   email: string | null;
   class_group_id: string | null;
+  course_id: string | null;
   is_active: boolean;
   created_at: string;
+}
+
+interface Course {
+  id: string;
+  name: string;
 }
 
 interface TeacherCredential {
@@ -91,6 +97,7 @@ export default function Teachers() {
   const [credentials, setCredentials] = useState<TeacherCredential[]>([]);
   const [trainingProgress, setTrainingProgress] = useState<TeacherTrainingProgress[]>([]);
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCredentialModalOpen, setIsCredentialModalOpen] = useState(false);
@@ -103,6 +110,7 @@ export default function Teachers() {
     name: '',
     phone: '',
     email: '',
+    course_id: '',
   });
 
   const [credentialForm, setCredentialForm] = useState({
@@ -182,6 +190,16 @@ export default function Teachers() {
         }));
 
       setClassGroups(reforcoGroups);
+
+      // Load all courses for teacher association
+      const { data: coursesData, error: coursesError } = await supabase
+        .from('courses')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name');
+
+      if (coursesError) throw coursesError;
+      setCourses(coursesData || []);
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -201,6 +219,7 @@ export default function Teachers() {
         name: teacher.name,
         phone: teacher.phone,
         email: teacher.email || '',
+        course_id: teacher.course_id || '',
       });
     } else {
       setEditingTeacher(null);
@@ -208,6 +227,7 @@ export default function Teachers() {
         name: '',
         phone: '',
         email: '',
+        course_id: '',
       });
     }
     setIsModalOpen(true);
@@ -286,6 +306,7 @@ export default function Teachers() {
         name: formData.name.trim(),
         phone: phoneWithCode,
         email: formData.email.trim() || null,
+        course_id: formData.course_id || null,
       };
 
       if (editingTeacher) {
@@ -552,7 +573,7 @@ export default function Teachers() {
                       <TableHead>Nome</TableHead>
                       <TableHead>Telefone</TableHead>
                       <TableHead>Email</TableHead>
-                      <TableHead>Turma</TableHead>
+                      <TableHead>Curso</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -560,6 +581,7 @@ export default function Teachers() {
                   <TableBody>
                     {teachers.map((teacher) => {
                       const hasCredentials = credentials.some(c => c.teacher_id === teacher.id);
+                      const teacherCourse = courses.find(c => c.id === teacher.course_id);
                       return (
                         <TableRow key={teacher.id}>
                           <TableCell className="font-medium">{teacher.name}</TableCell>
@@ -580,12 +602,12 @@ export default function Teachers() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {getClassGroupName(teacher.class_group_id) ? (
+                            {teacherCourse ? (
                               <Badge variant="secondary">
-                                {getClassGroupName(teacher.class_group_id)}
+                                {teacherCourse.name}
                               </Badge>
                             ) : (
-                              <span className="text-muted-foreground">Não atribuída</span>
+                              <span className="text-muted-foreground">Não atribuído</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -926,6 +948,26 @@ export default function Teachers() {
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 placeholder="professor@email.com"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="course">Curso Associado</Label>
+              <Select
+                value={formData.course_id}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, course_id: value === 'none' ? '' : value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um curso (opcional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum curso</SelectItem>
+                  {courses.map((course) => (
+                    <SelectItem key={course.id} value={course.id}>
+                      {course.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
