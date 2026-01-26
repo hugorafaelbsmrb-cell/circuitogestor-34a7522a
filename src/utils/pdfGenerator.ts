@@ -49,18 +49,16 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   const margin = 15;
   let yPos = 15;
 
-  // Add logo function - matches ContractPrintView proportions
-  // maxHeight: 50px (~13mm), maxWidth: 180px (~48mm)
+  // Add logo function - square logo proportions
   const addLogo = (logoY: number): number => {
     if (!content.schoolLogo) return 0;
     
     try {
-      const logoMaxHeight = 13; // ~50px
-      const logoMaxWidth = 48;  // ~180px
-      const logoX = (pageWidth - logoMaxWidth) / 2; // Center horizontally
+      const logoSize = 15; // Square: 15mm x 15mm (~50px)
+      const logoX = (pageWidth - logoSize) / 2; // Center horizontally
       
-      doc.addImage(content.schoolLogo, 'AUTO', logoX, logoY, logoMaxWidth, logoMaxHeight);
-      return logoMaxHeight + 5;
+      doc.addImage(content.schoolLogo, 'AUTO', logoX, logoY, logoSize, logoSize);
+      return logoSize + 5;
     } catch (e) {
       console.warn('Failed to add logo to PDF:', e);
       return 0;
