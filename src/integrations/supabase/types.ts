@@ -1577,6 +1577,66 @@ export type Database = {
           },
         ]
       }
+      teacher_training_progress: {
+        Row: {
+          completed_lessons: number
+          completion_percentage: number | null
+          created_at: string
+          current_lesson: string | null
+          current_module: string | null
+          id: string
+          last_sync_at: string | null
+          teacher_credential_id: string | null
+          teacher_id: string | null
+          total_lessons: number
+          track_name: string
+          updated_at: string
+        }
+        Insert: {
+          completed_lessons?: number
+          completion_percentage?: number | null
+          created_at?: string
+          current_lesson?: string | null
+          current_module?: string | null
+          id?: string
+          last_sync_at?: string | null
+          teacher_credential_id?: string | null
+          teacher_id?: string | null
+          total_lessons?: number
+          track_name: string
+          updated_at?: string
+        }
+        Update: {
+          completed_lessons?: number
+          completion_percentage?: number | null
+          created_at?: string
+          current_lesson?: string | null
+          current_module?: string | null
+          id?: string
+          last_sync_at?: string | null
+          teacher_credential_id?: string | null
+          teacher_id?: string | null
+          total_lessons?: number
+          track_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_training_progress_teacher_credential_id_fkey"
+            columns: ["teacher_credential_id"]
+            isOneToOne: false
+            referencedRelation: "teacher_credentials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teacher_training_progress_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teachers: {
         Row: {
           class_group_id: string | null

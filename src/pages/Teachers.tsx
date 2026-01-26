@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Loader2, User, Phone, Mail, GraduationCap, Key, Eye, EyeOff, Printer, Copy, Check } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, User, Phone, Mail, GraduationCap, Key, Eye, EyeOff, Printer, Copy, Check, BookOpen, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import {
   Card,
   CardContent,
@@ -61,6 +62,21 @@ interface TeacherCredential {
   teacher?: Teacher;
 }
 
+interface TeacherTrainingProgress {
+  id: string;
+  teacher_id: string | null;
+  teacher_credential_id: string | null;
+  track_name: string;
+  current_module: string | null;
+  current_lesson: string | null;
+  completed_lessons: number;
+  total_lessons: number;
+  completion_percentage: number;
+  last_sync_at: string | null;
+  teacher?: Teacher;
+  credential?: TeacherCredential;
+}
+
 interface ClassGroup {
   id: string;
   name: string;
@@ -72,6 +88,7 @@ export default function Teachers() {
   const { branding } = useSystemBranding();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [credentials, setCredentials] = useState<TeacherCredential[]>([]);
+  const [trainingProgress, setTrainingProgress] = useState<TeacherTrainingProgress[]>([]);
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -122,6 +139,22 @@ export default function Teachers() {
 
       if (credentialsError) throw credentialsError;
       setCredentials(credentialsData || []);
+
+      // Load training progress with teacher and credential info
+      const { data: trainingData, error: trainingError } = await supabase
+        .from('teacher_training_progress')
+        .select(`
+          *,
+          teacher:teachers(*),
+          credential:teacher_credentials(*)
+        `)
+        .order('track_name');
+
+      if (trainingError) {
+        console.error('Error loading training progress:', trainingError);
+      } else {
+        setTrainingProgress(trainingData || []);
+      }
 
       // Load class groups with course names (filter for Reforço)
       const { data: groupsData, error: groupsError } = await supabase
@@ -480,6 +513,7 @@ export default function Teachers() {
         <TabsList>
           <TabsTrigger value="teachers">Professores</TabsTrigger>
           <TabsTrigger value="credentials">Credenciais de Acesso</TabsTrigger>
+          <TabsTrigger value="training">Capacitação</TabsTrigger>
         </TabsList>
 
         <TabsContent value="teachers">
@@ -740,6 +774,102 @@ export default function Teachers() {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="training">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5" />
+                Progresso de Capacitação
+              </CardTitle>
+              <CardDescription>
+                Acompanhe o progresso dos professores nas trilhas de treinamento
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : trainingProgress.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>Nenhum progresso de capacitação registrado</p>
+                  <p className="text-sm">Os dados serão atualizados automaticamente pelo sistema externo</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Group by teacher */}
+                  {(() => {
+                    const grouped = trainingProgress.reduce((acc, item) => {
+                      const teacherName = item.teacher?.name || item.credential?.email || 'Professor desconhecido';
+                      if (!acc[teacherName]) {
+                        acc[teacherName] = [];
+                      }
+                      acc[teacherName].push(item);
+                      return acc;
+                    }, {} as Record<string, TeacherTrainingProgress[]>);
+
+                    return Object.entries(grouped).map(([teacherName, tracks]) => (
+                      <div key={teacherName} className="border rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <GraduationCap className="h-5 w-5 text-primary" />
+                          <h3 className="font-semibold text-lg">{teacherName}</h3>
+                        </div>
+                        <div className="space-y-4">
+                          {tracks.map((track) => (
+                            <div key={track.id} className="bg-muted/50 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-medium">{track.track_name}</span>
+                                <Badge variant={track.completion_percentage >= 100 ? 'default' : 'secondary'}>
+                                  {track.completion_percentage >= 100 ? 'Concluído' : 'Em andamento'}
+                                </Badge>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                  <span>
+                                    Aulas: {track.completed_lessons}/{track.total_lessons}
+                                  </span>
+                                  <span>{Number(track.completion_percentage).toFixed(0)}%</span>
+                                </div>
+                                <Progress value={Number(track.completion_percentage)} className="h-2" />
+                                {(track.current_module || track.current_lesson) && (
+                                  <div className="flex flex-wrap gap-2 mt-2">
+                                    {track.current_module && (
+                                      <Badge variant="outline" className="text-xs">
+                                        Módulo: {track.current_module}
+                                      </Badge>
+                                    )}
+                                    {track.current_lesson && (
+                                      <Badge variant="outline" className="text-xs">
+                                        Aula: {track.current_lesson}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                )}
+                                {track.last_sync_at && (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Última atualização: {new Date(track.last_sync_at).toLocaleDateString('pt-BR', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
               )}
             </CardContent>
           </Card>
