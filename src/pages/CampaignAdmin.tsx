@@ -43,6 +43,7 @@ export default function CampaignAdmin() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingHero, setIsUploadingHero] = useState(false);
   
   // Settings
   const [heroTitle, setHeroTitle] = useState('');
@@ -415,12 +416,75 @@ export default function CampaignAdmin() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Imagem de Fundo (URL)</Label>
-                  <Input
-                    value={heroImage}
-                    onChange={(e) => setHeroImage(e.target.value)}
-                    placeholder="https://..."
-                  />
+                  <Label>Imagem de Fundo</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={heroImage}
+                      onChange={(e) => setHeroImage(e.target.value)}
+                      placeholder="URL da imagem ou faça upload..."
+                      className="flex-1"
+                    />
+                    <label className="cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          
+                          setIsUploadingHero(true);
+                          try {
+                            const fileName = `hero-${Date.now()}-${file.name}`;
+                            const { error: uploadError } = await supabase.storage
+                              .from('campaign-images')
+                              .upload(fileName, file);
+                            
+                            if (uploadError) throw uploadError;
+                            
+                            const { data: urlData } = supabase.storage
+                              .from('campaign-images')
+                              .getPublicUrl(fileName);
+                            
+                            setHeroImage(urlData.publicUrl);
+                            toast.success('Imagem enviada!');
+                          } catch (error) {
+                            console.error('Error uploading hero image:', error);
+                            toast.error('Erro ao enviar imagem');
+                          } finally {
+                            setIsUploadingHero(false);
+                          }
+                        }}
+                        disabled={isUploadingHero}
+                      />
+                      <Button asChild variant="outline" disabled={isUploadingHero}>
+                        <span>
+                          {isUploadingHero ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4" />
+                          )}
+                        </span>
+                      </Button>
+                    </label>
+                  </div>
+                  {heroImage && (
+                    <div className="relative mt-2 rounded-lg overflow-hidden border">
+                      <img 
+                        src={heroImage} 
+                        alt="Preview" 
+                        className="w-full h-32 object-cover"
+                      />
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="absolute top-2 right-2"
+                        onClick={() => setHeroImage('')}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     Deixe vazio para usar o gradiente padrão
                   </p>
