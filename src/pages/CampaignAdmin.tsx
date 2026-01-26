@@ -80,6 +80,7 @@ export default function CampaignAdmin() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [isSavingCourse, setIsSavingCourse] = useState(false);
+  const [isGeneratingCourseDesc, setIsGeneratingCourseDesc] = useState(false);
 
   // AI Generator
   const { getGenerateFunctionName } = useAIProvider();
@@ -231,6 +232,56 @@ export default function CampaignAdmin() {
     } catch (error) {
       console.error('Error toggling course:', error);
       toast.error('Erro ao atualizar curso');
+    }
+  };
+
+  const handleGenerateCourseDescription = async () => {
+    if (!editingCourse) return;
+    
+    if (aiCooldownUntil && Date.now() < aiCooldownUntil) {
+      toast.error('Aguarde para tentar novamente');
+      return;
+    }
+
+    setIsGeneratingCourseDesc(true);
+    try {
+      const prompt = `Crie uma descrição atraente e persuasiva (máximo 80 palavras) para um curso chamado "${editingCourse.name}" com duração de ${editingCourse.duration} para uma escola de cursos extracurriculares. A descrição deve destacar benefícios para crianças/jovens e convencer os pais a matricular seus filhos. Responda APENAS com a descrição, sem aspas ou explicações.`;
+
+      const functionName = getGenerateFunctionName();
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: {
+          purpose: prompt,
+          tone: 'profissional e envolvente',
+          context: 'landing page de captação de leads para escola',
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.message) {
+        const generatedText = data.message.trim().replace(/^["']|["']$/g, '');
+        setEditingCourse({ ...editingCourse, description: generatedText });
+        toast.success('Descrição gerada!');
+      } else {
+        throw new Error('Nenhum texto gerado');
+      }
+    } catch (error: any) {
+      const parsed = parseInvokeError(error);
+      
+      if (parsed.status === 429) {
+        const retryAfterSeconds = Number(parsed.body?.retry_after_seconds ?? 60);
+        const ms = Math.min(Math.max(retryAfterSeconds, 5), 600) * 1000;
+        setAiCooldownUntil(Date.now() + ms);
+        if (aiCooldownTimeoutRef.current) clearTimeout(aiCooldownTimeoutRef.current);
+        aiCooldownTimeoutRef.current = setTimeout(() => setAiCooldownUntil(null), ms);
+        toast.error('Limite de requisições atingido. Aguarde um momento.');
+        return;
+      }
+
+      console.error('Error generating course description:', error);
+      toast.error(parsed.body?.error || 'Erro ao gerar descrição');
+    } finally {
+      setIsGeneratingCourseDesc(false);
     }
   };
 
@@ -925,7 +976,23 @@ export default function CampaignAdmin() {
                             </div>
                             
                             <div className="space-y-2">
-                              <Label>Descrição</Label>
+                              <div className="flex items-center justify-between">
+                                <Label>Descrição</Label>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={handleGenerateCourseDescription}
+                                  disabled={isGeneratingCourseDesc || !!getCooldownText()}
+                                  className="gap-1.5 h-7 text-xs"
+                                >
+                                  {isGeneratingCourseDesc ? (
+                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                  ) : (
+                                    <Sparkles className="w-3 h-3" />
+                                  )}
+                                  {getCooldownText() || 'Gerar com IA'}
+                                </Button>
+                              </div>
                               <Textarea
                                 value={editingCourse.description || ''}
                                 onChange={(e) => setEditingCourse({ ...editingCourse, description: e.target.value })}
