@@ -183,10 +183,11 @@ export default function StudentReportsTab() {
 
   const getFilteredReports = (reports: StudentReport[]) => {
     return reports.filter(report => {
+      const searchLower = searchTerm.toLowerCase();
       const matchesSearch = 
-        report.student?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        report.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        report.teacher?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+        report.student?.name?.toLowerCase().includes(searchLower) ||
+        report.title?.toLowerCase().includes(searchLower) ||
+        report.teacher?.name?.toLowerCase().includes(searchLower);
       
       return matchesSearch;
     });
