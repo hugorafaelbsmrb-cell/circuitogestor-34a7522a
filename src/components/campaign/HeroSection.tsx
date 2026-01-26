@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { ArrowDown } from 'lucide-react';
+import defaultHeroImage from '@/assets/campaign-hero.jpg';
 
 interface HeroSectionProps {
   title: string;
@@ -9,22 +10,17 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ title, subtitle, backgroundImage, onCtaClick }: HeroSectionProps) {
+  const heroImageUrl = backgroundImage || defaultHeroImage;
+  
   return (
     <section 
       className="relative min-h-[80vh] flex items-center justify-center overflow-hidden"
       style={{
-        backgroundImage: backgroundImage 
-          ? `linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url(${backgroundImage})`
-          : undefined,
+        backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url(${heroImageUrl})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
-      {/* Gradient background when no image */}
-      {!backgroundImage && (
-        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-orange-600" />
-      )}
-      
       {/* Decorative elements */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl" />
