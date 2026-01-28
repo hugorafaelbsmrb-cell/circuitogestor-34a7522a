@@ -36,7 +36,7 @@ interface StudentAllocationRow {
   enrollmentStatus: string;
 }
 
-const DAYS_OF_WEEK = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+const DAYS_OF_WEEK = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
 
 const DAY_COLORS: Record<string, string> = {
   'Segunda-feira': 'bg-blue-500',
@@ -44,7 +44,6 @@ const DAY_COLORS: Record<string, string> = {
   'Quarta-feira': 'bg-purple-500',
   'Quinta-feira': 'bg-orange-500',
   'Sexta-feira': 'bg-pink-500',
-  'Sábado': 'bg-amber-500',
 };
 
 // Short names for display
@@ -54,7 +53,6 @@ const DAY_SHORT_NAMES: Record<string, string> = {
   'Quarta-feira': 'Quarta',
   'Quinta-feira': 'Quinta',
   'Sexta-feira': 'Sexta',
-  'Sábado': 'Sábado',
 };
 
 // Função para expandir dias combinados (ex: "Segunda e Quarta" -> ["Segunda-feira", "Quarta-feira"])
