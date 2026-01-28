@@ -21,6 +21,7 @@ import {
   Trash2,
   UserCog
 } from 'lucide-react';
+import { parseISO, format } from 'date-fns';
 import { LinkTeacherModal } from '@/components/students/LinkTeacherModal';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -366,7 +367,7 @@ export default function Students() {
                           )}
                         </div>
                         <p className="text-xs lg:text-sm text-muted-foreground">
-                          Nasc: {new Date(student.birth_date).toLocaleDateString('pt-BR')}
+                          Nasc: {format(parseISO(student.birth_date), 'dd/MM/yyyy')}
                         </p>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <Badge variant="outline" className="text-xs">
@@ -481,7 +482,7 @@ export default function Students() {
                     <p className="text-sm text-muted-foreground">Data de Nascimento</p>
                     <p className="font-medium flex items-center gap-1">
                       <Calendar className="w-4 h-4 text-muted-foreground" />
-                      {new Date(selectedStudent.birth_date).toLocaleDateString('pt-BR')}
+                      {format(parseISO(selectedStudent.birth_date), 'dd/MM/yyyy')}
                     </p>
                   </div>
                 </CardContent>
