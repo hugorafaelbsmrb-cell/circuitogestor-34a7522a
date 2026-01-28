@@ -554,6 +554,17 @@ async function receiveInCash(config: AsaasConfig, paymentId: string, paymentDate
   return await handleAsaasResponse(response, "receiveInCash");
 }
 
+async function undoReceivedInCash(config: AsaasConfig, paymentId: string) {
+  console.log("Desfazendo recebimento em dinheiro:", paymentId);
+  
+  const response = await fetch(`${config.baseUrl}/payments/${paymentId}/undoReceivedInCash`, {
+    method: "POST",
+    headers: getHeaders(config.apiKey),
+  });
+
+  return await handleAsaasResponse(response, "undoReceivedInCash");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -598,6 +609,9 @@ serve(async (req) => {
         break;
       case "receiveInCash":
         result = await receiveInCash(config, data.paymentId, data.paymentDate, data.value, data.notifyCustomer);
+        break;
+      case "undoReceivedInCash":
+        result = await undoReceivedInCash(config, data.paymentId);
         break;
       case "deletePayment":
         result = await deletePayment(config, data.paymentId);
