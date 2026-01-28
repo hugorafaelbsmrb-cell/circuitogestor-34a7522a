@@ -57,6 +57,36 @@ const DAY_SHORT_NAMES: Record<string, string> = {
   'Sábado': 'Sábado',
 };
 
+// Função para expandir dias combinados (ex: "Segunda e Quarta" -> ["Segunda-feira", "Quarta-feira"])
+const expandCombinedDays = (dayOfWeek: string): string[] => {
+  const dayMap: Record<string, string> = {
+    'segunda': 'Segunda-feira',
+    'terça': 'Terça-feira',
+    'quarta': 'Quarta-feira',
+    'quinta': 'Quinta-feira',
+    'sexta': 'Sexta-feira',
+    'sábado': 'Sábado',
+    'sabado': 'Sábado',
+  };
+
+  // Se já é um dia da semana padrão, retorna ele mesmo
+  if (DAYS_OF_WEEK.includes(dayOfWeek)) {
+    return [dayOfWeek];
+  }
+
+  // Tenta encontrar dias no formato "Dia e Dia" ou "Dia, Dia"
+  const normalizedDay = dayOfWeek.toLowerCase();
+  const foundDays: string[] = [];
+
+  Object.entries(dayMap).forEach(([key, value]) => {
+    if (normalizedDay.includes(key)) {
+      foundDays.push(value);
+    }
+  });
+
+  return foundDays.length > 0 ? foundDays : [dayOfWeek];
+};
+
 // Função para extrair primeiro e segundo nome
 const getShortName = (fullName: string): string => {
   const parts = fullName.trim().split(/\s+/);
@@ -113,19 +143,24 @@ export default function StudentAllocation() {
         const guardian = student?.guardian;
 
         if (student && course && classGroup && schedule) {
-          rows.push({
-            studentId: student.id,
-            studentName: student.name,
-            shortName: getShortName(student.name),
-            birthDate: student.birth_date,
-            guardianName: guardian?.name || '-',
-            guardianPhone: guardian?.phone || '-',
-            courseName: course.name,
-            className: classGroup.name,
-            dayOfWeek: schedule.day_of_week,
-            startTime: schedule.start_time,
-            endTime: schedule.end_time,
-            enrollmentStatus: enrollment.status,
+          // Expande dias combinados para criar múltiplas entradas
+          const expandedDays = expandCombinedDays(schedule.day_of_week);
+          
+          expandedDays.forEach(day => {
+            rows.push({
+              studentId: student.id,
+              studentName: student.name,
+              shortName: getShortName(student.name),
+              birthDate: student.birth_date,
+              guardianName: guardian?.name || '-',
+              guardianPhone: guardian?.phone || '-',
+              courseName: course.name,
+              className: classGroup.name,
+              dayOfWeek: day,
+              startTime: schedule.start_time,
+              endTime: schedule.end_time,
+              enrollmentStatus: enrollment.status,
+            });
           });
         }
       });
@@ -426,6 +461,14 @@ export default function StudentAllocation() {
               </CardContent>
             </Card>
           ))
+        ) : isLoading ? (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Loader2 className="w-12 h-12 text-muted-foreground mx-auto mb-4 animate-spin" />
+              <h3 className="font-medium text-lg mb-2">Carregando agenda...</h3>
+              <p className="text-muted-foreground">Buscando dados de alunos</p>
+            </CardContent>
+          </Card>
         ) : (
           <Card>
             <CardContent className="p-12 text-center">
