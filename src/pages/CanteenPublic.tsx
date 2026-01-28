@@ -4,10 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { StudentSearchInput } from '@/components/canteen/StudentSearchInput';
 import { ProductSelector } from '@/components/canteen/ProductSelector';
 import { CartSummary } from '@/components/canteen/CartSummary';
+import { CanteenInstallBanner } from '@/components/pwa/CanteenInstallBanner';
 import { UtensilsCrossed, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
-
 interface StudentSchedule {
   day_of_week: string;
   start_time: string;
@@ -220,8 +220,8 @@ export default function CanteenPublic() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-green-600" />
+          <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-10 h-10 text-primary" />
           </div>
           <h1 className="text-2xl font-bold text-foreground mb-2">
             Consumo Registrado!
@@ -236,6 +236,9 @@ export default function CanteenPublic() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* PWA Install Banner */}
+      <CanteenInstallBanner />
+
       {/* Header */}
       <div className="bg-primary text-primary-foreground p-4 sticky top-0 z-10">
         <div className="max-w-lg mx-auto flex items-center gap-3">
