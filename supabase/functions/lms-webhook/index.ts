@@ -31,8 +31,8 @@ function isLMSEligibleCourse(courseName: string): boolean {
   );
 }
 
-// Generate PIN/password: first name (lowercase, no accents) + 3 last digits of matricula
-// Example: "João Silva" with matricula "12345" -> "joao345"
+// Generate PIN/password: first name (lowercase, no accents) + 2 first letters of second name
+// Example: "João Silva" -> "joaosi"
 function generatePin(fullName: string, matricula: string): string {
   const normalized = fullName
     .toLowerCase()
@@ -47,9 +47,10 @@ function generatePin(fullName: string, matricula: string): string {
   }
   
   const firstName = nameParts[0];
-  const last3Digits = matricula.slice(-3);
+  // Get first 2 letters of second name (if exists)
+  const secondNamePrefix = nameParts.length > 1 ? nameParts[1].substring(0, 2) : '';
   
-  return `${firstName}${last3Digits}`;
+  return `${firstName}${secondNamePrefix}`;
 }
 
 function generateStudentEmail(fullName: string): string {
