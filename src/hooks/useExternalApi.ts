@@ -3,6 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 
 const STORAGE_KEY_API = 'external_api_key';
 const STORAGE_KEY_URL = 'external_api_base_url';
+const DEFAULT_BASE_URL = 'https://qdfpgpoesihluwlatrlz.supabase.co/functions/v1';
 
 interface ApiResponse<T> {
   data?: T;
@@ -15,7 +16,7 @@ export function useExternalApi() {
 
   const getConfig = () => {
     const apiKey = localStorage.getItem(STORAGE_KEY_API) || '';
-    const baseUrl = localStorage.getItem(STORAGE_KEY_URL) || '';
+    const baseUrl = localStorage.getItem(STORAGE_KEY_URL) || DEFAULT_BASE_URL;
     return { apiKey, baseUrl };
   };
 
@@ -29,7 +30,7 @@ export function useExternalApi() {
   ): Promise<ApiResponse<T>> => {
     const { apiKey, baseUrl } = getConfig();
     
-    if (!apiKey || !baseUrl) {
+    if (!apiKey) {
       toast({
         title: 'API não configurada',
         description: 'Configure a chave de API primeiro',
@@ -48,6 +49,11 @@ export function useExternalApi() {
         });
       }
 
+      console.log(`🌐 API Request [${options.method || 'GET'}]:`, url.toString());
+      if (options.body) {
+        console.log('📤 Request Body:', options.body);
+      }
+
       const response = await fetch(url.toString(), {
         method: options.method || 'GET',
         headers: {
@@ -58,6 +64,7 @@ export function useExternalApi() {
       });
 
       const data = await response.json();
+      console.log('📥 API Response:', { status: response.status, data });
 
       if (!response.ok) {
         throw new Error(data.error || `Request failed with status ${response.status}`);

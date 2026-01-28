@@ -27,10 +27,17 @@ export function useExternalApiConfig() {
   const isConfigured = !!apiKey && !!baseUrl;
 
   const testConnection = async () => {
-    if (!isConfigured) return;
+    if (!isConfigured) {
+      console.log('❌ API não configurada - apiKey:', !!apiKey, 'baseUrl:', baseUrl);
+      return;
+    }
     
     setIsTestingConnection(true);
     setConnectionStatus('idle');
+    
+    console.log('🔌 Testando conexão com API...');
+    console.log('📍 Base URL:', baseUrl);
+    console.log('🔑 API Key configurada:', apiKey ? 'Sim (***' + apiKey.slice(-4) + ')' : 'Não');
     
     try {
       const response = await fetch(`${baseUrl}/api-categories`, {
@@ -39,6 +46,8 @@ export function useExternalApiConfig() {
         },
       });
 
+      console.log('📥 Resposta do teste:', response.status);
+
       if (response.ok) {
         setConnectionStatus('success');
         toast({
@@ -46,9 +55,12 @@ export function useExternalApiConfig() {
           description: 'A API está respondendo corretamente',
         });
       } else {
+        const data = await response.json().catch(() => ({}));
+        console.error('❌ Erro na resposta:', data);
         throw new Error(`Status: ${response.status}`);
       }
     } catch (error) {
+      console.error('❌ Erro de conexão:', error);
       setConnectionStatus('error');
       toast({
         title: 'Falha na conexão',
