@@ -1124,8 +1124,13 @@ async function callLMSAction(
 
     const success = Boolean(response.ok && result?.success);
     
-    // Build detailed message
+    // Build detailed message with helpful context when student not found
     let message = result?.message || result?.error || (success ? 'Ação concluída' : 'Aluno não encontrado no LMS');
+    
+    // Provide more helpful error message when student not found
+    if (!success && (message.includes('not found') || message.includes('não encontrado'))) {
+      message = 'Aluno não encontrado no LMS externo. Verifique se: (1) o aluno está cadastrado na plataforma LMS com a matrícula/email corretos, (2) a matrícula no sistema local corresponde à do LMS.';
+    }
     
     // Add XP/coins info if available
     if (success && result) {
