@@ -79,6 +79,15 @@ export default function CanteenPublic() {
 
       if (enrollmentsError) throw enrollmentsError;
 
+      // Day order for sorting (Segunda to Sexta only)
+      const dayOrder: Record<string, number> = {
+        'Segunda-feira': 1,
+        'Terça-feira': 2,
+        'Quarta-feira': 3,
+        'Quinta-feira': 4,
+        'Sexta-feira': 5,
+      };
+
       // Group schedules by student_id
       const schedulesByStudent = new Map<string, StudentSchedule[]>();
       
@@ -86,7 +95,8 @@ export default function CanteenPublic() {
         const classGroup = enrollment.class_groups as any;
         const schedule = classGroup?.schedules;
         
-        if (schedule && schedule.day_of_week) {
+        // Only include weekdays (Segunda to Sexta)
+        if (schedule && schedule.day_of_week && dayOrder[schedule.day_of_week]) {
           const studentSchedules = schedulesByStudent.get(enrollment.student_id) || [];
           
           // Avoid duplicates
@@ -107,14 +117,20 @@ export default function CanteenPublic() {
         }
       });
 
-      // Combine students with their schedules
-      const studentsWithSchedules = studentsData?.map(student => ({
-        id: student.id,
-        name: student.name,
-        guardian_name: (student.guardian as any)?.name,
-        guardian_phone: (student.guardian as any)?.phone,
-        schedules: schedulesByStudent.get(student.id) || []
-      })) || [];
+      // Combine students with their schedules (sorted by day order)
+      const studentsWithSchedules = studentsData?.map(student => {
+        const schedules = schedulesByStudent.get(student.id) || [];
+        // Sort schedules by day order
+        schedules.sort((a, b) => (dayOrder[a.day_of_week] || 99) - (dayOrder[b.day_of_week] || 99));
+        
+        return {
+          id: student.id,
+          name: student.name,
+          guardian_name: (student.guardian as any)?.name,
+          guardian_phone: (student.guardian as any)?.phone,
+          schedules
+        };
+      }) || [];
 
       return studentsWithSchedules as Student[];
     }
