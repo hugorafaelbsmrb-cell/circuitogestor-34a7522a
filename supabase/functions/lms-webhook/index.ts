@@ -31,15 +31,30 @@ function isLMSEligibleCourse(courseName: string): boolean {
   );
 }
 
-function generatePassword(name: string, birthDate: string): string {
-  // Get first 3 letters of the first name (lowercase)
-  const firstName = name.split(' ')[0].toLowerCase();
-  const firstThree = firstName.substring(0, 3);
+// Generate PIN/password in the new format: first name + 2 first letters of second name
+// Example: "João Silva Santos" -> "joaosi"
+function generatePin(fullName: string): string {
+  // Normalize and remove accents
+  const normalized = fullName
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
   
-  // Get year from birth date (format: YYYY-MM-DD)
-  const year = birthDate.split('-')[0];
+  const nameParts = normalized.split(' ').filter(part => part.length > 0);
   
-  return `${firstThree}${year}`;
+  if (nameParts.length === 0) {
+    return 'aluno';
+  }
+  
+  const firstName = nameParts[0];
+  
+  // Get second name (first middle name or last name if only 2 names)
+  const secondName = nameParts.length > 1 ? nameParts[1] : '';
+  const secondNamePrefix = secondName.substring(0, 2);
+  
+  // PIN format: firstName + first 2 letters of second name
+  return `${firstName}${secondNamePrefix}`;
 }
 
 function generateStudentEmail(fullName: string): string {
@@ -202,17 +217,17 @@ Deno.serve(async (req) => {
           success: false, 
           error: 'LMS webhook failed',
           lmsResponse: lmsResult,
-          generatedPassword: generatePassword(student.name, student.birth_date),
+          generatedPin: generatePin(student.name),
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
 
-    const generatedPassword = generatePassword(student.name, student.birth_date);
+    const generatedPin = generatePin(student.name);
 
     console.log('LMS integration successful!');
     console.log('Generated email:', studentEmail);
-    console.log('Generated password:', generatedPassword);
+    console.log('Generated PIN:', generatedPin);
 
     // Save credentials to lms_credentials table
     const { error: credentialsError } = await supabase
@@ -221,7 +236,7 @@ Deno.serve(async (req) => {
         student_id: studentId,
         enrollment_id: enrollmentId,
         email: studentEmail,
-        password: generatedPassword,
+        password: generatedPin,
         matricula: matricula,
         completion_percentage: 0,
       }, {
@@ -243,7 +258,7 @@ Deno.serve(async (req) => {
         lmsResponse: lmsResult,
         credentials: {
           email: studentEmail,
-          password: generatedPassword,
+          pin: generatedPin,
           matricula: matricula,
         }
       }),
