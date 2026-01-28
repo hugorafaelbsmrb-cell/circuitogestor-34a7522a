@@ -106,15 +106,16 @@ export default function StudentAllocation() {
   const { data: allocationData = [], isLoading } = useQuery({
     queryKey: ['student-allocation'],
     queryFn: async () => {
-      // First, try to fetch from enrollment_schedules (new table for multiple days)
+      // Fetch from enrollment_schedules (supports multiple days per enrollment)
+      // Note: Nested filters don't work correctly in Supabase JS SDK, so we filter client-side
       const { data: enrollmentSchedulesData, error: esError } = await supabase
         .from('enrollment_schedules')
         .select(`
           id,
-          enrollment:enrollments!inner(
+          enrollment:enrollments(
             id,
             status,
-            student:students!inner(
+            student:students(
               id,
               name,
               birth_date,
@@ -122,23 +123,31 @@ export default function StudentAllocation() {
               guardian:guardians(name, phone)
             )
           ),
-          class_group:class_groups!inner(
+          class_group:class_groups(
             id,
             name,
             is_active,
             course:courses(id, name),
             schedule:schedules(day_of_week, start_time, end_time)
           )
-        `)
-        .eq('enrollments.status', 'active')
-        .eq('enrollments.students.is_active', true)
-        .eq('class_groups.is_active', true);
+        `);
+      
+      // Client-side filtering for active enrollments, students, and class groups
+      const filteredSchedulesData = enrollmentSchedulesData?.filter((es: any) => {
+        const enrollment = es.enrollment;
+        const student = enrollment?.student;
+        const classGroup = es.class_group;
+        
+        return enrollment?.status === 'active' && 
+               student?.is_active === true && 
+               classGroup?.is_active === true;
+      }) || [];
 
       const rows: StudentAllocationRow[] = [];
 
-      if (!esError && enrollmentSchedulesData && enrollmentSchedulesData.length > 0) {
+      if (!esError && filteredSchedulesData.length > 0) {
         // Use data from enrollment_schedules table
-        enrollmentSchedulesData.forEach((es: any) => {
+        filteredSchedulesData.forEach((es: any) => {
           const enrollment = es.enrollment;
           const student = enrollment?.student;
           const classGroup = es.class_group;
