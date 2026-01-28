@@ -1071,9 +1071,16 @@ export default function Financial() {
                                           Baixa
                                         </Button>
                                         {payment.invoice_url && (
-                                          <Button variant="ghost" size="sm" asChild>
+                                          <Button variant="ghost" size="sm" asChild title="Ver Fatura">
                                             <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
                                               <ExternalLink className="w-4 h-4" />
+                                            </a>
+                                          </Button>
+                                        )}
+                                        {payment.bank_slip_url && (
+                                          <Button variant="ghost" size="sm" asChild title="Baixar Boleto PDF">
+                                            <a href={payment.bank_slip_url} target="_blank" rel="noopener noreferrer">
+                                              <Printer className="w-4 h-4" />
                                             </a>
                                           </Button>
                                         )}
