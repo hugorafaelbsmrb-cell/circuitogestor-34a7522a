@@ -68,7 +68,7 @@ interface CarnePayment {
 export default function Carnes() {
   const { carnes, guardians, payments, getGuardianById, deleteCarne, refetchCarnes } = useSchool();
   const { profile } = useAuthContext();
-  const { getInstallmentBooklet, listInstallmentPayments, deleteInstallment, refundInstallment, receiveInCash, isLoading: isAsaasLoading } = useAsaasPayment();
+  const { getInstallmentBooklet, listInstallmentPayments, deleteInstallment, refundInstallment, receiveInCash, undoReceivedInCash, isLoading: isAsaasLoading } = useAsaasPayment();
   const { toast } = useToast();
 
   const isAdmin = profile?.role === 'admin';
@@ -347,6 +347,28 @@ export default function Carnes() {
       toast({
         title: 'Erro',
         description: 'Não foi possível dar baixa no boleto',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessingPayment(null);
+    }
+  };
+
+  const handleUndoReceivedInCash = async (payment: CarnePayment) => {
+    if (!selectedCarne) return;
+    
+    setIsProcessingPayment(payment.id);
+    try {
+      const success = await undoReceivedInCash(payment.id);
+      
+      if (success) {
+        // Refresh payments list
+        await handleViewDetails(selectedCarne);
+      }
+    } catch (error) {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível estornar o pagamento',
         variant: 'destructive',
       });
     } finally {
@@ -790,6 +812,23 @@ export default function Carnes() {
                                       <Loader2 className="w-4 h-4 animate-spin" />
                                     ) : (
                                       <Banknote className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                )}
+                                {/* Estornar - only for RECEIVED_IN_CASH */}
+                                {payment.status === 'RECEIVED_IN_CASH' && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handleUndoReceivedInCash(payment)}
+                                    disabled={isProcessingPayment === payment.id}
+                                    title="Estornar baixa manual"
+                                    className="text-warning hover:text-warning"
+                                  >
+                                    {isProcessingPayment === payment.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <RefreshCw className="w-4 h-4" />
                                     )}
                                   </Button>
                                 )}
