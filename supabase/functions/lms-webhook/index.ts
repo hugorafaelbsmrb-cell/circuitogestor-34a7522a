@@ -31,8 +31,9 @@ function isLMSEligibleCourse(courseName: string): boolean {
   );
 }
 
-// Generate PIN/password: first name + 2 first letters of second name
-function generatePin(fullName: string): string {
+// Generate PIN/password: first name (lowercase, no accents) + 3 last digits of matricula
+// Example: "João Silva" with matricula "12345" -> "joao345"
+function generatePin(fullName: string, matricula: string): string {
   const normalized = fullName
     .toLowerCase()
     .normalize('NFD')
@@ -46,10 +47,9 @@ function generatePin(fullName: string): string {
   }
   
   const firstName = nameParts[0];
-  const secondName = nameParts.length > 1 ? nameParts[1] : '';
-  const secondNamePrefix = secondName.substring(0, 2);
+  const last3Digits = matricula.slice(-3);
   
-  return `${firstName}${secondNamePrefix}`;
+  return `${firstName}${last3Digits}`;
 }
 
 function generateStudentEmail(fullName: string): string {
@@ -193,13 +193,13 @@ Deno.serve(async (req) => {
           success: false, 
           error: 'LMS webhook failed',
           lmsResponse: lmsResult,
-          generatedPin: generatePin(student.name),
+          generatedPin: generatePin(student.name, matricula),
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       );
     }
 
-    const generatedPin = generatePin(student.name);
+    const generatedPin = generatePin(student.name, matricula);
 
     console.log('LMS integration successful!');
     console.log('Generated email:', studentEmail);
