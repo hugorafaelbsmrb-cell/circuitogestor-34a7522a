@@ -284,6 +284,27 @@ export function useAsaasPayment() {
     }
   };
 
+  const undoReceivedInCash = async (paymentId: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      await callAsaasFunction('undoReceivedInCash', { paymentId });
+      toast({
+        title: 'Baixa desfeita',
+        description: 'O recebimento em dinheiro foi desfeito com sucesso.',
+      });
+      return true;
+    } catch (error) {
+      toast({
+        title: 'Erro ao desfazer baixa',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const searchCustomerByCpf = async (cpfCnpj: string): Promise<AsaasCustomer | null> => {
     setIsLoading(true);
     try {
@@ -338,6 +359,7 @@ export function useAsaasPayment() {
     refundInstallment,
     getInstallmentBooklet,
     receiveInCash,
+    undoReceivedInCash,
     searchCustomerByCpf,
     syncGuardians,
   };
