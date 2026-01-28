@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { StudentSearchInput } from '@/components/canteen/StudentSearchInput';
@@ -8,11 +8,18 @@ import { UtensilsCrossed, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 
+interface StudentSchedule {
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+}
+
 interface Student {
   id: string;
   name: string;
   guardian_name?: string;
   guardian_phone?: string;
+  schedules?: StudentSchedule[];
 }
 
 interface Product {
@@ -27,20 +34,6 @@ interface CartItem {
   quantity: number;
 }
 
-// Map JS day (0=Sun) to Portuguese day name used in schedules
-const getDayOfWeekName = (): string => {
-  const dayMap: Record<number, string> = {
-    0: '', // Domingo - sem aula
-    1: 'Segunda-feira',
-    2: 'Terça-feira',
-    3: 'Quarta-feira',
-    4: 'Quinta-feira',
-    5: 'Sexta-feira',
-    6: 'Sábado',
-  };
-  return dayMap[new Date().getDay()] || '';
-};
-
 export default function CanteenPublic() {
   const { branding } = useSystemBranding();
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -48,79 +41,69 @@ export default function CanteenPublic() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const todayDay = useMemo(() => getDayOfWeekName(), []);
-
-  // Fetch students with active enrollments for today
+  // Fetch all active students with their schedules
   const { data: students = [] } = useQuery({
-    queryKey: ['canteen-students', todayDay],
+    queryKey: ['canteen-students-all'],
     queryFn: async () => {
-      if (!todayDay) {
-        return []; // No classes on Sunday
-      }
-
-      // Get schedules for today
-      const { data: schedulesData, error: schedulesError } = await supabase
-        .from('schedules')
-        .select('id')
-        .eq('day_of_week', todayDay);
-
-      if (schedulesError) throw schedulesError;
-      
-      const scheduleIds = schedulesData?.map(s => s.id) || [];
-      
-      if (scheduleIds.length === 0) {
-        return [];
-      }
-
-      // Get class_groups with those schedules
-      const { data: classGroupsData, error: classGroupsError } = await supabase
-        .from('class_groups')
-        .select('id')
-        .in('schedule_id', scheduleIds)
-        .eq('is_active', true);
-
-      if (classGroupsError) throw classGroupsError;
-      
-      const classGroupIds = classGroupsData?.map(cg => cg.id) || [];
-      
-      if (classGroupIds.length === 0) {
-        return [];
-      }
-
-      // Get enrollments in those class_groups
-      const { data: enrollmentsData, error: enrollmentsError } = await supabase
-        .from('enrollments')
-        .select('student_id')
-        .in('class_group_id', classGroupIds)
-        .eq('status', 'active');
-
-      if (enrollmentsError) throw enrollmentsError;
-      
-      const studentIds = [...new Set(enrollmentsData?.map(e => e.student_id) || [])];
-      
-      if (studentIds.length === 0) {
-        return [];
-      }
-
-      // Get students with guardian info
-      const { data, error } = await supabase
+      // Get all active students with guardian info and their enrollments/schedules
+      const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select(`
           id,
           name,
-          guardian:guardians(name, phone)
+          guardian:guardians(name, phone),
+          enrollments!inner(
+            status,
+            class_group:class_groups!inner(
+              is_active,
+              schedule:schedules(
+                day_of_week,
+                start_time,
+                end_time
+              )
+            )
+          )
         `)
-        .in('id', studentIds)
         .eq('is_active', true)
+        .eq('enrollments.status', 'active')
+        .eq('enrollments.class_group.is_active', true)
         .order('name');
-      
-      if (error) throw error;
-      return data.map(s => ({
-        id: s.id,
-        name: s.name,
-        guardian_name: (s.guardian as any)?.name,
-        guardian_phone: (s.guardian as any)?.phone
-      })) as Student[];
+
+      if (studentsError) throw studentsError;
+
+      // Transform data to include schedules
+      const studentsWithSchedules = studentsData?.map(student => {
+        const schedules: StudentSchedule[] = [];
+        
+        // Extract schedules from enrollments
+        (student.enrollments as any[])?.forEach(enrollment => {
+          const schedule = enrollment.class_group?.schedule;
+          if (schedule) {
+            // Avoid duplicates
+            const exists = schedules.some(
+              s => s.day_of_week === schedule.day_of_week && 
+                   s.start_time === schedule.start_time
+            );
+            if (!exists) {
+              schedules.push({
+                day_of_week: schedule.day_of_week,
+                start_time: schedule.start_time,
+                end_time: schedule.end_time
+              });
+            }
+          }
+        });
+
+        return {
+          id: student.id,
+          name: student.name,
+          guardian_name: (student.guardian as any)?.name,
+          guardian_phone: (student.guardian as any)?.phone,
+          schedules
+        };
+      }) || [];
+
+      return studentsWithSchedules as Student[];
     }
   });
 
