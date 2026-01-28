@@ -24,10 +24,11 @@ export default function Dashboard() {
     return dueDate >= now && dueDate <= in48Hours;
   });
 
-  // Get overdue payments
+  // Get overdue payments - exclude all paid statuses
+  const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
   const overduePayments = payments.filter(payment => {
-    const pendingStatuses = ['PENDING', 'pending', 'OVERDUE', 'overdue'];
-    if (!pendingStatuses.includes(payment.status)) return false;
+    // If payment is in a paid status, it's not overdue
+    if (paidStatuses.includes(payment.status)) return false;
     const dueDate = new Date(payment.due_date);
     return dueDate < now;
   });
