@@ -27,18 +27,18 @@ interface CartItem {
   quantity: number;
 }
 
-// Map JS day (0=Sun) to Portuguese day names used in schedules
-const getDayOfWeekName = (): string[] => {
-  const dayMap: Record<number, string[]> = {
-    0: [], // Domingo - sem aula
-    1: ['Segunda-feira', 'Segunda e Quarta'],
-    2: ['Terça-feira', 'Terça e Quinta'],
-    3: ['Quarta-feira', 'Segunda e Quarta'],
-    4: ['Quinta-feira', 'Terça e Quinta'],
-    5: ['Sexta-feira'],
-    6: ['Sábado'],
+// Map JS day (0=Sun) to Portuguese day name used in schedules
+const getDayOfWeekName = (): string => {
+  const dayMap: Record<number, string> = {
+    0: '', // Domingo - sem aula
+    1: 'Segunda-feira',
+    2: 'Terça-feira',
+    3: 'Quarta-feira',
+    4: 'Quinta-feira',
+    5: 'Sexta-feira',
+    6: 'Sábado',
   };
-  return dayMap[new Date().getDay()] || [];
+  return dayMap[new Date().getDay()] || '';
 };
 
 export default function CanteenPublic() {
@@ -48,13 +48,13 @@ export default function CanteenPublic() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const todayDays = useMemo(() => getDayOfWeekName(), []);
+  const todayDay = useMemo(() => getDayOfWeekName(), []);
 
-  // Fetch students with classes today
+  // Fetch students with active enrollments for today
   const { data: students = [] } = useQuery({
-    queryKey: ['canteen-students', todayDays],
+    queryKey: ['canteen-students', todayDay],
     queryFn: async () => {
-      if (todayDays.length === 0) {
+      if (!todayDay) {
         return []; // No classes on Sunday
       }
 
@@ -62,7 +62,7 @@ export default function CanteenPublic() {
       const { data: schedulesData, error: schedulesError } = await supabase
         .from('schedules')
         .select('id')
-        .in('day_of_week', todayDays);
+        .eq('day_of_week', todayDay);
 
       if (schedulesError) throw schedulesError;
       
