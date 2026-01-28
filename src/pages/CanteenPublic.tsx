@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { StudentSearchInput } from '@/components/canteen/StudentSearchInput';
@@ -27,6 +27,20 @@ interface CartItem {
   quantity: number;
 }
 
+// Map JS day (0=Sun) to Portuguese day names used in schedules
+const getDayOfWeekName = (): string[] => {
+  const dayMap: Record<number, string[]> = {
+    0: [], // Domingo - sem aula
+    1: ['Segunda-feira', 'Segunda e Quarta'],
+    2: ['Terça-feira', 'Terça e Quinta'],
+    3: ['Quarta-feira', 'Segunda e Quarta'],
+    4: ['Quinta-feira', 'Terça e Quinta'],
+    5: ['Sexta-feira'],
+    6: ['Sábado'],
+  };
+  return dayMap[new Date().getDay()] || [];
+};
+
 export default function CanteenPublic() {
   const { branding } = useSystemBranding();
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -34,10 +48,61 @@ export default function CanteenPublic() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Fetch active students
+  const todayDays = useMemo(() => getDayOfWeekName(), []);
+
+  // Fetch students with classes today
   const { data: students = [] } = useQuery({
-    queryKey: ['canteen-students'],
+    queryKey: ['canteen-students', todayDays],
     queryFn: async () => {
+      if (todayDays.length === 0) {
+        return []; // No classes on Sunday
+      }
+
+      // Get schedules for today
+      const { data: schedulesData, error: schedulesError } = await supabase
+        .from('schedules')
+        .select('id')
+        .in('day_of_week', todayDays);
+
+      if (schedulesError) throw schedulesError;
+      
+      const scheduleIds = schedulesData?.map(s => s.id) || [];
+      
+      if (scheduleIds.length === 0) {
+        return [];
+      }
+
+      // Get class_groups with those schedules
+      const { data: classGroupsData, error: classGroupsError } = await supabase
+        .from('class_groups')
+        .select('id')
+        .in('schedule_id', scheduleIds)
+        .eq('is_active', true);
+
+      if (classGroupsError) throw classGroupsError;
+      
+      const classGroupIds = classGroupsData?.map(cg => cg.id) || [];
+      
+      if (classGroupIds.length === 0) {
+        return [];
+      }
+
+      // Get enrollments in those class_groups
+      const { data: enrollmentsData, error: enrollmentsError } = await supabase
+        .from('enrollments')
+        .select('student_id')
+        .in('class_group_id', classGroupIds)
+        .eq('status', 'active');
+
+      if (enrollmentsError) throw enrollmentsError;
+      
+      const studentIds = [...new Set(enrollmentsData?.map(e => e.student_id) || [])];
+      
+      if (studentIds.length === 0) {
+        return [];
+      }
+
+      // Get students with guardian info
       const { data, error } = await supabase
         .from('students')
         .select(`
@@ -45,6 +110,7 @@ export default function CanteenPublic() {
           name,
           guardian:guardians(name, phone)
         `)
+        .in('id', studentIds)
         .eq('is_active', true)
         .order('name');
       
