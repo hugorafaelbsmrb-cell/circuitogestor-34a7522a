@@ -13,9 +13,22 @@ interface Message {
 }
 
 async function getGoogleApiKey(): Promise<string | null> {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  // First try to get from environment (Supabase Secrets)
+  const envKey = Deno.env.get("GOOGLE_API_KEY");
+  if (envKey) {
+    return envKey;
+  }
+
+  // Fallback to app_settings table
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Supabase credentials not configured");
+    return null;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
 
   const { data, error } = await supabase
     .from("app_settings")
