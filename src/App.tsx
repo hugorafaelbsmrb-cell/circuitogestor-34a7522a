@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SchoolProvider } from "@/contexts/SchoolContext";
 import { AuthProvider, useAuthContext } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Enrollment from "./pages/Enrollment";
@@ -68,6 +69,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <PWAInstallBanner />
       <BrowserRouter>
         <Routes>
           {/* Public routes - no authentication required */}
