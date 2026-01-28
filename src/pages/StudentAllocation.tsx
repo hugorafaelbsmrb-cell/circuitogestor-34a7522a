@@ -35,15 +35,25 @@ interface StudentAllocationRow {
   enrollmentStatus: string;
 }
 
-const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+const DAYS_OF_WEEK = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
 const DAY_COLORS: Record<string, string> = {
-  'Segunda': 'bg-blue-500',
-  'Terça': 'bg-green-500',
-  'Quarta': 'bg-purple-500',
-  'Quinta': 'bg-orange-500',
-  'Sexta': 'bg-pink-500',
+  'Segunda-feira': 'bg-blue-500',
+  'Terça-feira': 'bg-green-500',
+  'Quarta-feira': 'bg-purple-500',
+  'Quinta-feira': 'bg-orange-500',
+  'Sexta-feira': 'bg-pink-500',
   'Sábado': 'bg-amber-500',
+};
+
+// Short names for display
+const DAY_SHORT_NAMES: Record<string, string> = {
+  'Segunda-feira': 'Segunda',
+  'Terça-feira': 'Terça',
+  'Quarta-feira': 'Quarta',
+  'Quinta-feira': 'Quinta',
+  'Sexta-feira': 'Sexta',
+  'Sábado': 'Sábado',
 };
 
 // Função para extrair primeiro e segundo nome
@@ -151,11 +161,11 @@ export default function StudentAllocation() {
             .week-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
             .day-column { border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
             .day-header { padding: 10px; font-weight: bold; text-align: center; color: white; font-size: 12px; }
-            .day-header.segunda { background: #3b82f6; }
-            .day-header.terca { background: #22c55e; }
-            .day-header.quarta { background: #a855f7; }
-            .day-header.quinta { background: #f97316; }
-            .day-header.sexta { background: #ec4899; }
+            .day-header.segunda-feira { background: #3b82f6; }
+            .day-header.terca-feira { background: #22c55e; }
+            .day-header.quarta-feira { background: #a855f7; }
+            .day-header.quinta-feira { background: #f97316; }
+            .day-header.sexta-feira { background: #ec4899; }
             .day-header.sabado { background: #f59e0b; }
             .day-content { padding: 8px; min-height: 100px; background: #fafafa; }
             .student-item { background: white; padding: 6px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 11px; border: 1px solid #e5e5e5; }
@@ -184,10 +194,10 @@ export default function StudentAllocation() {
               <div class="week-grid">
                 ${DAYS_OF_WEEK.map(day => {
                   const students = dayData[day] || [];
-                  const dayClass = day.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                  const dayClass = day.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(' ', '-');
                   return `
                     <div class="day-column">
-                      <div class="day-header ${dayClass}">${day}</div>
+                      <div class="day-header ${dayClass}">${DAY_SHORT_NAMES[day] || day}</div>
                       <div class="day-content">
                         ${students.length > 0 
                           ? students.sort((a, b) => a.shortName.localeCompare(b.shortName)).map(s => `
@@ -360,7 +370,7 @@ export default function StudentAllocation() {
                     return (
                       <div key={day} className="border rounded-lg overflow-hidden bg-card">
                         <div className={`${colorClass} text-white text-center py-2 font-medium text-sm`}>
-                          {day}
+                          {DAY_SHORT_NAMES[day] || day}
                           {studentsForDay.length > 0 && (
                             <span className="ml-1 opacity-75">({studentsForDay.length})</span>
                           )}
