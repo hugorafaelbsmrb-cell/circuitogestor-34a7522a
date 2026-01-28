@@ -784,7 +784,7 @@ export default function LMSStudents() {
       <div class="field">
         <label>Senha</label>
         <div class="value password-box">${credential.password}</div>
-        <p class="password-hint">Formato: primeiro nome + 3 últimos dígitos da matrícula</p>
+        <p class="password-hint">Formato: nome + 2 primeiras letras do segundo nome (ex: joaosi)</p>
       </div>
       
       <div class="field">
@@ -834,7 +834,7 @@ export default function LMSStudents() {
             <span class="label">Senha:</span>
             <span class="value password">${cred.password}</span>
           </div>
-          <div class="password-hint">Senha: primeiro nome + 3 últimos dígitos da matrícula</div>
+          <div class="password-hint">Senha: nome + 2 primeiras letras do segundo nome (ex: joaosi)</div>
         </div>
       </div>
     `).join('');
@@ -1461,7 +1461,7 @@ export default function LMSStudents() {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 italic">
-                      Formato: primeiro nome + 3 últimos dígitos da matrícula
+                      Formato: nome + 2 primeiras letras do segundo nome (ex: joaosi)
                     </p>
                   </div>
                 </CardContent>
