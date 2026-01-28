@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Users, 
   Search, 
@@ -15,7 +17,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSchool } from '@/contexts/SchoolContext';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -67,51 +68,70 @@ const getShortName = (fullName: string): string => {
 
 export default function StudentAllocation() {
   const { toast } = useToast();
-  const { 
-    students, 
-    guardians,
-    enrollments,
-    courses,
-    classGroups,
-    schedules,
-  } = useSchool();
-  
   const [searchTerm, setSearchTerm] = useState('');
   const [courseFilter, setCourseFilter] = useState('all');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Build allocation data - only active students
-  const allocationData: StudentAllocationRow[] = [];
-  
-  // Only include active students
-  const activeStudents = students.filter(s => (s as any).is_active !== false);
-  
-  activeStudents.forEach(student => {
-    const studentEnrollments = enrollments.filter(e => e.student_id === student.id && e.status === 'active');
-    const guardian = guardians.find(g => g.id === student.guardian_id);
-    
-    studentEnrollments.forEach(enrollment => {
-      const classGroup = classGroups.find(cg => cg.id === enrollment.class_group_id);
-      const course = classGroup ? courses.find(c => c.id === classGroup.course_id) : null;
-      const schedule = classGroup ? schedules.find(s => s.id === classGroup.schedule_id) : null;
-      
-      if (course && classGroup && schedule) {
-        allocationData.push({
-          studentId: student.id,
-          studentName: student.name,
-          shortName: getShortName(student.name),
-          birthDate: student.birth_date,
-          guardianName: guardian?.name || '-',
-          guardianPhone: guardian?.phone || '-',
-          courseName: course.name,
-          className: classGroup.name,
-          dayOfWeek: schedule.day_of_week,
-          startTime: schedule.start_time,
-          endTime: schedule.end_time,
-          enrollmentStatus: enrollment.status,
-        });
-      }
-    });
+  // Fetch all allocation data directly from database
+  const { data: allocationData = [], isLoading } = useQuery({
+    queryKey: ['student-allocation'],
+    queryFn: async () => {
+      // Fetch active enrollments with all related data
+      const { data: enrollmentsData, error } = await supabase
+        .from('enrollments')
+        .select(`
+          id,
+          status,
+          student:students!inner(
+            id,
+            name,
+            birth_date,
+            is_active,
+            guardian:guardians(name, phone)
+          ),
+          class_group:class_groups!inner(
+            id,
+            name,
+            is_active,
+            course:courses(id, name),
+            schedule:schedules(day_of_week, start_time, end_time)
+          )
+        `)
+        .eq('status', 'active')
+        .eq('students.is_active', true)
+        .eq('class_groups.is_active', true);
+
+      if (error) throw error;
+
+      const rows: StudentAllocationRow[] = [];
+
+      enrollmentsData?.forEach((enrollment: any) => {
+        const student = enrollment.student;
+        const classGroup = enrollment.class_group;
+        const course = classGroup?.course;
+        const schedule = classGroup?.schedule;
+        const guardian = student?.guardian;
+
+        if (student && course && classGroup && schedule) {
+          rows.push({
+            studentId: student.id,
+            studentName: student.name,
+            shortName: getShortName(student.name),
+            birthDate: student.birth_date,
+            guardianName: guardian?.name || '-',
+            guardianPhone: guardian?.phone || '-',
+            courseName: course.name,
+            className: classGroup.name,
+            dayOfWeek: schedule.day_of_week,
+            startTime: schedule.start_time,
+            endTime: schedule.end_time,
+            enrollmentStatus: enrollment.status,
+          });
+        }
+      });
+
+      return rows;
+    }
   });
 
   // Apply filters
