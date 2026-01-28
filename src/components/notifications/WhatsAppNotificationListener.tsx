@@ -1,8 +1,14 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast as sonnerToast } from 'sonner';
-import { useSchool } from '@/contexts/SchoolContext';
 import { WhatsAppToast } from './WhatsAppToast';
+
+interface Guardian {
+  id: string;
+  name: string;
+  phone: string;
+  avatar_url: string | null;
+}
 
 /**
  * Normaliza telefone para comparação: remove tudo exceto dígitos,
@@ -49,10 +55,42 @@ interface WhatsAppNotificationListenerProps {
 }
 
 export function WhatsAppNotificationListener({ enabled = true }: WhatsAppNotificationListenerProps) {
-  const { guardians } = useSchool();
-  const guardiansRef = useRef(guardians);
+  const [guardians, setGuardians] = useState<Guardian[]>([]);
+  const guardiansRef = useRef<Guardian[]>([]);
   
-  // Keep ref updated to avoid stale closure
+  // Fetch guardians directly from Supabase (independent of SchoolContext)
+  useEffect(() => {
+    if (!enabled) return;
+    
+    const fetchGuardians = async () => {
+      const { data } = await supabase
+        .from('guardians')
+        .select('id, name, phone, avatar_url');
+      
+      if (data) {
+        setGuardians(data);
+        guardiansRef.current = data;
+      }
+    };
+    
+    fetchGuardians();
+    
+    // Subscribe to guardian changes
+    const channel = supabase
+      .channel('guardians_for_notifications')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'guardians' },
+        () => fetchGuardians()
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [enabled]);
+  
+  // Keep ref updated
   useEffect(() => {
     guardiansRef.current = guardians;
   }, [guardians]);
