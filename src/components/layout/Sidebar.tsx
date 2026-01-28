@@ -24,7 +24,8 @@ import {
   ChevronDown,
   UtensilsCrossed,
   X,
-  Megaphone
+  Megaphone,
+  Globe
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -102,6 +103,7 @@ const menuSections: MenuSection[] = [
     items: [
       { icon: Send, label: 'Envio em Massa', path: '/envio-massa', permissionKey: 'whatsapp', adminOnly: false },
       { icon: Megaphone, label: 'Campanhas', path: '/campanhas-admin', permissionKey: 'leads', adminOnly: false },
+      { icon: Globe, label: 'Site & Loja', path: '/api-externa', permissionKey: 'settings', adminOnly: true },
     ]
   },
   {

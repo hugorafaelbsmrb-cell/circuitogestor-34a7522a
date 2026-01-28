@@ -40,6 +40,7 @@ import CanteenAdminPage from "./pages/CanteenAdmin";
 import InstallApp from "./pages/InstallApp";
 import TeacherLogin from "./pages/TeacherLogin";
 import NotFound from "./pages/NotFound";
+import ExternalApiManager from "./pages/ExternalApiManager";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -118,6 +119,7 @@ const App = () => (
                       <Route path="/atendimento-pais" element={<GuardianSupport />} />
                       <Route path="/cantina-admin" element={<CanteenAdminPage />} />
                       <Route path="/campanhas-admin" element={<CampaignAdmin />} />
+                      <Route path="/api-externa" element={<ExternalApiManager />} />
                       <Route path="/configuracoes" element={<Settings />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
