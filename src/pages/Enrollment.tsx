@@ -785,6 +785,32 @@ export default function Enrollment() {
         status: 'active',
       });
 
+      // 4b. Save all selected schedules to enrollment_schedules table
+      for (const schedule of selectedSchedules) {
+        const scheduleClassGroup = findClassGroupForSchedule(schedule.dayOfWeek, schedule.timeSlot.start);
+        if (scheduleClassGroup) {
+          // Insert into enrollment_schedules
+          const { error: scheduleError } = await supabase
+            .from('enrollment_schedules')
+            .insert({
+              enrollment_id: enrollment.id,
+              class_group_id: scheduleClassGroup.id,
+            });
+          
+          if (scheduleError) {
+            console.warn(`Erro ao salvar horário ${schedule.dayOfWeek}:`, scheduleError);
+          } else {
+            // Increment class group student count for additional schedules (first one was already incremented by createEnrollment)
+            if (scheduleClassGroup.id !== classGroup.id) {
+              await supabase
+                .from('class_groups')
+                .update({ current_students: scheduleClassGroup.current_students + 1 })
+                .eq('id', scheduleClassGroup.id);
+            }
+          }
+        }
+      }
+
       const scheduleDescription = getScheduleDescription();
 
       // 5. Call LMS webhook for eligible courses BEFORE generating contract

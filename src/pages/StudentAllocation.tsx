@@ -102,22 +102,25 @@ export default function StudentAllocation() {
   const [courseFilter, setCourseFilter] = useState('all');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Fetch all allocation data directly from database
+  // Fetch all allocation data from enrollment_schedules table (supports multiple days per enrollment)
   const { data: allocationData = [], isLoading } = useQuery({
     queryKey: ['student-allocation'],
     queryFn: async () => {
-      // Fetch active enrollments with all related data
-      const { data: enrollmentsData, error } = await supabase
-        .from('enrollments')
+      // First, try to fetch from enrollment_schedules (new table for multiple days)
+      const { data: enrollmentSchedulesData, error: esError } = await supabase
+        .from('enrollment_schedules')
         .select(`
           id,
-          status,
-          student:students!inner(
+          enrollment:enrollments!inner(
             id,
-            name,
-            birth_date,
-            is_active,
-            guardian:guardians(name, phone)
+            status,
+            student:students!inner(
+              id,
+              name,
+              birth_date,
+              is_active,
+              guardian:guardians(name, phone)
+            )
           ),
           class_group:class_groups!inner(
             id,
@@ -127,26 +130,23 @@ export default function StudentAllocation() {
             schedule:schedules(day_of_week, start_time, end_time)
           )
         `)
-        .eq('status', 'active')
-        .eq('students.is_active', true)
+        .eq('enrollments.status', 'active')
+        .eq('enrollments.students.is_active', true)
         .eq('class_groups.is_active', true);
-
-      if (error) throw error;
 
       const rows: StudentAllocationRow[] = [];
 
-      enrollmentsData?.forEach((enrollment: any) => {
-        const student = enrollment.student;
-        const classGroup = enrollment.class_group;
-        const course = classGroup?.course;
-        const schedule = classGroup?.schedule;
-        const guardian = student?.guardian;
+      if (!esError && enrollmentSchedulesData && enrollmentSchedulesData.length > 0) {
+        // Use data from enrollment_schedules table
+        enrollmentSchedulesData.forEach((es: any) => {
+          const enrollment = es.enrollment;
+          const student = enrollment?.student;
+          const classGroup = es.class_group;
+          const course = classGroup?.course;
+          const schedule = classGroup?.schedule;
+          const guardian = student?.guardian;
 
-        if (student && course && classGroup && schedule) {
-          // Expande dias combinados para criar múltiplas entradas
-          const expandedDays = expandCombinedDays(schedule.day_of_week);
-          
-          expandedDays.forEach(day => {
+          if (student && course && classGroup && schedule) {
             rows.push({
               studentId: student.id,
               studentName: student.name,
@@ -156,14 +156,71 @@ export default function StudentAllocation() {
               guardianPhone: guardian?.phone || '-',
               courseName: course.name,
               className: classGroup.name,
-              dayOfWeek: day,
+              dayOfWeek: schedule.day_of_week,
               startTime: schedule.start_time,
               endTime: schedule.end_time,
               enrollmentStatus: enrollment.status,
             });
-          });
-        }
-      });
+          }
+        });
+      } else {
+        // Fallback: fetch from enrollments table (legacy support)
+        const { data: enrollmentsData, error } = await supabase
+          .from('enrollments')
+          .select(`
+            id,
+            status,
+            student:students!inner(
+              id,
+              name,
+              birth_date,
+              is_active,
+              guardian:guardians(name, phone)
+            ),
+            class_group:class_groups!inner(
+              id,
+              name,
+              is_active,
+              course:courses(id, name),
+              schedule:schedules(day_of_week, start_time, end_time)
+            )
+          `)
+          .eq('status', 'active')
+          .eq('students.is_active', true)
+          .eq('class_groups.is_active', true);
+
+        if (error) throw error;
+
+        enrollmentsData?.forEach((enrollment: any) => {
+          const student = enrollment.student;
+          const classGroup = enrollment.class_group;
+          const course = classGroup?.course;
+          const schedule = classGroup?.schedule;
+          const guardian = student?.guardian;
+
+          if (student && course && classGroup && schedule) {
+            // Expande dias combinados para criar múltiplas entradas
+            const expandedDays = expandCombinedDays(schedule.day_of_week);
+            
+            expandedDays.forEach(day => {
+              rows.push({
+                studentId: student.id,
+                studentName: student.name,
+                shortName: getShortName(student.name),
+                birthDate: student.birth_date,
+                guardianName: guardian?.name || '-',
+                guardianPhone: guardian?.phone || '-',
+                courseName: course.name,
+                className: classGroup.name,
+                dayOfWeek: day,
+                startTime: schedule.start_time,
+                endTime: schedule.end_time,
+                enrollmentStatus: enrollment.status,
+              });
+            });
+          }
+        });
+      }
 
       return rows;
     }
