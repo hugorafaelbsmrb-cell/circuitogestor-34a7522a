@@ -797,16 +797,40 @@ export function useSchoolData() {
       console.warn('Erro ao excluir contratos:', contractsError);
     }
 
-    // Decrement class group student count if enrollment was active/pending
+    // Get all enrollment_schedules to decrement class group counts for each day
+    const { data: enrollmentSchedules } = await supabase
+      .from('enrollment_schedules')
+      .select('class_group_id')
+      .eq('enrollment_id', enrollmentId);
+
+    // Decrement class group student count for each schedule in enrollment_schedules
     if (enrollment.status === 'active' || enrollment.status === 'pending') {
-      const classGroup = classGroups.find(cg => cg.id === enrollment.class_group_id);
-      if (classGroup && classGroup.current_students > 0) {
-        await supabase
-          .from('class_groups')
-          .update({ current_students: classGroup.current_students - 1 })
-          .eq('id', enrollment.class_group_id);
+      const classGroupIdsToDecrement = new Set<string>();
+      
+      // Add class groups from enrollment_schedules
+      enrollmentSchedules?.forEach(es => {
+        classGroupIdsToDecrement.add(es.class_group_id);
+      });
+      
+      // Also add the main class_group_id from enrollment (for backwards compatibility)
+      classGroupIdsToDecrement.add(enrollment.class_group_id);
+      
+      for (const cgId of classGroupIdsToDecrement) {
+        const classGroup = classGroups.find(cg => cg.id === cgId);
+        if (classGroup && classGroup.current_students > 0) {
+          await supabase
+            .from('class_groups')
+            .update({ current_students: classGroup.current_students - 1 })
+            .eq('id', cgId);
+        }
       }
     }
+
+    // Delete enrollment_schedules (cascade should handle this, but be explicit)
+    await supabase
+      .from('enrollment_schedules')
+      .delete()
+      .eq('enrollment_id', enrollmentId);
 
     // Delete the enrollment
     const { error } = await supabase

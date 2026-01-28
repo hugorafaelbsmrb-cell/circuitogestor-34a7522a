@@ -677,6 +677,42 @@ export type Database = {
         }
         Relationships: []
       }
+      enrollment_schedules: {
+        Row: {
+          class_group_id: string
+          created_at: string
+          enrollment_id: string
+          id: string
+        }
+        Insert: {
+          class_group_id: string
+          created_at?: string
+          enrollment_id: string
+          id?: string
+        }
+        Update: {
+          class_group_id?: string
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollment_schedules_class_group_id_fkey"
+            columns: ["class_group_id"]
+            isOneToOne: false
+            referencedRelation: "class_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollment_schedules_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrollments: {
         Row: {
           class_group_id: string
