@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { MobileHeader } from './MobileHeader';
 import { useInactivityTimeout } from '@/hooks/useInactivityTimeout';
+import { useLastRoute } from '@/hooks/useLastRoute';
 import { WhatsAppNotificationListener } from '@/components/notifications/WhatsAppNotificationListener';
 import { PreEnrollmentNotificationListener } from '@/components/notifications/PreEnrollmentNotificationListener';
 import { CanteenNotificationListener } from '@/components/notifications/CanteenNotificationListener';
@@ -15,6 +16,9 @@ export function MainLayout({ children }: MainLayoutProps) {
   
   // Enable inactivity timeout - logs out after 20 minutes of inactivity
   useInactivityTimeout();
+  
+  // Track last visited route for restore on next session
+  useLastRoute();
 
   return (
     <div className="min-h-screen bg-background">
