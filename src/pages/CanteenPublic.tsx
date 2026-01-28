@@ -41,67 +41,76 @@ export default function CanteenPublic() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  // Fetch all active students with their schedules
+  // Fetch all active students with their schedules from all enrollments
   const { data: students = [] } = useQuery({
     queryKey: ['canteen-students-all'],
     queryFn: async () => {
-      // Get all active students with guardian info and their enrollments/schedules
+      // First get all active students with guardian info
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select(`
           id,
           name,
-          guardian:guardians(name, phone),
-          enrollments!inner(
-            status,
-            class_group:class_groups!inner(
-              is_active,
-              schedule:schedules(
-                day_of_week,
-                start_time,
-                end_time
-              )
-            )
-          )
+          guardian:guardians(name, phone)
         `)
         .eq('is_active', true)
-        .eq('enrollments.status', 'active')
-        .eq('enrollments.class_group.is_active', true)
         .order('name');
 
       if (studentsError) throw studentsError;
 
-      // Transform data to include schedules
-      const studentsWithSchedules = studentsData?.map(student => {
-        const schedules: StudentSchedule[] = [];
-        
-        // Extract schedules from enrollments
-        (student.enrollments as any[])?.forEach(enrollment => {
-          const schedule = enrollment.class_group?.schedule;
-          if (schedule) {
-            // Avoid duplicates
-            const exists = schedules.some(
-              s => s.day_of_week === schedule.day_of_week && 
-                   s.start_time === schedule.start_time
-            );
-            if (!exists) {
-              schedules.push({
-                day_of_week: schedule.day_of_week,
-                start_time: schedule.start_time,
-                end_time: schedule.end_time
-              });
-            }
-          }
-        });
+      // Then get all active enrollments with their class schedules
+      const { data: enrollmentsData, error: enrollmentsError } = await supabase
+        .from('enrollments')
+        .select(`
+          student_id,
+          class_group:class_groups!inner(
+            is_active,
+            schedule:schedules(
+              day_of_week,
+              start_time,
+              end_time
+            )
+          )
+        `)
+        .eq('status', 'active')
+        .eq('class_group.is_active', true);
 
-        return {
-          id: student.id,
-          name: student.name,
-          guardian_name: (student.guardian as any)?.name,
-          guardian_phone: (student.guardian as any)?.phone,
-          schedules
-        };
-      }) || [];
+      if (enrollmentsError) throw enrollmentsError;
+
+      // Group schedules by student_id
+      const schedulesByStudent = new Map<string, StudentSchedule[]>();
+      
+      enrollmentsData?.forEach(enrollment => {
+        const schedule = (enrollment.class_group as any)?.schedule;
+        if (schedule) {
+          const studentSchedules = schedulesByStudent.get(enrollment.student_id) || [];
+          
+          // Avoid duplicates
+          const exists = studentSchedules.some(
+            s => s.day_of_week === schedule.day_of_week && 
+                 s.start_time === schedule.start_time
+          );
+          
+          if (!exists) {
+            studentSchedules.push({
+              day_of_week: schedule.day_of_week,
+              start_time: schedule.start_time,
+              end_time: schedule.end_time
+            });
+          }
+          
+          schedulesByStudent.set(enrollment.student_id, studentSchedules);
+        }
+      });
+
+      // Combine students with their schedules
+      const studentsWithSchedules = studentsData?.map(student => ({
+        id: student.id,
+        name: student.name,
+        guardian_name: (student.guardian as any)?.name,
+        guardian_phone: (student.guardian as any)?.phone,
+        schedules: schedulesByStudent.get(student.id) || []
+      })) || [];
 
       return studentsWithSchedules as Student[];
     }
