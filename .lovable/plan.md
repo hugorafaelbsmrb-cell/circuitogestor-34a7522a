@@ -1,84 +1,80 @@
 
-# Plano: Distribuir Alunos na Alocação por Todos os Dias de Aula Escolhidos na Matrícula
+# Plano: Corrigir Query de Alocação de Alunos na Agenda Semanal
 
 ## Problema Identificado
 
-Atualmente, quando um aluno é matriculado e seleciona **múltiplos dias** da semana (ex: Segunda e Quarta), apenas **um dia** é salvo na tabela de matrículas. Isso ocorre porque:
+A query atual na página `StudentAllocation.tsx` usa filtros aninhados que **não funcionam corretamente** com o SDK do Supabase:
 
-1. O wizard de matrícula armazena os dias selecionados em `selectedSchedules` (estado local)
-2. No momento de criar a matrícula, apenas o **primeiro** dia é usado para encontrar uma turma (`class_group`)
-3. A tabela `enrollments` só possui **um** campo `class_group_id`, que referencia uma única turma/horário
-
-Os dados estão sendo salvos apenas no contrato (JSON), mas a página de Alocação de Alunos não lê esses dados.
-
-## Solução Proposta
-
-Criar uma nova tabela de relacionamento `enrollment_schedules` para armazenar todos os dias/horários selecionados por matrícula.
-
----
-
-## Etapa 1: Criar tabela de relacionamento no banco de dados
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                    enrollment_schedules                      │
-├─────────────────────────────────────────────────────────────┤
-│ id              │ uuid (PK)                                 │
-│ enrollment_id   │ uuid (FK -> enrollments.id)               │
-│ class_group_id  │ uuid (FK -> class_groups.id)              │
-│ created_at      │ timestamp                                 │
-└─────────────────────────────────────────────────────────────┘
+```typescript
+// PROBLEMA: Esta sintaxe não filtra corretamente
+.eq('enrollments.status', 'active')
+.eq('enrollments.students.is_active', true)
+.eq('class_groups.is_active', true)
 ```
 
-**Migração SQL:**
-- Criar tabela `enrollment_schedules` com chaves estrangeiras
-- Adicionar políticas RLS para usuários autenticados
-- Popular com dados existentes (migrar o `class_group_id` atual de cada matrícula)
+Os dados existem no banco (42 registros), mas a query retorna vazio porque o Supabase JavaScript SDK não suporta bem filtros em relacionamentos profundos desta forma.
 
 ---
 
-## Etapa 2: Modificar o fluxo de matrícula
+## Solução
 
-**Arquivo:** `src/pages/Enrollment.tsx`
-
-Após criar a matrícula principal, iterar sobre todos os dias selecionados (`selectedSchedules`) e:
-1. Encontrar o `class_group_id` correspondente para cada dia/horário
-2. Inserir um registro na tabela `enrollment_schedules` para cada dia
-3. Incrementar o contador de alunos em cada turma
+Modificar a estratégia de query para buscar todos os dados da tabela `enrollment_schedules` e filtrar no lado do cliente, ou usar uma abordagem de query mais simples e eficiente.
 
 ---
 
-## Etapa 3: Atualizar a página de Alocação de Alunos
+## Alterações Técnicas
 
-**Arquivo:** `src/pages/StudentAllocation.tsx`
+### Arquivo: `src/pages/StudentAllocation.tsx`
 
-Modificar a query para buscar dados de `enrollment_schedules` em vez de usar apenas o `class_group_id` único da matrícula:
+**Modificação 1:** Simplificar a query removendo os filtros aninhados e filtrando no JavaScript
 
-```sql
-SELECT 
-  e.id as enrollment_id,
-  s.name as student_name,
-  cg.name as class_group_name,
-  sc.day_of_week,
-  sc.start_time,
-  sc.end_time
-FROM enrollment_schedules es
-JOIN enrollments e ON es.enrollment_id = e.id
-JOIN students s ON e.student_id = s.id
-JOIN class_groups cg ON es.class_group_id = cg.id
-JOIN schedules sc ON cg.schedule_id = sc.id
-WHERE e.status = 'active' AND s.is_active = true
+A query atual:
+```typescript
+const { data: enrollmentSchedulesData, error: esError } = await supabase
+  .from('enrollment_schedules')
+  .select(`...`)
+  .eq('enrollments.status', 'active')           // NÃO FUNCIONA
+  .eq('enrollments.students.is_active', true)   // NÃO FUNCIONA
+  .eq('class_groups.is_active', true);          // NÃO FUNCIONA
 ```
 
----
+Nova query (sem filtros aninhados, filtragem no cliente):
+```typescript
+const { data: enrollmentSchedulesData, error: esError } = await supabase
+  .from('enrollment_schedules')
+  .select(`
+    id,
+    enrollment:enrollments(
+      id,
+      status,
+      student:students(
+        id,
+        name,
+        birth_date,
+        is_active,
+        guardian:guardians(name, phone)
+      )
+    ),
+    class_group:class_groups(
+      id,
+      name,
+      is_active,
+      course:courses(id, name),
+      schedule:schedules(day_of_week, start_time, end_time)
+    )
+  `);
 
-## Etapa 4: Atualizar hook de dados
-
-**Arquivo:** `src/hooks/useSchoolData.ts`
-
-- Adicionar função `createEnrollmentSchedule` para inserir registros na nova tabela
-- Modificar `deleteEnrollment` para também remover registros de `enrollment_schedules`
-- Decrementar contadores de alunos em todas as turmas relacionadas
+// Filtrar no lado do cliente
+const filteredData = enrollmentSchedulesData?.filter((es: any) => {
+  const enrollment = es.enrollment;
+  const student = enrollment?.student;
+  const classGroup = es.class_group;
+  
+  return enrollment?.status === 'active' && 
+         student?.is_active === true && 
+         classGroup?.is_active === true;
+});
+```
 
 ---
 
@@ -86,16 +82,24 @@ WHERE e.status = 'active' AND s.is_active = true
 
 | Arquivo | Alteração |
 |---------|-----------|
-| Banco de dados | Nova tabela `enrollment_schedules` + migração de dados existentes |
-| `src/pages/Enrollment.tsx` | Salvar todos os dias selecionados na nova tabela |
-| `src/pages/StudentAllocation.tsx` | Buscar dados de `enrollment_schedules` |
-| `src/hooks/useSchoolData.ts` | Funções CRUD para `enrollment_schedules` |
+| `src/pages/StudentAllocation.tsx` | Remover filtros `.eq()` aninhados e filtrar dados no JavaScript após a consulta |
 
 ---
 
 ## Benefícios
 
-1. Cada matrícula terá todos os dias de aula corretamente registrados
-2. A página de Alocação mostrará o aluno em todos os dias que ele frequenta
-3. Os contadores de vagas por turma serão precisos
-4. Compatibilidade retroativa com matrículas existentes (migração automática)
+1. **Correção imediata**: Os 42 alunos matriculados aparecerão corretamente na agenda semanal
+2. **Compatibilidade**: Funciona com qualquer versão do Supabase SDK
+3. **Simplicidade**: Código mais fácil de entender e manter
+4. **Performance aceitável**: Para volumes moderados de dados (centenas de registros), a filtragem no cliente é eficiente
+
+---
+
+## Resultado Esperado
+
+Após a implementação, a página de "Agenda Semanal de Alunos" mostrará:
+- **Curso de Robótica**: Alunos distribuídos em Segunda, Terça, Quarta, etc.
+- **Reforço Escolar**: Alunos distribuídos nos dias corretos
+- **Soroban**: Alunos nos horários definidos
+
+Cada aluno aparecerá em **todos os dias** que foram selecionados durante sua matrícula.
