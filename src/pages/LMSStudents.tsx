@@ -755,6 +755,7 @@ export default function LMSStudents() {
     .field label { display: block; font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
     .field .value { font-size: 18px; font-weight: 600; color: #333; padding: 12px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #f58220; }
     .password-box { background: #fff3e6 !important; }
+    .password-hint { font-size: 10px; color: #888; margin-top: 6px; font-style: italic; }
     .footer { text-align: center; padding: 16px; background: #f8f9fa; font-size: 11px; color: #888; }
     @media print {
       body { padding: 20px; }
@@ -783,6 +784,7 @@ export default function LMSStudents() {
       <div class="field">
         <label>Senha</label>
         <div class="value password-box">${credential.password}</div>
+        <p class="password-hint">Formato: primeiro nome + 3 últimos dígitos da matrícula</p>
       </div>
       
       <div class="field">
@@ -821,7 +823,7 @@ export default function LMSStudents() {
       <div class="card">
         <div class="card-header">
           <div class="student-name">${cred.student?.name || 'Aluno'}</div>
-          <div class="matricula">${cred.matricula}</div>
+          <div class="matricula">Matrícula: ${cred.matricula}</div>
         </div>
         <div class="card-body">
           <div class="field">
@@ -832,6 +834,7 @@ export default function LMSStudents() {
             <span class="label">Senha:</span>
             <span class="value password">${cred.password}</span>
           </div>
+          <div class="password-hint">Senha: primeiro nome + 3 últimos dígitos da matrícula</div>
         </div>
       </div>
     `).join('');
@@ -860,6 +863,7 @@ export default function LMSStudents() {
     .label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
     .value { font-size: 13px; font-weight: 500; color: #333; text-align: right; max-width: 180px; word-break: break-all; }
     .password { background: #fff3e6; padding: 4px 8px; border-radius: 4px; font-family: monospace; }
+    .password-hint { font-size: 9px; color: #888; margin-top: 6px; font-style: italic; text-align: center; border-top: 1px dashed #ddd; padding-top: 6px; }
     .footer { text-align: center; margin-top: 30px; padding: 16px; font-size: 12px; color: #888; }
     .print-btn { display: block; width: 200px; margin: 20px auto; padding: 12px 24px; background: #f58220; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
     .print-btn:hover { background: #d35400; }
@@ -1456,6 +1460,9 @@ export default function LMSStudents() {
                         <Copy className="w-3 h-3" />
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-1 italic">
+                      Formato: primeiro nome + 3 últimos dígitos da matrícula
+                    </p>
                   </div>
                 </CardContent>
               </Card>
