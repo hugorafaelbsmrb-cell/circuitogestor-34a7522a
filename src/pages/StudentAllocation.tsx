@@ -466,55 +466,70 @@ export default function StudentAllocation() {
       </div>
 
       {/* Weekly Calendar by Course */}
-      <div className="space-y-6">
+      <div className="space-y-8">
         {Object.entries(groupedByCourseAndDay).length > 0 ? (
           Object.entries(groupedByCourseAndDay).map(([courseName, dayData]) => (
-            <Card key={courseName} className="overflow-hidden">
-              <div className="bg-secondary/50 px-4 py-3 flex items-center justify-between border-b">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 text-primary" />
-                  <span className="font-semibold text-lg">{courseName}</span>
+            <Card key={courseName} className="overflow-hidden shadow-sm">
+              {/* Course Header */}
+              <div className="bg-gradient-to-r from-primary/10 to-primary/5 px-6 py-4 flex items-center justify-between border-b">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                    <BookOpen className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-lg">{courseName}</span>
+                    <p className="text-sm text-muted-foreground">
+                      {[...new Set(Object.values(dayData).flat().map(s => s.studentId))].length} alunos únicos
+                    </p>
+                  </div>
                 </div>
-                <Badge variant="secondary">
-                  {Object.values(dayData).flat().length} alunos
+                <Badge variant="outline" className="text-sm px-3 py-1">
+                  {Object.values(dayData).flat().length} alocações
                 </Badge>
               </div>
               
-              <CardContent className="p-4">
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* Calendar Grid */}
+              <CardContent className="p-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 divide-x divide-y lg:divide-y-0">
                   {DAYS_OF_WEEK.map(day => {
                     const studentsForDay = dayData[day] || [];
                     const colorClass = DAY_COLORS[day] || 'bg-gray-500';
                     
                     return (
-                      <div key={day} className="border rounded-lg overflow-hidden bg-card">
-                        <div className={`${colorClass} text-white text-center py-2 font-medium text-sm`}>
-                          {DAY_SHORT_NAMES[day] || day}
-                          {studentsForDay.length > 0 && (
-                            <span className="ml-1 opacity-75">({studentsForDay.length})</span>
-                          )}
+                      <div key={day} className="flex flex-col bg-card">
+                        {/* Day Header */}
+                        <div className={`${colorClass} text-white py-3 px-4 font-semibold text-center`}>
+                          <span className="text-sm tracking-wide">{DAY_SHORT_NAMES[day] || day}</span>
+                          <div className="text-xs font-normal opacity-80 mt-0.5">
+                            {studentsForDay.length} {studentsForDay.length === 1 ? 'aluno' : 'alunos'}
+                          </div>
                         </div>
-                        <div className="p-2 min-h-[120px] max-h-[300px] overflow-y-auto space-y-1">
+                        
+                        {/* Students List */}
+                        <div className="flex-1 p-3 min-h-[180px] max-h-[350px] overflow-y-auto bg-muted/20">
                           {studentsForDay.length > 0 ? (
-                            studentsForDay
-                              .sort((a, b) => a.shortName.localeCompare(b.shortName))
-                              .map((student, idx) => (
-                                <div 
-                                  key={`${student.studentId}-${idx}`}
-                                  className="bg-muted/50 rounded px-2 py-1.5 text-xs hover:bg-muted transition-colors"
-                                >
-                                  <div className="font-medium text-foreground truncate" title={student.studentName}>
-                                    {student.shortName}
+                            <div className="space-y-2">
+                              {studentsForDay
+                                .sort((a, b) => a.startTime.localeCompare(b.startTime) || a.shortName.localeCompare(b.shortName))
+                                .map((student, idx) => (
+                                  <div 
+                                    key={`${student.studentId}-${idx}`}
+                                    className="bg-card rounded-lg border px-3 py-2 shadow-sm hover:shadow-md transition-all hover:border-primary/30"
+                                  >
+                                    <div className="font-medium text-sm text-foreground truncate" title={student.studentName}>
+                                      {student.shortName}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
+                                      <Clock className="w-3 h-3" />
+                                      <span>{student.startTime} - {student.endTime}</span>
+                                    </div>
                                   </div>
-                                  <div className="text-muted-foreground flex items-center gap-1 mt-0.5">
-                                    <Clock className="w-3 h-3" />
-                                    {student.startTime} - {student.endTime}
-                                  </div>
-                                </div>
-                              ))
+                                ))}
+                            </div>
                           ) : (
-                            <div className="text-center text-muted-foreground text-xs py-8">
-                              Sem alunos
+                            <div className="h-full flex flex-col items-center justify-center text-muted-foreground py-8">
+                              <Calendar className="w-8 h-8 mb-2 opacity-30" />
+                              <span className="text-xs">Sem aulas</span>
                             </div>
                           )}
                         </div>
