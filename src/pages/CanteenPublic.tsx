@@ -12,6 +12,7 @@ interface Student {
   id: string;
   name: string;
   guardian_name?: string;
+  guardian_phone?: string;
 }
 
 interface Product {
@@ -42,7 +43,7 @@ export default function CanteenPublic() {
         .select(`
           id,
           name,
-          guardian:guardians(name)
+          guardian:guardians(name, phone)
         `)
         .eq('is_active', true)
         .order('name');
@@ -51,7 +52,8 @@ export default function CanteenPublic() {
       return data.map(s => ({
         id: s.id,
         name: s.name,
-        guardian_name: (s.guardian as any)?.name
+        guardian_name: (s.guardian as any)?.name,
+        guardian_phone: (s.guardian as any)?.phone
       })) as Student[];
     }
   });

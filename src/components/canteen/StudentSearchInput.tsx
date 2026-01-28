@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
-import { Search, User } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Search, User, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface Student {
   id: string;
   name: string;
   guardian_name?: string;
+  guardian_phone?: string;
 }
 
 interface StudentSearchInputProps {
@@ -56,6 +58,14 @@ export function StudentSearchInput({
     setIsOpen(false);
   };
 
+  const handleSendMessage = () => {
+    if (selectedStudent?.guardian_phone) {
+      const phone = selectedStudent.guardian_phone.replace(/\D/g, '');
+      const message = encodeURIComponent(`Olá! Segue informação sobre o consumo na cantina do(a) aluno(a) ${selectedStudent.name}.`);
+      window.open(`https://wa.me/55${phone}?text=${message}`, '_blank');
+    }
+  };
+
   if (selectedStudent) {
     return (
       <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex items-center justify-between">
@@ -72,12 +82,25 @@ export function StudentSearchInput({
             )}
           </div>
         </div>
-        <button 
-          onClick={onClear}
-          className="text-sm text-muted-foreground hover:text-foreground underline"
-        >
-          Trocar
-        </button>
+        <div className="flex items-center gap-2">
+          {selectedStudent.guardian_phone && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSendMessage}
+              className="text-green-600 hover:text-green-700 hover:bg-green-100"
+              title="Enviar mensagem no WhatsApp"
+            >
+              <MessageCircle className="w-5 h-5" />
+            </Button>
+          )}
+          <button 
+            onClick={onClear}
+            className="text-sm text-muted-foreground hover:text-foreground underline"
+          >
+            Trocar
+          </button>
+        </div>
       </div>
     );
   }
