@@ -1,10 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { 
   Users, 
   Search, 
   Printer,
   Download,
-  FileDown,
   Loader2,
   Calendar,
   Clock,
@@ -14,24 +13,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useSchool } from '@/contexts/SchoolContext';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
 interface StudentAllocationRow {
   studentId: string;
   studentName: string;
+  shortName: string;
   birthDate: string;
   guardianName: string;
   guardianPhone: string;
@@ -42,6 +34,26 @@ interface StudentAllocationRow {
   endTime: string;
   enrollmentStatus: string;
 }
+
+const DAYS_OF_WEEK = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
+const DAY_COLORS: Record<string, string> = {
+  'Segunda': 'bg-blue-500',
+  'Terça': 'bg-green-500',
+  'Quarta': 'bg-purple-500',
+  'Quinta': 'bg-orange-500',
+  'Sexta': 'bg-pink-500',
+  'Sábado': 'bg-amber-500',
+};
+
+// Função para extrair primeiro e segundo nome
+const getShortName = (fullName: string): string => {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts[0]} ${parts[1]}`;
+  }
+  return parts[0] || fullName;
+};
 
 export default function StudentAllocation() {
   const { toast } = useToast();
@@ -57,7 +69,6 @@ export default function StudentAllocation() {
   const [searchTerm, setSearchTerm] = useState('');
   const [courseFilter, setCourseFilter] = useState('all');
   const [isGenerating, setIsGenerating] = useState(false);
-  const printRef = useRef<HTMLDivElement>(null);
 
   // Build allocation data - only active students
   const allocationData: StudentAllocationRow[] = [];
@@ -78,6 +89,7 @@ export default function StudentAllocation() {
         allocationData.push({
           studentId: student.id,
           studentName: student.name,
+          shortName: getShortName(student.name),
           birthDate: student.birth_date,
           guardianName: guardian?.name || '-',
           guardianPhone: guardian?.phone || '-',
@@ -95,19 +107,23 @@ export default function StudentAllocation() {
   // Apply filters
   const filteredData = allocationData.filter(row => {
     const matchesSearch = row.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          row.shortName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           row.guardianName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCourse = courseFilter === 'all' || row.courseName === courseFilter;
     return matchesSearch && matchesCourse;
   });
 
-  // Group by course for summary
-  const groupedByCourse = filteredData.reduce((acc, row) => {
+  // Group by course, then by day
+  const groupedByCourseAndDay = filteredData.reduce((acc, row) => {
     if (!acc[row.courseName]) {
-      acc[row.courseName] = [];
+      acc[row.courseName] = {};
     }
-    acc[row.courseName].push(row);
+    if (!acc[row.courseName][row.dayOfWeek]) {
+      acc[row.courseName][row.dayOfWeek] = [];
+    }
+    acc[row.courseName][row.dayOfWeek].push(row);
     return acc;
-  }, {} as Record<string, StudentAllocationRow[]>);
+  }, {} as Record<string, Record<string, StudentAllocationRow[]>>);
 
   // Get unique courses for filter
   const uniqueCourses = [...new Set(allocationData.map(r => r.courseName))];
@@ -125,60 +141,68 @@ export default function StudentAllocation() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Relatório de Alocação de Alunos</title>
+          <title>Agenda Semanal de Alunos</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; margin: 0; }
             h1 { font-size: 22px; margin-bottom: 5px; text-align: center; }
             h2 { font-size: 16px; color: #666; margin-bottom: 20px; text-align: center; }
-            .summary { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
-            .summary p { margin: 5px 0; }
             .course-section { margin-bottom: 30px; page-break-inside: avoid; }
-            .course-title { background: #333; color: white; padding: 8px 12px; font-weight: bold; margin-bottom: 0; }
-            table { width: 100%; border-collapse: collapse; margin-top: 0; font-size: 12px; }
-            th, td { text-align: left; padding: 8px; border: 1px solid #ddd; }
-            th { background: #f0f0f0; font-weight: 600; }
-            .badge { background: #e0f2e9; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+            .course-title { background: #333; color: white; padding: 10px 15px; font-weight: bold; font-size: 16px; margin-bottom: 15px; border-radius: 6px; }
+            .week-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+            .day-column { border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; }
+            .day-header { padding: 10px; font-weight: bold; text-align: center; color: white; font-size: 12px; }
+            .day-header.segunda { background: #3b82f6; }
+            .day-header.terca { background: #22c55e; }
+            .day-header.quarta { background: #a855f7; }
+            .day-header.quinta { background: #f97316; }
+            .day-header.sexta { background: #ec4899; }
+            .day-header.sabado { background: #f59e0b; }
+            .day-content { padding: 8px; min-height: 100px; background: #fafafa; }
+            .student-item { background: white; padding: 6px 8px; border-radius: 4px; margin-bottom: 4px; font-size: 11px; border: 1px solid #e5e5e5; }
+            .student-name { font-weight: 600; color: #333; }
+            .student-time { color: #666; font-size: 10px; margin-top: 2px; }
+            .empty-day { color: #999; font-size: 11px; text-align: center; padding: 20px 8px; }
+            .summary { background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+            .summary p { margin: 5px 0; font-size: 13px; }
             @media print {
               body { padding: 10px; }
               .course-section { page-break-inside: avoid; }
+              .week-grid { grid-template-columns: repeat(6, 1fr); }
             }
           </style>
         </head>
         <body>
-          <h1>Relatório de Alocação de Alunos</h1>
+          <h1>Agenda Semanal de Alunos</h1>
           <h2>Filtro: ${courseFilterText} | Data: ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</h2>
           <div class="summary">
             <p><strong>Total de alunos:</strong> ${[...new Set(filteredData.map(r => r.studentId))].length}</p>
             <p><strong>Total de matrículas:</strong> ${filteredData.length}</p>
-            <p><strong>Cursos:</strong> ${Object.keys(groupedByCourse).join(', ')}</p>
           </div>
-          ${Object.entries(groupedByCourse).map(([courseName, rows]) => `
+          ${Object.entries(groupedByCourseAndDay).map(([courseName, dayData]) => `
             <div class="course-section">
-              <div class="course-title">${courseName} (${rows.length} alunos)</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Aluno</th>
-                    <th>Responsável</th>
-                    <th>Telefone</th>
-                    <th>Turma</th>
-                    <th>Dia</th>
-                    <th>Horário</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${rows.sort((a, b) => a.studentName.localeCompare(b.studentName)).map(row => `
-                    <tr>
-                      <td>${row.studentName}</td>
-                      <td>${row.guardianName}</td>
-                      <td>${row.guardianPhone}</td>
-                      <td>${row.className}</td>
-                      <td>${row.dayOfWeek}</td>
-                      <td>${row.startTime} - ${row.endTime}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+              <div class="course-title">${courseName}</div>
+              <div class="week-grid">
+                ${DAYS_OF_WEEK.map(day => {
+                  const students = dayData[day] || [];
+                  const dayClass = day.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                  return `
+                    <div class="day-column">
+                      <div class="day-header ${dayClass}">${day}</div>
+                      <div class="day-content">
+                        ${students.length > 0 
+                          ? students.sort((a, b) => a.shortName.localeCompare(b.shortName)).map(s => `
+                              <div class="student-item">
+                                <div class="student-name">${s.shortName}</div>
+                                <div class="student-time">${s.startTime} - ${s.endTime}</div>
+                              </div>
+                            `).join('')
+                          : `<div class="empty-day">Sem alunos</div>`
+                        }
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
             </div>
           `).join('')}
         </body>
@@ -195,15 +219,20 @@ export default function StudentAllocation() {
   const handleExportCSV = () => {
     setIsGenerating(true);
     
-    let csvContent = 'Aluno,Data Nascimento,Responsável,Telefone,Curso,Turma,Dia,Horário\n';
-    filteredData.forEach(row => {
-      csvContent += `"${row.studentName}","${format(parseISO(row.birthDate), 'dd/MM/yyyy')}","${row.guardianName}","${row.guardianPhone}","${row.courseName}","${row.className}","${row.dayOfWeek}","${row.startTime} - ${row.endTime}"\n`;
+    let csvContent = 'Curso,Dia,Aluno,Horário,Turma,Responsável,Telefone\n';
+    Object.entries(groupedByCourseAndDay).forEach(([courseName, dayData]) => {
+      DAYS_OF_WEEK.forEach(day => {
+        const students = dayData[day] || [];
+        students.sort((a, b) => a.shortName.localeCompare(b.shortName)).forEach(row => {
+          csvContent += `"${courseName}","${day}","${row.shortName}","${row.startTime} - ${row.endTime}","${row.className}","${row.guardianName}","${row.guardianPhone}"\n`;
+        });
+      });
     });
     
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `alocacao_alunos_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    link.download = `agenda_semanal_${format(new Date(), 'yyyy-MM-dd')}.csv`;
     link.click();
     
     setTimeout(() => setIsGenerating(false), 500);
@@ -214,10 +243,10 @@ export default function StudentAllocation() {
       <div className="page-header flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="page-title flex items-center gap-2">
-            <Users className="w-6 h-6" />
-            Alocação de Alunos
+            <Calendar className="w-6 h-6" />
+            Agenda Semanal de Alunos
           </h1>
-          <p className="page-subtitle">Visualize onde cada aluno está alocado com turma e horário</p>
+          <p className="page-subtitle">Visualize os alunos organizados por dia da semana e curso</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleExportCSV} disabled={isGenerating} className="gap-2">
@@ -282,8 +311,8 @@ export default function StudentAllocation() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
-                <BookOpen className="w-6 h-6 text-success" />
+              <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                <BookOpen className="w-6 h-6 text-green-500" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{filteredData.length}</p>
@@ -299,7 +328,7 @@ export default function StudentAllocation() {
                 <Calendar className="w-6 h-6 text-blue-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{Object.keys(groupedByCourse).length}</p>
+                <p className="text-2xl font-bold">{Object.keys(groupedByCourseAndDay).length}</p>
                 <p className="text-sm text-muted-foreground">Cursos</p>
               </div>
             </div>
@@ -307,64 +336,81 @@ export default function StudentAllocation() {
         </Card>
       </div>
 
-      {/* Table */}
-      <div ref={printRef} className="bg-card rounded-xl border border-border/50 shadow-sm overflow-hidden">
-        {Object.entries(groupedByCourse).length > 0 ? (
-          Object.entries(groupedByCourse).map(([courseName, rows]) => (
-            <div key={courseName} className="border-b border-border last:border-b-0">
-              <div className="bg-secondary/50 px-4 py-3 flex items-center justify-between">
+      {/* Weekly Calendar by Course */}
+      <div className="space-y-6">
+        {Object.entries(groupedByCourseAndDay).length > 0 ? (
+          Object.entries(groupedByCourseAndDay).map(([courseName, dayData]) => (
+            <Card key={courseName} className="overflow-hidden">
+              <div className="bg-secondary/50 px-4 py-3 flex items-center justify-between border-b">
                 <div className="flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-primary" />
-                  <span className="font-semibold">{courseName}</span>
+                  <BookOpen className="w-5 h-5 text-primary" />
+                  <span className="font-semibold text-lg">{courseName}</span>
                 </div>
-                <Badge variant="secondary">{rows.length} alunos</Badge>
+                <Badge variant="secondary">
+                  {Object.values(dayData).flat().length} alunos
+                </Badge>
               </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Aluno</TableHead>
-                    <TableHead>Responsável</TableHead>
-                    <TableHead>Telefone</TableHead>
-                    <TableHead>Turma</TableHead>
-                    <TableHead>Dia</TableHead>
-                    <TableHead>Horário</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.sort((a, b) => a.studentName.localeCompare(b.studentName)).map((row, index) => (
-                    <TableRow key={`${row.studentId}-${index}`}>
-                      <TableCell className="font-medium">{row.studentName}</TableCell>
-                      <TableCell>{row.guardianName}</TableCell>
-                      <TableCell>{row.guardianPhone}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{row.className}</Badge>
-                      </TableCell>
-                      <TableCell>{row.dayOfWeek}</TableCell>
-                      <TableCell>
-                        <span className="flex items-center gap-1 text-sm">
-                          <Clock className="w-3 h-3" />
-                          {row.startTime} - {row.endTime}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+              
+              <CardContent className="p-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {DAYS_OF_WEEK.map(day => {
+                    const studentsForDay = dayData[day] || [];
+                    const colorClass = DAY_COLORS[day] || 'bg-gray-500';
+                    
+                    return (
+                      <div key={day} className="border rounded-lg overflow-hidden bg-card">
+                        <div className={`${colorClass} text-white text-center py-2 font-medium text-sm`}>
+                          {day}
+                          {studentsForDay.length > 0 && (
+                            <span className="ml-1 opacity-75">({studentsForDay.length})</span>
+                          )}
+                        </div>
+                        <div className="p-2 min-h-[120px] max-h-[300px] overflow-y-auto space-y-1">
+                          {studentsForDay.length > 0 ? (
+                            studentsForDay
+                              .sort((a, b) => a.shortName.localeCompare(b.shortName))
+                              .map((student, idx) => (
+                                <div 
+                                  key={`${student.studentId}-${idx}`}
+                                  className="bg-muted/50 rounded px-2 py-1.5 text-xs hover:bg-muted transition-colors"
+                                >
+                                  <div className="font-medium text-foreground truncate" title={student.studentName}>
+                                    {student.shortName}
+                                  </div>
+                                  <div className="text-muted-foreground flex items-center gap-1 mt-0.5">
+                                    <Clock className="w-3 h-3" />
+                                    {student.startTime} - {student.endTime}
+                                  </div>
+                                </div>
+                              ))
+                          ) : (
+                            <div className="text-center text-muted-foreground text-xs py-8">
+                              Sem alunos
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           ))
         ) : (
-          <div className="p-12 text-center">
-            <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-2">
-              Nenhum aluno encontrado
-            </h3>
-            <p className="text-muted-foreground">
-              {searchTerm || courseFilter !== 'all' 
-                ? 'Tente ajustar os filtros' 
-                : 'Não há alunos ativos matriculados'
-              }
-            </p>
-          </div>
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">
+                Nenhum aluno encontrado
+              </h3>
+              <p className="text-muted-foreground">
+                {searchTerm || courseFilter !== 'all' 
+                  ? 'Tente ajustar os filtros' 
+                  : 'Não há alunos ativos matriculados'
+                }
+              </p>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>
