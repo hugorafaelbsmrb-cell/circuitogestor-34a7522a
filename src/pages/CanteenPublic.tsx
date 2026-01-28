@@ -59,13 +59,15 @@ export default function CanteenPublic() {
       if (studentsError) throw studentsError;
 
       // Then get all active enrollments with their class schedules
+      // The schedule is linked via class_groups.schedule_id -> schedules.id
       const { data: enrollmentsData, error: enrollmentsError } = await supabase
         .from('enrollments')
         .select(`
           student_id,
-          class_group:class_groups!inner(
+          class_groups!inner(
             is_active,
-            schedule:schedules(
+            schedule_id,
+            schedules(
               day_of_week,
               start_time,
               end_time
@@ -73,7 +75,7 @@ export default function CanteenPublic() {
           )
         `)
         .eq('status', 'active')
-        .eq('class_group.is_active', true);
+        .eq('class_groups.is_active', true);
 
       if (enrollmentsError) throw enrollmentsError;
 
@@ -81,8 +83,10 @@ export default function CanteenPublic() {
       const schedulesByStudent = new Map<string, StudentSchedule[]>();
       
       enrollmentsData?.forEach(enrollment => {
-        const schedule = (enrollment.class_group as any)?.schedule;
-        if (schedule) {
+        const classGroup = enrollment.class_groups as any;
+        const schedule = classGroup?.schedules;
+        
+        if (schedule && schedule.day_of_week) {
           const studentSchedules = schedulesByStudent.get(enrollment.student_id) || [];
           
           // Avoid duplicates
