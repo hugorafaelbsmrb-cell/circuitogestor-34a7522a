@@ -214,16 +214,19 @@ export default function Financial() {
       return paymentDate >= currentMonthStart && paymentDate <= currentMonthEnd;
     });
 
+    // Paid statuses that should be excluded from overdue
+    const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
+
     // Overdue today
     const overdueToday = payments.filter(p => {
       const dueDate = parseISO(p.due_date);
-      return isToday(dueDate) && p.status !== 'RECEIVED' && p.status !== 'CONFIRMED';
+      return isToday(dueDate) && !paidStatuses.includes(p.status);
     });
 
     // All overdue (past due date and not paid)
     const allOverdue = payments.filter(p => {
       const dueDate = parseISO(p.due_date);
-      return isBefore(dueDate, today) && p.status !== 'RECEIVED' && p.status !== 'CONFIRMED';
+      return isBefore(dueDate, today) && !paidStatuses.includes(p.status);
     });
 
     // Pending this month
