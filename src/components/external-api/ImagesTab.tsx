@@ -109,13 +109,13 @@ export function ImagesTab() {
             <CardDescription>Gerencie as imagens do site</CardDescription>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Select value={currentFolder} onValueChange={setCurrentFolder}>
+            <Select value={currentFolder || "all"} onValueChange={(val) => setCurrentFolder(val === "all" ? "" : val)}>
               <SelectTrigger className="w-[150px]">
                 <FolderOpen className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Todas pastas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas as pastas</SelectItem>
+                <SelectItem value="all">Todas as pastas</SelectItem>
                 {COMMON_FOLDERS.map((folder) => (
                   <SelectItem key={folder} value={folder}>{folder}</SelectItem>
                 ))}
@@ -193,12 +193,12 @@ export function ImagesTab() {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="folder">Pasta (opcional)</Label>
-              <Select value={uploadFolder} onValueChange={setUploadFolder}>
+              <Select value={uploadFolder || "root"} onValueChange={(val) => setUploadFolder(val === "root" ? "" : val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione uma pasta" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Raiz</SelectItem>
+                  <SelectItem value="root">Raiz</SelectItem>
                   {COMMON_FOLDERS.map((folder) => (
                     <SelectItem key={folder} value={folder}>{folder}</SelectItem>
                   ))}
