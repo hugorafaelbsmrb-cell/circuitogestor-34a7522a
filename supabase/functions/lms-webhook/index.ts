@@ -7,11 +7,11 @@ const corsHeaders = {
 
 interface LMSStudentPayload {
   nome: string;
-  email: string;
-  data_nascimento: string;
-  curso: string;
-  turma: string;
   matricula: string;
+  email?: string;
+  data_nascimento?: string;
+  curso?: string;
+  apelido?: string;
 }
 
 // Courses that should trigger LMS integration
@@ -31,10 +31,8 @@ function isLMSEligibleCourse(courseName: string): boolean {
   );
 }
 
-// Generate PIN/password in the new format: first name + 2 first letters of second name
-// Example: "João Silva Santos" -> "joaosi"
+// Generate PIN/password: first name + 2 first letters of second name
 function generatePin(fullName: string): string {
-  // Normalize and remove accents
   const normalized = fullName
     .toLowerCase()
     .normalize('NFD')
@@ -48,17 +46,13 @@ function generatePin(fullName: string): string {
   }
   
   const firstName = nameParts[0];
-  
-  // Get second name (first middle name or last name if only 2 names)
   const secondName = nameParts.length > 1 ? nameParts[1] : '';
   const secondNamePrefix = secondName.substring(0, 2);
   
-  // PIN format: firstName + first 2 letters of second name
   return `${firstName}${secondNamePrefix}`;
 }
 
 function generateStudentEmail(fullName: string): string {
-  // Normalize and remove accents
   const normalized = fullName
     .toLowerCase()
     .normalize('NFD')
@@ -74,16 +68,12 @@ function generateStudentEmail(fullName: string): string {
   const firstName = nameParts[0];
   const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
   
-  // Generate email: firstname.lastname@circuitokids.com.br
-  const email = lastName 
+  return lastName 
     ? `${firstName}.${lastName}@circuitokids.com.br`
     : `${firstName}@circuitokids.com.br`;
-  
-  return email;
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -91,6 +81,7 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const lmsWebhookSecret = Deno.env.get('LMS_WEBHOOK_SECRET') || 'educacionalcircuuiToKIdsLTDA';
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { enrollmentId, studentId, guardianId, courseId, classGroupId } = await req.json();
@@ -155,46 +146,31 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch class group data
-    const { data: classGroup, error: classGroupError } = await supabase
-      .from('class_groups')
-      .select('*')
-      .eq('id', classGroupId)
-      .single();
-
-    if (classGroupError || !classGroup) {
-      console.error('Error fetching class group:', classGroupError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Class group not found' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
-      );
-    }
-
     // Generate matricula number using enrollment ID (last 7 chars)
     const matricula = `${new Date().getFullYear()}${enrollmentId.slice(-7).toUpperCase()}`;
 
     // Generate student email automatically
     const studentEmail = generateStudentEmail(student.name);
 
-    // Build LMS payload
+    // Build LMS payload according to API spec
     const lmsPayload: LMSStudentPayload = {
       nome: student.name,
-      email: studentEmail,
+      matricula: matricula,
+      email: guardian.email, // Use guardian email as "responsável"
       data_nascimento: student.birth_date,
       curso: course.name,
-      turma: classGroup.name,
-      matricula: matricula,
     };
 
     console.log('Sending to external LMS:', lmsPayload);
 
-    // Send to external LMS webhook
+    // Send to external LMS webhook with proper auth header
     const lmsWebhookUrl = 'https://icbudgpjptemjfymssvr.supabase.co/functions/v1/create-student-webhook';
     
     const lmsResponse = await fetch(lmsWebhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-webhook-secret': lmsWebhookSecret,
       },
       body: JSON.stringify(lmsPayload),
     });
@@ -239,13 +215,13 @@ Deno.serve(async (req) => {
         password: generatedPin,
         matricula: matricula,
         completion_percentage: 0,
+        lms_user_id: lmsResult.user_id || null,
       }, {
         onConflict: 'student_id,enrollment_id',
       });
 
     if (credentialsError) {
       console.error('Error saving LMS credentials:', credentialsError);
-      // Don't fail the request, just log the error
     } else {
       console.log('LMS credentials saved successfully');
     }
