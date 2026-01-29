@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => ({
         display: "standalone",
         orientation: "portrait-primary",
         scope: "/",
-        start_url: "/cantina",
+        start_url: "/",
         icons: [
           {
             src: "/pwa-192x192.png",
@@ -46,6 +46,13 @@ export default defineConfig(({ mode }) => ({
           },
         ],
         shortcuts: [
+          {
+            name: "Dashboard",
+            short_name: "Home",
+            description: "Acessar o painel administrativo",
+            url: "/",
+            icons: [{ src: "/pwa-192x192.png", sizes: "192x192" }]
+          },
           {
             name: "Cantina",
             short_name: "Cantina",
