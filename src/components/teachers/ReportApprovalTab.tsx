@@ -388,9 +388,25 @@ export default function ReportApprovalTab() {
         
         if (!existingReport) {
           // Import the external report to local database
-          // Ensure empty strings are converted to null for UUID fields
-          const studentId = report.student?.id && report.student.id.trim() !== '' ? report.student.id : null;
-          const teacherId = report.teacher?.id && report.teacher.id.trim() !== '' ? report.teacher.id : null;
+          // For student_id: external IDs won't exist locally, so set to null
+          const studentId = null;
+          
+          // For teacher_id: try to find local teacher by name, otherwise null
+          let teacherId: string | null = null;
+          if (report.teacher?.name) {
+            const { data: localTeacher } = await supabase
+              .from('teachers')
+              .select('id')
+              .ilike('name', report.teacher.name)
+              .maybeSingle();
+            
+            if (localTeacher) {
+              teacherId = localTeacher.id;
+              console.log('✅ Professor local encontrado:', report.teacher.name, '->', teacherId);
+            } else {
+              console.log('⚠️ Professor não encontrado localmente:', report.teacher.name);
+            }
+          }
           
           const { data: insertedReport, error: insertError } = await supabase
             .from('student_reports')
