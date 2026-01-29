@@ -53,11 +53,16 @@ serve(async (req) => {
 
     const dropboxToken = tokenSetting.value;
     const url = new URL(req.url);
-    const action = url.searchParams.get("action") || "upload";
+    
+    // Support action from both query param and body
+    let action = url.searchParams.get("action") || "upload";
+    const body = await req.json().catch(() => ({}));
+    if (body.action) {
+      action = body.action;
+    }
 
     if (action === "list") {
       // List files from Dropbox folder
-      const body: ListFilesRequest = await req.json().catch(() => ({}));
       const folder = body.folder || "/relatorios";
 
       console.log(`📁 Listando arquivos do Dropbox em: ${folder}`);
@@ -102,6 +107,8 @@ serve(async (req) => {
           .filter((entry: any) => entry[".tag"] === "file")
           .map(async (file: any) => {
             try {
+              console.log(`🔗 Getting shared link for: ${file.name}`);
+              
               // Try to get existing shared link
               const linkResponse = await fetch("https://api.dropboxapi.com/2/sharing/list_shared_links", {
                 method: "POST",
@@ -118,13 +125,19 @@ serve(async (req) => {
               let sharedLink = null;
               if (linkResponse.ok) {
                 const linkData = await linkResponse.json();
+                console.log(`📝 Link response for ${file.name}:`, JSON.stringify(linkData));
                 if (linkData.links && linkData.links.length > 0) {
                   sharedLink = linkData.links[0].url.replace("?dl=0", "?raw=1");
+                  console.log(`✅ Found existing link: ${sharedLink}`);
                 }
+              } else {
+                const errorText = await linkResponse.text();
+                console.log(`⚠️ List links failed for ${file.name}:`, errorText);
               }
 
               // Create shared link if none exists
               if (!sharedLink) {
+                console.log(`🆕 Creating new shared link for: ${file.name}`);
                 const createLinkResponse = await fetch("https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings", {
                   method: "POST",
                   headers: {
@@ -142,6 +155,10 @@ serve(async (req) => {
                 if (createLinkResponse.ok) {
                   const createLinkData = await createLinkResponse.json();
                   sharedLink = createLinkData.url.replace("?dl=0", "?raw=1");
+                  console.log(`✅ Created new link: ${sharedLink}`);
+                } else {
+                  const createError = await createLinkResponse.text();
+                  console.log(`❌ Create link failed for ${file.name}:`, createError);
                 }
               }
 
@@ -175,8 +192,7 @@ serve(async (req) => {
 
     if (action === "upload") {
       // Upload file to Dropbox
-      const body: UploadRequest = await req.json();
-      const { fileName, base64Data, contentType, folder = "/relatorios" } = body;
+      const { fileName, base64Data, contentType, folder = "/relatorios" } = body as UploadRequest;
 
       if (!fileName || !base64Data) {
         return new Response(
@@ -228,6 +244,7 @@ serve(async (req) => {
       console.log("📦 Upload successful:", uploadData);
 
       // Create shared link
+      console.log("🔗 Creating shared link for:", uploadData.path_lower);
       const shareResponse = await fetch("https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings", {
         method: "POST",
         headers: {
@@ -247,7 +264,11 @@ serve(async (req) => {
         const shareData = await shareResponse.json();
         // Convert to direct link format for images
         sharedUrl = shareData.url.replace("?dl=0", "?raw=1");
+        console.log("✅ Shared link created:", sharedUrl);
       } else {
+        const shareError = await shareResponse.text();
+        console.log("⚠️ Could not create shared link, trying to get existing:", shareError);
+        
         // Try to get existing shared link
         const existingLinkResponse = await fetch("https://api.dropboxapi.com/2/sharing/list_shared_links", {
           method: "POST",
@@ -265,8 +286,13 @@ serve(async (req) => {
           const existingData = await existingLinkResponse.json();
           if (existingData.links && existingData.links.length > 0) {
             sharedUrl = existingData.links[0].url.replace("?dl=0", "?raw=1");
+            console.log("✅ Got existing shared link:", sharedUrl);
           }
         }
+      }
+      
+      if (!sharedUrl) {
+        console.log("⚠️ No shared URL available, file was uploaded but no public link");
       }
 
       return new Response(
@@ -286,7 +312,7 @@ serve(async (req) => {
 
     if (action === "delete") {
       // Delete file from Dropbox
-      const { path } = await req.json();
+      const { path } = body;
 
       if (!path) {
         return new Response(
