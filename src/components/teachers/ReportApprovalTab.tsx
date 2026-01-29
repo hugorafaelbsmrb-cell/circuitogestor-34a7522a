@@ -188,7 +188,8 @@ export default function ReportApprovalTab() {
             report_date: apiReport.week?.start || apiReport.created_at,
             report_type: 'weekly',
             status: apiReport.status,
-            approval_status: apiReport.status === 'finalizado' ? 'approved' : 'pending',
+            // Relatórios externos sempre chegam como pendentes para aprovação local
+            approval_status: 'pending',
             rejection_reason: null,
             created_at: apiReport.created_at,
             notification_sent_at: null,
@@ -218,7 +219,8 @@ export default function ReportApprovalTab() {
           report_date: apiReport.report_date,
           report_type: apiReport.report_type,
           status: apiReport.status,
-          approval_status: apiReport.status === 'finalizado' || apiReport.status === 'sent' ? 'approved' : 'pending',
+          // Relatórios externos sempre chegam como pendentes para aprovação local
+          approval_status: 'pending',
           rejection_reason: null,
           created_at: apiReport.created_at,
           notification_sent_at: null,
