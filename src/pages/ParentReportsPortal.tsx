@@ -16,6 +16,7 @@ interface Student {
   id: string;
   name: string;
   birth_date: string;
+  course_name?: string;
 }
 
 interface Guardian {
@@ -115,7 +116,7 @@ export default function ParentReportsPortal() {
         return;
       }
 
-      // Find students linked to this guardian
+      // Find students linked to this guardian with their enrolled courses
       const { data: studentsData, error: studentsError } = await supabase
         .from('students')
         .select('id, name, birth_date')
@@ -136,13 +137,33 @@ export default function ParentReportsPortal() {
         return;
       }
 
+      // Fetch course info for each student
+      const studentsWithCourses = await Promise.all(
+        studentsData.map(async (student) => {
+          const { data: enrollmentData } = await supabase
+            .from('enrollments')
+            .select(`
+              class_groups!inner(
+                courses!inner(name)
+              )
+            `)
+            .eq('student_id', student.id)
+            .eq('status', 'active')
+            .limit(1)
+            .maybeSingle();
+
+          const courseName = enrollmentData?.class_groups?.courses?.name || 'Sem matrícula ativa';
+          return { ...student, course_name: courseName };
+        })
+      );
+
       // Only set guardian and students if all validations passed
       setGuardian(guardianData);
-      setStudents(studentsData);
+      setStudents(studentsWithCourses);
 
       // If only one student, select automatically
-      if (studentsData.length === 1) {
-        selectStudent(studentsData[0], guardianData.id);
+      if (studentsWithCourses.length === 1) {
+        selectStudent(studentsWithCourses[0], guardianData.id);
       }
     } catch (error) {
       console.error('Error searching by CPF:', error);
@@ -484,18 +505,27 @@ export default function ParentReportsPortal() {
           {students.length > 1 ? 'Escolher outro aluno' : 'Voltar'}
         </Button>
 
-        {/* Student Header */}
+        {/* Student Header with Guardian and Course Info */}
         <Card className="shadow-lg border-0 mb-6 overflow-hidden">
           <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-6 text-white">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center text-2xl font-bold">
                 {selectedStudent?.name.charAt(0)}
               </div>
-              <div>
-                <h1 className="text-2xl font-bold">{selectedStudent?.name}</h1>
-                <p className="text-white/80">
-                  {calculateAge(selectedStudent?.birth_date || '')} anos • {reports.length} relatório(s)
+              <div className="flex-1">
+                <p className="text-white/70 text-sm mb-1">
+                  Responsável: <span className="font-medium text-white">{guardian?.name}</span>
                 </p>
+                <h1 className="text-2xl font-bold">{selectedStudent?.name}</h1>
+                <div className="flex flex-wrap items-center gap-2 mt-1">
+                  <Badge className="bg-white/20 text-white border-0 hover:bg-white/30">
+                    <GraduationCap className="w-3 h-3 mr-1" />
+                    {selectedStudent?.course_name || 'Sem matrícula'}
+                  </Badge>
+                  <span className="text-white/70 text-sm">
+                    • {calculateAge(selectedStudent?.birth_date || '')} anos • {reports.length} relatório(s)
+                  </span>
+                </div>
               </div>
             </div>
           </div>
