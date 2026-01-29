@@ -439,7 +439,7 @@ export default function ReportApprovalTab() {
 
       toast({
         title: 'Relatório aprovado',
-        description: 'O relatório foi liberado para o portal dos pais',
+        description: 'O relatório foi liberado para o portal de acompanhamento familiar',
       });
 
       // Send automatic notification if enabled
@@ -731,7 +731,7 @@ export default function ReportApprovalTab() {
         <CardHeader>
           <CardTitle>Aprovação de Relatórios</CardTitle>
           <CardDescription>
-            Revise e aprove os relatórios antes de liberá-los para o portal dos pais
+            Revise e aprove os relatórios antes de liberá-los para o portal de acompanhamento familiar
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -368,7 +368,7 @@ export default function ParentReportsPortal() {
                 <GraduationCap className="w-8 h-8 text-white" />
               </div>
             )}
-            <CardTitle className="text-2xl font-bold text-gray-800">Portal dos Pais</CardTitle>
+            <CardTitle className="text-2xl font-bold text-gray-800">Portal de Acompanhamento Familiar</CardTitle>
             <CardDescription className="text-gray-600">
               Acesse os relatórios de acompanhamento do seu filho
             </CardDescription>

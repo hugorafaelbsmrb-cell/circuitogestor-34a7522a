@@ -11,7 +11,7 @@ export default function PedagogicalAnalysis() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Análise Pedagógica</h1>
           <p className="text-muted-foreground">
-            Revise e aprove relatórios de alunos antes de liberá-los para o portal dos pais
+            Revise e aprove relatórios de alunos antes de liberá-los para o portal de acompanhamento familiar
           </p>
         </div>
       </div>

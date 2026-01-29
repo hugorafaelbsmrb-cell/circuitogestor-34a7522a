@@ -96,7 +96,7 @@ O relatório pedagógico de *{nome_aluno}* já está disponível! 📚
 📅 Data: {data_relatorio}
 📝 {titulo_relatorio}
 
-Acesse o portal dos pais para visualizar o relatório completo e acompanhar o desenvolvimento do seu filho(a).
+Acesse o portal de acompanhamento familiar para visualizar o relatório completo e acompanhar o desenvolvimento do seu filho(a).
 
 Atenciosamente,
 *{nome_escola}*`;
