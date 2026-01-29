@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   CheckCircle, XCircle, Eye, Loader2, RefreshCw, Clock, AlertTriangle, Search, Filter,
-  Send, Bell, BellOff, BookOpen, MessageSquare, CloudDownload, Database
+  Send, Bell, BellOff, BookOpen, MessageSquare, CloudDownload, Database, Image
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,11 +15,13 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import ReportImageManager from '@/components/reports/ReportImageManager';
 
 const EXTERNAL_API_URL = 'https://uvnkqzwzsokyonxonzot.supabase.co/functions/v1/teacher-api/reports';
 const EXTERNAL_API_KEY = 'teacher_api_circuitokids_2025';
@@ -37,6 +39,7 @@ interface ReportForApproval {
   notification_sent_at: string | null;
   read_at: string | null;
   read_by_guardian: boolean | null;
+  images?: string[];
   source?: 'local' | 'external';
   turma?: string;
   week_start?: string;
@@ -118,6 +121,7 @@ export default function ReportApprovalTab() {
           notification_sent_at,
           read_at,
           read_by_guardian,
+          images,
           student:students(id, name, guardian:guardians(id, name, phone)),
           teacher:teachers(id, name)
         `)
@@ -134,6 +138,7 @@ export default function ReportApprovalTab() {
       const mapped = (data || []).map(item => ({
         ...item,
         source: 'local' as const,
+        images: (item.images as string[] | null) || [],
         student: item.student as any,
         teacher: item.teacher as { id: string; name: string } | null,
       }));
@@ -971,6 +976,22 @@ export default function ReportApprovalTab() {
                     {selectedReport.content}
                   </div>
                 </div>
+              )}
+
+              {/* Image Manager - Only show for local reports that are approved or pending */}
+              {selectedReport.source === 'local' && (
+                <>
+                  <Separator />
+                  <ReportImageManager
+                    reportId={selectedReport.id}
+                    images={selectedReport.images || []}
+                    onImagesUpdate={(newImages) => {
+                      setSelectedReport({ ...selectedReport, images: newImages });
+                      fetchLocalReports();
+                    }}
+                    isReadOnly={selectedReport.approval_status === 'rejected'}
+                  />
+                </>
               )}
             </div>
           )}
