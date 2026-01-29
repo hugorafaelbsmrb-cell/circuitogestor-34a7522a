@@ -6,6 +6,7 @@ import { useLastRoute } from '@/hooks/useLastRoute';
 import { WhatsAppNotificationListener } from '@/components/notifications/WhatsAppNotificationListener';
 import { PreEnrollmentNotificationListener } from '@/components/notifications/PreEnrollmentNotificationListener';
 import { CanteenNotificationListener } from '@/components/notifications/CanteenNotificationListener';
+import { ReportCommentNotificationListener } from '@/components/notifications/ReportCommentNotificationListener';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -30,6 +31,9 @@ export function MainLayout({ children }: MainLayoutProps) {
       
       {/* Global canteen consumption notifications */}
       <CanteenNotificationListener />
+      
+      {/* Global report comment notifications */}
+      <ReportCommentNotificationListener />
       
       {/* Mobile Header */}
       <MobileHeader onMenuClick={() => setSidebarOpen(true)} />
