@@ -146,13 +146,13 @@ export function DropboxConfigCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Cloud className="w-5 h-5" />
-          Dropbox
+          Armazenamento em Nuvem
           {isConfigured && (
-            <CheckCircle className="w-4 h-4 text-green-500" />
+            <CheckCircle className="w-4 h-4 text-[hsl(var(--success))]" />
           )}
         </CardTitle>
         <CardDescription>
-          Configure o token de acesso do Dropbox para upload de imagens nos relatórios
+          Configure o token de acesso para upload de imagens nos relatórios pedagógicos
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -186,7 +186,7 @@ export function DropboxConfigCard() {
         <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-2">
           <p className="font-medium flex items-center gap-2">
             <AlertCircle className="w-4 h-4" />
-            Como obter o token:
+            Como obter o token (Dropbox):
           </p>
           <ol className="list-decimal list-inside text-muted-foreground space-y-1">
             <li>
