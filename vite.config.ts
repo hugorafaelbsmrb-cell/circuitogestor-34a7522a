@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => ({
         display: "standalone",
         orientation: "portrait-primary",
         scope: "/",
-        start_url: "/",
+        start_url: "/cantina",
         icons: [
           {
             src: "/pwa-192x192.png",
