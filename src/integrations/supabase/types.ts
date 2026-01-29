@@ -1575,9 +1575,13 @@ export type Database = {
       }
       student_reports: {
         Row: {
+          approval_status: string | null
+          approved_at: string | null
+          approved_by: string | null
           content: string
           created_at: string
           id: string
+          rejection_reason: string | null
           report_date: string
           report_type: string | null
           sent_at: string | null
@@ -1588,9 +1592,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           content: string
           created_at?: string
           id?: string
+          rejection_reason?: string | null
           report_date?: string
           report_type?: string | null
           sent_at?: string | null
@@ -1601,9 +1609,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          approval_status?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           content?: string
           created_at?: string
           id?: string
+          rejection_reason?: string | null
           report_date?: string
           report_type?: string | null
           sent_at?: string | null
@@ -1614,6 +1626,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "student_reports_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "student_reports_student_id_fkey"
             columns: ["student_id"]

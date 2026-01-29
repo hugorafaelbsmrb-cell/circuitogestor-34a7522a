@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Loader2, User, Phone, Mail, GraduationCap, Key, Eye, EyeOff, Printer, Copy, Check, BookOpen, TrendingUp, FileText } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, User, Phone, Mail, GraduationCap, Key, Eye, EyeOff, Printer, Copy, Check, BookOpen, TrendingUp, FileText, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +40,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import StudentReportsTab from '@/components/teachers/StudentReportsTab';
+import ReportApprovalTab from '@/components/teachers/ReportApprovalTab';
 
 interface Teacher {
   id: string;
@@ -536,6 +537,10 @@ export default function Teachers() {
             <FileText className="h-4 w-4" />
             Relatórios
           </TabsTrigger>
+          <TabsTrigger value="approval" className="flex items-center gap-1">
+            <ClipboardCheck className="h-4 w-4" />
+            Aprovação
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="teachers">
@@ -900,6 +905,10 @@ export default function Teachers() {
 
         <TabsContent value="reports">
           <StudentReportsTab />
+        </TabsContent>
+
+        <TabsContent value="approval">
+          <ReportApprovalTab />
         </TabsContent>
       </Tabs>
 

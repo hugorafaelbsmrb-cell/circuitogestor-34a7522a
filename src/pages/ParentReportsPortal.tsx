@@ -144,39 +144,92 @@ export default function ParentReportsPortal() {
     setLoadingReports(true);
 
     try {
-      // Fetch reports from external API
-      const response = await fetch(`${REPORTS_API_URL}?student_id=${student.id}`, {
-        headers: {
-          'x-api-key': API_KEY,
-        },
-      });
+      let allReports: Report[] = [];
 
-      if (response.ok) {
-        const data = await response.json();
-        const reportsData = data.data || data || [];
-        setReports(reportsData);
+      // First, fetch approved reports from local database
+      const { data: localReports, error: localError } = await supabase
+        .from('student_reports')
+        .select(`
+          id,
+          title,
+          content,
+          report_date,
+          report_type,
+          teacher:teachers(name)
+        `)
+        .eq('student_id', student.id)
+        .eq('approval_status', 'approved')
+        .order('report_date', { ascending: false });
 
-        // Fetch existing comments for these reports
-        const gId = guardianId || guardian?.id;
-        if (gId && reportsData.length > 0) {
-          const reportIds = reportsData.map((r: Report) => r.id);
-          const { data: commentsData } = await supabase
-            .from('report_parent_comments')
-            .select('*')
-            .eq('guardian_id', gId)
-            .in('report_id', reportIds);
+      if (!localError && localReports) {
+        allReports = localReports.map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          content: r.content,
+          report_date: r.report_date,
+          report_type: r.report_type || 'pedagogical',
+          teacher_name: r.teacher?.name,
+          student_name: student.name,
+        }));
+      }
 
-          if (commentsData) {
-            const commentsMap: Record<string, ParentComment> = {};
-            commentsData.forEach((c: ParentComment) => {
-              commentsMap[c.report_id] = c;
-            });
-            setComments(commentsMap);
-          }
+      // Then, fetch reports from external API (these are already considered approved)
+      try {
+        const response = await fetch(`${REPORTS_API_URL}?student_id=${student.id}`, {
+          headers: {
+            'x-api-key': API_KEY,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const externalReports = (data.data || data || []).map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            content: r.content,
+            report_date: r.report_date,
+            report_type: r.report_type || 'pedagogical',
+            teacher_name: r.teacher_name,
+            student_name: student.name,
+          }));
+          
+          // Merge reports, avoiding duplicates by ID
+          const existingIds = new Set(allReports.map(r => r.id));
+          externalReports.forEach((r: Report) => {
+            if (!existingIds.has(r.id)) {
+              allReports.push(r);
+            }
+          });
         }
-      } else {
-        console.error('Failed to fetch reports');
-        setReports([]);
+      } catch (apiError) {
+        console.error('Error fetching external reports:', apiError);
+        // Continue with local reports only
+      }
+
+      // Sort all reports by date
+      allReports.sort((a, b) => 
+        new Date(b.report_date).getTime() - new Date(a.report_date).getTime()
+      );
+
+      setReports(allReports);
+
+      // Fetch existing comments for these reports
+      const gId = guardianId || guardian?.id;
+      if (gId && allReports.length > 0) {
+        const reportIds = allReports.map((r: Report) => r.id);
+        const { data: commentsData } = await supabase
+          .from('report_parent_comments')
+          .select('*')
+          .eq('guardian_id', gId)
+          .in('report_id', reportIds);
+
+        if (commentsData) {
+          const commentsMap: Record<string, ParentComment> = {};
+          commentsData.forEach((c: ParentComment) => {
+            commentsMap[c.report_id] = c;
+          });
+          setComments(commentsMap);
+        }
       }
     } catch (error) {
       console.error('Error fetching reports:', error);
