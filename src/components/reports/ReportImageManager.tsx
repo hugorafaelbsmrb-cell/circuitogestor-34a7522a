@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Image, Plus, Trash2, X, ExternalLink, Loader2, Link as LinkIcon } from 'lucide-react';
+import { useDropboxUpload } from '@/hooks/useDropboxUpload';
+import { Image, Plus, X, Loader2, Link as LinkIcon, Upload, Cloud, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ReportImageManagerProps {
@@ -17,13 +20,8 @@ interface ReportImageManagerProps {
 
 // Converts Google Drive share link to direct image URL
 function convertGoogleDriveUrl(url: string): string {
-  // Pattern 1: https://drive.google.com/file/d/FILE_ID/view
-  // Pattern 2: https://drive.google.com/open?id=FILE_ID
-  // Pattern 3: https://drive.google.com/uc?id=FILE_ID
-  
   let fileId = '';
   
-  // Try to extract file ID from different URL patterns
   const fileIdMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
   if (fileIdMatch) {
     fileId = fileIdMatch[1];
@@ -35,16 +33,14 @@ function convertGoogleDriveUrl(url: string): string {
   }
 
   if (fileId) {
-    // Use Google Drive direct link format
     return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
   }
   
-  // If it's not a Google Drive URL, return as-is
   return url;
 }
 
-// Validates if URL is a valid Google Drive link
-function isValidGoogleDriveUrl(url: string): boolean {
+// Validates if URL is a valid link
+function isValidUrl(url: string): boolean {
   return url.includes('drive.google.com') || url.startsWith('http');
 }
 
@@ -55,25 +51,36 @@ export default function ReportImageManager({
   isReadOnly = false 
 }: ReportImageManagerProps) {
   const { toast } = useToast();
+  const { uploadFile, isUploading, uploadProgress, checkConfiguration, isConfigured } = useDropboxUpload();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('dropbox');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  const handleAddImage = async () => {
+  useEffect(() => {
+    if (isAddModalOpen) {
+      checkConfiguration();
+    }
+  }, [isAddModalOpen]);
+
+  const handleAddImageUrl = async () => {
     if (!newImageUrl.trim()) {
       toast({
         title: 'URL obrigatória',
-        description: 'Informe o link de compartilhamento do Google Drive',
+        description: 'Informe o link da imagem',
         variant: 'destructive',
       });
       return;
     }
 
-    if (!isValidGoogleDriveUrl(newImageUrl)) {
+    if (!isValidUrl(newImageUrl)) {
       toast({
         title: 'URL inválida',
-        description: 'Informe um link válido do Google Drive ou uma URL de imagem',
+        description: 'Informe um link válido',
         variant: 'destructive',
       });
       return;
@@ -81,7 +88,9 @@ export default function ReportImageManager({
 
     setIsLoading(true);
     try {
-      const directUrl = convertGoogleDriveUrl(newImageUrl.trim());
+      const directUrl = newImageUrl.includes('drive.google.com') 
+        ? convertGoogleDriveUrl(newImageUrl.trim())
+        : newImageUrl.trim();
       const updatedImages = [...images, directUrl];
 
       const { error } = await supabase
@@ -104,6 +113,90 @@ export default function ReportImageManager({
       toast({
         title: 'Erro ao adicionar imagem',
         description: 'Não foi possível salvar a imagem',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const imageFiles = files.filter(file => file.type.startsWith('image/'));
+    
+    if (imageFiles.length !== files.length) {
+      toast({
+        title: 'Arquivos inválidos',
+        description: 'Apenas imagens são permitidas',
+        variant: 'destructive',
+      });
+    }
+
+    // Limit file size to 10MB
+    const validFiles = imageFiles.filter(file => {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: 'Arquivo muito grande',
+          description: `${file.name} excede o limite de 10MB`,
+          variant: 'destructive',
+        });
+        return false;
+      }
+      return true;
+    });
+
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const removeSelectedFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDropboxUpload = async () => {
+    if (selectedFiles.length === 0) {
+      toast({
+        title: 'Nenhum arquivo selecionado',
+        description: 'Selecione ao menos uma imagem para enviar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (const file of selectedFiles) {
+        const result = await uploadFile(file, '/relatorios');
+        if (result.success && result.file?.url) {
+          uploadedUrls.push(result.file.url);
+        }
+      }
+
+      if (uploadedUrls.length > 0) {
+        const updatedImages = [...images, ...uploadedUrls];
+
+        const { error } = await supabase
+          .from('student_reports')
+          .update({ images: updatedImages })
+          .eq('id', reportId);
+
+        if (error) throw error;
+
+        onImagesUpdate(updatedImages);
+        setSelectedFiles([]);
+        setIsAddModalOpen(false);
+
+        toast({
+          title: 'Upload concluído',
+          description: `${uploadedUrls.length} imagem(s) adicionada(s) ao relatório`,
+        });
+      }
+    } catch (error) {
+      console.error('Error uploading to Dropbox:', error);
+      toast({
+        title: 'Erro no upload',
+        description: 'Não foi possível completar o upload',
         variant: 'destructive',
       });
     } finally {
@@ -143,9 +236,11 @@ export default function ReportImageManager({
 
   const handleUrlChange = (url: string) => {
     setNewImageUrl(url);
-    // Preview the converted URL
     if (url.trim()) {
-      setPreviewUrl(convertGoogleDriveUrl(url.trim()));
+      const converted = url.includes('drive.google.com') 
+        ? convertGoogleDriveUrl(url.trim())
+        : url.trim();
+      setPreviewUrl(converted);
     } else {
       setPreviewUrl(null);
     }
@@ -210,79 +305,172 @@ export default function ReportImageManager({
           <Image className="w-8 h-8 mx-auto mb-2 opacity-50" />
           <p>Nenhuma imagem adicionada</p>
           {!isReadOnly && (
-            <p className="text-xs mt-1">Clique em "Adicionar" para vincular fotos do Google Drive</p>
+            <p className="text-xs mt-1">Clique em "Adicionar" para vincular fotos</p>
           )}
         </div>
       )}
 
       {/* Add Image Modal */}
       <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Image className="w-5 h-5" />
-              Adicionar Imagem do Google Drive
+              Adicionar Imagem
             </DialogTitle>
             <DialogDescription>
-              Cole o link de compartilhamento da imagem do Google Drive
+              Faça upload de imagens pelo Dropbox ou cole um link externo
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="imageUrl">Link do Google Drive</Label>
-              <div className="relative">
-                <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="imageUrl"
-                  value={newImageUrl}
-                  onChange={(e) => handleUrlChange(e.target.value)}
-                  placeholder="https://drive.google.com/file/d/.../view"
-                  className="pl-9"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Certifique-se de que o arquivo está compartilhado como "Qualquer pessoa com o link"
-              </p>
-            </div>
 
-            {previewUrl && (
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="dropbox" className="flex items-center gap-2">
+                <Cloud className="w-4 h-4" />
+                Dropbox
+              </TabsTrigger>
+              <TabsTrigger value="link" className="flex items-center gap-2">
+                <LinkIcon className="w-4 h-4" />
+                Link Externo
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="dropbox" className="space-y-4 mt-4">
+              {isConfigured === false && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-medium text-amber-800">Dropbox não configurado</p>
+                    <p className="text-amber-700">
+                      Configure o token do Dropbox em Configurações → APIs para habilitar o upload.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                <Button
+                  variant="outline"
+                  className="w-full h-24 border-dashed"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isConfigured === false || isUploading}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <Upload className="w-8 h-8 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      Clique para selecionar imagens
+                    </span>
+                  </div>
+                </Button>
+
+                {selectedFiles.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Arquivos selecionados ({selectedFiles.length})</Label>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {selectedFiles.map((file, index) => (
+                        <div 
+                          key={index} 
+                          className="flex items-center justify-between bg-muted/50 rounded px-2 py-1"
+                        >
+                          <span className="text-sm truncate flex-1">{file.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeSelectedFile(index)}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {isUploading && (
+                  <div className="space-y-2">
+                    <Label>Enviando...</Label>
+                    <Progress value={uploadProgress} className="h-2" />
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleDropboxUpload} 
+                  disabled={isLoading || isUploading || selectedFiles.length === 0 || isConfigured === false}
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-2" />
+                  )}
+                  Enviar ({selectedFiles.length})
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+
+            <TabsContent value="link" className="space-y-4 mt-4">
               <div className="space-y-2">
-                <Label>Pré-visualização</Label>
-                <div className="border rounded-lg p-2 bg-muted/30">
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="max-h-40 mx-auto rounded object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
+                <Label htmlFor="imageUrl">Link da Imagem</Label>
+                <div className="relative">
+                  <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="imageUrl"
+                    value={newImageUrl}
+                    onChange={(e) => handleUrlChange(e.target.value)}
+                    placeholder="https://..."
+                    className="pl-9"
                   />
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Cole o link direto da imagem ou link do Google Drive
+                </p>
               </div>
-            )}
 
-            <div className="bg-muted/50 rounded-lg p-3 text-sm space-y-1">
-              <p className="font-medium text-foreground">Como compartilhar:</p>
-              <ol className="list-decimal list-inside text-muted-foreground space-y-1">
-                <li>Abra a imagem no Google Drive</li>
-                <li>Clique em "Compartilhar" → "Qualquer pessoa com o link"</li>
-                <li>Copie o link e cole aqui</li>
-              </ol>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAddImage} disabled={isLoading || !newImageUrl.trim()}>
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Plus className="w-4 h-4 mr-2" />
+              {previewUrl && (
+                <div className="space-y-2">
+                  <Label>Pré-visualização</Label>
+                  <div className="border rounded-lg p-2 bg-muted/30">
+                    <img
+                      src={previewUrl}
+                      alt="Preview"
+                      className="max-h-40 mx-auto rounded object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
               )}
-              Adicionar
-            </Button>
-          </DialogFooter>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleAddImageUrl} disabled={isLoading || !newImageUrl.trim()}>
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4 mr-2" />
+                  )}
+                  Adicionar
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
