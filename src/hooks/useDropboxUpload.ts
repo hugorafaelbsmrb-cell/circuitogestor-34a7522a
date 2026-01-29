@@ -119,33 +119,19 @@ export function useDropboxUpload() {
   const listFiles = async (folder: string = '/relatorios'): Promise<ListResult> => {
     try {
       const { data, error } = await supabase.functions.invoke('dropbox-upload', {
-        body: { folder },
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        body: { folder, action: 'list' },
       });
 
-      // Add query param for list action
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dropbox-upload?action=list`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ folder }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (result.error) {
-        return { success: false, error: result.error };
+      if (error) {
+        console.error('Error listing files:', error);
+        return { success: false, error: error.message };
       }
 
-      return { success: true, files: result.files || [] };
+      if (data?.error) {
+        return { success: false, error: data.error };
+      }
+
+      return { success: true, files: data.files || [] };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       return { success: false, error: errorMessage };
@@ -154,27 +140,26 @@ export function useDropboxUpload() {
 
   const deleteFile = async (path: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dropbox-upload?action=delete`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ path }),
-        }
-      );
+      const { data, error } = await supabase.functions.invoke('dropbox-upload', {
+        body: { path, action: 'delete' },
+      });
 
-      const result = await response.json();
-
-      if (result.error) {
+      if (error) {
         toast({
           title: 'Erro ao deletar',
-          description: result.error,
+          description: error.message,
           variant: 'destructive',
         });
-        return { success: false, error: result.error };
+        return { success: false, error: error.message };
+      }
+
+      if (data?.error) {
+        toast({
+          title: 'Erro ao deletar',
+          description: data.error,
+          variant: 'destructive',
+        });
+        return { success: false, error: data.error };
       }
 
       toast({
