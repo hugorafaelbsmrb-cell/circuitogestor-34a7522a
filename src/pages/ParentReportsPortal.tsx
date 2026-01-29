@@ -6,11 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
-import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReportImageGallery from '@/components/reports/ReportImageGallery';
@@ -60,7 +59,6 @@ export default function ParentReportsPortal() {
   const [newComments, setNewComments] = useState<Record<string, string>>({});
   const [savingComment, setSavingComment] = useState<string | null>(null);
   const [loadingReports, setLoadingReports] = useState(false);
-  const [hidingReport, setHidingReport] = useState<string | null>(null);
   const [expandedReports, setExpandedReports] = useState<Record<string, boolean>>({});
 
   const formatCPF = (value: string) => {
@@ -323,35 +321,6 @@ export default function ParentReportsPortal() {
     }
   };
 
-  const hideReport = async (reportId: string) => {
-    setHidingReport(reportId);
-    try {
-      const { error } = await supabase
-        .from('student_reports')
-        .update({ hidden_from_portal: true })
-        .eq('id', reportId);
-
-      if (error) throw error;
-
-      // Remove from local state
-      setReports(prev => prev.filter(r => r.id !== reportId));
-      
-      toast({
-        title: 'Relatório ocultado',
-        description: 'O relatório foi removido da sua visualização',
-      });
-    } catch (error) {
-      console.error('Error hiding report:', error);
-      toast({
-        title: 'Erro ao ocultar',
-        description: 'Não foi possível ocultar o relatório. Tente novamente.',
-        variant: 'destructive',
-      });
-    } finally {
-      setHidingReport(null);
-    }
-  };
-
   const goBack = () => {
     if (selectedStudent) {
       setSelectedStudent(null);
@@ -581,40 +550,6 @@ export default function ParentReportsPortal() {
                             </CardDescription>
                           </div>
                           <div className="flex items-center gap-2">
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                                  disabled={hidingReport === report.id}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {hidingReport === report.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <EyeOff className="w-4 h-4" />
-                                  )}
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Ocultar relatório?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Este relatório será removido da sua visualização. A escola ainda poderá ver o relatório.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => hideReport(report.id)}
-                                    className="bg-red-500 hover:bg-red-600"
-                                  >
-                                    Ocultar
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
                             {isExpanded ? (
                               <ChevronUp className="w-5 h-5 text-gray-400" />
                             ) : (

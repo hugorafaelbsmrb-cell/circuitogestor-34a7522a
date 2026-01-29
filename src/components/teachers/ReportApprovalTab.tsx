@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   CheckCircle, XCircle, Eye, Loader2, RefreshCw, Clock, AlertTriangle, Search, Filter,
-  Send, Bell, BellOff, BookOpen, MessageSquare, CloudDownload, Database, Image
+  Send, Bell, BellOff, BookOpen, MessageSquare, CloudDownload, Database, Image, EyeOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,7 @@ interface ReportForApproval {
   read_at: string | null;
   read_by_guardian: boolean | null;
   images?: string[];
+  hidden_from_portal?: boolean;
   source?: 'local' | 'external';
   turma?: string;
   week_start?: string;
@@ -82,6 +83,7 @@ export default function ReportApprovalTab() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSendingNotification, setIsSendingNotification] = useState<string | null>(null);
+  const [isHidingReport, setIsHidingReport] = useState<string | null>(null);
   const [autoNotifyEnabled, setAutoNotifyEnabled] = useState(false);
   const [isTogglingAuto, setIsTogglingAuto] = useState(false);
 
@@ -122,6 +124,7 @@ export default function ReportApprovalTab() {
           read_at,
           read_by_guardian,
           images,
+          hidden_from_portal,
           student:students(id, name, guardian:guardians(id, name, phone)),
           teacher:teachers(id, name)
         `)
@@ -139,6 +142,7 @@ export default function ReportApprovalTab() {
         ...item,
         source: 'local' as const,
         images: (item.images as string[] | null) || [],
+        hidden_from_portal: item.hidden_from_portal ?? false,
         student: item.student as any,
         teacher: item.teacher as { id: string; name: string } | null,
       }));
@@ -558,6 +562,71 @@ export default function ReportApprovalTab() {
     }
   };
 
+  const hideReportFromPortal = async (report: ReportForApproval) => {
+    if (report.source === 'external') {
+      toast({
+        title: 'Operação não permitida',
+        description: 'Importe o relatório externo antes de ocultar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsHidingReport(report.id);
+    try {
+      const { error } = await supabase
+        .from('student_reports')
+        .update({ hidden_from_portal: true })
+        .eq('id', report.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Relatório ocultado',
+        description: 'O relatório não aparecerá mais no portal dos pais',
+      });
+
+      fetchLocalReports();
+    } catch (error) {
+      console.error('Error hiding report:', error);
+      toast({
+        title: 'Erro ao ocultar',
+        description: 'Não foi possível ocultar o relatório',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsHidingReport(null);
+    }
+  };
+
+  const showReportInPortal = async (report: ReportForApproval) => {
+    setIsHidingReport(report.id);
+    try {
+      const { error } = await supabase
+        .from('student_reports')
+        .update({ hidden_from_portal: false })
+        .eq('id', report.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Relatório visível',
+        description: 'O relatório agora aparecerá no portal dos pais',
+      });
+
+      fetchLocalReports();
+    } catch (error) {
+      console.error('Error showing report:', error);
+      toast({
+        title: 'Erro ao exibir',
+        description: 'Não foi possível exibir o relatório',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsHidingReport(null);
+    }
+  };
+
   const openRejectModal = (report: ReportForApproval) => {
     setSelectedReport(report);
     setRejectionReason('');
@@ -821,6 +890,12 @@ export default function ReportApprovalTab() {
                       <div className="flex flex-wrap gap-1">
                         {getApprovalBadge(report.approval_status)}
                         {getNotificationBadge(report)}
+                        {report.hidden_from_portal && (
+                          <Badge variant="outline" className="text-muted-foreground border-muted-foreground/50">
+                            <EyeOff className="w-3 h-3 mr-1" />
+                            Oculto
+                          </Badge>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -868,6 +943,39 @@ export default function ReportApprovalTab() {
                                 </Button>
                               </TooltipTrigger>
                               <TooltipContent>Enviar notificação WhatsApp</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
+                        {report.approval_status === 'approved' && report.source === 'local' && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className={report.hidden_from_portal 
+                                    ? "text-green-600 hover:text-green-700 hover:bg-green-50" 
+                                    : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                  }
+                                  onClick={() => report.hidden_from_portal 
+                                    ? showReportInPortal(report) 
+                                    : hideReportFromPortal(report)
+                                  }
+                                  disabled={isHidingReport === report.id}
+                                >
+                                  {isHidingReport === report.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : report.hidden_from_portal ? (
+                                    <Eye className="w-4 h-4" />
+                                  ) : (
+                                    <EyeOff className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                {report.hidden_from_portal ? 'Exibir no portal' : 'Ocultar do portal'}
+                              </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
                         )}
