@@ -207,9 +207,9 @@ export default function ReportApprovalTab() {
               report_date: apiReport.week?.start || apiReport.created_at,
               report_type: 'weekly',
               status: apiReport.status,
-              // External reports that are not imported yet are pending
-              approval_status: 'pending',
-              rejection_reason: null,
+              // Use approval_status from API if available, otherwise default to pending
+              approval_status: apiReport.approval_status || 'pending',
+              rejection_reason: apiReport.rejection_reason || null,
               created_at: apiReport.created_at,
               notification_sent_at: null,
               read_at: null,
@@ -241,9 +241,9 @@ export default function ReportApprovalTab() {
             report_date: apiReport.report_date,
             report_type: apiReport.report_type,
             status: apiReport.status,
-            // External reports that are not imported yet are pending
-            approval_status: 'pending',
-            rejection_reason: null,
+            // Use approval_status from API if available, otherwise default to pending
+            approval_status: apiReport.approval_status || 'pending',
+            rejection_reason: apiReport.rejection_reason || null,
             created_at: apiReport.created_at,
             notification_sent_at: null,
             read_at: null,
@@ -267,9 +267,9 @@ export default function ReportApprovalTab() {
         // Only show external reports that haven't been imported yet
         let allExternalReports = [...weeklyReports, ...pedagogicalReports];
         
-        // Filter by status only for external (they're always pending)
-        if (statusFilter !== 'all' && statusFilter !== 'pending') {
-          allExternalReports = []; // External reports are only pending
+        // Filter by status if not 'all'
+        if (statusFilter !== 'all') {
+          allExternalReports = allExternalReports.filter(r => r.approval_status === statusFilter);
         }
 
         setExternalReports(allExternalReports);
@@ -379,8 +379,31 @@ export default function ReportApprovalTab() {
       
       let reportId = report.id;
       
-      // If external report, import it to local database first
+      // If external report, call external API to approve first
       if (report.source === 'external') {
+        console.log('📤 Chamando API externa para aprovar relatório...');
+        
+        const approveResponse = await fetch(`${EXTERNAL_API_URL}/approve`, {
+          method: 'POST',
+          headers: {
+            'x-api-key': EXTERNAL_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            report_id: report.id,
+            approved_by: user?.email || user?.id,
+          }),
+        });
+
+        if (!approveResponse.ok) {
+          const errorData = await approveResponse.json();
+          throw new Error(errorData.error || `Erro na API externa: ${approveResponse.status}`);
+        }
+
+        const approveData = await approveResponse.json();
+        console.log('✅ Aprovação na API externa:', approveData);
+        
+        // Now import to local database
         console.log('📥 Importando relatório externo para o banco local...');
         
         // Check if report already exists locally
@@ -529,32 +552,69 @@ export default function ReportApprovalTab() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      const { error } = await supabase
-        .from('student_reports')
-        .update({
-          approval_status: 'rejected',
-          approved_at: null,
-          approved_by: user?.id,
-          rejection_reason: rejectionReason.trim(),
-        })
-        .eq('id', selectedReport.id);
+      // If external report, call external API to reject
+      if (selectedReport.source === 'external') {
+        console.log('📤 Chamando API externa para rejeitar relatório...');
+        
+        const rejectResponse = await fetch(`${EXTERNAL_API_URL}/reject`, {
+          method: 'POST',
+          headers: {
+            'x-api-key': EXTERNAL_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            report_id: selectedReport.id,
+            rejected_by: user?.email || user?.id,
+            feedback: rejectionReason.trim(),
+          }),
+        });
 
-      if (error) throw error;
+        if (!rejectResponse.ok) {
+          const errorData = await rejectResponse.json();
+          throw new Error(errorData.error || `Erro na API externa: ${rejectResponse.status}`);
+        }
 
-      toast({
-        title: 'Relatório rejeitado',
-        description: 'O professor será notificado para revisão',
-      });
+        const rejectData = await rejectResponse.json();
+        console.log('✅ Rejeição na API externa:', rejectData);
 
-      setRejectionReason('');
-      setIsRejectModalOpen(false);
-      setIsViewModalOpen(false);
-      fetchLocalReports();
-    } catch (error) {
+        toast({
+          title: 'Relatório rejeitado',
+          description: 'O professor será notificado para revisão',
+        });
+
+        setRejectionReason('');
+        setIsRejectModalOpen(false);
+        setIsViewModalOpen(false);
+        fetchExternalReports(); // Refresh external reports
+      } else {
+        // Local report - update in database
+        const { error } = await supabase
+          .from('student_reports')
+          .update({
+            approval_status: 'rejected',
+            approved_at: null,
+            approved_by: user?.id,
+            rejection_reason: rejectionReason.trim(),
+          })
+          .eq('id', selectedReport.id);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Relatório rejeitado',
+          description: 'O professor será notificado para revisão',
+        });
+
+        setRejectionReason('');
+        setIsRejectModalOpen(false);
+        setIsViewModalOpen(false);
+        fetchLocalReports();
+      }
+    } catch (error: any) {
       console.error('Error rejecting report:', error);
       toast({
         title: 'Erro ao rejeitar',
-        description: 'Não foi possível rejeitar o relatório',
+        description: error.message || 'Não foi possível rejeitar o relatório',
         variant: 'destructive',
       });
     } finally {
