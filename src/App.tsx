@@ -36,6 +36,7 @@ import Inventory from "./pages/Inventory";
 import LMSStudents from "./pages/LMSStudents";
 import SorobanStudents from "./pages/SorobanStudents";
 import Teachers from "./pages/Teachers";
+import PedagogicalAnalysis from "./pages/PedagogicalAnalysis";
 import CanteenPublic from "./pages/CanteenPublic";
 import CanteenAdminPage from "./pages/CanteenAdmin";
 import InstallApp from "./pages/InstallApp";
@@ -117,6 +118,7 @@ const App = () => (
                       <Route path="/lms-alunos" element={<LMSStudents />} />
                       <Route path="/soroban-alunos" element={<SorobanStudents />} />
                       <Route path="/professores" element={<Teachers />} />
+                      <Route path="/analise-pedagogica" element={<PedagogicalAnalysis />} />
                       <Route path="/usuarios" element={<Users />} />
                       <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
                       <Route path="/envio-massa" element={<BulkMessages />} />
