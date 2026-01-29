@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
-import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, ChevronDown, ChevronUp, Calendar, LogOut } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, isSameMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReportImageGallery from '@/components/reports/ReportImageGallery';
@@ -357,10 +357,18 @@ export default function ParentReportsPortal() {
       setComments({});
       setNewComments({});
     } else if (guardian) {
-      setGuardian(null);
-      setStudents([]);
-      setCpf('');
+      handleLogout();
     }
+  };
+
+  const handleLogout = () => {
+    setGuardian(null);
+    setStudents([]);
+    setSelectedStudent(null);
+    setReports([]);
+    setComments({});
+    setNewComments({});
+    setCpf('');
   };
 
   const calculateAge = (birthDate: string) => {
@@ -446,14 +454,24 @@ export default function ParentReportsPortal() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 p-4">
         <div className="max-w-2xl mx-auto">
-          <Button
-            variant="ghost"
-            onClick={goBack}
-            className="mb-6 text-gray-600 hover:text-gray-800"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar
-          </Button>
+          <div className="flex justify-between items-center mb-6">
+            <Button
+              variant="ghost"
+              onClick={goBack}
+              className="text-gray-600 hover:text-gray-800"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleLogout}
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sair
+            </Button>
+          </div>
 
           <Card className="shadow-xl border-0">
             <CardHeader className="text-center">
@@ -496,14 +514,24 @@ export default function ParentReportsPortal() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 p-4">
       <div className="max-w-4xl mx-auto">
-        <Button
-          variant="ghost"
-          onClick={goBack}
-          className="mb-6 text-gray-600 hover:text-gray-800"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          {students.length > 1 ? 'Escolher outro aluno' : 'Voltar'}
-        </Button>
+        <div className="flex justify-between items-center mb-6">
+          <Button
+            variant="ghost"
+            onClick={goBack}
+            className="text-gray-600 hover:text-gray-800"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            {students.length > 1 ? 'Escolher outro aluno' : 'Voltar'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Sair
+          </Button>
+        </div>
 
         {/* Student Header with Guardian and Course Info */}
         <Card className="shadow-lg border-0 mb-6 overflow-hidden">
