@@ -1580,6 +1580,7 @@ export type Database = {
           approved_by: string | null
           content: string
           created_at: string
+          hidden_from_portal: boolean | null
           id: string
           images: string[] | null
           notification_sent_at: string | null
@@ -1601,6 +1602,7 @@ export type Database = {
           approved_by?: string | null
           content: string
           created_at?: string
+          hidden_from_portal?: boolean | null
           id?: string
           images?: string[] | null
           notification_sent_at?: string | null
@@ -1622,6 +1624,7 @@ export type Database = {
           approved_by?: string | null
           content?: string
           created_at?: string
+          hidden_from_portal?: boolean | null
           id?: string
           images?: string[] | null
           notification_sent_at?: string | null

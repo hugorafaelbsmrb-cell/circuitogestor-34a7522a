@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
-import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap } from 'lucide-react';
+import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReportImageGallery from '@/components/reports/ReportImageGallery';
@@ -58,6 +59,7 @@ export default function ParentReportsPortal() {
   const [newComments, setNewComments] = useState<Record<string, string>>({});
   const [savingComment, setSavingComment] = useState<string | null>(null);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [hidingReport, setHidingReport] = useState<string | null>(null);
 
   const formatCPF = (value: string) => {
     const numbers = value.replace(/\D/g, '');
@@ -184,7 +186,7 @@ export default function ParentReportsPortal() {
       let allReports: Report[] = [];
       const localReportIds: string[] = [];
 
-      // Fetch ONLY approved reports from local database
+      // Fetch ONLY approved reports from local database that are not hidden
       // External reports must be imported and approved before appearing here
       const { data: localReports, error: localError } = await supabase
         .from('student_reports')
@@ -199,6 +201,7 @@ export default function ParentReportsPortal() {
         `)
         .eq('student_id', student.id)
         .eq('approval_status', 'approved')
+        .neq('hidden_from_portal', true)
         .order('report_date', { ascending: false });
 
       if (!localError && localReports) {
@@ -315,6 +318,35 @@ export default function ParentReportsPortal() {
       });
     } finally {
       setSavingComment(null);
+    }
+  };
+
+  const hideReport = async (reportId: string) => {
+    setHidingReport(reportId);
+    try {
+      const { error } = await supabase
+        .from('student_reports')
+        .update({ hidden_from_portal: true })
+        .eq('id', reportId);
+
+      if (error) throw error;
+
+      // Remove from local state
+      setReports(prev => prev.filter(r => r.id !== reportId));
+      
+      toast({
+        title: 'Relatório ocultado',
+        description: 'O relatório foi removido da sua visualização',
+      });
+    } catch (error) {
+      console.error('Error hiding report:', error);
+      toast({
+        title: 'Erro ao ocultar',
+        description: 'Não foi possível ocultar o relatório. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setHidingReport(null);
     }
   };
 
@@ -534,9 +566,44 @@ export default function ParentReportsPortal() {
                           )}
                         </CardDescription>
                       </div>
-                      <Badge variant={report.report_type === 'weekly' || report.report_type === 'semanal' ? 'default' : 'secondary'}>
-                        {report.report_type === 'weekly' || report.report_type === 'semanal' ? 'Semanal' : 'Pedagógico'}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={report.report_type === 'weekly' || report.report_type === 'semanal' ? 'default' : 'secondary'}>
+                          {report.report_type === 'weekly' || report.report_type === 'semanal' ? 'Semanal' : 'Pedagógico'}
+                        </Badge>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                              disabled={hidingReport === report.id}
+                            >
+                              {hidingReport === report.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <EyeOff className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Ocultar relatório?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Este relatório será removido da sua visualização. A escola ainda poderá ver o relatório.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => hideReport(report.id)}
+                                className="bg-red-500 hover:bg-red-600"
+                              >
+                                Ocultar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
