@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Eye, Loader2, RefreshCw, Clock, AlertTriangle, Search, Filter } from 'lucide-react';
+import { 
+  CheckCircle, XCircle, Eye, Loader2, RefreshCw, Clock, AlertTriangle, Search, Filter,
+  Send, Bell, BellOff, BookOpen, MessageSquare
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,8 +12,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -24,9 +30,17 @@ interface ReportForApproval {
   approval_status: string;
   rejection_reason: string | null;
   created_at: string;
+  notification_sent_at: string | null;
+  read_at: string | null;
+  read_by_guardian: boolean | null;
   student?: {
     id: string;
     name: string;
+    guardian?: {
+      id: string;
+      name: string;
+      phone: string;
+    } | null;
   } | null;
   teacher?: {
     id: string;
@@ -36,6 +50,7 @@ interface ReportForApproval {
 
 export default function ReportApprovalTab() {
   const { toast } = useToast();
+  const { isEnabled, refetch: refetchAutomation } = useAutomationSettings();
   const [reports, setReports] = useState<ReportForApproval[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,10 +60,23 @@ export default function ReportApprovalTab() {
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSendingNotification, setIsSendingNotification] = useState<string | null>(null);
+  const [autoNotifyEnabled, setAutoNotifyEnabled] = useState(false);
+  const [isTogglingAuto, setIsTogglingAuto] = useState(false);
 
   useEffect(() => {
     fetchReports();
+    checkAutoNotifyStatus();
   }, [statusFilter]);
+
+  const checkAutoNotifyStatus = async () => {
+    const enabled = isEnabled('auto_report_notification');
+    setAutoNotifyEnabled(enabled);
+  };
+
+  useEffect(() => {
+    checkAutoNotifyStatus();
+  }, [isEnabled]);
 
   const fetchReports = async () => {
     setIsLoading(true);
@@ -65,7 +93,10 @@ export default function ReportApprovalTab() {
           approval_status,
           rejection_reason,
           created_at,
-          student:students(id, name),
+          notification_sent_at,
+          read_at,
+          read_by_guardian,
+          student:students(id, name, guardian:guardians(id, name, phone)),
           teacher:teachers(id, name)
         `)
         .order('created_at', { ascending: false });
@@ -80,7 +111,7 @@ export default function ReportApprovalTab() {
 
       const mapped = (data || []).map(item => ({
         ...item,
-        student: item.student as { id: string; name: string } | null,
+        student: item.student as any,
         teacher: item.teacher as { id: string; name: string } | null,
       }));
 
@@ -94,6 +125,75 @@ export default function ReportApprovalTab() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const toggleAutoNotification = async () => {
+    setIsTogglingAuto(true);
+    try {
+      const { error } = await supabase
+        .from('automation_settings')
+        .update({ enabled: !autoNotifyEnabled, updated_at: new Date().toISOString() })
+        .eq('key', 'auto_report_notification');
+
+      if (error) throw error;
+
+      setAutoNotifyEnabled(!autoNotifyEnabled);
+      await refetchAutomation();
+
+      toast({
+        title: autoNotifyEnabled ? 'Notificação automática desativada' : 'Notificação automática ativada',
+        description: autoNotifyEnabled 
+          ? 'Os pais não serão notificados automaticamente'
+          : 'Os pais serão notificados automaticamente quando um relatório for aprovado',
+      });
+    } catch (error) {
+      console.error('Error toggling auto notification:', error);
+      toast({
+        title: 'Erro ao alterar configuração',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTogglingAuto(false);
+    }
+  };
+
+  const sendNotification = async (report: ReportForApproval) => {
+    if (!report.student?.guardian?.phone) {
+      toast({
+        title: 'Telefone não encontrado',
+        description: 'O responsável não possui telefone cadastrado',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSendingNotification(report.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-report-notification', {
+        body: { reportId: report.id },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: 'Notificação enviada',
+          description: `${report.student.guardian.name} foi notificado via WhatsApp`,
+        });
+        fetchReports();
+      } else {
+        throw new Error(data?.error || 'Falha no envio');
+      }
+    } catch (error: any) {
+      console.error('Error sending notification:', error);
+      toast({
+        title: 'Erro ao enviar notificação',
+        description: error.message || 'Tente novamente',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingNotification(null);
     }
   };
 
@@ -118,6 +218,21 @@ export default function ReportApprovalTab() {
         title: 'Relatório aprovado',
         description: 'O relatório foi liberado para o portal dos pais',
       });
+
+      // Send automatic notification if enabled
+      if (autoNotifyEnabled && report.student?.guardian?.phone) {
+        try {
+          await supabase.functions.invoke('send-report-notification', {
+            body: { reportId: report.id },
+          });
+          toast({
+            title: 'Notificação enviada',
+            description: `${report.student.guardian.name} foi notificado automaticamente`,
+          });
+        } catch (notifyError) {
+          console.error('Auto notification failed:', notifyError);
+        }
+      }
 
       fetchReports();
       setIsViewModalOpen(false);
@@ -198,6 +313,48 @@ export default function ReportApprovalTab() {
     }
   };
 
+  const getReadBadge = (report: ReportForApproval) => {
+    if (report.approval_status !== 'approved') return null;
+    
+    if (report.read_by_guardian || report.read_at) {
+      return (
+        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 gap-1">
+          <BookOpen className="w-3 h-3" />
+          Lido
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="text-muted-foreground gap-1">
+        <BookOpen className="w-3 h-3" />
+        Não lido
+      </Badge>
+    );
+  };
+
+  const getNotificationBadge = (report: ReportForApproval) => {
+    if (report.approval_status !== 'approved') return null;
+    
+    if (report.notification_sent_at) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger>
+              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 gap-1">
+                <MessageSquare className="w-3 h-3" />
+                Notificado
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              Enviado em {format(parseISO(report.notification_sent_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+    return null;
+  };
+
   const filteredReports = reports.filter(report => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -211,6 +368,32 @@ export default function ReportApprovalTab() {
 
   return (
     <div className="space-y-6">
+      {/* Auto Notification Toggle */}
+      <Card>
+        <CardContent className="flex items-center justify-between py-4">
+          <div className="flex items-center gap-3">
+            {autoNotifyEnabled ? (
+              <Bell className="w-5 h-5 text-primary" />
+            ) : (
+              <BellOff className="w-5 h-5 text-muted-foreground" />
+            )}
+            <div>
+              <p className="font-medium">Notificação automática via WhatsApp</p>
+              <p className="text-sm text-muted-foreground">
+                {autoNotifyEnabled 
+                  ? 'Os pais serão notificados automaticamente quando um relatório for aprovado'
+                  : 'As notificações precisam ser enviadas manualmente'}
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={autoNotifyEnabled}
+            onCheckedChange={toggleAutoNotification}
+            disabled={isTogglingAuto}
+          />
+        </CardContent>
+      </Card>
+
       {/* Stats Card */}
       {pendingCount > 0 && statusFilter !== 'pending' && (
         <Card className="border-yellow-200 bg-yellow-50">
@@ -287,6 +470,7 @@ export default function ReportApprovalTab() {
                   <TableHead>Professor</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Leitura</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -301,37 +485,90 @@ export default function ReportApprovalTab() {
                     <TableCell>
                       {format(parseISO(report.report_date), 'dd/MM/yyyy', { locale: ptBR })}
                     </TableCell>
-                    <TableCell>{getApprovalBadge(report.approval_status)}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {getApprovalBadge(report.approval_status)}
+                        {getNotificationBadge(report)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {getReadBadge(report)}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedReport(report);
-                            setIsViewModalOpen(true);
-                          }}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedReport(report);
+                                  setIsViewModalOpen(true);
+                                }}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Visualizar</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        {report.approval_status === 'approved' && !report.notification_sent_at && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-primary hover:text-primary hover:bg-primary/10"
+                                  onClick={() => sendNotification(report)}
+                                  disabled={isSendingNotification === report.id}
+                                >
+                                  {isSendingNotification === report.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <Send className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Enviar notificação WhatsApp</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
                         {report.approval_status === 'pending' && (
                           <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                              onClick={() => handleApprove(report)}
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => openRejectModal(report)}
-                            >
-                              <XCircle className="w-4 h-4" />
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    onClick={() => handleApprove(report)}
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Aprovar</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => openRejectModal(report)}
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Rejeitar</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </>
                         )}
                       </div>
@@ -369,9 +606,25 @@ export default function ReportApprovalTab() {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Status de Aprovação</Label>
-                  <div className="mt-1">{getApprovalBadge(selectedReport.approval_status)}</div>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {getApprovalBadge(selectedReport.approval_status)}
+                    {getReadBadge(selectedReport)}
+                    {getNotificationBadge(selectedReport)}
+                  </div>
                 </div>
               </div>
+
+              {selectedReport.read_at && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Label className="text-blue-700 font-medium flex items-center gap-2">
+                    <BookOpen className="w-4 h-4" />
+                    Relatório visualizado pelo responsável
+                  </Label>
+                  <p className="text-blue-600 text-sm mt-1">
+                    Em {format(parseISO(selectedReport.read_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                </div>
+              )}
 
               {selectedReport.rejection_reason && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -389,6 +642,21 @@ export default function ReportApprovalTab() {
             </div>
           )}
           <DialogFooter className="gap-2">
+            {selectedReport?.approval_status === 'approved' && !selectedReport.notification_sent_at && (
+              <Button
+                variant="outline"
+                onClick={() => sendNotification(selectedReport)}
+                disabled={isSendingNotification === selectedReport.id}
+                className="text-primary border-primary/20 hover:bg-primary/10"
+              >
+                {isSendingNotification === selectedReport.id ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                Enviar Notificação
+              </Button>
+            )}
             {selectedReport?.approval_status === 'pending' && (
               <>
                 <Button

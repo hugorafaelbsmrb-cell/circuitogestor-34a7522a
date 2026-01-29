@@ -145,6 +145,7 @@ export default function ParentReportsPortal() {
 
     try {
       let allReports: Report[] = [];
+      const localReportIds: string[] = [];
 
       // First, fetch approved reports from local database
       const { data: localReports, error: localError } = await supabase
@@ -171,6 +172,7 @@ export default function ParentReportsPortal() {
           teacher_name: r.teacher?.name,
           student_name: student.name,
         }));
+        localReportIds.push(...localReports.map((r: any) => r.id));
       }
 
       // Then, fetch reports from external API (these are already considered approved)
@@ -212,6 +214,18 @@ export default function ParentReportsPortal() {
       );
 
       setReports(allReports);
+
+      // Mark local reports as read by guardian
+      if (localReportIds.length > 0) {
+        await supabase
+          .from('student_reports')
+          .update({ 
+            read_at: new Date().toISOString(),
+            read_by_guardian: true 
+          })
+          .in('id', localReportIds)
+          .is('read_at', null);
+      }
 
       // Fetch existing comments for these reports
       const gId = guardianId || guardian?.id;

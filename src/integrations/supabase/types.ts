@@ -1581,6 +1581,9 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          notification_sent_at: string | null
+          read_at: string | null
+          read_by_guardian: boolean | null
           rejection_reason: string | null
           report_date: string
           report_type: string | null
@@ -1598,6 +1601,9 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          notification_sent_at?: string | null
+          read_at?: string | null
+          read_by_guardian?: boolean | null
           rejection_reason?: string | null
           report_date?: string
           report_type?: string | null
@@ -1615,6 +1621,9 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          notification_sent_at?: string | null
+          read_at?: string | null
+          read_by_guardian?: boolean | null
           rejection_reason?: string | null
           report_date?: string
           report_type?: string | null
