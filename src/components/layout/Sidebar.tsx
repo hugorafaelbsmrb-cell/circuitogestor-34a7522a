@@ -25,7 +25,8 @@ import {
   UtensilsCrossed,
   X,
   Megaphone,
-  Globe
+  Globe,
+  FileCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -85,6 +86,7 @@ const menuSections: MenuSection[] = [
       { icon: Monitor, label: 'Alunos LMS', path: '/lms-alunos', permissionKey: 'lms', adminOnly: false },
       { icon: BookOpen, label: 'Alunos Soroban', path: '/soroban-alunos', permissionKey: 'soroban', adminOnly: false },
       { icon: GraduationCap, label: 'Professores', path: '/professores', permissionKey: 'teachers', adminOnly: true },
+      { icon: FileCheck, label: 'Análise Pedagógica', path: '/analise-pedagogica', permissionKey: 'teachers', adminOnly: true },
     ]
   },
   {
