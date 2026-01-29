@@ -18,6 +18,22 @@ interface ListFilesRequest {
   folder?: string;
 }
 
+/**
+ * Convert Dropbox shared link to direct embeddable URL
+ * Changes www.dropbox.com to dl.dropboxusercontent.com for direct image access
+ */
+function convertToDirectUrl(dropboxUrl: string): string {
+  if (!dropboxUrl) return dropboxUrl;
+  
+  // Remove dl=0 parameter and replace domain for direct access
+  // From: https://www.dropbox.com/scl/fi/{id}/{name}?rlkey={key}&dl=0
+  // To: https://dl.dropboxusercontent.com/scl/fi/{id}/{name}?rlkey={key}
+  return dropboxUrl
+    .replace("www.dropbox.com", "dl.dropboxusercontent.com")
+    .replace("&dl=0", "")
+    .replace("?dl=0", "");
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -125,9 +141,9 @@ serve(async (req) => {
               let sharedLink = null;
               if (linkResponse.ok) {
                 const linkData = await linkResponse.json();
-                console.log(`📝 Link response for ${file.name}:`, JSON.stringify(linkData));
+              console.log(`📝 Link response for ${file.name}:`, JSON.stringify(linkData));
                 if (linkData.links && linkData.links.length > 0) {
-                  sharedLink = linkData.links[0].url.replace("?dl=0", "?raw=1");
+                  sharedLink = convertToDirectUrl(linkData.links[0].url);
                   console.log(`✅ Found existing link: ${sharedLink}`);
                 }
               } else {
@@ -154,7 +170,7 @@ serve(async (req) => {
 
                 if (createLinkResponse.ok) {
                   const createLinkData = await createLinkResponse.json();
-                  sharedLink = createLinkData.url.replace("?dl=0", "?raw=1");
+                  sharedLink = convertToDirectUrl(createLinkData.url);
                   console.log(`✅ Created new link: ${sharedLink}`);
                 } else {
                   const createError = await createLinkResponse.text();
@@ -262,8 +278,9 @@ serve(async (req) => {
       let sharedUrl = null;
       if (shareResponse.ok) {
         const shareData = await shareResponse.json();
-        // Convert to direct link format for images
-        sharedUrl = shareData.url.replace("?dl=0", "?raw=1");
+        // Convert to direct embeddable link format for images
+        // Format: https://dl.dropboxusercontent.com/scl/fi/{id}/{filename}?rlkey={key}
+        sharedUrl = convertToDirectUrl(shareData.url);
         console.log("✅ Shared link created:", sharedUrl);
       } else {
         const shareError = await shareResponse.text();
@@ -285,7 +302,7 @@ serve(async (req) => {
         if (existingLinkResponse.ok) {
           const existingData = await existingLinkResponse.json();
           if (existingData.links && existingData.links.length > 0) {
-            sharedUrl = existingData.links[0].url.replace("?dl=0", "?raw=1");
+            sharedUrl = convertToDirectUrl(existingData.links[0].url);
             console.log("✅ Got existing shared link:", sharedUrl);
           }
         }
