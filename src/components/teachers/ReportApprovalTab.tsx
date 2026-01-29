@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   CheckCircle, XCircle, Eye, Loader2, RefreshCw, Clock, AlertTriangle, Search, Filter,
-  Send, Bell, BellOff, BookOpen, MessageSquare
+  Send, Bell, BellOff, BookOpen, MessageSquare, CloudDownload, Database
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,11 +14,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+const EXTERNAL_API_URL = 'https://uvnkqzwzsokyonxonzot.supabase.co/functions/v1/teacher-api/reports';
+const EXTERNAL_API_KEY = 'teacher_api_circuitokids_2025';
 
 interface ReportForApproval {
   id: string;
@@ -33,6 +37,17 @@ interface ReportForApproval {
   notification_sent_at: string | null;
   read_at: string | null;
   read_by_guardian: boolean | null;
+  source?: 'local' | 'external';
+  turma?: string;
+  week_start?: string;
+  week_end?: string;
+  weekly_content?: {
+    desempenho_geral?: string | null;
+    pontos_positivos?: string | null;
+    dificuldades?: string | null;
+    recomendacoes?: string | null;
+    observacoes?: string | null;
+  };
   student?: {
     id: string;
     name: string;
@@ -51,10 +66,13 @@ interface ReportForApproval {
 export default function ReportApprovalTab() {
   const { toast } = useToast();
   const { isEnabled, refetch: refetchAutomation } = useAutomationSettings();
-  const [reports, setReports] = useState<ReportForApproval[]>([]);
+  const [localReports, setLocalReports] = useState<ReportForApproval[]>([]);
+  const [externalReports, setExternalReports] = useState<ReportForApproval[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingExternal, setIsLoadingExternal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('pending');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [selectedReport, setSelectedReport] = useState<ReportForApproval | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
@@ -64,8 +82,12 @@ export default function ReportApprovalTab() {
   const [autoNotifyEnabled, setAutoNotifyEnabled] = useState(false);
   const [isTogglingAuto, setIsTogglingAuto] = useState(false);
 
+  // Combine local and external reports
+  const reports = [...localReports, ...externalReports];
+
   useEffect(() => {
-    fetchReports();
+    fetchLocalReports();
+    fetchExternalReports();
     checkAutoNotifyStatus();
   }, [statusFilter]);
 
@@ -78,7 +100,7 @@ export default function ReportApprovalTab() {
     checkAutoNotifyStatus();
   }, [isEnabled]);
 
-  const fetchReports = async () => {
+  const fetchLocalReports = async () => {
     setIsLoading(true);
     try {
       let query = supabase
@@ -111,21 +133,147 @@ export default function ReportApprovalTab() {
 
       const mapped = (data || []).map(item => ({
         ...item,
+        source: 'local' as const,
         student: item.student as any,
         teacher: item.teacher as { id: string; name: string } | null,
       }));
 
-      setReports(mapped);
+      setLocalReports(mapped);
     } catch (error) {
-      console.error('Error fetching reports:', error);
+      console.error('Error fetching local reports:', error);
       toast({
-        title: 'Erro ao carregar relatórios',
+        title: 'Erro ao carregar relatórios locais',
         description: 'Tente novamente mais tarde',
         variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const fetchExternalReports = async (showToast = false) => {
+    setIsLoadingExternal(true);
+    try {
+      console.log('🔄 Buscando relatórios da API externa...');
+      
+      const response = await fetch(EXTERNAL_API_URL, {
+        method: 'GET',
+        headers: {
+          'x-api-key': EXTERNAL_API_KEY,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('📥 Resposta da API externa:', data);
+
+      if (data.success) {
+        const weeklyReports = (data.weekly_reports?.reports || []).map((apiReport: any) => {
+          // Build content from the weekly report structure
+          const contentParts = [];
+          if (apiReport.content?.desempenho_geral) contentParts.push(`**Desempenho Geral:** ${apiReport.content.desempenho_geral}`);
+          if (apiReport.content?.pontos_positivos) contentParts.push(`**Pontos Positivos:** ${apiReport.content.pontos_positivos}`);
+          if (apiReport.content?.dificuldades) contentParts.push(`**Dificuldades:** ${apiReport.content.dificuldades}`);
+          if (apiReport.content?.recomendacoes) contentParts.push(`**Recomendações:** ${apiReport.content.recomendacoes}`);
+          if (apiReport.content?.observacoes) contentParts.push(`**Observações:** ${apiReport.content.observacoes}`);
+
+          return {
+            id: apiReport.id,
+            title: `Relatório Semanal - ${apiReport.turma || 'Turma'}`,
+            content: contentParts.join('\n\n') || 'Sem conteúdo disponível',
+            report_date: apiReport.week?.start || apiReport.created_at,
+            report_type: 'weekly',
+            status: apiReport.status,
+            approval_status: apiReport.status === 'finalizado' ? 'approved' : 'pending',
+            rejection_reason: null,
+            created_at: apiReport.created_at,
+            notification_sent_at: null,
+            read_at: null,
+            read_by_guardian: null,
+            source: 'external' as const,
+            turma: apiReport.turma,
+            week_start: apiReport.week?.start,
+            week_end: apiReport.week?.end,
+            weekly_content: apiReport.content,
+            student: {
+              id: '',
+              name: apiReport.turma || 'Turma não especificada',
+              guardian: null,
+            },
+            teacher: apiReport.teacher ? {
+              id: apiReport.teacher.id,
+              name: apiReport.teacher.name,
+            } : null,
+          };
+        });
+
+        const pedagogicalReports = (data.pedagogical_reports?.reports || []).map((apiReport: any) => ({
+          id: apiReport.id,
+          title: apiReport.title,
+          content: apiReport.content,
+          report_date: apiReport.report_date,
+          report_type: apiReport.report_type,
+          status: apiReport.status,
+          approval_status: apiReport.status === 'finalizado' || apiReport.status === 'sent' ? 'approved' : 'pending',
+          rejection_reason: null,
+          created_at: apiReport.created_at,
+          notification_sent_at: null,
+          read_at: null,
+          read_by_guardian: null,
+          source: 'external' as const,
+          student: apiReport.student_name ? {
+            id: apiReport.student_id || '',
+            name: apiReport.student_name,
+            guardian: apiReport.guardian_name ? {
+              id: '',
+              name: apiReport.guardian_name,
+              phone: apiReport.guardian_phone || '',
+            } : null,
+          } : null,
+          teacher: apiReport.teacher_name ? {
+            id: apiReport.teacher_id || '',
+            name: apiReport.teacher_name,
+          } : null,
+        }));
+
+        // Filter by status if needed
+        let allExternalReports = [...weeklyReports, ...pedagogicalReports];
+        if (statusFilter !== 'all') {
+          allExternalReports = allExternalReports.filter(r => r.approval_status === statusFilter);
+        }
+
+        setExternalReports(allExternalReports);
+
+        if (showToast) {
+          toast({
+            title: 'Relatórios externos atualizados',
+            description: `${weeklyReports.length} semanais, ${pedagogicalReports.length} pedagógicos carregados`,
+          });
+        }
+      } else {
+        throw new Error(data.error || 'Erro ao buscar relatórios');
+      }
+    } catch (error) {
+      console.error('Error fetching external reports:', error);
+      if (showToast) {
+        toast({
+          title: 'Erro ao carregar relatórios externos',
+          description: 'Verifique a conexão com a API externa',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setIsLoadingExternal(false);
+    }
+  };
+
+  const fetchAllReports = () => {
+    fetchLocalReports();
+    fetchExternalReports(true);
   };
 
   const toggleAutoNotification = async () => {
@@ -181,7 +329,7 @@ export default function ReportApprovalTab() {
           title: 'Notificação enviada',
           description: `${report.student.guardian.name} foi notificado via WhatsApp`,
         });
-        fetchReports();
+        fetchLocalReports();
       } else {
         throw new Error(data?.error || 'Falha no envio');
       }
@@ -234,7 +382,7 @@ export default function ReportApprovalTab() {
         }
       }
 
-      fetchReports();
+      fetchLocalReports();
       setIsViewModalOpen(false);
     } catch (error) {
       console.error('Error approving report:', error);
@@ -282,7 +430,7 @@ export default function ReportApprovalTab() {
       setRejectionReason('');
       setIsRejectModalOpen(false);
       setIsViewModalOpen(false);
-      fetchReports();
+      fetchLocalReports();
     } catch (error) {
       console.error('Error rejecting report:', error);
       toast({
@@ -355,13 +503,35 @@ export default function ReportApprovalTab() {
     return null;
   };
 
+  const getSourceBadge = (source?: 'local' | 'external') => {
+    if (source === 'external') {
+      return (
+        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+          <CloudDownload className="w-3 h-3 mr-1" />
+          API
+        </Badge>
+      );
+    }
+    return (
+      <Badge variant="outline" className="bg-muted text-muted-foreground">
+        <Database className="w-3 h-3 mr-1" />
+        Local
+      </Badge>
+    );
+  };
+
   const filteredReports = reports.filter(report => {
     const searchLower = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = (
       report.student?.name?.toLowerCase().includes(searchLower) ||
       report.title?.toLowerCase().includes(searchLower) ||
-      report.teacher?.name?.toLowerCase().includes(searchLower)
+      report.teacher?.name?.toLowerCase().includes(searchLower) ||
+      report.turma?.toLowerCase().includes(searchLower)
     );
+    
+    const matchesSource = sourceFilter === 'all' || report.source === sourceFilter;
+    
+    return matchesSearch && matchesSource;
   });
 
   const pendingCount = reports.filter(r => r.approval_status === 'pending').length;
@@ -426,7 +596,7 @@ export default function ReportApprovalTab() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-48">
+          <SelectTrigger className="w-full sm:w-40">
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -437,11 +607,48 @@ export default function ReportApprovalTab() {
             <SelectItem value="rejected">Rejeitados</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" onClick={fetchReports}>
-          <RefreshCw className="w-4 h-4 mr-2" />
+        <Select value={sourceFilter} onValueChange={setSourceFilter}>
+          <SelectTrigger className="w-full sm:w-40">
+            <Database className="w-4 h-4 mr-2" />
+            <SelectValue placeholder="Origem" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todas origens</SelectItem>
+            <SelectItem value="local">Local</SelectItem>
+            <SelectItem value="external">API Externa</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" onClick={fetchAllReports} disabled={isLoading || isLoadingExternal}>
+          {isLoadingExternal ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4 mr-2" />
+          )}
           Atualizar
         </Button>
       </div>
+
+      {/* External API loading indicator */}
+      {isLoadingExternal && (
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="flex items-center gap-3 py-3">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+            <span className="text-blue-700 text-sm">Carregando relatórios da API externa...</span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* External reports count */}
+      {externalReports.length > 0 && !isLoadingExternal && (
+        <Card className="border-emerald-200 bg-emerald-50">
+          <CardContent className="flex items-center gap-3 py-3">
+            <CloudDownload className="w-4 h-4 text-emerald-600" />
+            <span className="text-emerald-700 text-sm">
+              {externalReports.length} relatório(s) carregado(s) da API externa
+            </span>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Reports Table */}
       <Card>
@@ -465,22 +672,32 @@ export default function ReportApprovalTab() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Aluno</TableHead>
+                  <TableHead>Aluno/Turma</TableHead>
                   <TableHead>Título</TableHead>
                   <TableHead>Professor</TableHead>
                   <TableHead>Data</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Origem</TableHead>
                   <TableHead>Leitura</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredReports.map((report) => (
-                  <TableRow key={report.id}>
+                  <TableRow key={`${report.source}-${report.id}`}>
                     <TableCell className="font-medium">
-                      {report.student?.name || '-'}
+                      {report.turma || report.student?.name || '-'}
                     </TableCell>
-                    <TableCell>{report.title}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>{report.title}</span>
+                        {report.week_start && report.week_end && (
+                          <span className="text-xs text-muted-foreground">
+                            {format(parseISO(report.week_start), 'dd/MM', { locale: ptBR })} - {format(parseISO(report.week_end), 'dd/MM', { locale: ptBR })}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{report.teacher?.name || '-'}</TableCell>
                     <TableCell>
                       {format(parseISO(report.report_date), 'dd/MM/yyyy', { locale: ptBR })}
@@ -490,6 +707,9 @@ export default function ReportApprovalTab() {
                         {getApprovalBadge(report.approval_status)}
                         {getNotificationBadge(report)}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {getSourceBadge(report.source)}
                     </TableCell>
                     <TableCell>
                       {getReadBadge(report)}
@@ -633,12 +853,49 @@ export default function ReportApprovalTab() {
                 </div>
               )}
 
-              <div>
-                <Label className="text-muted-foreground">Conteúdo</Label>
-                <div className="mt-2 p-4 bg-muted rounded-lg whitespace-pre-wrap text-sm">
-                  {selectedReport.content}
+              {/* Weekly report structured content */}
+              {selectedReport.weekly_content ? (
+                <div className="space-y-3">
+                  <Label className="text-muted-foreground">Conteúdo do Relatório Semanal</Label>
+                  {selectedReport.weekly_content.desempenho_geral && (
+                    <div className="p-3 border-l-4 border-orange-500 bg-orange-50 rounded-r-lg">
+                      <p className="text-sm font-semibold text-orange-700 mb-1">Desempenho Geral</p>
+                      <p className="text-sm">{selectedReport.weekly_content.desempenho_geral}</p>
+                    </div>
+                  )}
+                  {selectedReport.weekly_content.pontos_positivos && (
+                    <div className="p-3 border-l-4 border-green-500 bg-green-50 rounded-r-lg">
+                      <p className="text-sm font-semibold text-green-700 mb-1">Pontos Positivos</p>
+                      <p className="text-sm">{selectedReport.weekly_content.pontos_positivos}</p>
+                    </div>
+                  )}
+                  {selectedReport.weekly_content.dificuldades && (
+                    <div className="p-3 border-l-4 border-amber-500 bg-amber-50 rounded-r-lg">
+                      <p className="text-sm font-semibold text-amber-700 mb-1">Dificuldades</p>
+                      <p className="text-sm">{selectedReport.weekly_content.dificuldades}</p>
+                    </div>
+                  )}
+                  {selectedReport.weekly_content.recomendacoes && (
+                    <div className="p-3 border-l-4 border-blue-500 bg-blue-50 rounded-r-lg">
+                      <p className="text-sm font-semibold text-blue-700 mb-1">Recomendações</p>
+                      <p className="text-sm">{selectedReport.weekly_content.recomendacoes}</p>
+                    </div>
+                  )}
+                  {selectedReport.weekly_content.observacoes && (
+                    <div className="p-3 border-l-4 border-muted bg-muted/30 rounded-r-lg">
+                      <p className="text-sm font-semibold text-muted-foreground mb-1">Observações</p>
+                      <p className="text-sm">{selectedReport.weekly_content.observacoes}</p>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <Label className="text-muted-foreground">Conteúdo</Label>
+                  <div className="mt-2 p-4 bg-muted rounded-lg whitespace-pre-wrap text-sm">
+                    {selectedReport.content}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter className="gap-2">
