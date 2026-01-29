@@ -62,11 +62,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get W-API config
+    // Get W-API config and message template
     const { data: settings } = await supabase
       .from('app_settings')
       .select('key, value')
-      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION', 'system_name']);
+      .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION', 'system_name', 'report_notification_template']);
 
     const config: Record<string, string> = {};
     settings?.forEach((s: any) => {
@@ -88,18 +88,29 @@ Deno.serve(async (req) => {
     const reportDate = new Date(report.report_date);
     const formattedDate = reportDate.toLocaleDateString('pt-BR');
 
-    // Build message
-    const message = `Olá, ${guardianFirstName}! 👋
+    // Default template
+    const defaultTemplate = `Olá, {nome_responsavel}! 👋
 
-O relatório pedagógico de *${studentName}* já está disponível! 📚
+O relatório pedagógico de *{nome_aluno}* já está disponível! 📚
 
-📅 Data: ${formattedDate}
-📝 ${report.title}
+📅 Data: {data_relatorio}
+📝 {titulo_relatorio}
 
 Acesse o portal dos pais para visualizar o relatório completo e acompanhar o desenvolvimento do seu filho(a).
 
 Atenciosamente,
-*${schoolName}*`;
+*{nome_escola}*`;
+
+    // Use custom template or default
+    const template = config.report_notification_template || defaultTemplate;
+
+    // Replace variables in template
+    const message = template
+      .replace(/{nome_responsavel}/g, guardianFirstName)
+      .replace(/{nome_aluno}/g, studentName)
+      .replace(/{data_relatorio}/g, formattedDate)
+      .replace(/{titulo_relatorio}/g, report.title)
+      .replace(/{nome_escola}/g, schoolName);
 
     // Format phone
     const cleanPhone = guardian.phone.replace(/\D/g, '');
