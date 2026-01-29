@@ -1581,6 +1581,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          images: string[] | null
           notification_sent_at: string | null
           read_at: string | null
           read_by_guardian: boolean | null
@@ -1601,6 +1602,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          images?: string[] | null
           notification_sent_at?: string | null
           read_at?: string | null
           read_by_guardian?: boolean | null
@@ -1621,6 +1623,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          images?: string[] | null
           notification_sent_at?: string | null
           read_at?: string | null
           read_by_guardian?: boolean | null

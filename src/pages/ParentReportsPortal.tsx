@@ -11,6 +11,7 @@ import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import ReportImageGallery from '@/components/reports/ReportImageGallery';
 
 interface Student {
   id: string;
@@ -33,6 +34,7 @@ interface Report {
   report_type: string;
   teacher_name?: string;
   student_name?: string;
+  images?: string[];
 }
 
 interface ParentComment {
@@ -192,6 +194,7 @@ export default function ParentReportsPortal() {
           content,
           report_date,
           report_type,
+          images,
           teacher:teachers(name)
         `)
         .eq('student_id', student.id)
@@ -207,6 +210,7 @@ export default function ParentReportsPortal() {
           report_type: r.report_type || 'pedagogical',
           teacher_name: r.teacher?.name,
           student_name: student.name,
+          images: (r.images as string[] | null) || [],
         }));
         localReportIds.push(...localReports.map((r: any) => r.id));
       }
@@ -602,6 +606,11 @@ export default function ParentReportsPortal() {
                       </div>
                     ) : (
                       <p className="text-gray-600 whitespace-pre-wrap">{report.content}</p>
+                    )}
+
+                    {/* Activity Images Gallery - Only show if images exist */}
+                    {report.images && report.images.length > 0 && (
+                      <ReportImageGallery images={report.images} />
                     )}
 
                     <Separator />
