@@ -388,6 +388,10 @@ export default function ReportApprovalTab() {
         
         if (!existingReport) {
           // Import the external report to local database
+          // Ensure empty strings are converted to null for UUID fields
+          const studentId = report.student?.id && report.student.id.trim() !== '' ? report.student.id : null;
+          const teacherId = report.teacher?.id && report.teacher.id.trim() !== '' ? report.teacher.id : null;
+          
           const { data: insertedReport, error: insertError } = await supabase
             .from('student_reports')
             .insert({
@@ -400,15 +404,15 @@ export default function ReportApprovalTab() {
               approval_status: 'approved',
               approved_at: new Date().toISOString(),
               approved_by: user?.id,
-              student_id: report.student?.id || null,
-              teacher_id: report.teacher?.id || null,
+              student_id: studentId,
+              teacher_id: teacherId,
             })
             .select()
             .single();
           
           if (insertError) {
             console.error('Error importing external report:', insertError);
-            throw new Error('Não foi possível importar o relatório externo');
+            throw new Error(`Não foi possível importar o relatório externo: ${insertError.message}`);
           }
           
           reportId = insertedReport.id;
