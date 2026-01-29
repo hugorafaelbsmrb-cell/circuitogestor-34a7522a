@@ -85,23 +85,35 @@ export default function ParentReportsPortal() {
 
     setIsLoading(true);
     try {
-      // Find guardian by CPF
+      // Find guardian by CPF - using maybeSingle to handle not found case properly
       const { data: guardianData, error: guardianError } = await supabase
         .from('guardians')
         .select('id, name, cpf')
         .eq('cpf', cleanCpf)
-        .single();
+        .maybeSingle();
 
-      if (guardianError || !guardianData) {
+      // Check for database errors first
+      if (guardianError) {
+        console.error('Error fetching guardian:', guardianError);
         toast({
-          title: 'CPF não encontrado',
-          description: 'Não encontramos nenhum responsável cadastrado com este CPF',
+          title: 'Erro na busca',
+          description: 'Ocorreu um erro ao buscar os dados. Tente novamente.',
           variant: 'destructive',
         });
+        setIsLoading(false);
         return;
       }
 
-      setGuardian(guardianData);
+      // CRITICAL: Block access if CPF is not found
+      if (!guardianData) {
+        toast({
+          title: 'CPF não identificado',
+          description: 'Este CPF não está cadastrado no sistema. Por favor, procure a direção da instituição.',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
 
       // Find students linked to this guardian
       const { data: studentsData, error: studentsError } = await supabase
@@ -117,12 +129,15 @@ export default function ParentReportsPortal() {
       if (!studentsData || studentsData.length === 0) {
         toast({
           title: 'Nenhum aluno encontrado',
-          description: 'Não encontramos alunos vinculados a este responsável',
+          description: 'Não encontramos alunos vinculados a este responsável. Por favor, procure a direção da instituição.',
           variant: 'destructive',
         });
+        setIsLoading(false);
         return;
       }
 
+      // Only set guardian and students if all validations passed
+      setGuardian(guardianData);
       setStudents(studentsData);
 
       // If only one student, select automatically
