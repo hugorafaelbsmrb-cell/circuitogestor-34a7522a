@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList } from 'lucide-react';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
+import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -46,6 +47,7 @@ const API_KEY = 'teacher_api_circuitokids_2025';
 
 export default function ParentReportsPortal() {
   const { toast } = useToast();
+  const { branding } = useSystemBranding();
   const [cpf, setCpf] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [guardian, setGuardian] = useState<Guardian | null>(null);
@@ -355,9 +357,17 @@ export default function ParentReportsPortal() {
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-xl border-0">
           <CardHeader className="text-center pb-2">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
-              <FileText className="w-8 h-8 text-white" />
-            </div>
+            {branding.logo ? (
+              <img 
+                src={branding.logo} 
+                alt={branding.name} 
+                className="mx-auto w-20 h-20 rounded-2xl mb-4 object-contain shadow-lg"
+              />
+            ) : (
+              <div className="mx-auto w-16 h-16 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
+                <GraduationCap className="w-8 h-8 text-white" />
+              </div>
+            )}
             <CardTitle className="text-2xl font-bold text-gray-800">Portal dos Pais</CardTitle>
             <CardDescription className="text-gray-600">
               Acesse os relatórios de acompanhamento do seu filho
