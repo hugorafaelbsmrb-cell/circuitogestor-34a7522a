@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -6,11 +6,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
-import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, ChevronDown, ChevronUp } from 'lucide-react';
-import { format } from 'date-fns';
+import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, subMonths, isSameMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReportImageGallery from '@/components/reports/ReportImageGallery';
 
@@ -60,6 +61,34 @@ export default function ParentReportsPortal() {
   const [savingComment, setSavingComment] = useState<string | null>(null);
   const [loadingReports, setLoadingReports] = useState(false);
   const [expandedReports, setExpandedReports] = useState<Record<string, boolean>>({});
+  const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
+
+  // Generate month options (last 12 months)
+  const monthOptions = useMemo(() => {
+    const options = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const date = subMonths(now, i);
+      options.push({
+        value: format(date, 'yyyy-MM'),
+        label: format(date, "MMMM 'de' yyyy", { locale: ptBR }),
+      });
+    }
+    return options;
+  }, []);
+
+  // Filter reports by selected month
+  const filteredReports = useMemo(() => {
+    if (!selectedMonth || selectedMonth === 'all') return reports;
+    
+    const [year, month] = selectedMonth.split('-').map(Number);
+    const selectedDate = new Date(year, month - 1);
+    
+    return reports.filter(report => {
+      const reportDate = parseISO(report.report_date);
+      return isSameMonth(reportDate, selectedDate);
+    });
+  }, [reports, selectedMonth]);
 
   const formatCPF = (value: string) => {
     const numbers = value.replace(/\D/g, '');
@@ -494,13 +523,38 @@ export default function ParentReportsPortal() {
                     {selectedStudent?.course_name || 'Sem matrícula'}
                   </Badge>
                   <span className="text-white/70 text-sm">
-                    • {calculateAge(selectedStudent?.birth_date || '')} anos • {reports.length} relatório(s)
+                    • {calculateAge(selectedStudent?.birth_date || '')} anos • {filteredReports.length} relatório(s)
                   </span>
                 </div>
               </div>
             </div>
           </div>
         </Card>
+
+        {/* Month Filter */}
+        {reports.length > 0 && (
+          <Card className="shadow-lg border-0 mb-6">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-orange-500" />
+                <span className="text-sm font-medium text-gray-700">Filtrar por mês:</span>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue placeholder="Selecione o mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os meses</SelectItem>
+                    {monthOptions.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Reports List */}
         {loadingReports ? (
@@ -515,9 +569,17 @@ export default function ParentReportsPortal() {
               <p className="text-gray-400">Os relatórios aparecerão aqui quando estiverem disponíveis</p>
             </CardContent>
           </Card>
+        ) : filteredReports.length === 0 ? (
+          <Card className="shadow-lg border-0">
+            <CardContent className="py-12 text-center">
+              <Calendar className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-600">Nenhum relatório neste mês</h3>
+              <p className="text-gray-400">Selecione outro mês ou visualize todos os relatórios</p>
+            </CardContent>
+          </Card>
         ) : (
           <div className="space-y-6">
-            {reports.map((report) => {
+            {filteredReports.map((report) => {
               const parsedContent = parseReportContent(report);
               const existingComment = comments[report.id];
               const isExpanded = expandedReports[report.id] ?? false;
