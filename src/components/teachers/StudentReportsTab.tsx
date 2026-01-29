@@ -190,7 +190,7 @@ export default function StudentReportsTab() {
     };
   };
 
-  const fetchReportsFromAPI = async () => {
+  const fetchReportsFromAPI = async (showToast = false) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -207,6 +207,8 @@ export default function StudentReportsTab() {
 
       const url = params.toString() ? `${API_URL}?${params.toString()}` : API_URL;
       
+      console.log('🔄 Buscando relatórios da API externa:', url);
+      
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -220,6 +222,7 @@ export default function StudentReportsTab() {
       }
 
       const data = await response.json();
+      console.log('📥 Resposta da API:', data);
 
       if (data.success) {
         const weeklyMapped = (data.weekly_reports?.reports || []).map(mapWeeklyReportToStudentReport);
@@ -227,6 +230,13 @@ export default function StudentReportsTab() {
         
         setWeeklyReports(weeklyMapped);
         setPedagogicalReports(pedagogicalMapped);
+        
+        if (showToast) {
+          toast({
+            title: 'Relatórios atualizados',
+            description: `${weeklyMapped.length} semanais, ${pedagogicalMapped.length} pedagógicos carregados`,
+          });
+        }
       } else {
         throw new Error(data.error || 'Erro ao buscar relatórios');
       }
@@ -234,7 +244,7 @@ export default function StudentReportsTab() {
       console.error('Error fetching reports from API:', error);
       toast({
         title: 'Erro ao carregar relatórios',
-        description: 'Tente novamente mais tarde',
+        description: 'Verifique a conexão com a API externa',
         variant: 'destructive',
       });
     } finally {
@@ -290,7 +300,7 @@ export default function StudentReportsTab() {
   };
 
   const handleRefresh = () => {
-    fetchReportsFromAPI();
+    fetchReportsFromAPI(true);
   };
 
   const handlePrint = () => {
