@@ -51,6 +51,7 @@ import { AIProviderConfigCard } from '@/components/settings/AIProviderConfigCard
 import { SystemDocumentation } from '@/components/settings/SystemDocumentation';
 import { CanteenMessageConfigCard } from '@/components/settings/CanteenMessageConfigCard';
 import { ReportNotificationConfigCard } from '@/components/settings/ReportNotificationConfigCard';
+import { DropboxConfigCard } from '@/components/settings/DropboxConfigCard';
 import { cn } from '@/lib/utils';
 import '@/styles/print.css';
 
@@ -637,84 +638,88 @@ export default function Settings() {
 
       case 'api':
         return (
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Key className="w-5 h-5" />
-                Chaves de API
-              </CardTitle>
-              <CardDescription>
-                Configure as chaves de API para integrações externas
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {apiSettings.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">
-                  Nenhuma chave de API configurada
-                </p>
-              ) : (
-                apiSettings.map((setting) => (
-                  <div key={setting.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor={setting.key} className="font-medium">
-                          {setting.key}
-                        </Label>
+          <div className="space-y-6">
+            <DropboxConfigCard />
+            
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="w-5 h-5" />
+                  Outras Chaves de API
+                </CardTitle>
+                <CardDescription>
+                  Configure chaves de API para outras integrações
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {apiSettings.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    Nenhuma chave de API configurada
+                  </p>
+                ) : (
+                  apiSettings.map((setting) => (
+                    <div key={setting.id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor={setting.key} className="font-medium">
+                            {setting.key}
+                          </Label>
+                          {setting.is_secret && (
+                            <Badge variant="outline" className="text-xs">
+                              <Key className="w-3 h-3 mr-1" />
+                              Secreto
+                            </Badge>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteSetting(setting.id, setting.key)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      {setting.description && (
+                        <p className="text-sm text-muted-foreground">{setting.description}</p>
+                      )}
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            id={setting.key}
+                            type={setting.is_secret && !showSecrets[setting.key] ? 'password' : 'text'}
+                            value={editedSettings[setting.key] || ''}
+                            onChange={(e) => setEditedSettings(prev => ({ ...prev, [setting.key]: e.target.value }))}
+                            placeholder={setting.is_secret ? '••••••••••••••••' : 'Valor'}
+                          />
+                        </div>
                         {setting.is_secret && (
-                          <Badge variant="outline" className="text-xs">
-                            <Key className="w-3 h-3 mr-1" />
-                            Secreto
-                          </Badge>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => toggleShowSecret(setting.key)}
+                          >
+                            {showSecrets[setting.key] ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </Button>
                         )}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDeleteSetting(setting.id, setting.key)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    {setting.description && (
-                      <p className="text-sm text-muted-foreground">{setting.description}</p>
-                    )}
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Input
-                          id={setting.key}
-                          type={setting.is_secret && !showSecrets[setting.key] ? 'password' : 'text'}
-                          value={editedSettings[setting.key] || ''}
-                          onChange={(e) => setEditedSettings(prev => ({ ...prev, [setting.key]: e.target.value }))}
-                          placeholder={setting.is_secret ? '••••••••••••••••' : 'Valor'}
-                        />
-                      </div>
-                      {setting.is_secret && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => toggleShowSecret(setting.key)}
-                        >
-                          {showSecrets[setting.key] ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </Button>
+                      {editedSettings[setting.key] !== (setting.value || '') && (
+                        <p className="text-xs text-amber-500 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          Alteração não salva
+                        </p>
                       )}
                     </div>
-                    {editedSettings[setting.key] !== (setting.value || '') && (
-                      <p className="text-xs text-amber-500 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        Alteração não salva
-                      </p>
-                    )}
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
         );
 
       case 'whatsapp':
