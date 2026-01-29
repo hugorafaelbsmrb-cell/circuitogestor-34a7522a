@@ -50,6 +50,7 @@ import { QuickRepliesConfigCard } from '@/components/settings/QuickRepliesConfig
 import { AIProviderConfigCard } from '@/components/settings/AIProviderConfigCard';
 import { SystemDocumentation } from '@/components/settings/SystemDocumentation';
 import { CanteenMessageConfigCard } from '@/components/settings/CanteenMessageConfigCard';
+import { ReportNotificationConfigCard } from '@/components/settings/ReportNotificationConfigCard';
 import { cn } from '@/lib/utils';
 import '@/styles/print.css';
 
@@ -725,6 +726,7 @@ export default function Settings() {
             />
             <QuickRepliesConfigCard />
             <CanteenMessageConfigCard />
+            <ReportNotificationConfigCard />
           </div>
         );
 
