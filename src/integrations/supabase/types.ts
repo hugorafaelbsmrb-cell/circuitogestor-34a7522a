@@ -1385,6 +1385,51 @@ export type Database = {
         }
         Relationships: []
       }
+      report_parent_comments: {
+        Row: {
+          comment: string
+          created_at: string | null
+          guardian_id: string | null
+          id: string
+          report_id: string
+          student_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          comment: string
+          created_at?: string | null
+          guardian_id?: string | null
+          id?: string
+          report_id: string
+          student_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          comment?: string
+          created_at?: string | null
+          guardian_id?: string | null
+          id?: string
+          report_id?: string
+          student_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_parent_comments_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_parent_comments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_bulk_messages: {
         Row: {
           course_filter: string | null
