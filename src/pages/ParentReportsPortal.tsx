@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
-import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, EyeOff } from 'lucide-react';
+import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, EyeOff, ChevronDown, ChevronUp } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReportImageGallery from '@/components/reports/ReportImageGallery';
@@ -60,6 +61,7 @@ export default function ParentReportsPortal() {
   const [savingComment, setSavingComment] = useState<string | null>(null);
   const [loadingReports, setLoadingReports] = useState(false);
   const [hidingReport, setHidingReport] = useState<string | null>(null);
+  const [expandedReports, setExpandedReports] = useState<Record<string, boolean>>({});
 
   const formatCPF = (value: string) => {
     const numbers = value.replace(/\D/g, '');
@@ -549,178 +551,198 @@ export default function ParentReportsPortal() {
             {reports.map((report) => {
               const parsedContent = parseReportContent(report);
               const existingComment = comments[report.id];
+              const isExpanded = expandedReports[report.id] ?? false;
 
               return (
-                <Card key={report.id} className="shadow-lg border-0 overflow-hidden">
-                  <CardHeader className="bg-gray-50 border-b">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-lg text-gray-800">{report.title}</CardTitle>
-                        <CardDescription className="flex items-center gap-2 mt-1">
-                          <span>{format(new Date(report.report_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
-                          {report.teacher_name && (
-                            <>
-                              <span>•</span>
-                              <span>Prof. {report.teacher_name}</span>
-                            </>
+                <Collapsible
+                  key={report.id}
+                  open={isExpanded}
+                  onOpenChange={(open) => setExpandedReports(prev => ({ ...prev, [report.id]: open }))}
+                >
+                  <Card className="shadow-lg border-0 overflow-hidden">
+                    <CollapsibleTrigger asChild>
+                      <CardHeader className="bg-gray-50 border-b cursor-pointer hover:bg-gray-100 transition-colors">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <CardTitle className="text-lg text-gray-800">{report.title}</CardTitle>
+                              <Badge variant={report.report_type === 'weekly' || report.report_type === 'semanal' ? 'default' : 'secondary'}>
+                                {report.report_type === 'weekly' || report.report_type === 'semanal' ? 'Semanal' : 'Pedagógico'}
+                              </Badge>
+                            </div>
+                            <CardDescription className="flex items-center gap-2 mt-1">
+                              <span>{format(new Date(report.report_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</span>
+                              {report.teacher_name && (
+                                <>
+                                  <span>•</span>
+                                  <span>Prof. {report.teacher_name}</span>
+                                </>
+                              )}
+                            </CardDescription>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                                  disabled={hidingReport === report.id}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {hidingReport === report.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <EyeOff className="w-4 h-4" />
+                                  )}
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Ocultar relatório?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Este relatório será removido da sua visualização. A escola ainda poderá ver o relatório.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => hideReport(report.id)}
+                                    className="bg-red-500 hover:bg-red-600"
+                                  >
+                                    Ocultar
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                            {isExpanded ? (
+                              <ChevronUp className="w-5 h-5 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-gray-400" />
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent>
+                      <CardContent className="p-6 space-y-6">
+                        {/* Report Content */}
+                        {parsedContent ? (
+                          <div className="space-y-4">
+                            {parsedContent.performance && (
+                              <div className="flex gap-3">
+                                <div className="w-1 bg-orange-500 rounded-full" />
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
+                                    <Star className="w-4 h-4 text-orange-500" />
+                                    Desempenho Geral
+                                  </h4>
+                                  <p className="text-gray-600">{parsedContent.performance}</p>
+                                </div>
+                              </div>
+                            )}
+                            {parsedContent.positive_points && (
+                              <div className="flex gap-3">
+                                <div className="w-1 bg-green-500 rounded-full" />
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
+                                    <CheckCircle className="w-4 h-4 text-green-500" />
+                                    Pontos Positivos
+                                  </h4>
+                                  <p className="text-gray-600">{parsedContent.positive_points}</p>
+                                </div>
+                              </div>
+                            )}
+                            {parsedContent.difficulties && (
+                              <div className="flex gap-3">
+                                <div className="w-1 bg-amber-500 rounded-full" />
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
+                                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                    Dificuldades
+                                  </h4>
+                                  <p className="text-gray-600">{parsedContent.difficulties}</p>
+                                </div>
+                              </div>
+                            )}
+                            {parsedContent.recommendations && (
+                              <div className="flex gap-3">
+                                <div className="w-1 bg-blue-500 rounded-full" />
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
+                                    <Lightbulb className="w-4 h-4 text-blue-500" />
+                                    Recomendações
+                                  </h4>
+                                  <p className="text-gray-600">{parsedContent.recommendations}</p>
+                                </div>
+                              </div>
+                            )}
+                            {parsedContent.observations && (
+                              <div className="flex gap-3">
+                                <div className="w-1 bg-gray-400 rounded-full" />
+                                <div className="flex-1">
+                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
+                                    <ClipboardList className="w-4 h-4 text-gray-500" />
+                                    Observações
+                                  </h4>
+                                  <p className="text-gray-600">{parsedContent.observations}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-gray-600 whitespace-pre-wrap">{report.content}</p>
+                        )}
+
+                        {/* Activity Images Gallery - Only show if images exist */}
+                        {report.images && report.images.length > 0 && (
+                          <ReportImageGallery images={report.images} />
+                        )}
+
+                        <Separator />
+
+                        {/* Parent Comment Section */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                            <MessageSquare className="w-4 h-4 text-orange-500" />
+                            Seu Comentário
+                          </h4>
+
+                          {existingComment && (
+                            <div className="bg-orange-50 rounded-lg p-4 border border-orange-100">
+                              <p className="text-gray-700">{existingComment.comment}</p>
+                              <p className="text-xs text-gray-400 mt-2">
+                                Enviado em {format(new Date(existingComment.created_at), "dd/MM/yyyy 'às' HH:mm")}
+                                {existingComment.updated_at !== existingComment.created_at && ' (editado)'}
+                              </p>
+                            </div>
                           )}
-                        </CardDescription>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={report.report_type === 'weekly' || report.report_type === 'semanal' ? 'default' : 'secondary'}>
-                          {report.report_type === 'weekly' || report.report_type === 'semanal' ? 'Semanal' : 'Pedagógico'}
-                        </Badge>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
+
+                          <div className="flex gap-2">
+                            <Textarea
+                              placeholder={existingComment ? "Atualizar comentário..." : "Deixe seu comentário sobre este relatório..."}
+                              value={newComments[report.id] || ''}
+                              onChange={(e) => setNewComments(prev => ({ ...prev, [report.id]: e.target.value }))}
+                              className="flex-1 min-h-[80px] resize-none"
+                            />
                             <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-gray-400 hover:text-red-500 hover:bg-red-50"
-                              disabled={hidingReport === report.id}
+                              onClick={() => saveComment(report.id)}
+                              disabled={!newComments[report.id]?.trim() || savingComment === report.id}
+                              className="self-end bg-orange-500 hover:bg-orange-600"
                             >
-                              {hidingReport === report.id ? (
+                              {savingComment === report.id ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
-                                <EyeOff className="w-4 h-4" />
+                                <Send className="w-4 h-4" />
                               )}
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Ocultar relatório?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Este relatório será removido da sua visualização. A escola ainda poderá ver o relatório.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => hideReport(report.id)}
-                                className="bg-red-500 hover:bg-red-600"
-                              >
-                                Ocultar
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-6 space-y-6">
-                    {/* Report Content */}
-                    {parsedContent ? (
-                      <div className="space-y-4">
-                        {parsedContent.performance && (
-                          <div className="flex gap-3">
-                            <div className="w-1 bg-orange-500 rounded-full" />
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                <Star className="w-4 h-4 text-orange-500" />
-                                Desempenho Geral
-                              </h4>
-                              <p className="text-gray-600">{parsedContent.performance}</p>
-                            </div>
                           </div>
-                        )}
-                        {parsedContent.positive_points && (
-                          <div className="flex gap-3">
-                            <div className="w-1 bg-green-500 rounded-full" />
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                <CheckCircle className="w-4 h-4 text-green-500" />
-                                Pontos Positivos
-                              </h4>
-                              <p className="text-gray-600">{parsedContent.positive_points}</p>
-                            </div>
-                          </div>
-                        )}
-                        {parsedContent.difficulties && (
-                          <div className="flex gap-3">
-                            <div className="w-1 bg-amber-500 rounded-full" />
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                <AlertTriangle className="w-4 h-4 text-amber-500" />
-                                Dificuldades
-                              </h4>
-                              <p className="text-gray-600">{parsedContent.difficulties}</p>
-                            </div>
-                          </div>
-                        )}
-                        {parsedContent.recommendations && (
-                          <div className="flex gap-3">
-                            <div className="w-1 bg-blue-500 rounded-full" />
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                <Lightbulb className="w-4 h-4 text-blue-500" />
-                                Recomendações
-                              </h4>
-                              <p className="text-gray-600">{parsedContent.recommendations}</p>
-                            </div>
-                          </div>
-                        )}
-                        {parsedContent.observations && (
-                          <div className="flex gap-3">
-                            <div className="w-1 bg-gray-400 rounded-full" />
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                <ClipboardList className="w-4 h-4 text-gray-500" />
-                                Observações
-                              </h4>
-                              <p className="text-gray-600">{parsedContent.observations}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-gray-600 whitespace-pre-wrap">{report.content}</p>
-                    )}
-
-                    {/* Activity Images Gallery - Only show if images exist */}
-                    {report.images && report.images.length > 0 && (
-                      <ReportImageGallery images={report.images} />
-                    )}
-
-                    <Separator />
-
-                    {/* Parent Comment Section */}
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-gray-700 flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-orange-500" />
-                        Seu Comentário
-                      </h4>
-
-                      {existingComment && (
-                        <div className="bg-orange-50 rounded-lg p-4 border border-orange-100">
-                          <p className="text-gray-700">{existingComment.comment}</p>
-                          <p className="text-xs text-gray-400 mt-2">
-                            Enviado em {format(new Date(existingComment.created_at), "dd/MM/yyyy 'às' HH:mm")}
-                            {existingComment.updated_at !== existingComment.created_at && ' (editado)'}
-                          </p>
                         </div>
-                      )}
-
-                      <div className="flex gap-2">
-                        <Textarea
-                          placeholder={existingComment ? "Atualizar comentário..." : "Deixe seu comentário sobre este relatório..."}
-                          value={newComments[report.id] || ''}
-                          onChange={(e) => setNewComments(prev => ({ ...prev, [report.id]: e.target.value }))}
-                          className="flex-1 min-h-[80px] resize-none"
-                        />
-                        <Button
-                          onClick={() => saveComment(report.id)}
-                          disabled={!newComments[report.id]?.trim() || savingComment === report.id}
-                          className="self-end bg-orange-500 hover:bg-orange-600"
-                        >
-                          {savingComment === report.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Send className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
               );
             })}
           </div>
