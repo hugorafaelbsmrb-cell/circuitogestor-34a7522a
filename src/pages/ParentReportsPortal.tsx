@@ -43,9 +43,6 @@ interface ParentComment {
   updated_at: string;
 }
 
-const REPORTS_API_URL = 'https://uvnkqzwzsokyonxonzot.supabase.co/functions/v1/teacher-api/reports';
-const API_KEY = 'teacher_api_circuitokids_2025';
-
 export default function ParentReportsPortal() {
   const { toast } = useToast();
   const { branding } = useSystemBranding();
@@ -185,7 +182,8 @@ export default function ParentReportsPortal() {
       let allReports: Report[] = [];
       const localReportIds: string[] = [];
 
-      // First, fetch approved reports from local database
+      // Fetch ONLY approved reports from local database
+      // External reports must be imported and approved before appearing here
       const { data: localReports, error: localError } = await supabase
         .from('student_reports')
         .select(`
@@ -213,47 +211,13 @@ export default function ParentReportsPortal() {
         localReportIds.push(...localReports.map((r: any) => r.id));
       }
 
-      // Then, fetch reports from external API (these are already considered approved)
-      try {
-        const response = await fetch(`${REPORTS_API_URL}?student_id=${student.id}`, {
-          headers: {
-            'x-api-key': API_KEY,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const externalReports = (data.data || data || []).map((r: any) => ({
-            id: r.id,
-            title: r.title,
-            content: r.content,
-            report_date: r.report_date,
-            report_type: r.report_type || 'pedagogical',
-            teacher_name: r.teacher_name,
-            student_name: student.name,
-          }));
-          
-          // Merge reports, avoiding duplicates by ID
-          const existingIds = new Set(allReports.map(r => r.id));
-          externalReports.forEach((r: Report) => {
-            if (!existingIds.has(r.id)) {
-              allReports.push(r);
-            }
-          });
-        }
-      } catch (apiError) {
-        console.error('Error fetching external reports:', apiError);
-        // Continue with local reports only
-      }
-
-      // Sort all reports by date
-      allReports.sort((a, b) => 
-        new Date(b.report_date).getTime() - new Date(a.report_date).getTime()
-      );
+      // Note: External API reports are NOT fetched directly anymore
+      // They must be imported and approved through the ReportApprovalTab first
+      // This ensures only approved reports appear in the parent portal
 
       setReports(allReports);
 
-      // Mark local reports as read by guardian
+      // Mark reports as read by guardian
       if (localReportIds.length > 0) {
         await supabase
           .from('student_reports')

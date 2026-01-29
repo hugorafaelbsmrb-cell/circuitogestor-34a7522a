@@ -156,6 +156,13 @@ export default function ReportApprovalTab() {
     try {
       console.log('🔄 Buscando relatórios da API externa...');
       
+      // First, get IDs of reports already imported locally
+      const { data: localReportIds } = await supabase
+        .from('student_reports')
+        .select('id');
+      
+      const importedIds = new Set((localReportIds || []).map(r => r.id));
+      
       const response = await fetch(EXTERNAL_API_URL, {
         method: 'GET',
         headers: {
@@ -172,23 +179,60 @@ export default function ReportApprovalTab() {
       console.log('📥 Resposta da API externa:', data);
 
       if (data.success) {
-        const weeklyReports = (data.weekly_reports?.reports || []).map((apiReport: any) => {
-          // Build content from the weekly report structure
-          const contentParts = [];
-          if (apiReport.content?.desempenho_geral) contentParts.push(`**Desempenho Geral:** ${apiReport.content.desempenho_geral}`);
-          if (apiReport.content?.pontos_positivos) contentParts.push(`**Pontos Positivos:** ${apiReport.content.pontos_positivos}`);
-          if (apiReport.content?.dificuldades) contentParts.push(`**Dificuldades:** ${apiReport.content.dificuldades}`);
-          if (apiReport.content?.recomendacoes) contentParts.push(`**Recomendações:** ${apiReport.content.recomendacoes}`);
-          if (apiReport.content?.observacoes) contentParts.push(`**Observações:** ${apiReport.content.observacoes}`);
+        const weeklyReports = (data.weekly_reports?.reports || [])
+          // Filter out reports that are already imported locally
+          .filter((apiReport: any) => !importedIds.has(apiReport.id))
+          .map((apiReport: any) => {
+            // Build content from the weekly report structure
+            const contentParts = [];
+            if (apiReport.content?.desempenho_geral) contentParts.push(`**Desempenho Geral:** ${apiReport.content.desempenho_geral}`);
+            if (apiReport.content?.pontos_positivos) contentParts.push(`**Pontos Positivos:** ${apiReport.content.pontos_positivos}`);
+            if (apiReport.content?.dificuldades) contentParts.push(`**Dificuldades:** ${apiReport.content.dificuldades}`);
+            if (apiReport.content?.recomendacoes) contentParts.push(`**Recomendações:** ${apiReport.content.recomendacoes}`);
+            if (apiReport.content?.observacoes) contentParts.push(`**Observações:** ${apiReport.content.observacoes}`);
 
-          return {
+            return {
+              id: apiReport.id,
+              title: `Relatório Semanal - ${apiReport.turma || 'Turma'}`,
+              content: contentParts.join('\n\n') || 'Sem conteúdo disponível',
+              report_date: apiReport.week?.start || apiReport.created_at,
+              report_type: 'weekly',
+              status: apiReport.status,
+              // External reports that are not imported yet are pending
+              approval_status: 'pending',
+              rejection_reason: null,
+              created_at: apiReport.created_at,
+              notification_sent_at: null,
+              read_at: null,
+              read_by_guardian: null,
+              source: 'external' as const,
+              turma: apiReport.turma,
+              week_start: apiReport.week?.start,
+              week_end: apiReport.week?.end,
+              weekly_content: apiReport.content,
+              student: {
+                id: '',
+                name: apiReport.turma || 'Turma não especificada',
+                guardian: null,
+              },
+              teacher: apiReport.teacher ? {
+                id: apiReport.teacher.id,
+                name: apiReport.teacher.name,
+              } : null,
+            };
+          });
+
+        const pedagogicalReports = (data.pedagogical_reports?.reports || [])
+          // Filter out reports that are already imported locally
+          .filter((apiReport: any) => !importedIds.has(apiReport.id))
+          .map((apiReport: any) => ({
             id: apiReport.id,
-            title: `Relatório Semanal - ${apiReport.turma || 'Turma'}`,
-            content: contentParts.join('\n\n') || 'Sem conteúdo disponível',
-            report_date: apiReport.week?.start || apiReport.created_at,
-            report_type: 'weekly',
+            title: apiReport.title,
+            content: apiReport.content,
+            report_date: apiReport.report_date,
+            report_type: apiReport.report_type,
             status: apiReport.status,
-            // Relatórios externos sempre chegam como pendentes para aprovação local
+            // External reports that are not imported yet are pending
             approval_status: 'pending',
             rejection_reason: null,
             created_at: apiReport.created_at,
@@ -196,64 +240,36 @@ export default function ReportApprovalTab() {
             read_at: null,
             read_by_guardian: null,
             source: 'external' as const,
-            turma: apiReport.turma,
-            week_start: apiReport.week?.start,
-            week_end: apiReport.week?.end,
-            weekly_content: apiReport.content,
-            student: {
-              id: '',
-              name: apiReport.turma || 'Turma não especificada',
-              guardian: null,
-            },
-            teacher: apiReport.teacher ? {
-              id: apiReport.teacher.id,
-              name: apiReport.teacher.name,
+            student: apiReport.student_name ? {
+              id: apiReport.student_id || '',
+              name: apiReport.student_name,
+              guardian: apiReport.guardian_name ? {
+                id: '',
+                name: apiReport.guardian_name,
+                phone: apiReport.guardian_phone || '',
+              } : null,
             } : null,
-          };
-        });
-
-        const pedagogicalReports = (data.pedagogical_reports?.reports || []).map((apiReport: any) => ({
-          id: apiReport.id,
-          title: apiReport.title,
-          content: apiReport.content,
-          report_date: apiReport.report_date,
-          report_type: apiReport.report_type,
-          status: apiReport.status,
-          // Relatórios externos sempre chegam como pendentes para aprovação local
-          approval_status: 'pending',
-          rejection_reason: null,
-          created_at: apiReport.created_at,
-          notification_sent_at: null,
-          read_at: null,
-          read_by_guardian: null,
-          source: 'external' as const,
-          student: apiReport.student_name ? {
-            id: apiReport.student_id || '',
-            name: apiReport.student_name,
-            guardian: apiReport.guardian_name ? {
-              id: '',
-              name: apiReport.guardian_name,
-              phone: apiReport.guardian_phone || '',
+            teacher: apiReport.teacher_name ? {
+              id: apiReport.teacher_id || '',
+              name: apiReport.teacher_name,
             } : null,
-          } : null,
-          teacher: apiReport.teacher_name ? {
-            id: apiReport.teacher_id || '',
-            name: apiReport.teacher_name,
-          } : null,
-        }));
+          }));
 
-        // Filter by status if needed
+        // Only show external reports that haven't been imported yet
         let allExternalReports = [...weeklyReports, ...pedagogicalReports];
-        if (statusFilter !== 'all') {
-          allExternalReports = allExternalReports.filter(r => r.approval_status === statusFilter);
+        
+        // Filter by status only for external (they're always pending)
+        if (statusFilter !== 'all' && statusFilter !== 'pending') {
+          allExternalReports = []; // External reports are only pending
         }
 
         setExternalReports(allExternalReports);
 
         if (showToast) {
+          const importedCount = importedIds.size;
           toast({
             title: 'Relatórios externos atualizados',
-            description: `${weeklyReports.length} semanais, ${pedagogicalReports.length} pedagógicos carregados`,
+            description: `${allExternalReports.length} pendente(s), ${importedCount} já importado(s)`,
           });
         }
       } else {
@@ -352,17 +368,74 @@ export default function ReportApprovalTab() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      const { error } = await supabase
-        .from('student_reports')
-        .update({
-          approval_status: 'approved',
-          approved_at: new Date().toISOString(),
-          approved_by: user?.id,
-          rejection_reason: null,
-        })
-        .eq('id', report.id);
+      let reportId = report.id;
+      
+      // If external report, import it to local database first
+      if (report.source === 'external') {
+        console.log('📥 Importando relatório externo para o banco local...');
+        
+        // Check if report already exists locally
+        const { data: existingReport } = await supabase
+          .from('student_reports')
+          .select('id')
+          .eq('id', report.id)
+          .maybeSingle();
+        
+        if (!existingReport) {
+          // Import the external report to local database
+          const { data: insertedReport, error: insertError } = await supabase
+            .from('student_reports')
+            .insert({
+              id: report.id, // Keep the same ID for reference
+              title: report.title,
+              content: report.content,
+              report_date: report.report_date,
+              report_type: report.report_type,
+              status: report.status,
+              approval_status: 'approved',
+              approved_at: new Date().toISOString(),
+              approved_by: user?.id,
+              student_id: report.student?.id || null,
+              teacher_id: report.teacher?.id || null,
+            })
+            .select()
+            .single();
+          
+          if (insertError) {
+            console.error('Error importing external report:', insertError);
+            throw new Error('Não foi possível importar o relatório externo');
+          }
+          
+          reportId = insertedReport.id;
+          console.log('✅ Relatório externo importado com sucesso:', reportId);
+        } else {
+          // Report already exists, just update approval status
+          const { error: updateError } = await supabase
+            .from('student_reports')
+            .update({
+              approval_status: 'approved',
+              approved_at: new Date().toISOString(),
+              approved_by: user?.id,
+              rejection_reason: null,
+            })
+            .eq('id', report.id);
+          
+          if (updateError) throw updateError;
+        }
+      } else {
+        // Local report - just update
+        const { error } = await supabase
+          .from('student_reports')
+          .update({
+            approval_status: 'approved',
+            approved_at: new Date().toISOString(),
+            approved_by: user?.id,
+            rejection_reason: null,
+          })
+          .eq('id', report.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       toast({
         title: 'Relatório aprovado',
@@ -373,7 +446,7 @@ export default function ReportApprovalTab() {
       if (autoNotifyEnabled && report.student?.guardian?.phone) {
         try {
           await supabase.functions.invoke('send-report-notification', {
-            body: { reportId: report.id },
+            body: { reportId },
           });
           toast({
             title: 'Notificação enviada',
@@ -385,12 +458,13 @@ export default function ReportApprovalTab() {
       }
 
       fetchLocalReports();
+      fetchExternalReports(); // Refresh external reports too
       setIsViewModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error approving report:', error);
       toast({
         title: 'Erro ao aprovar',
-        description: 'Não foi possível aprovar o relatório',
+        description: error.message || 'Não foi possível aprovar o relatório',
         variant: 'destructive',
       });
     } finally {
