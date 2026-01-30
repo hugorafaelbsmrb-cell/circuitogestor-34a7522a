@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
-import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, CheckCircle, BookOpen, Star, AlertTriangle, Lightbulb, ClipboardList, GraduationCap, ChevronDown, ChevronUp, Calendar, LogOut } from 'lucide-react';
+import { Search, User, FileText, ArrowLeft, MessageSquare, Send, Loader2, GraduationCap, ChevronDown, ChevronUp, Calendar, LogOut, BookOpen } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, subMonths, isSameMonth, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReportImageGallery from '@/components/reports/ReportImageGallery';
+import WeeklyReportView from '@/components/reports/WeeklyReportView';
 
 interface Student {
   id: string;
@@ -654,70 +655,17 @@ export default function ParentReportsPortal() {
                       <CardContent className="p-6 space-y-6">
                         {/* Report Content */}
                         {parsedContent ? (
-                          <div className="space-y-4">
-                            {parsedContent.performance && (
-                              <div className="flex gap-3">
-                                <div className="w-1 bg-orange-500 rounded-full" />
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                    <Star className="w-4 h-4 text-orange-500" />
-                                    Desempenho Geral
-                                  </h4>
-                                  <p className="text-gray-600">{parsedContent.performance}</p>
-                                </div>
-                              </div>
-                            )}
-                            {parsedContent.positive_points && (
-                              <div className="flex gap-3">
-                                <div className="w-1 bg-green-500 rounded-full" />
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                    <CheckCircle className="w-4 h-4 text-green-500" />
-                                    Pontos Positivos
-                                  </h4>
-                                  <p className="text-gray-600">{parsedContent.positive_points}</p>
-                                </div>
-                              </div>
-                            )}
-                            {parsedContent.difficulties && (
-                              <div className="flex gap-3">
-                                <div className="w-1 bg-amber-500 rounded-full" />
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                    <AlertTriangle className="w-4 h-4 text-amber-500" />
-                                    Dificuldades
-                                  </h4>
-                                  <p className="text-gray-600">{parsedContent.difficulties}</p>
-                                </div>
-                              </div>
-                            )}
-                            {parsedContent.recommendations && (
-                              <div className="flex gap-3">
-                                <div className="w-1 bg-blue-500 rounded-full" />
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                    <Lightbulb className="w-4 h-4 text-blue-500" />
-                                    Recomendações
-                                  </h4>
-                                  <p className="text-gray-600">{parsedContent.recommendations}</p>
-                                </div>
-                              </div>
-                            )}
-                            {parsedContent.observations && (
-                              <div className="flex gap-3">
-                                <div className="w-1 bg-gray-400 rounded-full" />
-                                <div className="flex-1">
-                                  <h4 className="font-semibold text-gray-700 flex items-center gap-2 mb-1">
-                                    <ClipboardList className="w-4 h-4 text-gray-500" />
-                                    Observações
-                                  </h4>
-                                  <p className="text-gray-600">{parsedContent.observations}</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                          <WeeklyReportView
+                            content={parsedContent}
+                            studentName={selectedStudent?.name || ''}
+                            teacherName={report.teacher_name}
+                            reportDate={format(new Date(report.report_date), "dd/MM/yyyy", { locale: ptBR })}
+                            title={report.title}
+                          />
                         ) : (
-                          <p className="text-gray-600 whitespace-pre-wrap">{report.content}</p>
+                          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <p className="text-gray-600 whitespace-pre-wrap">{report.content}</p>
+                          </div>
                         )}
 
                         {/* Activity Images Gallery - Only show if images exist */}
