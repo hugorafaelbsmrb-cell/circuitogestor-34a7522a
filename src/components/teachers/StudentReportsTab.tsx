@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
+import WeeklyReportView from '@/components/reports/WeeklyReportView';
 
 const API_URL = 'https://uvnkqzwzsokyonxonzot.supabase.co/functions/v1/teacher-api/reports';
 const API_KEY = 'teacher_api_circuitokids_2025';
@@ -825,70 +826,55 @@ ${branding?.name || 'Circuito Kids'}`;
           </DialogHeader>
 
           <ScrollArea className="max-h-[60vh]">
-            <div id="report-print-content" className="space-y-4 p-4">
-              {/* Meta Info */}
-              <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
-                <div>
-                  <span className="text-xs text-muted-foreground block">Turma/Aluno</span>
-                  <span className="font-medium">{selectedReport?.turma || selectedReport?.student?.name || '-'}</span>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground block">Professor</span>
-                  <span className="font-medium">{selectedReport?.teacher?.name || '-'}</span>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground block">Período</span>
-                  <span className="font-medium">
-                    {selectedReport?.week_start && selectedReport?.week_end ? (
-                      `${format(parseISO(selectedReport.week_start), 'dd/MM', { locale: ptBR })} - ${format(parseISO(selectedReport.week_end), 'dd/MM/yyyy', { locale: ptBR })}`
-                    ) : selectedReport?.report_date ? (
-                      format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
-                    ) : '-'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Weekly Content Sections */}
-              {selectedReport?.weekly_content && (
+            <div id="report-print-content" className="p-2">
+              {/* Weekly Content with new layout */}
+              {selectedReport?.weekly_content ? (
+                <WeeklyReportView
+                  content={{
+                    performance: selectedReport.weekly_content.desempenho_geral || undefined,
+                    positive_points: selectedReport.weekly_content.pontos_positivos || undefined,
+                    difficulties: selectedReport.weekly_content.dificuldades || undefined,
+                    recommendations: selectedReport.weekly_content.recomendacoes || undefined,
+                    observations: selectedReport.weekly_content.observacoes || undefined,
+                  }}
+                  studentName={selectedReport?.turma || selectedReport?.student?.name || 'Aluno'}
+                  teacherName={selectedReport?.teacher?.name}
+                  reportDate={
+                    selectedReport?.week_start && selectedReport?.week_end
+                      ? `${format(parseISO(selectedReport.week_start), 'dd/MM', { locale: ptBR })} - ${format(parseISO(selectedReport.week_end), 'dd/MM/yyyy', { locale: ptBR })}`
+                      : selectedReport?.report_date
+                        ? format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
+                        : '-'
+                  }
+                  title={selectedReport?.title}
+                />
+              ) : (
+                /* Fallback for non-weekly content */
                 <div className="space-y-4">
-                  {selectedReport.weekly_content.desempenho_geral && (
-                    <div className="p-4 border rounded-lg">
-                      <span className="text-xs text-muted-foreground block mb-1">📊 Desempenho Geral</span>
-                      <p className="text-sm">{selectedReport.weekly_content.desempenho_geral}</p>
+                  {/* Meta Info */}
+                  <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
+                    <div>
+                      <span className="text-xs text-muted-foreground block">Turma/Aluno</span>
+                      <span className="font-medium">{selectedReport?.turma || selectedReport?.student?.name || '-'}</span>
                     </div>
-                  )}
-                  {selectedReport.weekly_content.pontos_positivos && (
-                    <div className="p-4 border rounded-lg border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900">
-                      <span className="text-xs text-green-700 dark:text-green-400 block mb-1">✅ Pontos Positivos</span>
-                      <p className="text-sm">{selectedReport.weekly_content.pontos_positivos}</p>
+                    <div>
+                      <span className="text-xs text-muted-foreground block">Professor</span>
+                      <span className="font-medium">{selectedReport?.teacher?.name || '-'}</span>
                     </div>
-                  )}
-                  {selectedReport.weekly_content.dificuldades && (
-                    <div className="p-4 border rounded-lg border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900">
-                      <span className="text-xs text-amber-700 dark:text-amber-400 block mb-1">⚠️ Dificuldades</span>
-                      <p className="text-sm">{selectedReport.weekly_content.dificuldades}</p>
+                    <div>
+                      <span className="text-xs text-muted-foreground block">Data</span>
+                      <span className="font-medium">
+                        {selectedReport?.report_date 
+                          ? format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
+                          : '-'}
+                      </span>
                     </div>
-                  )}
-                  {selectedReport.weekly_content.recomendacoes && (
-                    <div className="p-4 border rounded-lg border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
-                      <span className="text-xs text-blue-700 dark:text-blue-400 block mb-1">💡 Recomendações</span>
-                      <p className="text-sm">{selectedReport.weekly_content.recomendacoes}</p>
-                    </div>
-                  )}
-                  {selectedReport.weekly_content.observacoes && (
-                    <div className="p-4 border rounded-lg">
-                      <span className="text-xs text-muted-foreground block mb-1">📝 Observações</span>
-                      <p className="text-sm">{selectedReport.weekly_content.observacoes}</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                  </div>
 
-              {/* Fallback for non-weekly content */}
-              {!selectedReport?.weekly_content && selectedReport?.content && (
-                <div className="prose prose-sm max-w-none">
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {selectedReport.content}
+                  <div className="prose prose-sm max-w-none p-4 border rounded-lg">
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {selectedReport?.content}
+                    </div>
                   </div>
                 </div>
               )}
