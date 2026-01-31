@@ -388,6 +388,7 @@ export default function ParentReportsPortal() {
     if (report.report_type === 'weekly' || report.report_type === 'semanal') {
       try {
         const content = typeof report.content === 'string' ? JSON.parse(report.content) : report.content;
+        // Return raw content - WeeklyReportView handles both English and Portuguese keys
         return content;
       } catch {
         return null;

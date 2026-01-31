@@ -69,6 +69,7 @@ interface Lead {
   guardian_address_number: string | null;
   guardian_province: string | null;
   guardian_postal_code: string | null;
+  preferred_due_day: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -288,6 +289,7 @@ export default function Leads() {
     if (lead.guardian_postal_code) params.set('guardianPostalCode', lead.guardian_postal_code);
     
     if (lead.interested_course_id) params.set('courseId', lead.interested_course_id);
+    if (lead.preferred_due_day) params.set('preferredDueDay', lead.preferred_due_day.toString());
 
     navigate(`/matricula?${params.toString()}`);
   };

@@ -1032,6 +1032,7 @@ export type Database = {
           name: string
           notes: string | null
           phone: string
+          preferred_due_day: number | null
           source: string | null
           status: string
           student_birth_date: string | null
@@ -1056,6 +1057,7 @@ export type Database = {
           name: string
           notes?: string | null
           phone: string
+          preferred_due_day?: number | null
           source?: string | null
           status?: string
           student_birth_date?: string | null
@@ -1080,6 +1082,7 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string
+          preferred_due_day?: number | null
           source?: string | null
           status?: string
           student_birth_date?: string | null

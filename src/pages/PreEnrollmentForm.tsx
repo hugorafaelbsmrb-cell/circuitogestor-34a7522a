@@ -44,6 +44,8 @@ export default function PreEnrollmentForm() {
     // Interest
     interested_course_id: '',
     notes: '',
+    // Payment preference
+    preferred_due_day: '10',
   });
 
   useEffect(() => {
@@ -423,6 +425,28 @@ export default function PreEnrollmentForm() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="preferred_due_day">Dia de Vencimento Preferido</Label>
+                <Select 
+                  value={form.preferred_due_day} 
+                  onValueChange={(value) => handleChange('preferred_due_day', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o dia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">Dia 5</SelectItem>
+                    <SelectItem value="10">Dia 10</SelectItem>
+                    <SelectItem value="15">Dia 15</SelectItem>
+                    <SelectItem value="20">Dia 20</SelectItem>
+                    <SelectItem value="25">Dia 25</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Dia do mês para vencimento das mensalidades
+                </p>
               </div>
 
               <div>

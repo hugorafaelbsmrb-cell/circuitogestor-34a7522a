@@ -24,6 +24,9 @@ interface PreEnrollmentData {
   // Interest
   interested_course_id?: string;
   notes?: string;
+  
+  // Payment preference
+  preferred_due_day?: string;
 }
 
 // Simple CPF validation
@@ -129,6 +132,7 @@ Deno.serve(async (req) => {
       guardian_address_number: data.guardian_address_number || 'S/N',
       guardian_province: data.guardian_province || 'Centro',
       guardian_postal_code: data.guardian_postal_code?.replace(/\D/g, '') || null,
+      preferred_due_day: data.preferred_due_day ? parseInt(data.preferred_due_day) : 10,
     };
 
     const { data: lead, error: insertError } = await supabase
