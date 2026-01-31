@@ -22,6 +22,7 @@ import { useAutomationSettings } from '@/hooks/useAutomationSettings';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ReportImageManager from '@/components/reports/ReportImageManager';
+import WeeklyReportView from '@/components/reports/WeeklyReportView';
 
 const EXTERNAL_API_URL = 'https://uvnkqzwzsokyonxonzot.supabase.co/functions/v1/teacher-api/reports';
 const EXTERNAL_API_KEY = 'teacher_api_circuitokids_2025';
@@ -1138,39 +1139,23 @@ export default function ReportApprovalTab() {
 
               {/* Weekly report structured content */}
               {selectedReport.weekly_content ? (
-                <div className="space-y-3">
-                  <Label className="text-muted-foreground">Conteúdo do Relatório Semanal</Label>
-                  {selectedReport.weekly_content.desempenho_geral && (
-                    <div className="p-3 border-l-4 border-orange-500 bg-orange-50 rounded-r-lg">
-                      <p className="text-sm font-semibold text-orange-700 mb-1">Desempenho Geral</p>
-                      <p className="text-sm">{selectedReport.weekly_content.desempenho_geral}</p>
-                    </div>
-                  )}
-                  {selectedReport.weekly_content.pontos_positivos && (
-                    <div className="p-3 border-l-4 border-green-500 bg-green-50 rounded-r-lg">
-                      <p className="text-sm font-semibold text-green-700 mb-1">Pontos Positivos</p>
-                      <p className="text-sm">{selectedReport.weekly_content.pontos_positivos}</p>
-                    </div>
-                  )}
-                  {selectedReport.weekly_content.dificuldades && (
-                    <div className="p-3 border-l-4 border-amber-500 bg-amber-50 rounded-r-lg">
-                      <p className="text-sm font-semibold text-amber-700 mb-1">Dificuldades</p>
-                      <p className="text-sm">{selectedReport.weekly_content.dificuldades}</p>
-                    </div>
-                  )}
-                  {selectedReport.weekly_content.recomendacoes && (
-                    <div className="p-3 border-l-4 border-blue-500 bg-blue-50 rounded-r-lg">
-                      <p className="text-sm font-semibold text-blue-700 mb-1">Recomendações</p>
-                      <p className="text-sm">{selectedReport.weekly_content.recomendacoes}</p>
-                    </div>
-                  )}
-                  {selectedReport.weekly_content.observacoes && (
-                    <div className="p-3 border-l-4 border-muted bg-muted/30 rounded-r-lg">
-                      <p className="text-sm font-semibold text-muted-foreground mb-1">Observações</p>
-                      <p className="text-sm">{selectedReport.weekly_content.observacoes}</p>
-                    </div>
-                  )}
-                </div>
+                <WeeklyReportView
+                  content={{
+                    performance: selectedReport.weekly_content.desempenho_geral || undefined,
+                    positive_points: selectedReport.weekly_content.pontos_positivos || undefined,
+                    difficulties: selectedReport.weekly_content.dificuldades || undefined,
+                    recommendations: selectedReport.weekly_content.recomendacoes || undefined,
+                    observations: selectedReport.weekly_content.observacoes || undefined,
+                  }}
+                  studentName={selectedReport.student?.name || selectedReport.turma || '-'}
+                  teacherName={selectedReport.teacher?.name}
+                  reportDate={
+                    selectedReport.week_start && selectedReport.week_end
+                      ? `${format(parseISO(selectedReport.week_start), 'dd/MM', { locale: ptBR })} - ${format(parseISO(selectedReport.week_end), 'dd/MM/yyyy', { locale: ptBR })}`
+                      : format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
+                  }
+                  title={selectedReport.title}
+                />
               ) : (
                 <div>
                   <Label className="text-muted-foreground">Conteúdo</Label>

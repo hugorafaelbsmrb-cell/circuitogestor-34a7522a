@@ -200,6 +200,9 @@ export default function Enrollment() {
     const guardianName = searchParams.get('guardianName');
     
     if (leadIdParam && guardianName && !existingStudentId) {
+      // Get preferred due day from lead data
+      const preferredDueDay = searchParams.get('preferredDueDay') || '10';
+      
       setFormData(prev => ({
         ...prev,
         student: {
@@ -218,6 +221,10 @@ export default function Enrollment() {
           postalCode: searchParams.get('guardianPostalCode') || '',
         },
         courseId: searchParams.get('courseId') || '',
+        payment: {
+          ...prev.payment,
+          dueDayOfMonth: preferredDueDay,
+        },
       }));
 
       // If we have guardian CPF, search for existing guardian

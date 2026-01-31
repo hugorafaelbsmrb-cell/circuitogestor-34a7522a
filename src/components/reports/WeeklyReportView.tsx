@@ -2,11 +2,18 @@ import { Star, CheckCircle, AlertTriangle, Lightbulb, ClipboardList } from 'luci
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 
 interface WeeklyReportContent {
+  // English keys (for mapped/local data)
   performance?: string;
   positive_points?: string;
   difficulties?: string;
   recommendations?: string;
   observations?: string;
+  // Portuguese keys (for API data)
+  desempenho_geral?: string;
+  pontos_positivos?: string;
+  dificuldades?: string;
+  recomendacoes?: string;
+  observacoes?: string;
 }
 
 interface WeeklyReportViewProps {
@@ -26,39 +33,48 @@ export default function WeeklyReportView({
 }: WeeklyReportViewProps) {
   const { branding } = useSystemBranding();
 
+  // Normalize content - support both English and Portuguese keys
+  const normalizedContent = {
+    performance: content.performance || content.desempenho_geral,
+    positive_points: content.positive_points || content.pontos_positivos,
+    difficulties: content.difficulties || content.dificuldades,
+    recommendations: content.recommendations || content.recomendacoes,
+    observations: content.observations || content.observacoes,
+  };
+
   const sections = [
     {
       key: 'performance',
       title: 'DESEMPENHO GERAL',
-      content: content.performance,
+      content: normalizedContent.performance,
       color: '#EA580C', // Orange
       icon: Star,
     },
     {
       key: 'positive_points',
       title: 'PONTOS POSITIVOS',
-      content: content.positive_points,
+      content: normalizedContent.positive_points,
       color: '#16A34A', // Green
       icon: CheckCircle,
     },
     {
       key: 'difficulties',
       title: 'DIFICULDADES',
-      content: content.difficulties,
+      content: normalizedContent.difficulties,
       color: '#D97706', // Amber
       icon: AlertTriangle,
     },
     {
       key: 'recommendations',
       title: 'RECOMENDAÇÕES',
-      content: content.recommendations,
+      content: normalizedContent.recommendations,
       color: '#EA580C', // Orange
       icon: Lightbulb,
     },
     {
       key: 'observations',
       title: 'OBSERVAÇÕES',
-      content: content.observations,
+      content: normalizedContent.observations,
       color: '#6B7280', // Gray
       icon: ClipboardList,
     },
