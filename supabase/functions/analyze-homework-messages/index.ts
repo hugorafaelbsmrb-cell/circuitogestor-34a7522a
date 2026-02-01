@@ -150,39 +150,50 @@ Deno.serve(async (req) => {
           const hasImage = msg.media_url && msg.media_type?.startsWith("image");
           
           // Build the prompt
-          const prompt = `Você é um assistente que analisa mensagens de WhatsApp de pais/responsáveis de uma escola.
+          const prompt = `Você é um assistente especializado em identificar conteúdo escolar em mensagens de WhatsApp.
 
-Analise a seguinte mensagem${hasImage ? " e imagem" : ""} e identifique se contém informações sobre tarefas de casa, atividades escolares, roteiro diário de estudos ou deveres.
+Analise a seguinte mensagem${hasImage ? " e imagem" : ""} e identifique se contém QUALQUER informação sobre:
+- Tarefas de casa / Dever de casa
+- Atividades escolares para fazer em casa
+- Roteiro diário de estudos
+- Agenda escolar com atividades
+- Lições ou exercícios para entregar
+- Conteúdo ministrado em aula com atividades pendentes
 
-${hasImage ? "IMPORTANTE: Analise cuidadosamente a IMAGEM anexada. Ela pode conter:" : ""}
-${hasImage ? "- Print/screenshot de agenda escolar" : ""}
-${hasImage ? "- Foto de caderno com tarefas" : ""}
-${hasImage ? "- Imagem de atividades ou exercícios" : ""}
-${hasImage ? "- Print de comunicado da escola" : ""}
+IMPORTANTE: Considere como dever de casa qualquer mensagem que mencione:
+- "ATIVIDADE EM CASA" ou "ATIVIDADE DE CASA"
+- "Páginas X a Y" para fazer
+- "Data de entrega" de atividades
+- Tarefas com prazo
+- Leitura obrigatória
+- Exercícios para resolver
 
-Responsável: ${(msg.guardians as any)?.name || 'Desconhecido'}
-Mensagem de texto: "${msg.message || '(apenas imagem)'}"
+${hasImage ? "ANALISE A IMAGEM: Pode ser print de agenda, foto de caderno, atividades ou comunicado escolar." : ""}
 
-Retorne um JSON com o formato:
+Remetente: ${(msg.guardians as any)?.name || 'Escola/Grupo'}
+Mensagem: "${msg.message || '(apenas imagem)'}"
+
+Retorne um JSON:
 {
   "isHomework": true/false,
   "confidence": 0.0-1.0,
-  "studentName": "nome do aluno se mencionado ou identificado",
+  "studentName": "série/turma ou nome se identificado",
   "subjects": ["matérias identificadas"],
   "activities": [
     {
       "subject": "matéria",
       "description": "descrição da atividade",
-      "status": "realizada/não realizada/parcial/a fazer"
+      "status": "a fazer/realizada/parcial"
     }
   ],
-  "summary": "resumo breve do conteúdo",
-  "parentNotes": "observações do responsável se houver",
+  "summary": "resumo das atividades pendentes",
+  "parentNotes": "observações adicionais",
   "hasImageContent": ${hasImage ? "true" : "false"},
-  "imageDescription": "descrição do que foi identificado na imagem (se aplicável)"
+  "imageDescription": "descrição da imagem se aplicável"
 }
 
-Retorne APENAS o JSON, sem explicações adicionais.`;
+ATENÇÃO: Se a mensagem mencionar "ATIVIDADE EM CASA" ou similar, retorne isHomework=true com confidence >= 0.7.
+Retorne APENAS o JSON.`;
 
           try {
             // Build content parts for Google Gemini API
@@ -225,7 +236,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`;
               if (jsonMatch) {
                 const analysis = JSON.parse(jsonMatch[0]);
                 
-                if (analysis.isHomework && analysis.confidence >= 0.5) {
+                if (analysis.isHomework && analysis.confidence >= 0.3) {
                   results.push({
                     messageId: msg.id,
                     phone: msg.phone,
