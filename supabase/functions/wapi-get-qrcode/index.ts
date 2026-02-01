@@ -23,21 +23,30 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Extract token from Bearer header
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Create client with service role and verify the user token
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
     });
 
-    // Verify user
-    const token = authHeader.replace('Bearer ', '');
+    // Verify user by passing their JWT token
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      console.error('Auth verification failed:', userError?.message);
+      return new Response(JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired session' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    
+    console.log('User authenticated:', userData.user.email);
 
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
