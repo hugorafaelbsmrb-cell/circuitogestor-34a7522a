@@ -27,7 +27,8 @@ import {
   Megaphone,
   Globe,
   FileCheck,
-  Mail
+  Mail,
+  Lightbulb
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -119,6 +120,7 @@ const menuSections: MenuSection[] = [
       { icon: ClipboardList, label: 'Relatórios', path: '/relatorios', permissionKey: 'reports', adminOnly: false },
       { icon: Package, label: 'Inventário', path: '/inventario', permissionKey: 'inventory', adminOnly: false },
       { icon: UtensilsCrossed, label: 'Cantina', path: '/cantina-admin', permissionKey: 'canteen', adminOnly: false },
+      { icon: Lightbulb, label: 'Automação', path: '/automacao', permissionKey: 'settings', adminOnly: true },
     ]
   },
   {
