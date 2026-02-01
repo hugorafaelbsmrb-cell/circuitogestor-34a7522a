@@ -44,6 +44,7 @@ import NotFound from "./pages/NotFound";
 import ExternalApiManager from "./pages/ExternalApiManager";
 import AttendancePublic from "./pages/AttendancePublic";
 import AttendanceAdmin from "./pages/AttendanceAdmin";
+import EmailClient from "./pages/EmailClient";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -126,6 +127,7 @@ const App = () => (
                       <Route path="/cantina-admin" element={<CanteenAdminPage />} />
                       <Route path="/campanhas-admin" element={<CampaignAdmin />} />
                       <Route path="/api-externa" element={<ExternalApiManager />} />
+                      <Route path="/email" element={<EmailClient />} />
                       <Route path="/configuracoes" element={<Settings />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>

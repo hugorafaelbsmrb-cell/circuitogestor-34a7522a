@@ -39,3 +39,12 @@ verify_jwt = false
 
 [functions.contract-sign]
 verify_jwt = false
+
+[functions.email-fetch]
+verify_jwt = false
+
+[functions.email-send]
+verify_jwt = false
+
+[functions.email-config-test]
+verify_jwt = false

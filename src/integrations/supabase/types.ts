@@ -741,6 +741,63 @@ export type Database = {
         }
         Relationships: []
       }
+      email_messages: {
+        Row: {
+          attachments: Json | null
+          body_html: string | null
+          body_text: string | null
+          cc_addresses: string[] | null
+          created_at: string
+          direction: string
+          folder: string
+          from_address: string
+          id: string
+          is_read: boolean
+          is_starred: boolean
+          message_id: string
+          received_at: string
+          subject: string | null
+          to_addresses: string[]
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_addresses?: string[] | null
+          created_at?: string
+          direction?: string
+          folder?: string
+          from_address: string
+          id?: string
+          is_read?: boolean
+          is_starred?: boolean
+          message_id: string
+          received_at?: string
+          subject?: string | null
+          to_addresses?: string[]
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_addresses?: string[] | null
+          created_at?: string
+          direction?: string
+          folder?: string
+          from_address?: string
+          id?: string
+          is_read?: boolean
+          is_starred?: boolean
+          message_id?: string
+          received_at?: string
+          subject?: string | null
+          to_addresses?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       enrollment_schedules: {
         Row: {
           class_group_id: string
