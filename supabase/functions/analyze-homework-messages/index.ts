@@ -8,10 +8,6 @@ const corsHeaders = {
 // Lovable AI Gateway - higher rate limits than Google free tier
 const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-function getLovableApiKey(): string | null {
-  return Deno.env.get("LOVABLE_API_KEY") || null;
-}
-
 async function fetchImageAsBase64(url: string): Promise<string | null> {
   try {
     const response = await fetch(url);
@@ -46,8 +42,10 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const LOVABLE_API_KEY = getLovableApiKey();
+    // Use Lovable API Key - automatically provided
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
+      console.error("LOVABLE_API_KEY not configured");
       return new Response(JSON.stringify({ 
         error: "Chave da API Lovable não configurada" 
       }), {
@@ -55,6 +53,8 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log("Using Lovable AI Gateway for analysis");
 
     const { action, dateFrom, dateTo } = await req.json();
 
@@ -93,6 +93,8 @@ Deno.serve(async (req) => {
         throw new Error(`Failed to fetch messages: ${messagesError.message}`);
       }
 
+      console.log(`Found ${messages?.length || 0} messages to analyze`);
+
       if (!messages || messages.length === 0) {
         return new Response(JSON.stringify({ 
           results: [],
@@ -112,6 +114,8 @@ Deno.serve(async (req) => {
       const processedIds = new Set(existingReports?.map(r => r.whatsapp_message_id) || []);
       const unprocessedMessages = messages.filter(m => !processedIds.has(m.id));
 
+      console.log(`${unprocessedMessages.length} unprocessed messages`);
+
       if (unprocessedMessages.length === 0) {
         return new Response(JSON.stringify({ 
           results: [],
@@ -126,41 +130,46 @@ Deno.serve(async (req) => {
 
       const results: any[] = [];
       
-      // Process messages in smaller batches
-      const batchSize = 5;
-      for (let i = 0; i < Math.min(unprocessedMessages.length, 30); i += batchSize) {
+      // Process messages in smaller batches with delay
+      const batchSize = 3;
+      const maxToProcess = Math.min(unprocessedMessages.length, 30);
+      
+      for (let i = 0; i < maxToProcess; i += batchSize) {
         const batch = unprocessedMessages.slice(i, i + batchSize);
         
         // Process each message individually
         for (const msg of batch) {
           const hasImage = msg.media_url && msg.media_type?.startsWith("image");
           
-          // Build the prompt - more inclusive for homework detection
+          // Build the prompt - very inclusive for homework detection
           const prompt = `Você é um assistente especializado em identificar conteúdo escolar em mensagens de WhatsApp.
 
 Analise a seguinte mensagem${hasImage ? " e imagem" : ""} e identifique se contém QUALQUER informação sobre:
-- Tarefas de casa / Dever de casa
+- Tarefas de casa / Dever de casa / Para casa
 - Atividades escolares para fazer em casa
 - Roteiro diário de estudos
 - Agenda escolar com atividades
 - Lições ou exercícios para entregar
 - Conteúdo ministrado em aula com atividades pendentes
+- Comunicados de escola com tarefas
 
-IMPORTANTE: Considere como dever de casa qualquer mensagem que mencione:
-- "ATIVIDADE EM CASA" ou "ATIVIDADE DE CASA"
+IMPORTANTE: Considere como dever de casa QUALQUER mensagem que mencione:
+- "ATIVIDADE EM CASA" ou "ATIVIDADE DE CASA" ou "PARA CASA"
 - "Páginas X a Y" para fazer
 - "Data de entrega" ou "DATA DA ENTREGA" de atividades
 - Tarefas com prazo
 - Leitura obrigatória
 - Exercícios para resolver
 - Conteúdo ministrado com atividades pendentes
+- Agenda diária de escola
+- Roteiro de estudos
 
-${hasImage ? "ANALISE A IMAGEM: Pode ser print de agenda, foto de caderno, atividades ou comunicado escolar." : ""}
+${hasImage ? "ANALISE A IMAGEM COM ATENÇÃO: Pode ser print de agenda, foto de caderno, atividades, roteiro diário ou comunicado escolar." : ""}
 
 Remetente: ${(msg.guardians as any)?.name || 'Escola/Grupo'}
 Mensagem: "${msg.message || '(apenas imagem)'}"
 
-Retorne um JSON:
+Retorne um JSON válido:
 {
   "isHomework": true/false,
   "confidence": 0.0-1.0,
@@ -179,15 +188,23 @@ Retorne um JSON:
   "imageDescription": "descrição da imagem se aplicável"
 }
 
-ATENÇÃO: Se a mensagem mencionar "ATIVIDADE EM CASA", "ATIVIDADE DE CASA", "DATA DE ENTREGA" ou similar, retorne isHomework=true com confidence >= 0.7.
-Retorne APENAS o JSON.`;
+ATENÇÃO MÁXIMA: 
+- Se a mensagem mencionar "ATIVIDADE EM CASA", "ATIVIDADE DE CASA", "PARA CASA", "DATA DE ENTREGA", "páginas", agenda escolar ou similar, retorne isHomework=true com confidence >= 0.8.
+- Mensagens de grupos escolares com roteiro diário são SEMPRE homework.
+- Na dúvida, marque como isHomework=true para revisão manual.
+
+Retorne APENAS o JSON, sem texto adicional.`;
 
           try {
             // Build content for Lovable AI Gateway (OpenAI-compatible format)
             const messageContent: any[] = [];
             
+            // Add text prompt first
+            messageContent.push({ type: "text", text: prompt });
+            
             // Add image if present (as base64 data URL)
             if (hasImage && msg.media_url) {
+              console.log(`Fetching image for message ${msg.id}`);
               const imageBase64 = await fetchImageAsBase64(msg.media_url);
               if (imageBase64) {
                 messageContent.push({
@@ -196,11 +213,12 @@ Retorne APENAS o JSON.`;
                     url: `data:${getMimeType(msg.media_url, msg.media_type)};base64,${imageBase64}`
                   }
                 });
+                console.log(`Image added for message ${msg.id}`);
               }
             }
-            
-            messageContent.push({ type: "text", text: prompt });
 
+            console.log(`Calling Lovable AI for message ${msg.id}`);
+            
             const aiResponse = await fetch(LOVABLE_AI_URL, {
               method: "POST",
               headers: { 
@@ -217,26 +235,30 @@ Retorne APENAS o JSON.`;
 
             if (!aiResponse.ok) {
               const errorText = await aiResponse.text();
-              console.error("AI error for message", msg.id, ":", errorText);
+              console.error(`AI error for message ${msg.id}:`, aiResponse.status, errorText);
               
               // Handle rate limiting gracefully
               if (aiResponse.status === 429) {
-                console.log("Rate limited, waiting before continuing...");
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                console.log("Rate limited, waiting 3 seconds before continuing...");
+                await new Promise(resolve => setTimeout(resolve, 3000));
               }
               continue;
             }
 
             const aiData = await aiResponse.json();
             const aiContent = aiData.choices?.[0]?.message?.content || "{}";
+            
+            console.log(`AI response for ${msg.id}:`, aiContent.substring(0, 200));
 
             try {
               const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
               if (jsonMatch) {
                 const analysis = JSON.parse(jsonMatch[0]);
                 
-                // Lower threshold to catch more homework messages
-                if (analysis.isHomework && analysis.confidence >= 0.3) {
+                console.log(`Message ${msg.id}: isHomework=${analysis.isHomework}, confidence=${analysis.confidence}`);
+                
+                // Very low threshold to catch everything
+                if (analysis.isHomework && analysis.confidence >= 0.2) {
                   results.push({
                     messageId: msg.id,
                     phone: msg.phone,
@@ -258,21 +280,27 @@ Retorne APENAS o JSON.`;
                       imageDescription: analysis.imageDescription
                     }
                   });
+                  console.log(`Added homework result for message ${msg.id}`);
                 }
               }
             } catch (parseError) {
-              console.error("Parse error for message", msg.id, ":", parseError);
+              console.error(`Parse error for message ${msg.id}:`, parseError);
             }
           } catch (fetchError) {
-            console.error("Fetch error for message", msg.id, ":", fetchError);
+            console.error(`Fetch error for message ${msg.id}:`, fetchError);
           }
+          
+          // Small delay between requests to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
+
+      console.log(`Analysis complete: ${results.length} homework messages found`);
 
       return new Response(JSON.stringify({ 
         results,
         total: messages.length,
-        analyzed: Math.min(unprocessedMessages.length, 30),
+        analyzed: maxToProcess,
         homeworkFound: results.length
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
