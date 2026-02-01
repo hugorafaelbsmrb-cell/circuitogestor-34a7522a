@@ -5,8 +5,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function getGoogleApiKey(): Promise<string | null> {
-  const envKey = Deno.env.get("GOOGLE_API_KEY");
+// Lovable AI Gateway - no rate limits like Google's free tier
+const LOVABLE_AI_URL = "https://ai-gateway.lovable.dev/v1/chat/completions";
+
+async function getLovableApiKey(): Promise<string | null> {
+  const envKey = Deno.env.get("LOVABLE_API_KEY");
   if (envKey) return envKey;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -17,7 +20,7 @@ async function getGoogleApiKey(): Promise<string | null> {
   const { data } = await supabase
     .from("app_settings")
     .select("value")
-    .eq("key", "GOOGLE_API_KEY")
+    .eq("key", "LOVABLE_API_KEY")
     .maybeSingle();
 
   return data?.value || null;
@@ -57,10 +60,10 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const GOOGLE_API_KEY = await getGoogleApiKey();
-    if (!GOOGLE_API_KEY) {
+    const LOVABLE_API_KEY = await getLovableApiKey();
+    if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({ 
-        error: "Chave da API do Google não configurada" 
+        error: "Chave da API Lovable não configurada" 
       }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -182,35 +185,37 @@ Retorne um JSON com o formato:
 Retorne APENAS o JSON, sem explicações adicionais.`;
 
           try {
-            // Build content parts for Google Gemini API
-            const contentParts: any[] = [];
+            // Build content for Lovable AI Gateway (OpenAI-compatible format)
+            const messageContent: any[] = [];
             
-            // Add image if present
+            // Add image if present (as base64 data URL)
             if (hasImage && msg.media_url) {
               const imageBase64 = await fetchImageAsBase64(msg.media_url);
               if (imageBase64) {
-                contentParts.push({
-                  inline_data: {
-                    mime_type: getMimeType(msg.media_url, msg.media_type),
-                    data: imageBase64
+                messageContent.push({
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${getMimeType(msg.media_url, msg.media_type)};base64,${imageBase64}`
                   }
                 });
               }
             }
             
-            contentParts.push({ text: prompt });
+            messageContent.push({ type: "text", text: prompt });
 
-            const aiResponse = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contents: [{ role: "user", parts: contentParts }],
-                  generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
-                }),
-              }
-            );
+            const aiResponse = await fetch(LOVABLE_AI_URL, {
+              method: "POST",
+              headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${LOVABLE_API_KEY}`
+              },
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash-lite",
+                messages: [{ role: "user", content: messageContent }],
+                temperature: 0.3,
+                max_tokens: 2048,
+              }),
+            });
 
             if (!aiResponse.ok) {
               console.error("AI error for message", msg.id, ":", await aiResponse.text());
@@ -218,7 +223,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`;
             }
 
             const aiData = await aiResponse.json();
-            const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+            const aiContent = aiData.choices?.[0]?.message?.content || "{}";
 
             try {
               const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
