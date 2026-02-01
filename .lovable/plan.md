@@ -1,105 +1,191 @@
 
-# Plano: Corrigir Query de Alocação de Alunos na Agenda Semanal
+# Plano: Sistema de Registro de Presença de Alunos
 
-## Problema Identificado
+## Visão Geral
 
-A query atual na página `StudentAllocation.tsx` usa filtros aninhados que **não funcionam corretamente** com o SDK do Supabase:
-
-```typescript
-// PROBLEMA: Esta sintaxe não filtra corretamente
-.eq('enrollments.status', 'active')
-.eq('enrollments.students.is_active', true)
-.eq('class_groups.is_active', true)
-```
-
-Os dados existem no banco (42 registros), mas a query retorna vazio porque o Supabase JavaScript SDK não suporta bem filtros em relacionamentos profundos desta forma.
+Criar um sistema completo de controle de presença que permite à secretaria registrar a chegada dos alunos, monitorar ausências e notificar responsáveis automaticamente via WhatsApp quando um aluno não comparece dentro do período de tolerância configurado.
 
 ---
 
-## Solução
+## Funcionalidades Principais
 
-Modificar a estratégia de query para buscar todos os dados da tabela `enrollment_schedules` e filtrar no lado do cliente, ou usar uma abordagem de query mais simples e eficiente.
+### 1. Página Pública de Registro de Presença (`/presenca`)
+Uma página simplificada (similar à `/cantina`) que exibe apenas os alunos esperados para o dia e horário atual, permitindo que a secretaria marque a presença com um clique.
 
----
+### 2. Painel Administrativo de Presença
+Visão completa para usuários logados com:
+- Lista de alunos que ainda não chegaram
+- Histórico de presenças/ausências
+- Estatísticas e relatórios
 
-## Alterações Técnicas
+### 3. Configuração de Tolerância
+Permitir ao administrador definir:
+- Tempo de tolerância após o horário de início da aula (ex: 15 minutos)
+- Habilitar/desabilitar notificação automática de ausência
+- Template da mensagem de ausência
 
-### Arquivo: `src/pages/StudentAllocation.tsx`
-
-**Modificação 1:** Simplificar a query removendo os filtros aninhados e filtrando no JavaScript
-
-A query atual:
-```typescript
-const { data: enrollmentSchedulesData, error: esError } = await supabase
-  .from('enrollment_schedules')
-  .select(`...`)
-  .eq('enrollments.status', 'active')           // NÃO FUNCIONA
-  .eq('enrollments.students.is_active', true)   // NÃO FUNCIONA
-  .eq('class_groups.is_active', true);          // NÃO FUNCIONA
-```
-
-Nova query (sem filtros aninhados, filtragem no cliente):
-```typescript
-const { data: enrollmentSchedulesData, error: esError } = await supabase
-  .from('enrollment_schedules')
-  .select(`
-    id,
-    enrollment:enrollments(
-      id,
-      status,
-      student:students(
-        id,
-        name,
-        birth_date,
-        is_active,
-        guardian:guardians(name, phone)
-      )
-    ),
-    class_group:class_groups(
-      id,
-      name,
-      is_active,
-      course:courses(id, name),
-      schedule:schedules(day_of_week, start_time, end_time)
-    )
-  `);
-
-// Filtrar no lado do cliente
-const filteredData = enrollmentSchedulesData?.filter((es: any) => {
-  const enrollment = es.enrollment;
-  const student = enrollment?.student;
-  const classGroup = es.class_group;
-  
-  return enrollment?.status === 'active' && 
-         student?.is_active === true && 
-         classGroup?.is_active === true;
-});
-```
+### 4. Notificação Automática de Ausência
+Edge function que envia WhatsApp ao responsável informando que o aluno não compareceu, disparada após o período de tolerância.
 
 ---
 
-## Resumo das Alterações
+## Detalhes Técnicos
 
-| Arquivo | Alteração |
+### Banco de Dados
+
+**Nova tabela: `attendance_records`**
+```sql
+CREATE TABLE attendance_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID NOT NULL REFERENCES students(id),
+  enrollment_id UUID REFERENCES enrollments(id),
+  class_group_id UUID REFERENCES class_groups(id),
+  attendance_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  expected_time TIME NOT NULL,
+  checked_in_at TIMESTAMP WITH TIME ZONE,
+  status TEXT NOT NULL DEFAULT 'pending', -- 'pending', 'present', 'absent', 'late'
+  notification_sent_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  UNIQUE(student_id, attendance_date, class_group_id)
+);
+```
+
+**Nova configuração em `automation_settings`:**
+- `auto_absence_notification` - Habilita/desabilita notificação automática
+- Config JSON: `{ tolerance_minutes: 15, send_immediately: false }`
+
+**Novo template em `app_settings`:**
+- `absence_notification_template` - Mensagem personalizada de ausência
+
+### Arquivos a Criar
+
+| Arquivo | Descrição |
 |---------|-----------|
-| `src/pages/StudentAllocation.tsx` | Remover filtros `.eq()` aninhados e filtrar dados no JavaScript após a consulta |
+| `src/pages/AttendancePublic.tsx` | Página pública para registro rápido |
+| `src/pages/AttendanceAdmin.tsx` | Painel administrativo completo |
+| `src/hooks/useAttendance.ts` | Hook para lógica de presença |
+| `src/components/attendance/StudentCheckIn.tsx` | Componente de check-in |
+| `src/components/attendance/PendingStudentsList.tsx` | Lista de alunos pendentes |
+| `src/components/attendance/AttendanceStats.tsx` | Estatísticas do dia |
+| `src/components/attendance/AttendanceHistory.tsx` | Histórico de presenças |
+| `supabase/functions/send-absence-notification/index.ts` | Edge function para WhatsApp |
+| `supabase/functions/check-pending-attendance/index.ts` | Cron job para verificar ausências |
+
+### Fluxo de Funcionamento
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                    FLUXO DE PRESENÇA                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  1. Início do dia                                               │
+│     ↓                                                           │
+│  Sistema gera registros "pending" para todos os alunos          │
+│  esperados no dia (baseado em enrollment_schedules)             │
+│     ↓                                                           │
+│  2. Secretaria acessa /presenca                                 │
+│     ↓                                                           │
+│  Página mostra apenas alunos do turno atual                     │
+│     ↓                                                           │
+│  3. Aluno chega → Secretaria clica no nome                      │
+│     ↓                                                           │
+│  Status atualizado para "present" ou "late"                     │
+│     ↓                                                           │
+│  4. Após tolerância (ex: 15 min)                                │
+│     ↓                                                           │
+│  Cron job verifica pendentes e marca como "absent"              │
+│     ↓                                                           │
+│  5. Se automação ativada → Envia WhatsApp ao responsável        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Interface da Página Pública (`/presenca`)
+
+- **Filtro automático**: Mostra apenas alunos do dia/horário atual
+- **Busca rápida**: Campo de pesquisa por nome
+- **Cards de aluno**: Nome, curso, horário esperado
+- **Ação de check-in**: Botão ou toque para marcar presença
+- **Indicadores visuais**: Verde (presente), Amarelo (atrasado), Vermelho (ausente), Cinza (pendente)
+
+### Interface do Painel Admin (`/presenca-admin`)
+
+- **Dashboard do dia**: Total esperado, presentes, ausentes, pendentes
+- **Abas**: Pendentes | Histórico | Configurações
+- **Filtros**: Por curso, turno, data
+- **Ações em lote**: Marcar todos como ausentes, reenviar notificações
+- **Configuração de tolerância**: Campo para definir minutos
+- **Toggle de automação**: Ativar/desativar notificação automática
+- **Editor de template**: Personalizar mensagem de ausência
+
+### Variáveis do Template de Ausência
+
+| Variável | Descrição |
+|----------|-----------|
+| `{nome_responsavel}` | Primeiro nome do responsável |
+| `{nome_aluno}` | Nome completo do aluno |
+| `{curso}` | Nome do curso |
+| `{horario}` | Horário esperado |
+| `{data}` | Data formatada |
+| `{nome_escola}` | Nome da escola |
+
+**Exemplo de mensagem padrão:**
+```
+Olá, {nome_responsavel}! 👋
+
+Notamos que *{nome_aluno}* não compareceu à aula de *{curso}* hoje ({data}) às {horario}.
+
+Está tudo bem? Se precisar reagendar ou tiver alguma dúvida, entre em contato conosco.
+
+Atenciosamente,
+*{nome_escola}*
+```
+
+### Rotas
+
+| Rota | Tipo | Descrição |
+|------|------|-----------|
+| `/presenca` | Pública | Registro rápido de presença |
+| `/presenca-admin` | Protegida | Painel administrativo |
+
+### Sidebar
+
+Adicionar no menu "Acadêmico":
+- Ícone: `UserCheck` ou `ClipboardCheck`
+- Label: "Presença"
+- Path: `/presenca-admin`
+
+### Políticas RLS
+
+- **attendance_records**:
+  - SELECT: Authenticated users
+  - INSERT: Public (para registro via página pública) + Authenticated
+  - UPDATE: Authenticated users
+  - DELETE: Admins only
+
+### Cron Job
+
+Configurar um job que executa a cada 5 minutos para verificar alunos que passaram do período de tolerância e ainda estão como "pending":
+
+```sql
+SELECT cron.schedule(
+  'check-pending-attendance',
+  '*/5 * * * *',
+  $$ SELECT net.http_post(...) $$
+);
+```
 
 ---
 
-## Benefícios
+## Resumo de Entregáveis
 
-1. **Correção imediata**: Os 42 alunos matriculados aparecerão corretamente na agenda semanal
-2. **Compatibilidade**: Funciona com qualquer versão do Supabase SDK
-3. **Simplicidade**: Código mais fácil de entender e manter
-4. **Performance aceitável**: Para volumes moderados de dados (centenas de registros), a filtragem no cliente é eficiente
+1. Tabela `attendance_records` com RLS
+2. Página pública `/presenca` para check-in rápido
+3. Página admin `/presenca-admin` com gestão completa
+4. Configuração de tolerância e automação
+5. Edge function para notificação de ausência
+6. Cron job para verificar pendentes automaticamente
+7. Template personalizável de mensagem
+8. Atualização do sidebar com novo item
 
----
-
-## Resultado Esperado
-
-Após a implementação, a página de "Agenda Semanal de Alunos" mostrará:
-- **Curso de Robótica**: Alunos distribuídos em Segunda, Terça, Quarta, etc.
-- **Reforço Escolar**: Alunos distribuídos nos dias corretos
-- **Soroban**: Alunos nos horários definidos
-
-Cada aluno aparecerá em **todos os dias** que foram selecionados durante sua matrícula.
