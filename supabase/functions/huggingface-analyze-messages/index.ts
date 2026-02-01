@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,36 @@ interface Message {
   created_at: string;
 }
 
+async function getGoogleApiKey(): Promise<string | null> {
+  const envKey = Deno.env.get("GOOGLE_API_KEY");
+  if (envKey) {
+    return envKey;
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Supabase credentials not configured");
+    return null;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "GOOGLE_API_KEY")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching GOOGLE_API_KEY from app_settings:", error);
+    return null;
+  }
+
+  return data?.value || null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -18,10 +49,19 @@ serve(async (req) => {
 
   try {
     const { messages, type, guardianName, studentNames, courseNames } = await req.json();
-    const HUGGINGFACE_API_TOKEN = Deno.env.get("HUGGINGFACE_API_TOKEN");
+    
+    // Use Google API Key - external Gemini 2.5 Flash
+    const GOOGLE_API_KEY = await getGoogleApiKey();
 
-    if (!HUGGINGFACE_API_TOKEN) {
-      throw new Error("HUGGINGFACE_API_TOKEN is not configured");
+    if (!GOOGLE_API_KEY) {
+      return new Response(
+        JSON.stringify({
+          error: "Chave da API do Google não configurada. Acesse Configurações > Inteligência Artificial para adicionar sua chave.",
+          status: 400,
+          requires_api_key: true,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     if (!messages || messages.length === 0) {
@@ -37,11 +77,10 @@ serve(async (req) => {
       return `[${sender}]: ${msg.message}`;
     }).join('\n');
 
-    let systemPrompt = '';
-    let userPrompt = '';
+    let promptText = '';
 
     if (type === 'suggest') {
-      systemPrompt = `Você é um assistente de atendimento escolar especializado em comunicação com responsáveis.
+      promptText = `Você é um assistente de atendimento escolar especializado em comunicação com responsáveis.
 Sua tarefa é analisar a conversa e sugerir 3 respostas curtas e apropriadas.
 
 Contexto:
@@ -54,11 +93,14 @@ Regras:
 - Use linguagem amigável mas profissional
 - Considere o tom e contexto da última mensagem recebida
 - Não use emojis em excesso (máximo 1-2 por sugestão)
-- Retorne APENAS um JSON válido com o formato: {"suggestions": [{"text": "sugestão", "tone": "formal|informal|empático"}]}`;
+- Retorne APENAS um JSON válido com o formato: {"suggestions": [{"text": "sugestão", "tone": "formal|informal|empático"}]}
 
-      userPrompt = `Conversa atual:\n${conversation}\n\nGere 3 sugestões de resposta para a última mensagem do responsável. Responda APENAS com JSON válido.`;
+Conversa atual:
+${conversation}
+
+Gere 3 sugestões de resposta para a última mensagem do responsável. Responda APENAS com JSON válido.`;
     } else if (type === 'summary') {
-      systemPrompt = `Você é um assistente que resume conversas de atendimento escolar.
+      promptText = `Você é um assistente que resume conversas de atendimento escolar.
 
 Contexto:
 - Responsável: ${guardianName || 'Responsável'}
@@ -69,9 +111,12 @@ Regras:
 - Faça um resumo conciso (máximo 200 palavras)
 - Destaque os pontos principais discutidos
 - Identifique qualquer pendência ou ação necessária
-- Retorne APENAS um JSON válido com o formato: {"summary": "texto", "mainTopics": ["tópico"], "pendingActions": ["ação"], "sentiment": "positivo|neutro|negativo"}`;
+- Retorne APENAS um JSON válido com o formato: {"summary": "texto", "mainTopics": ["tópico"], "pendingActions": ["ação"], "sentiment": "positivo|neutro|negativo"}
 
-      userPrompt = `Conversa completa:\n${conversation}\n\nResuma esta conversa identificando os pontos principais. Responda APENAS com JSON válido.`;
+Conversa completa:
+${conversation}
+
+Resuma esta conversa identificando os pontos principais. Responda APENAS com JSON válido.`;
     } else {
       return new Response(JSON.stringify({ error: "Tipo de análise inválido" }), {
         status: 400,
@@ -79,29 +124,32 @@ Regras:
       });
     }
 
+    // Call Google Gemini 2.5 Flash Lite API directly (external)
     const response = await fetch(
-      "https://router.huggingface.co/v1/chat/completions",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${HUGGINGFACE_API_TOKEN}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "zai-org/GLM-4.7-Flash:novita",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: promptText }],
+            },
           ],
-          max_tokens: 800,
-          temperature: 0.5,
+          generationConfig: {
+            temperature: 0.5,
+            maxOutputTokens: 800,
+          },
         }),
       }
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Hugging Face API error:", response.status, errorText);
+      console.error("Gemini API error:", response.status, errorText);
 
       if (response.status === 429) {
         return new Response(
@@ -113,14 +161,13 @@ Regras:
         );
       }
 
-      if (response.status === 402) {
+      if (response.status === 403) {
         return new Response(
           JSON.stringify({
-            error: "Créditos insuficientes/Payment required no provedor de IA.",
-            status: 402,
-            details: errorText,
+            error: "Chave de API inválida ou sem permissão. Verifique sua chave nas configurações.",
+            status: 403,
           }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -136,12 +183,11 @@ Regras:
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "{}";
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
     
     // Try to extract JSON from the response
     let parsedContent;
     try {
-      // Try to find JSON in the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         parsedContent = JSON.parse(jsonMatch[0]);

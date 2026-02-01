@@ -1,9 +1,40 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+async function getGoogleApiKey(): Promise<string | null> {
+  const envKey = Deno.env.get("GOOGLE_API_KEY");
+  if (envKey) {
+    return envKey;
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Supabase credentials not configured");
+    return null;
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "GOOGLE_API_KEY")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching GOOGLE_API_KEY from app_settings:", error);
+    return null;
+  }
+
+  return data?.value || null;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -12,10 +43,19 @@ serve(async (req) => {
 
   try {
     const { context, tone, purpose } = await req.json();
-    const HUGGINGFACE_API_TOKEN = Deno.env.get("HUGGINGFACE_API_TOKEN");
+    
+    // Use Google API Key - external Gemini 2.5 Flash
+    const GOOGLE_API_KEY = await getGoogleApiKey();
 
-    if (!HUGGINGFACE_API_TOKEN) {
-      throw new Error("HUGGINGFACE_API_TOKEN is not configured");
+    if (!GOOGLE_API_KEY) {
+      return new Response(
+        JSON.stringify({
+          error: "Chave da API do Google não configurada. Acesse Configurações > Inteligência Artificial para adicionar sua chave.",
+          status: 400,
+          requires_api_key: true,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const systemPrompt = `Você é um assistente especializado em criar mensagens de WhatsApp para escolas e instituições de ensino.
@@ -39,53 +79,82 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
 - Tom: ${tone || 'profissional e amigável'}
 - Contexto adicional: ${context || 'mensagem para responsáveis de alunos'}`;
 
+    // Call Google Gemini 2.5 Flash Lite API directly (external)
     const response = await fetch(
-      "https://router.huggingface.co/v1/chat/completions",
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${HUGGINGFACE_API_TOKEN}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "zai-org/GLM-4.7-Flash:novita",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }],
+            },
           ],
-          max_tokens: 500,
-          temperature: 0.7,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 500,
+          },
         }),
       }
     );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Hugging Face API error:", response.status, errorText);
+      console.error("Gemini API error:", response.status, errorText);
 
-      // Repasse o status quando fizer sentido (ajuda a debugar no client)
+      let errorJson: any = null;
+      try {
+        errorJson = JSON.parse(errorText);
+      } catch {
+        // ignore
+      }
+
       if (response.status === 429) {
+        const retryAfterHeader = response.headers.get("retry-after");
+        const retryInfo = Array.isArray(errorJson?.error?.details)
+          ? errorJson.error.details.find((d: any) => d?.["@type"] === "type.googleapis.com/google.rpc.RetryInfo")
+          : null;
+
+        const retryDelayRaw: string | undefined = retryInfo?.retryDelay;
+        const retryAfterSecondsFromBody = retryDelayRaw ? Number(String(retryDelayRaw).replace(/[^0-9.]/g, "")) : undefined;
+        const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : retryAfterSecondsFromBody;
+
+        const isQuotaZero = typeof errorJson?.error?.message === "string" && errorJson.error.message.includes("limit: 0");
+
         return new Response(
           JSON.stringify({
-            error: "Limite de requisições excedido. Tente novamente em alguns minutos.",
+            error: isQuotaZero
+              ? "Cota da API externa do Google está zerada (limite 0). Ative billing/um plano no Google AI e tente novamente."
+              : "Limite de requisições excedido. Aguarde e tente novamente.",
             status: 429,
+            retry_after_seconds: retryAfterSeconds,
           }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              ...(retryAfterSeconds ? { "Retry-After": String(retryAfterSeconds) } : {}),
+            },
+          }
         );
       }
 
-      if (response.status === 402) {
+      if (response.status === 403) {
         return new Response(
           JSON.stringify({
-            error: "Créditos insuficientes/Payment required no provedor de IA.",
-            status: 402,
+            error: "Chave de API inválida ou sem permissão. Verifique sua chave nas configurações.",
+            status: 403,
             details: errorText,
           }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // 404/410 etc: devolve o erro real
       const status = response.status || 500;
       return new Response(
         JSON.stringify({
@@ -98,7 +167,7 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
     }
 
     const data = await response.json();
-    const generatedMessage = data.choices?.[0]?.message?.content || "";
+    const generatedMessage = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     return new Response(JSON.stringify({ message: generatedMessage.trim() }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
