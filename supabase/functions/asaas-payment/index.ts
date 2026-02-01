@@ -565,6 +565,29 @@ async function undoReceivedInCash(config: AsaasConfig, paymentId: string) {
   return await handleAsaasResponse(response, "undoReceivedInCash");
 }
 
+// Get PIX QR Code for a payment (works for installment payments too)
+async function getPixQrCode(config: AsaasConfig, paymentId: string) {
+  console.log("Obtendo QR Code PIX para cobrança:", paymentId);
+  
+  const response = await fetch(`${config.baseUrl}/payments/${paymentId}/pixQrCode`, {
+    method: "GET",
+    headers: getHeaders(config.apiKey),
+  });
+
+  const result = await handleAsaasResponse(response, "getPixQrCode");
+  
+  console.log("QR Code PIX obtido com sucesso");
+  console.log("Payload (primeiros 50 chars):", result.payload?.substring(0, 50) + "...");
+  console.log("Expiração:", result.expirationDate);
+  
+  return {
+    success: true,
+    payload: result.payload, // Código PIX "copia e cola"
+    encodedImage: result.encodedImage, // QR Code em base64
+    expirationDate: result.expirationDate,
+  };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -621,6 +644,9 @@ serve(async (req) => {
         break;
       case "syncGuardians":
         result = await syncGuardians(config);
+        break;
+      case "getPixQrCode":
+        result = await getPixQrCode(config, data.paymentId);
         break;
       default:
         throw new Error("Ação não reconhecida");
