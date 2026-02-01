@@ -384,25 +384,29 @@ export default function ReportApprovalTab() {
       if (report.source === 'external') {
         console.log('📤 Chamando API externa para aprovar relatório...');
         
+        const approveBody = {
+          report_id: report.id,
+          approved_by: user?.email || user?.id,
+        };
+        console.log('📤 Enviando para API externa /approve:', approveBody);
+        
         const approveResponse = await fetch(`${EXTERNAL_API_URL}/approve`, {
           method: 'POST',
           headers: {
             'x-api-key': EXTERNAL_API_KEY,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            report_id: report.id,
-            approved_by: user?.email || user?.id,
-          }),
+          body: JSON.stringify(approveBody),
         });
 
+        const approveData = await approveResponse.json();
+        console.log('📥 Resposta da API /approve:', { status: approveResponse.status, data: approveData });
+
         if (!approveResponse.ok) {
-          const errorData = await approveResponse.json();
-          throw new Error(errorData.error || `Erro na API externa: ${approveResponse.status}`);
+          throw new Error(approveData.error || `Erro na API externa: ${approveResponse.status}`);
         }
 
-        const approveData = await approveResponse.json();
-        console.log('✅ Aprovação na API externa:', approveData);
+        console.log('✅ Aprovação na API externa bem-sucedida:', approveData);
         
         // Now import to local database
         console.log('📥 Importando relatório externo para o banco local...');
@@ -557,26 +561,31 @@ export default function ReportApprovalTab() {
       if (selectedReport.source === 'external') {
         console.log('📤 Chamando API externa para rejeitar relatório...');
         
+        const rejectBody = {
+          report_id: selectedReport.id,
+          rejected_by: user?.email || user?.id,
+          feedback: rejectionReason.trim(),
+          rejection_reason: rejectionReason.trim(), // Include both for API compatibility
+        };
+        console.log('📤 Enviando para API externa /reject:', rejectBody);
+        
         const rejectResponse = await fetch(`${EXTERNAL_API_URL}/reject`, {
           method: 'POST',
           headers: {
             'x-api-key': EXTERNAL_API_KEY,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            report_id: selectedReport.id,
-            rejected_by: user?.email || user?.id,
-            feedback: rejectionReason.trim(),
-          }),
+          body: JSON.stringify(rejectBody),
         });
 
+        const rejectData = await rejectResponse.json();
+        console.log('📥 Resposta da API /reject:', { status: rejectResponse.status, data: rejectData });
+
         if (!rejectResponse.ok) {
-          const errorData = await rejectResponse.json();
-          throw new Error(errorData.error || `Erro na API externa: ${rejectResponse.status}`);
+          throw new Error(rejectData.error || `Erro na API externa: ${rejectResponse.status}`);
         }
 
-        const rejectData = await rejectResponse.json();
-        console.log('✅ Rejeição na API externa:', rejectData);
+        console.log('✅ Rejeição na API externa bem-sucedida:', rejectData);
 
         toast({
           title: 'Relatório rejeitado',
