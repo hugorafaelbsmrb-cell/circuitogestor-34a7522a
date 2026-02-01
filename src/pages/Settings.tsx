@@ -20,7 +20,8 @@ import {
   MessageSquare as MessageSquareIcon,
   DollarSign,
   MessageCircle,
-  FileText
+  FileText,
+  Mail
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,7 @@ import { SystemDocumentation } from '@/components/settings/SystemDocumentation';
 import { CanteenMessageConfigCard } from '@/components/settings/CanteenMessageConfigCard';
 import { ReportNotificationConfigCard } from '@/components/settings/ReportNotificationConfigCard';
 import { DropboxConfigCard } from '@/components/settings/DropboxConfigCard';
+import { EmailConfigCard } from '@/components/settings/EmailConfigCard';
 import { cn } from '@/lib/utils';
 import '@/styles/print.css';
 
@@ -76,6 +78,7 @@ const settingsSections: SettingsSection[] = [
   { id: 'branding', label: 'Identidade', icon: Building2, description: 'Nome, logo e favicon' },
   { id: 'ai', label: 'Inteligência Artificial', icon: Zap, description: 'Provedor de IA' },
   { id: 'api', label: 'APIs', icon: Key, description: 'Chaves de integração' },
+  { id: 'email', label: 'E-mail', icon: Mail, description: 'Configuração IMAP/SMTP' },
   { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, description: 'Configuração W-API' },
   { id: 'webhooks', label: 'Webhooks', icon: Webhook, description: 'URLs de notificação' },
   { id: 'financial', label: 'Financeiro', icon: DollarSign, description: 'Juros, multas e descontos' },
@@ -721,6 +724,9 @@ export default function Settings() {
             </Card>
           </div>
         );
+
+      case 'email':
+        return <EmailConfigCard />;
 
       case 'whatsapp':
         return (
