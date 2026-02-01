@@ -54,3 +54,45 @@ verify_jwt = false
 
 [functions.analyze-homework-messages]
 verify_jwt = false
+
+[functions.wapi-connection-status]
+verify_jwt = false
+
+[functions.wapi-fetch-contacts]
+verify_jwt = false
+
+[functions.wapi-send-message]
+verify_jwt = false
+
+[functions.wapi-sync-messages]
+verify_jwt = false
+
+[functions.wapi-get-qrcode]
+verify_jwt = false
+
+[functions.wapi-logout]
+verify_jwt = false
+
+[functions.wapi-mark-read]
+verify_jwt = false
+
+[functions.wapi-react]
+verify_jwt = false
+
+[functions.wapi-typing]
+verify_jwt = false
+
+[functions.wapi-check-phone]
+verify_jwt = false
+
+[functions.wapi-webhook]
+verify_jwt = false
+
+[functions.wapi-get-profile-picture]
+verify_jwt = false
+
+[functions.wapi-send-advanced]
+verify_jwt = false
+
+[functions.test-send-message]
+verify_jwt = false
