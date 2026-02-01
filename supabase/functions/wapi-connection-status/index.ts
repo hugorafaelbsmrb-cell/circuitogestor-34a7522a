@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Default W-API URL (can be overridden by app_settings)
+// Default W-API URL
 const DEFAULT_WAPI_URL = 'https://api.w-api.app';
 
 function parseConnection(data: any) {
@@ -31,50 +31,44 @@ function parseConnection(data: any) {
 }
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Validate authorization header
     const authHeader = req.headers.get('Authorization');
-    console.log('Auth header present:', !!authHeader);
-    
     if (!authHeader?.startsWith('Bearer ')) {
-      console.log('Missing or invalid auth header');
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      console.error('Missing or invalid authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: 'Missing authorization header' }), 
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    // Extract token from Bearer header
     const token = authHeader.replace('Bearer ', '');
-    
-    // Create client with service role and verify the user token
+
+    // Create Supabase client with service role key
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+      auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // CRITICAL: Use getClaims() for Lovable Cloud ES256 tokens
-    // getClaims validates JWT signature without requiring session to exist
+    // CRITICAL: Validate JWT using getClaims for Lovable Cloud ES256 tokens
     const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    
     if (claimsError || !claimsData?.claims) {
-      console.error('Auth verification failed:', claimsError?.message);
-      return new Response(JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      console.error('JWT validation failed:', claimsError?.message || 'No claims found');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired token' }), 
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     console.log('User authenticated:', claimsData.claims.email);
 
+    // Fetch W-API configuration from app_settings
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('key, value')
@@ -82,42 +76,43 @@ Deno.serve(async (req) => {
 
     if (settingsError) {
       console.error('Error fetching settings:', settingsError);
-      return new Response(JSON.stringify({ error: 'Erro ao buscar configurações' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ error: 'Erro ao buscar configurações' }), 
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
+    // Parse settings into config object
     const config: Record<string, string> = {};
     settings?.forEach((s) => {
       if (s.value) config[s.key] = s.value;
     });
 
+    // Validate required settings
     if (!config.W_API_TOKEN || !config.W_API_SESSION) {
       return new Response(
         JSON.stringify({
           error: 'Configurações W-API incompletas',
           missing: { token: !config.W_API_TOKEN, session: !config.W_API_SESSION },
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const apiKey = config.W_API_TOKEN;
     const instanceId = config.W_API_SESSION;
-    // Use W_API_URL from database or default to api.w-api.app
     const baseUrl = (config.W_API_URL || DEFAULT_WAPI_URL).replace(/\/+$/, '');
-    const encoded = encodeURIComponent(instanceId);
+    const encodedInstanceId = encodeURIComponent(instanceId);
 
     console.log('=== W-API Connection Status ===');
     console.log(`Base URL: ${baseUrl}`);
     console.log(`Instance ID: ${instanceId}`);
     console.log(`API Key: ${apiKey.slice(0, 8)}...`);
 
-    // W-API PRO endpoint for connection status (from official documentation)
-    // Endpoint: GET /v1/instance/status-instance?instanceId={{INSTANCE_ID}}
-    // Auth: Authorization: Bearer {{TOKEN}}
-    const endpoint = `${baseUrl}/v1/instance/status-instance?instanceId=${encoded}`;
+    // W-API PRO endpoint for connection status
+    // Endpoint: GET /v1/instance/status-instance?instanceId={INSTANCE_ID}
+    // Auth: Authorization: Bearer {TOKEN}
+    const endpoint = `${baseUrl}/v1/instance/status-instance?instanceId=${encodedInstanceId}`;
 
     console.log(`Calling: GET ${endpoint}`);
 
@@ -148,7 +143,7 @@ Deno.serve(async (req) => {
           endpoint,
           raw: parsed,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -161,13 +156,13 @@ Deno.serve(async (req) => {
         message: parsed?.message || parsed?.error || text.slice(0, 200),
         endpoint,
       }),
-      { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: unknown) {
     console.error('Error in wapi-connection-status:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Erro interno' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
