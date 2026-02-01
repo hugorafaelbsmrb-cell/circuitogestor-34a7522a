@@ -121,6 +121,8 @@ export function useAuth() {
       setUser(null);
       setSession(null);
       setProfile(null);
+      // Clear last route so user starts fresh on next login
+      localStorage.removeItem('circuito-last-route');
     }
     return { error };
   };
