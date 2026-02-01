@@ -31,6 +31,7 @@ import StudentAllocation from "./pages/StudentAllocation";
 import WhatsAppConfig from "./pages/WhatsAppConfig";
 import BulkMessages from "./pages/BulkMessages";
 import GuardianSupport from "./pages/GuardianSupport";
+import GuardianSupportMobile from "./pages/GuardianSupportMobile";
 import Inventory from "./pages/Inventory";
 import LMSStudents from "./pages/LMSStudents";
 import SorobanStudents from "./pages/SorobanStudents";
@@ -127,6 +128,7 @@ const App = () => (
                       <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
                       <Route path="/envio-massa" element={<BulkMessages />} />
                       <Route path="/atendimento-pais" element={<GuardianSupport />} />
+                      <Route path="/suporte-mobile" element={<GuardianSupportMobile />} />
                       <Route path="/cantina-admin" element={<CanteenAdminPage />} />
                       <Route path="/campanhas-admin" element={<CampaignAdmin />} />
                       <Route path="/api-externa" element={<ExternalApiManager />} />
