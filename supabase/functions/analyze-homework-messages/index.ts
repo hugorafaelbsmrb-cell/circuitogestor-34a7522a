@@ -5,10 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const LOVABLE_API_URL = "https://api.lovable.dev/v1";
-
-async function getLovableApiKey(): Promise<string | null> {
-  const envKey = Deno.env.get("LOVABLE_API_KEY");
+async function getGoogleApiKey(): Promise<string | null> {
+  const envKey = Deno.env.get("GOOGLE_API_KEY");
   if (envKey) return envKey;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -19,7 +17,7 @@ async function getLovableApiKey(): Promise<string | null> {
   const { data } = await supabase
     .from("app_settings")
     .select("value")
-    .eq("key", "LOVABLE_API_KEY")
+    .eq("key", "GOOGLE_API_KEY")
     .maybeSingle();
 
   return data?.value || null;
@@ -59,10 +57,10 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const LOVABLE_API_KEY = await getLovableApiKey();
-    if (!LOVABLE_API_KEY) {
+    const GOOGLE_API_KEY = await getGoogleApiKey();
+    if (!GOOGLE_API_KEY) {
       return new Response(JSON.stringify({ 
-        error: "Chave da API Lovable não configurada" 
+        error: "Chave da API do Google não configurada" 
       }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -184,7 +182,7 @@ Retorne um JSON com o formato:
 Retorne APENAS o JSON, sem explicações adicionais.`;
 
           try {
-            // Build content for the message (OpenAI format for Lovable AI Gateway)
+            // Build content parts for Google Gemini API
             const contentParts: any[] = [];
             
             // Add image if present
@@ -192,29 +190,24 @@ Retorne APENAS o JSON, sem explicações adicionais.`;
               const imageBase64 = await fetchImageAsBase64(msg.media_url);
               if (imageBase64) {
                 contentParts.push({
-                  type: "image_url",
-                  image_url: {
-                    url: `data:${getMimeType(msg.media_url, msg.media_type)};base64,${imageBase64}`
+                  inline_data: {
+                    mime_type: getMimeType(msg.media_url, msg.media_type),
+                    data: imageBase64
                   }
                 });
               }
             }
             
-            contentParts.push({ type: "text", text: prompt });
+            contentParts.push({ text: prompt });
 
             const aiResponse = await fetch(
-              `${LOVABLE_API_URL}/chat/completions`,
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
               {
                 method: "POST",
-                headers: { 
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${LOVABLE_API_KEY}`
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  model: "google/gemini-2.5-flash",
-                  messages: [{ role: "user", content: contentParts }],
-                  temperature: 0.3,
-                  max_tokens: 2048,
+                  contents: [{ role: "user", parts: contentParts }],
+                  generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
                 }),
               }
             );
@@ -225,8 +218,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`;
             }
 
             const aiData = await aiResponse.json();
-            // Lovable AI Gateway returns OpenAI-compatible format
-            const aiContent = aiData.choices?.[0]?.message?.content || "{}";
+            const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
             try {
               const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
