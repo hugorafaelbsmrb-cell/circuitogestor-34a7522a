@@ -76,6 +76,7 @@ const menuSections: MenuSection[] = [
       { icon: GraduationCap, label: 'Turmas', path: '/turmas', permissionKey: 'classes', adminOnly: false },
       { icon: BookOpen, label: 'Cursos', path: '/cursos', permissionKey: 'courses', adminOnly: false },
       { icon: Calendar, label: 'Horários', path: '/horarios', permissionKey: 'schedules', adminOnly: false },
+      { icon: UserCheck, label: 'Presença', path: '/presenca-admin', permissionKey: 'reports', adminOnly: false },
       { icon: ClipboardCheck, label: 'Alocação Alunos', path: '/alocacao-alunos', permissionKey: 'reports', adminOnly: false },
     ]
   },
