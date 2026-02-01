@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { UserCheck, Clock, Settings, History, ListChecks, RefreshCw, Play } from 'lucide-react';
+import { UserCheck, Clock, Settings, History, ListChecks, RefreshCw, Play, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -66,6 +67,17 @@ export default function AttendanceAdmin() {
         </div>
         
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            asChild
+            className="gap-2"
+          >
+            <Link to="/presenca">
+              <ExternalLink className="w-4 h-4" />
+              Marcar Presença
+            </Link>
+          </Button>
+          
           <Button
             variant="outline"
             onClick={handleRefresh}
