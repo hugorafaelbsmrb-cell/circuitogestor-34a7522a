@@ -5,25 +5,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Google Gemini API direct (using external API key)
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
+// Lovable AI Gateway - higher rate limits than Google free tier
+const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-async function getGoogleApiKey(): Promise<string | null> {
-  const envKey = Deno.env.get("GOOGLE_API_KEY");
-  if (envKey) return envKey;
-
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !supabaseKey) return null;
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  const { data } = await supabase
-    .from("app_settings")
-    .select("value")
-    .eq("key", "GOOGLE_API_KEY")
-    .maybeSingle();
-
-  return data?.value || null;
+function getLovableApiKey(): string | null {
+  return Deno.env.get("LOVABLE_API_KEY") || null;
 }
 
 async function fetchImageAsBase64(url: string): Promise<string | null> {
@@ -60,10 +46,10 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const GOOGLE_API_KEY = await getGoogleApiKey();
-    if (!GOOGLE_API_KEY) {
+    const LOVABLE_API_KEY = getLovableApiKey();
+    if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({ 
-        error: "Chave da API do Google não configurada" 
+        error: "Chave da API Lovable não configurada" 
       }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -140,16 +126,16 @@ Deno.serve(async (req) => {
 
       const results: any[] = [];
       
-      // Process messages in smaller batches to handle images properly
+      // Process messages in smaller batches
       const batchSize = 5;
       for (let i = 0; i < Math.min(unprocessedMessages.length, 30); i += batchSize) {
         const batch = unprocessedMessages.slice(i, i + batchSize);
         
-        // Process each message individually when it has an image
+        // Process each message individually
         for (const msg of batch) {
           const hasImage = msg.media_url && msg.media_type?.startsWith("image");
           
-          // Build the prompt
+          // Build the prompt - more inclusive for homework detection
           const prompt = `Você é um assistente especializado em identificar conteúdo escolar em mensagens de WhatsApp.
 
 Analise a seguinte mensagem${hasImage ? " e imagem" : ""} e identifique se contém QUALQUER informação sobre:
@@ -163,10 +149,11 @@ Analise a seguinte mensagem${hasImage ? " e imagem" : ""} e identifique se cont�
 IMPORTANTE: Considere como dever de casa qualquer mensagem que mencione:
 - "ATIVIDADE EM CASA" ou "ATIVIDADE DE CASA"
 - "Páginas X a Y" para fazer
-- "Data de entrega" de atividades
+- "Data de entrega" ou "DATA DA ENTREGA" de atividades
 - Tarefas com prazo
 - Leitura obrigatória
 - Exercícios para resolver
+- Conteúdo ministrado com atividades pendentes
 
 ${hasImage ? "ANALISE A IMAGEM: Pode ser print de agenda, foto de caderno, atividades ou comunicado escolar." : ""}
 
@@ -192,50 +179,63 @@ Retorne um JSON:
   "imageDescription": "descrição da imagem se aplicável"
 }
 
-ATENÇÃO: Se a mensagem mencionar "ATIVIDADE EM CASA" ou similar, retorne isHomework=true com confidence >= 0.7.
+ATENÇÃO: Se a mensagem mencionar "ATIVIDADE EM CASA", "ATIVIDADE DE CASA", "DATA DE ENTREGA" ou similar, retorne isHomework=true com confidence >= 0.7.
 Retorne APENAS o JSON.`;
 
           try {
-            // Build content parts for Google Gemini API
-            const contentParts: any[] = [];
+            // Build content for Lovable AI Gateway (OpenAI-compatible format)
+            const messageContent: any[] = [];
             
-            // Add image if present
+            // Add image if present (as base64 data URL)
             if (hasImage && msg.media_url) {
               const imageBase64 = await fetchImageAsBase64(msg.media_url);
               if (imageBase64) {
-                contentParts.push({
-                  inline_data: {
-                    mime_type: getMimeType(msg.media_url, msg.media_type),
-                    data: imageBase64
+                messageContent.push({
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${getMimeType(msg.media_url, msg.media_type)};base64,${imageBase64}`
                   }
                 });
               }
             }
             
-            contentParts.push({ text: prompt });
+            messageContent.push({ type: "text", text: prompt });
 
-            const aiResponse = await fetch(`${GEMINI_API_URL}?key=${GOOGLE_API_KEY}`, {
+            const aiResponse = await fetch(LOVABLE_AI_URL, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { 
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${LOVABLE_API_KEY}`
+              },
               body: JSON.stringify({
-                contents: [{ role: "user", parts: contentParts }],
-                generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+                model: "google/gemini-2.5-flash",
+                messages: [{ role: "user", content: messageContent }],
+                temperature: 0.3,
+                max_tokens: 2048,
               }),
             });
 
             if (!aiResponse.ok) {
-              console.error("AI error for message", msg.id, ":", await aiResponse.text());
+              const errorText = await aiResponse.text();
+              console.error("AI error for message", msg.id, ":", errorText);
+              
+              // Handle rate limiting gracefully
+              if (aiResponse.status === 429) {
+                console.log("Rate limited, waiting before continuing...");
+                await new Promise(resolve => setTimeout(resolve, 2000));
+              }
               continue;
             }
 
             const aiData = await aiResponse.json();
-            const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+            const aiContent = aiData.choices?.[0]?.message?.content || "{}";
 
             try {
               const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
               if (jsonMatch) {
                 const analysis = JSON.parse(jsonMatch[0]);
                 
+                // Lower threshold to catch more homework messages
                 if (analysis.isHomework && analysis.confidence >= 0.3) {
                   results.push({
                     messageId: msg.id,
