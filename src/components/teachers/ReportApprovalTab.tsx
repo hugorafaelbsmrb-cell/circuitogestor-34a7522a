@@ -1138,32 +1138,58 @@ export default function ReportApprovalTab() {
               )}
 
               {/* Weekly report structured content */}
-              {selectedReport.weekly_content ? (
-                <WeeklyReportView
-                  content={{
-                    performance: selectedReport.weekly_content.desempenho_geral || undefined,
-                    positive_points: selectedReport.weekly_content.pontos_positivos || undefined,
-                    difficulties: selectedReport.weekly_content.dificuldades || undefined,
-                    recommendations: selectedReport.weekly_content.recomendacoes || undefined,
-                    observations: selectedReport.weekly_content.observacoes || undefined,
-                  }}
-                  studentName={selectedReport.student?.name || selectedReport.turma || '-'}
-                  teacherName={selectedReport.teacher?.name}
-                  reportDate={
-                    selectedReport.week_start && selectedReport.week_end
-                      ? `${format(parseISO(selectedReport.week_start), 'dd/MM', { locale: ptBR })} - ${format(parseISO(selectedReport.week_end), 'dd/MM/yyyy', { locale: ptBR })}`
-                      : format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
+              {(() => {
+                // Try to parse structured content from weekly_content or from content field (JSON string)
+                let parsedContent: Record<string, string | null | undefined> | null = selectedReport.weekly_content as Record<string, string | null | undefined> | null;
+                
+                if (!parsedContent && selectedReport.content && (selectedReport.report_type === 'weekly' || selectedReport.report_type === 'semanal')) {
+                  try {
+                    parsedContent = typeof selectedReport.content === 'string' 
+                      ? JSON.parse(selectedReport.content) 
+                      : selectedReport.content;
+                  } catch {
+                    parsedContent = null;
                   }
-                  title={selectedReport.title}
-                />
-              ) : (
-                <div>
-                  <Label className="text-muted-foreground">Conteúdo</Label>
-                  <div className="mt-2 p-4 bg-muted rounded-lg whitespace-pre-wrap text-sm">
-                    {selectedReport.content}
+                }
+
+                const hasStructuredContent = parsedContent && (
+                  parsedContent.desempenho_geral || 
+                  parsedContent.pontos_positivos || 
+                  parsedContent.dificuldades || 
+                  parsedContent.recomendacoes || 
+                  parsedContent.observacoes || 
+                  parsedContent.performance || 
+                  parsedContent.positive_points || 
+                  parsedContent.difficulties || 
+                  parsedContent.recommendations || 
+                  parsedContent.observations
+                );
+
+                if (hasStructuredContent && parsedContent) {
+                  return (
+                    <WeeklyReportView
+                      content={parsedContent}
+                      studentName={selectedReport.student?.name || selectedReport.turma || '-'}
+                      teacherName={selectedReport.teacher?.name}
+                      reportDate={
+                        selectedReport.week_start && selectedReport.week_end
+                          ? `${format(parseISO(selectedReport.week_start), 'dd/MM', { locale: ptBR })} - ${format(parseISO(selectedReport.week_end), 'dd/MM/yyyy', { locale: ptBR })}`
+                          : format(parseISO(selectedReport.report_date), 'dd/MM/yyyy', { locale: ptBR })
+                      }
+                      title={selectedReport.title}
+                    />
+                  );
+                }
+
+                return (
+                  <div>
+                    <Label className="text-muted-foreground">Conteúdo</Label>
+                    <div className="mt-2 p-4 bg-muted rounded-lg whitespace-pre-wrap text-sm">
+                      {selectedReport.content}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Image Manager - Only show for local reports that are approved or pending */}
               {selectedReport.source === 'local' && (
