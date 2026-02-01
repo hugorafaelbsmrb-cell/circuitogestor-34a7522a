@@ -75,6 +75,20 @@ interface PendingReport {
   processed_content: string;
   status: string;
   created_at: string;
+  sent_at: string | null;
+  teacher_id: string | null;
+  guardians?: { name: string } | null;
+  students?: { name: string } | null;
+  teachers?: { name: string } | null;
+}
+
+interface SentReport {
+  id: string;
+  original_message: string;
+  processed_content: string;
+  status: string;
+  created_at: string;
+  sent_at: string | null;
   teacher_id: string | null;
   guardians?: { name: string } | null;
   students?: { name: string } | null;
@@ -86,9 +100,10 @@ export default function HomeworkAnalysis() {
   const [isSending, setIsSending] = useState(false);
   const [analyzedMessages, setAnalyzedMessages] = useState<HomeworkAnalysis[]>([]);
   const [pendingReports, setPendingReports] = useState<PendingReport[]>([]);
+  const [sentReports, setSentReports] = useState<SentReport[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [scanStats, setScanStats] = useState({ total: 0, analyzed: 0, found: 0 });
-  const [activeTab, setActiveTab] = useState<'scan' | 'pending'>('pending');
+  const [activeTab, setActiveTab] = useState<'scan' | 'pending' | 'sent'>('pending');
   const [dateFrom, setDateFrom] = useState<Date | undefined>(subDays(new Date(), 1));
   const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
   const [periodPreset, setPeriodPreset] = useState<string>('yesterday');
@@ -96,6 +111,7 @@ export default function HomeworkAnalysis() {
   useEffect(() => {
     fetchTeachers();
     fetchPendingReports();
+    fetchSentReports();
   }, []);
 
   const handlePeriodPreset = (preset: string) => {
@@ -143,6 +159,7 @@ export default function HomeworkAnalysis() {
         processed_content,
         status,
         created_at,
+        sent_at,
         teacher_id,
         guardians (name),
         students (name),
@@ -152,6 +169,28 @@ export default function HomeworkAnalysis() {
       .order('created_at', { ascending: false });
     
     if (data) setPendingReports(data as PendingReport[]);
+  };
+
+  const fetchSentReports = async () => {
+    const { data } = await supabase
+      .from('homework_reports')
+      .select(`
+        id,
+        original_message,
+        processed_content,
+        status,
+        created_at,
+        sent_at,
+        teacher_id,
+        guardians (name),
+        students (name),
+        teachers (name)
+      `)
+      .eq('status', 'sent')
+      .order('sent_at', { ascending: false })
+      .limit(50);
+    
+    if (data) setSentReports(data as SentReport[]);
   };
 
   const scanMessages = async () => {
@@ -239,6 +278,7 @@ export default function HomeworkAnalysis() {
       toast.success(`${successCount} relatórios enviados com sucesso!`);
       setAnalyzedMessages(prev => prev.filter(m => !m.selected || !m.selectedTeacherId));
       fetchPendingReports();
+      fetchSentReports();
     } catch (error) {
       console.error('Send error:', error);
       toast.error('Erro ao enviar relatórios');
@@ -317,6 +357,7 @@ export default function HomeworkAnalysis() {
 
       toast.success('Relatório enviado!');
       fetchPendingReports();
+      fetchSentReports();
     } catch (error) {
       console.error('Send error:', error);
       toast.error('Erro ao enviar');
@@ -534,6 +575,14 @@ export default function HomeworkAnalysis() {
         >
           <Brain className="w-4 h-4 mr-2" />
           Novas Análises ({analyzedMessages.length})
+        </Button>
+        <Button 
+          variant={activeTab === 'sent' ? 'default' : 'ghost'}
+          onClick={() => setActiveTab('sent')}
+          className="rounded-b-none"
+        >
+          <CheckCircle2 className="w-4 h-4 mr-2" />
+          Enviados ({sentReports.length})
         </Button>
       </div>
 
@@ -790,6 +839,182 @@ export default function HomeworkAnalysis() {
           </div>
         </ScrollArea>
       )}
+
+      {activeTab === 'sent' && (
+        <SentReportsTab 
+          sentReports={sentReports}
+          teachers={teachers}
+          onResend={async (reportId, teacherId) => {
+            const report = sentReports.find(r => r.id === reportId);
+            if (!report) return;
+            
+            const teacher = teachers.find(t => t.id === teacherId);
+            if (!teacher) {
+              toast.error('Selecione um professor');
+              return;
+            }
+
+            try {
+              let messageToSend = report.processed_content;
+              try {
+                const parsed = JSON.parse(report.processed_content);
+                messageToSend = formatParsedHomework(parsed, report.guardians?.name);
+              } catch {
+                // Use as-is
+              }
+
+              const { error } = await supabase.functions.invoke('wapi-send-message', {
+                body: { phone: teacher.phone, message: messageToSend }
+              });
+
+              if (error) throw error;
+
+              // Update the existing record with new teacher and resent timestamp
+              await supabase
+                .from('homework_reports')
+                .update({ 
+                  teacher_id: teacherId, 
+                  sent_at: new Date().toISOString() 
+                })
+                .eq('id', reportId);
+
+              toast.success(`Reenviado para ${teacher.name}!`);
+              fetchSentReports();
+            } catch (error) {
+              console.error('Resend error:', error);
+              toast.error('Erro ao reenviar');
+            }
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// Separated component for sent reports tab
+interface SentReportsTabProps {
+  sentReports: SentReport[];
+  teachers: Teacher[];
+  onResend: (reportId: string, teacherId: string) => Promise<void>;
+}
+
+function SentReportsTab({ sentReports, teachers, onResend }: SentReportsTabProps) {
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [selectedTeachers, setSelectedTeachers] = useState<Record<string, string>>({});
+
+  const handleResend = async (reportId: string) => {
+    const teacherId = selectedTeachers[reportId];
+    if (!teacherId) {
+      toast.error('Selecione um professor');
+      return;
+    }
+    setResendingId(reportId);
+    await onResend(reportId, teacherId);
+    setResendingId(null);
+  };
+
+  return (
+    <ScrollArea className="h-[500px]">
+      <div className="space-y-4">
+        {sentReports.map((report) => {
+          let parsedContent: any = {};
+          try {
+            parsedContent = JSON.parse(report.processed_content);
+          } catch {
+            parsedContent = { summary: report.processed_content };
+          }
+
+          return (
+            <Card key={report.id}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      {report.guardians?.name || 'Responsável'}
+                      {report.students?.name && (
+                        <Badge variant="outline">
+                          <GraduationCap className="w-3 h-3 mr-1" />
+                          {report.students.name}
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription className="flex flex-col gap-1">
+                      <span>
+                        Criado: {format(new Date(report.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                      </span>
+                      {report.sent_at && (
+                        <span className="text-green-600 dark:text-green-400">
+                          ✓ Enviado: {format(new Date(report.sent_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </span>
+                      )}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {report.teachers?.name && (
+                      <Badge variant="secondary">
+                        <User className="w-3 h-3 mr-1" />
+                        {report.teachers.name}
+                      </Badge>
+                    )}
+                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                      Enviado
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-muted/50 p-3 rounded-lg">
+                  <p className="text-sm line-clamp-3">{report.original_message}</p>
+                </div>
+
+                {parsedContent.summary && (
+                  <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
+                    <p className="text-sm">📋 {parsedContent.summary}</p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-4 pt-2 border-t flex-wrap">
+                  <span className="text-sm font-medium">Reenviar para:</span>
+                  <Select 
+                    value={selectedTeachers[report.id] || ''} 
+                    onValueChange={(v) => setSelectedTeachers(prev => ({ ...prev, [report.id]: v }))}
+                  >
+                    <SelectTrigger className="w-64">
+                      <SelectValue placeholder="Selecione outro professor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teachers.map(t => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleResend(report.id)}
+                    disabled={resendingId === report.id || !selectedTeachers[report.id]}
+                  >
+                    {resendingId === report.id ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                    )}
+                    Reenviar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        {sentReports.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            <Send className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>Nenhum dever enviado ainda</p>
+          </div>
+        )}
+      </div>
+    </ScrollArea>
   );
 }
