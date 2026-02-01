@@ -293,6 +293,43 @@ async function processBirthdayGreetings(supabase: any, supabaseUrl: string, supa
   }
 }
 
+async function getAsaasConfig(supabase: any): Promise<{ asaasApiKey: string | null; asaasApiUrl: string }> {
+  const { data: settings } = await supabase
+    .from('app_settings')
+    .select('key, value')
+    .in('key', ['ASAAS_API_KEY', 'ASAAS_API_URL']);
+  
+  const config: Record<string, string> = {};
+  settings?.forEach((s: any) => {
+    if (s.value) config[s.key] = s.value;
+  });
+  
+  return {
+    asaasApiKey: Deno.env.get('ASAAS_API_KEY') || config.ASAAS_API_KEY || null,
+    asaasApiUrl: config.ASAAS_API_URL || 'https://api.asaas.com/v3',
+  };
+}
+
+async function fetchPixCode(asaasApiUrl: string, asaasApiKey: string, paymentId: string): Promise<string | null> {
+  try {
+    const pixResponse = await fetch(`${asaasApiUrl}/payments/${paymentId}/pixQrCode`, {
+      method: 'GET',
+      headers: {
+        'accept': 'application/json',
+        'access_token': asaasApiKey,
+      },
+    });
+    
+    if (!pixResponse.ok) return null;
+    
+    const pixData = await pixResponse.json();
+    return pixData.payload || null;
+  } catch (error) {
+    console.error(`Error fetching PIX for payment ${paymentId}:`, error);
+    return null;
+  }
+}
+
 async function processPixReminder2Days(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
   console.log('Processing PIX reminders 2 days before due...');
   
@@ -321,19 +358,7 @@ async function processPixReminder2Days(supabase: any, supabaseUrl: string, supab
   
   console.log(`Found ${payments.length} payments due in 2 days`);
   
-  // Get W-API and Asaas config
-  const { data: settings } = await supabase
-    .from('app_settings')
-    .select('key, value')
-    .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION', 'ASAAS_API_KEY', 'ASAAS_API_URL']);
-  
-  const config: Record<string, string> = {};
-  settings?.forEach((s: any) => {
-    if (s.value) config[s.key] = s.value;
-  });
-  
-  const asaasApiKey = Deno.env.get('ASAAS_API_KEY') || config.ASAAS_API_KEY;
-  const asaasApiUrl = config.ASAAS_API_URL || 'https://api.asaas.com/v3';
+  const { asaasApiKey, asaasApiUrl } = await getAsaasConfig(supabase);
   
   if (!asaasApiKey) {
     console.log('Asaas API key not configured');
@@ -343,34 +368,16 @@ async function processPixReminder2Days(supabase: any, supabaseUrl: string, supab
   for (const payment of payments) {
     if (!payment.guardian || !payment.asaas_payment_id) continue;
     
-    try {
-      // Get PIX QR Code from Asaas
-      const pixResponse = await fetch(`${asaasApiUrl}/payments/${payment.asaas_payment_id}/pixQrCode`, {
-        method: 'GET',
-        headers: {
-          'accept': 'application/json',
-          'access_token': asaasApiKey,
-        },
-      });
-      
-      if (!pixResponse.ok) {
-        console.log(`Failed to get PIX for payment ${payment.id}`);
-        continue;
-      }
-      
-      const pixData = await pixResponse.json();
-      const pixCode = pixData.payload;
-      
-      if (!pixCode) {
-        console.log(`No PIX payload for payment ${payment.id}`);
-        continue;
-      }
-      
-      // Build message
-      const valueFormatted = `R$ ${Number(payment.value).toFixed(2).replace('.', ',')}`;
-      const dueDateFormatted = new Date(payment.due_date).toLocaleDateString('pt-BR');
-      
-      let message = template || `💳 *Lembrete de Pagamento - PIX*
+    const pixCode = await fetchPixCode(asaasApiUrl, asaasApiKey, payment.asaas_payment_id);
+    if (!pixCode) {
+      console.log(`No PIX payload for payment ${payment.id}`);
+      continue;
+    }
+    
+    const valueFormatted = `R$ ${Number(payment.value).toFixed(2).replace('.', ',')}`;
+    const dueDateFormatted = new Date(payment.due_date).toLocaleDateString('pt-BR');
+    
+    let message = template || `💳 *Lembrete de Pagamento - PIX*
 
 Olá, {nome_responsavel}!
 
@@ -387,25 +394,107 @@ Sua parcela vence em 2 dias:
 
 Att,
 {nome_escola}`;
-      
-      message = message
-        .replace(/{nome_responsavel}/g, payment.guardian.name.split(' ')[0])
-        .replace(/{descricao}/g, payment.description)
-        .replace(/{valor}/g, valueFormatted)
-        .replace(/{vencimento}/g, dueDateFormatted)
-        .replace(/{codigo_pix}/g, pixCode)
-        .replace(/{nome_escola}/g, schoolName);
-      
-      await sendWhatsAppMessage(
-        supabase, supabaseUrl, supabaseKey,
-        payment.guardian.phone, message, payment.guardian.id,
-        'auto_payment_pix_reminder_2d', 'pix_reminder'
-      );
-      
-      await new Promise(resolve => setTimeout(resolve, 3500));
-    } catch (error) {
-      console.error(`Error processing PIX for payment ${payment.id}:`, error);
+    
+    message = message
+      .replace(/{nome_responsavel}/g, payment.guardian.name.split(' ')[0])
+      .replace(/{descricao}/g, payment.description)
+      .replace(/{valor}/g, valueFormatted)
+      .replace(/{vencimento}/g, dueDateFormatted)
+      .replace(/{codigo_pix}/g, pixCode)
+      .replace(/{nome_escola}/g, schoolName);
+    
+    await sendWhatsAppMessage(
+      supabase, supabaseUrl, supabaseKey,
+      payment.guardian.phone, message, payment.guardian.id,
+      'auto_payment_pix_reminder_2d', 'pix_reminder'
+    );
+    
+    await new Promise(resolve => setTimeout(resolve, 3500));
+  }
+}
+
+async function processPixOverdue1Day(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
+  console.log('Processing PIX reminders 1 day after due...');
+  
+  const template = await getTemplate(supabase, 'pix_overdue');
+  
+  // Get payments that were due yesterday and are still pending/overdue
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const targetDate = yesterday.toISOString().split('T')[0];
+  
+  const { data: payments } = await supabase
+    .from('payments')
+    .select(`
+      id, guardian_id, value, due_date, description, asaas_payment_id,
+      guardian:guardians(id, name, phone)
+    `)
+    .in('status', ['PENDING', 'OVERDUE'])
+    .eq('due_date', targetDate)
+    .not('asaas_payment_id', 'is', null);
+  
+  if (!payments || payments.length === 0) {
+    console.log('No overdue payments from yesterday');
+    return;
+  }
+  
+  console.log(`Found ${payments.length} overdue payments from yesterday`);
+  
+  const { asaasApiKey, asaasApiUrl } = await getAsaasConfig(supabase);
+  
+  if (!asaasApiKey) {
+    console.log('Asaas API key not configured');
+    return;
+  }
+  
+  for (const payment of payments) {
+    if (!payment.guardian || !payment.asaas_payment_id) continue;
+    
+    const pixCode = await fetchPixCode(asaasApiUrl, asaasApiKey, payment.asaas_payment_id);
+    if (!pixCode) {
+      console.log(`No PIX payload for payment ${payment.id}`);
+      continue;
     }
+    
+    const valueFormatted = `R$ ${Number(payment.value).toFixed(2).replace('.', ',')}`;
+    const dueDateFormatted = new Date(payment.due_date).toLocaleDateString('pt-BR');
+    
+    let message = template || `⚠️ *Parcela Vencida - Regularize Agora*
+
+Olá, {nome_responsavel}!
+
+Identificamos que sua parcela venceu ontem e ainda não foi paga:
+
+📋 *Descrição:* {descricao}
+💰 *Valor:* {valor}
+📅 *Vencimento:* {vencimento}
+
+Para evitar juros e multas, regularize agora via PIX:
+
+📱 *Código PIX (copie e cole):*
+\`\`\`
+{codigo_pix}
+\`\`\`
+
+Att,
+{nome_escola}`;
+    
+    message = message
+      .replace(/{nome_responsavel}/g, payment.guardian.name.split(' ')[0])
+      .replace(/{descricao}/g, payment.description)
+      .replace(/{valor}/g, valueFormatted)
+      .replace(/{vencimento}/g, dueDateFormatted)
+      .replace(/{codigo_pix}/g, pixCode)
+      .replace(/{nome_escola}/g, schoolName);
+    
+    await sendWhatsAppMessage(
+      supabase, supabaseUrl, supabaseKey,
+      payment.guardian.phone, message, payment.guardian.id,
+      'auto_payment_pix_overdue_1d', 'pix_overdue'
+    );
+    
+    await new Promise(resolve => setTimeout(resolve, 3500));
   }
 }
 
@@ -454,6 +543,10 @@ Deno.serve(async (req) => {
     
     if (enabledKeys.includes('auto_payment_pix_reminder_2d')) {
       await processPixReminder2Days(supabase, supabaseUrl, supabaseKey, schoolName);
+    }
+    
+    if (enabledKeys.includes('auto_payment_pix_overdue_1d')) {
+      await processPixOverdue1Day(supabase, supabaseUrl, supabaseKey, schoolName);
     }
     
     return new Response(

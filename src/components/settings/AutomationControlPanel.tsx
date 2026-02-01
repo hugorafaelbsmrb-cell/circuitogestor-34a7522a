@@ -104,6 +104,15 @@ const automationConfigs: AutomationConfig[] = [
     templateCategory: 'pix_reminder',
   },
   {
+    key: 'auto_payment_pix_overdue_1d',
+    title: 'PIX 1 Dia Após Vencimento',
+    description: 'Envia código PIX 1 dia após o vencimento para pagamentos pendentes',
+    icon: CreditCard,
+    category: 'payments',
+    hasTemplate: true,
+    templateCategory: 'pix_overdue',
+  },
+  {
     key: 'auto_payment_reminder_48h',
     title: 'Lembrete 48h Antes',
     description: 'Envia lembrete 48h antes do vencimento do boleto',
