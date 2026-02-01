@@ -58,6 +58,41 @@ Deno.serve(async (req) => {
 
     const { action, dateFrom, dateTo } = await req.json();
 
+    // Helper function to find guardian by phone (with flexible matching)
+    async function findGuardianByPhone(phone: string) {
+      const phoneDigits = phone.replace(/\D/g, '');
+      const variants = [
+        phoneDigits,
+        phoneDigits.startsWith('55') ? phoneDigits.slice(2) : `55${phoneDigits}`,
+        phoneDigits.length === 11 ? phoneDigits.slice(0, 2) + phoneDigits.slice(3) : phoneDigits,
+        phoneDigits.length === 10 ? phoneDigits.slice(0, 2) + '9' + phoneDigits.slice(2) : phoneDigits,
+      ];
+      
+      for (const variant of variants) {
+        const { data } = await supabase
+          .from("guardians")
+          .select("id, name, phone")
+          .or(`phone.eq.${variant},phone.ilike.%${variant.slice(-8)}%`)
+          .limit(1);
+        
+        if (data && data.length > 0) {
+          return data[0];
+        }
+      }
+      return null;
+    }
+
+    // Helper function to get students by guardian ID
+    async function getStudentsByGuardianId(guardianId: string) {
+      const { data } = await supabase
+        .from("students")
+        .select("id, name")
+        .eq("guardian_id", guardianId)
+        .eq("is_active", true);
+      
+      return data || [];
+    }
+
     if (action === "scan") {
       // Scan recent messages for homework content (including images)
       let query = supabase
@@ -266,6 +301,24 @@ Retorne APENAS o JSON, sem texto adicional.`;
                 
                 // Very low threshold to catch everything
                 if (analysis.isHomework && analysis.confidence >= 0.2) {
+                  // Try to find guardian by phone if not already linked
+                  let guardianInfo = (msg.guardians as any);
+                  let students: { id: string; name: string }[] = [];
+                  
+                  if (!guardianInfo && msg.phone) {
+                    console.log(`Looking up guardian for phone: ${msg.phone}`);
+                    guardianInfo = await findGuardianByPhone(msg.phone);
+                  }
+                  
+                  // Get students linked to this guardian
+                  if (guardianInfo?.id) {
+                    students = await getStudentsByGuardianId(guardianInfo.id);
+                    console.log(`Found ${students.length} students for guardian ${guardianInfo.name}`);
+                  }
+                  
+                  const studentNames = students.map(s => s.name).join(', ');
+                  const firstStudentId = students.length > 0 ? students[0].id : null;
+                  
                   results.push({
                     messageId: msg.id,
                     phone: msg.phone,
@@ -274,11 +327,13 @@ Retorne APENAS o JSON, sem texto adicional.`;
                     mediaType: msg.media_type,
                     hasImage: hasImage,
                     createdAt: msg.created_at,
-                    guardianId: msg.guardian_id,
-                    guardianName: (msg.guardians as any)?.name || 'Grupo/Escola',
+                    guardianId: guardianInfo?.id || msg.guardian_id,
+                    guardianName: guardianInfo?.name || 'Grupo/Escola',
                     sourcePhone: msg.phone,
+                    studentId: firstStudentId,
+                    studentNames: studentNames,
                     analysis: {
-                      studentName: analysis.studentName,
+                      studentName: studentNames || analysis.studentName,
                       subjects: analysis.subjects,
                       activities: analysis.activities,
                       summary: analysis.summary,
@@ -286,10 +341,10 @@ Retorne APENAS o JSON, sem texto adicional.`;
                       confidence: analysis.confidence,
                       hasImageContent: analysis.hasImageContent,
                       imageDescription: analysis.imageDescription,
-                      sourceInfo: analysis.sourceInfo || msg.phone
+                      sourceInfo: guardianInfo?.name || analysis.sourceInfo || msg.phone
                     }
                   });
-                  console.log(`Added homework result for message ${msg.id}`);
+                  console.log(`Added homework result for message ${msg.id} - Guardian: ${guardianInfo?.name}, Students: ${studentNames}`);
                 }
               }
             } catch (parseError) {

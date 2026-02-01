@@ -48,6 +48,7 @@ interface HomeworkAnalysis {
   sourcePhone?: string;
   studentId?: string;
   studentName?: string;
+  studentNames?: string;
   analysis: {
     studentName?: string;
     subjects?: string[];
@@ -575,15 +576,27 @@ export default function HomeworkAnalysis() {
                             <span className="text-muted-foreground">•</span>
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <User className="w-4 h-4" />
-                              <span className="font-normal text-sm">{msg.guardianName || 'Grupo/Escola'}</span>
+                              <span className="font-normal text-sm">
+                                {msg.guardianName || 'Grupo/Escola'}
+                              </span>
                             </div>
                           </CardTitle>
-                          <CardDescription className="flex items-center gap-2 flex-wrap">
-                            <span>{format(new Date(msg.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
-                            {(msg.sourcePhone || msg.phone) && (
-                              <Badge variant="outline" className="text-xs font-normal">
-                                📱 {msg.sourcePhone || msg.phone}
-                              </Badge>
+                          <CardDescription className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span>{format(new Date(msg.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                              {(msg.sourcePhone || msg.phone) && (
+                                <Badge variant="outline" className="text-xs font-normal">
+                                  📱 {msg.sourcePhone || msg.phone}
+                                </Badge>
+                              )}
+                            </div>
+                            {(msg.studentNames || msg.analysis.studentName) && (
+                              <div className="flex items-center gap-1 text-sm">
+                                <span className="text-muted-foreground">👨‍🎓 Aluno(s):</span>
+                                <span className="font-medium text-foreground">
+                                  {msg.studentNames || msg.analysis.studentName}
+                                </span>
+                              </div>
                             )}
                           </CardDescription>
                         </div>
