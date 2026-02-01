@@ -95,6 +95,15 @@ const automationConfigs: AutomationConfig[] = [
     templateCategory: 'pix_created',
   },
   {
+    key: 'auto_payment_pix_reminder_2d',
+    title: 'PIX 2 Dias Antes',
+    description: 'Envia código PIX 2 dias antes do vencimento de cada parcela',
+    icon: CreditCard,
+    category: 'payments',
+    hasTemplate: true,
+    templateCategory: 'pix_reminder',
+  },
+  {
     key: 'auto_payment_reminder_48h',
     title: 'Lembrete 48h Antes',
     description: 'Envia lembrete 48h antes do vencimento do boleto',
