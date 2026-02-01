@@ -1139,16 +1139,40 @@ export default function ReportApprovalTab() {
 
               {/* Weekly report structured content */}
               {(() => {
-                // Try to parse structured content from weekly_content or from content field (JSON string)
+                // Try to parse structured content from weekly_content or from content field
                 let parsedContent: Record<string, string | null | undefined> | null = selectedReport.weekly_content as Record<string, string | null | undefined> | null;
                 
                 if (!parsedContent && selectedReport.content && (selectedReport.report_type === 'weekly' || selectedReport.report_type === 'semanal')) {
+                  // First try JSON parsing
                   try {
                     parsedContent = typeof selectedReport.content === 'string' 
                       ? JSON.parse(selectedReport.content) 
                       : selectedReport.content;
                   } catch {
+                    // JSON parse failed, try markdown format
                     parsedContent = null;
+                  }
+                  
+                  // If JSON failed, try markdown format: **Chave:** Valor
+                  if (!parsedContent && typeof selectedReport.content === 'string' && selectedReport.content.includes('**')) {
+                    const parsed: Record<string, string> = {};
+                    
+                    // Extract sections using regex
+                    const desempenhoMatch = selectedReport.content.match(/\*\*Desempenho Geral:\*\*\s*([\s\S]*?)(?=\*\*Pontos Positivos:|$)/i);
+                    const pontosMatch = selectedReport.content.match(/\*\*Pontos Positivos:\*\*\s*([\s\S]*?)(?=\*\*Dificuldades:|$)/i);
+                    const dificuldadesMatch = selectedReport.content.match(/\*\*Dificuldades:\*\*\s*([\s\S]*?)(?=\*\*Recomendações:|$)/i);
+                    const recomendacoesMatch = selectedReport.content.match(/\*\*Recomendações:\*\*\s*([\s\S]*?)(?=\*\*Observações:|--- SUGESTÕES|$)/i);
+                    const observacoesMatch = selectedReport.content.match(/\*\*Observações:\*\*\s*([\s\S]*?)(?=--- SUGESTÕES|$)/i);
+                    
+                    if (desempenhoMatch) parsed.desempenho_geral = desempenhoMatch[1].trim();
+                    if (pontosMatch) parsed.pontos_positivos = pontosMatch[1].trim();
+                    if (dificuldadesMatch) parsed.dificuldades = dificuldadesMatch[1].trim();
+                    if (recomendacoesMatch) parsed.recomendacoes = recomendacoesMatch[1].trim();
+                    if (observacoesMatch) parsed.observacoes = observacoesMatch[1].trim();
+                    
+                    if (Object.keys(parsed).length > 0) {
+                      parsedContent = parsed;
+                    }
                   }
                 }
 
