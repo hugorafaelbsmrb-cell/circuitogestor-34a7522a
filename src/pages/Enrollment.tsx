@@ -792,6 +792,27 @@ export default function Enrollment() {
         status: 'active',
       });
 
+      // 4a. Auto-convert any leads matching this guardian (by phone or CPF)
+      try {
+        const { error: leadUpdateError } = await supabase
+          .from('leads')
+          .update({
+            status: 'converted',
+            converted_at: new Date().toISOString(),
+            enrollment_id: enrollment.id,
+          })
+          .or(`phone.eq.${normalizedPhone},guardian_cpf.eq.${cleanCpf}`)
+          .in('status', ['new', 'contacted', 'qualified', 'pre_enrollment']);
+        
+        if (leadUpdateError) {
+          console.warn('Lead conversion warning:', leadUpdateError);
+        } else {
+          console.log('Leads auto-converted for guardian:', normalizedPhone);
+        }
+      } catch (leadError) {
+        console.warn('Lead auto-conversion error (non-blocking):', leadError);
+      }
+
       // 4b. Save all selected schedules to enrollment_schedules table
       for (const schedule of selectedSchedules) {
         const scheduleClassGroup = findClassGroupForSchedule(schedule.dayOfWeek, schedule.timeSlot.start);
