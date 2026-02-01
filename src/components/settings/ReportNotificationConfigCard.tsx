@@ -14,7 +14,8 @@ O relatório pedagógico de *{nome_aluno}* já está disponível! 📚
 📅 Data: {data_relatorio}
 📝 {titulo_relatorio}
 
-Acesse o portal de acompanhamento familiar para visualizar o relatório completo e acompanhar o desenvolvimento do seu filho(a).
+📱 Acesse o portal para visualizar:
+{link_portal}
 
 Atenciosamente,
 *{nome_escola}*`;
@@ -25,6 +26,7 @@ const AVAILABLE_VARIABLES = [
   { key: '{data_relatorio}', description: 'Data do relatório (ex: 25/01/2025)' },
   { key: '{titulo_relatorio}', description: 'Título do relatório' },
   { key: '{nome_escola}', description: 'Nome da escola (configurado em system_name)' },
+  { key: '{link_portal}', description: 'Link do portal de relatórios' },
 ];
 
 export function ReportNotificationConfigCard() {
