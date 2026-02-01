@@ -1,0 +1,591 @@
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from 'sonner';
+import { 
+  BookOpen, 
+  Brain, 
+  Send, 
+  RefreshCw, 
+  CheckCircle2, 
+  Clock, 
+  User, 
+  MessageSquare,
+  GraduationCap,
+  Loader2,
+  AlertCircle
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+interface Teacher {
+  id: string;
+  name: string;
+  phone: string;
+  course_id: string | null;
+}
+
+interface HomeworkAnalysis {
+  messageId: string;
+  phone: string;
+  message: string;
+  createdAt: string;
+  guardianId: string;
+  guardianName: string;
+  analysis: {
+    studentName?: string;
+    subjects?: string[];
+    activities?: {
+      subject: string;
+      description: string;
+      status: string;
+    }[];
+    summary?: string;
+    parentNotes?: string;
+    confidence: number;
+  };
+  selectedTeacherId?: string;
+  selected?: boolean;
+}
+
+interface PendingReport {
+  id: string;
+  original_message: string;
+  processed_content: string;
+  status: string;
+  created_at: string;
+  teacher_id: string | null;
+  guardians?: { name: string } | null;
+  students?: { name: string } | null;
+  teachers?: { name: string } | null;
+}
+
+export default function HomeworkAnalysis() {
+  const [isScanning, setIsScanning] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [analyzedMessages, setAnalyzedMessages] = useState<HomeworkAnalysis[]>([]);
+  const [pendingReports, setPendingReports] = useState<PendingReport[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [scanStats, setScanStats] = useState({ total: 0, analyzed: 0, found: 0 });
+  const [activeTab, setActiveTab] = useState<'scan' | 'pending'>('pending');
+
+  useEffect(() => {
+    fetchTeachers();
+    fetchPendingReports();
+  }, []);
+
+  const fetchTeachers = async () => {
+    const { data } = await supabase
+      .from('teachers')
+      .select('id, name, phone, course_id')
+      .eq('is_active', true)
+      .order('name');
+    
+    if (data) setTeachers(data);
+  };
+
+  const fetchPendingReports = async () => {
+    const { data } = await supabase
+      .from('homework_reports')
+      .select(`
+        id,
+        original_message,
+        processed_content,
+        status,
+        created_at,
+        teacher_id,
+        guardians (name),
+        students (name),
+        teachers (name)
+      `)
+      .in('status', ['pending', 'failed'])
+      .order('created_at', { ascending: false });
+    
+    if (data) setPendingReports(data as PendingReport[]);
+  };
+
+  const scanMessages = async () => {
+    setIsScanning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-homework-messages', {
+        body: { action: 'scan' }
+      });
+
+      if (error) throw error;
+
+      setAnalyzedMessages(data.results.map((r: HomeworkAnalysis) => ({ ...r, selected: true })));
+      setScanStats({
+        total: data.total,
+        analyzed: data.analyzed,
+        found: data.homeworkFound
+      });
+
+      if (data.homeworkFound > 0) {
+        toast.success(`${data.homeworkFound} mensagens com dever de casa encontradas!`);
+        setActiveTab('scan');
+      } else {
+        toast.info('Nenhuma mensagem nova com dever de casa encontrada');
+      }
+    } catch (error) {
+      console.error('Scan error:', error);
+      toast.error('Erro ao analisar mensagens');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const toggleMessageSelection = (messageId: string) => {
+    setAnalyzedMessages(prev => 
+      prev.map(m => m.messageId === messageId ? { ...m, selected: !m.selected } : m)
+    );
+  };
+
+  const setTeacherForMessage = (messageId: string, teacherId: string) => {
+    setAnalyzedMessages(prev =>
+      prev.map(m => m.messageId === messageId ? { ...m, selectedTeacherId: teacherId } : m)
+    );
+  };
+
+  const setTeacherForPending = async (reportId: string, teacherId: string) => {
+    const { error } = await supabase
+      .from('homework_reports')
+      .update({ teacher_id: teacherId })
+      .eq('id', reportId);
+
+    if (!error) {
+      setPendingReports(prev =>
+        prev.map(r => r.id === reportId ? { ...r, teacher_id: teacherId } : r)
+      );
+      toast.success('Professor atribuído');
+    }
+  };
+
+  const sendToTeachers = async () => {
+    const selectedMessages = analyzedMessages.filter(m => m.selected && m.selectedTeacherId);
+    
+    if (selectedMessages.length === 0) {
+      toast.error('Selecione mensagens e atribua professores');
+      return;
+    }
+
+    setIsSending(true);
+    let successCount = 0;
+
+    try {
+      for (const msg of selectedMessages) {
+        const teacher = teachers.find(t => t.id === msg.selectedTeacherId);
+        if (!teacher) continue;
+
+        // Format message for teacher
+        const formattedMessage = formatHomeworkMessage(msg, teacher);
+
+        // Send via W-API
+        const { error } = await supabase.functions.invoke('wapi-send-message', {
+          body: { 
+            phone: teacher.phone, 
+            message: formattedMessage 
+          }
+        });
+
+        if (!error) {
+          // Save to homework_reports
+          await supabase.from('homework_reports').insert({
+            whatsapp_message_id: msg.messageId,
+            guardian_id: msg.guardianId,
+            teacher_id: teacher.id,
+            original_message: msg.message,
+            processed_content: formattedMessage,
+            status: 'sent',
+            sent_at: new Date().toISOString()
+          });
+          successCount++;
+        }
+      }
+
+      toast.success(`${successCount} relatórios enviados com sucesso!`);
+      setAnalyzedMessages(prev => prev.filter(m => !m.selected || !m.selectedTeacherId));
+      fetchPendingReports();
+    } catch (error) {
+      console.error('Send error:', error);
+      toast.error('Erro ao enviar relatórios');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const sendPendingReport = async (report: PendingReport) => {
+    if (!report.teacher_id) {
+      toast.error('Selecione um professor primeiro');
+      return;
+    }
+
+    const teacher = teachers.find(t => t.id === report.teacher_id);
+    if (!teacher) return;
+
+    try {
+      let messageToSend = report.processed_content;
+      
+      // If processed_content is JSON, format it
+      try {
+        const parsed = JSON.parse(report.processed_content);
+        messageToSend = formatParsedHomework(parsed, report.guardians?.name);
+      } catch {
+        // Use as-is if not JSON
+      }
+
+      const { error } = await supabase.functions.invoke('wapi-send-message', {
+        body: { phone: teacher.phone, message: messageToSend }
+      });
+
+      if (error) throw error;
+
+      await supabase
+        .from('homework_reports')
+        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .eq('id', report.id);
+
+      toast.success('Relatório enviado!');
+      fetchPendingReports();
+    } catch (error) {
+      console.error('Send error:', error);
+      toast.error('Erro ao enviar');
+    }
+  };
+
+  const formatHomeworkMessage = (msg: HomeworkAnalysis, teacher: Teacher): string => {
+    const studentName = msg.analysis.studentName || 'Aluno';
+    let text = `📚 *Roteiro de Atividades - ${studentName}*\n`;
+    text += `👤 Responsável: ${msg.guardianName}\n\n`;
+
+    if (msg.analysis.summary) {
+      text += `📋 *Resumo:* ${msg.analysis.summary}\n\n`;
+    }
+
+    if (msg.analysis.activities && msg.analysis.activities.length > 0) {
+      text += `📖 *Atividades:*\n`;
+      msg.analysis.activities.forEach((act, i) => {
+        const emoji = act.status === 'realizada' ? '✅' : act.status === 'parcial' ? '⚠️' : '❌';
+        text += `${i + 1}. ${emoji} ${act.subject}: ${act.description}\n`;
+      });
+      text += '\n';
+    }
+
+    if (msg.analysis.parentNotes) {
+      text += `💬 *Obs. do responsável:* ${msg.analysis.parentNotes}\n\n`;
+    }
+
+    text += `_Recebido em ${format(new Date(msg.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}_`;
+    return text;
+  };
+
+  const formatParsedHomework = (parsed: any, guardianName?: string): string => {
+    let text = `📚 *Roteiro de Atividades*\n`;
+    if (guardianName) text += `👤 Responsável: ${guardianName}\n\n`;
+
+    if (parsed.summary) text += `📋 ${parsed.summary}\n\n`;
+
+    if (parsed.activities?.length > 0) {
+      text += `📖 *Atividades:*\n`;
+      parsed.activities.forEach((act: any, i: number) => {
+        const emoji = act.status === 'realizada' ? '✅' : act.status === 'parcial' ? '⚠️' : '❌';
+        text += `${i + 1}. ${emoji} ${act.subject || 'Geral'}: ${act.description}\n`;
+      });
+    }
+
+    return text;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <BookOpen className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Análise de Deveres de Casa</h1>
+            <p className="text-muted-foreground">
+              IA analisa mensagens e extrai informações de atividades escolares
+            </p>
+          </div>
+        </div>
+        <Button onClick={scanMessages} disabled={isScanning}>
+          {isScanning ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Analisando...
+            </>
+          ) : (
+            <>
+              <Brain className="w-4 h-4 mr-2" />
+              Analisar Mensagens
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Stats */}
+      {scanStats.total > 0 && (
+        <div className="grid grid-cols-3 gap-4">
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <MessageSquare className="w-8 h-8 text-muted-foreground" />
+              <div>
+                <p className="text-2xl font-bold">{scanStats.total}</p>
+                <p className="text-sm text-muted-foreground">Total de mensagens</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <Brain className="w-8 h-8 text-blue-500" />
+              <div>
+                <p className="text-2xl font-bold">{scanStats.analyzed}</p>
+                <p className="text-sm text-muted-foreground">Analisadas pela IA</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <CheckCircle2 className="w-8 h-8 text-green-500" />
+              <div>
+                <p className="text-2xl font-bold">{scanStats.found}</p>
+                <p className="text-sm text-muted-foreground">Deveres encontrados</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b">
+        <Button 
+          variant={activeTab === 'pending' ? 'default' : 'ghost'}
+          onClick={() => setActiveTab('pending')}
+          className="rounded-b-none"
+        >
+          <Clock className="w-4 h-4 mr-2" />
+          Pendentes ({pendingReports.length})
+        </Button>
+        <Button 
+          variant={activeTab === 'scan' ? 'default' : 'ghost'}
+          onClick={() => setActiveTab('scan')}
+          className="rounded-b-none"
+        >
+          <Brain className="w-4 h-4 mr-2" />
+          Novas Análises ({analyzedMessages.length})
+        </Button>
+      </div>
+
+      {/* Content */}
+      {activeTab === 'scan' && (
+        <div className="space-y-4">
+          {analyzedMessages.length > 0 && (
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-muted-foreground">
+                {analyzedMessages.filter(m => m.selected).length} selecionadas
+              </p>
+              <Button onClick={sendToTeachers} disabled={isSending}>
+                {isSending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                Enviar para Professores
+              </Button>
+            </div>
+          )}
+
+          <ScrollArea className="h-[500px]">
+            <div className="space-y-4">
+              {analyzedMessages.map((msg) => (
+                <Card key={msg.messageId} className={msg.selected ? 'ring-2 ring-primary' : ''}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <Checkbox 
+                          checked={msg.selected}
+                          onCheckedChange={() => toggleMessageSelection(msg.messageId)}
+                        />
+                        <div>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            {msg.guardianName}
+                            {msg.analysis.studentName && (
+                              <Badge variant="outline">
+                                <GraduationCap className="w-3 h-3 mr-1" />
+                                {msg.analysis.studentName}
+                              </Badge>
+                            )}
+                          </CardTitle>
+                          <CardDescription>
+                            {format(new Date(msg.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </CardDescription>
+                        </div>
+                      </div>
+                      <Badge variant="secondary">
+                        {Math.round(msg.analysis.confidence * 100)}% confiança
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Original message */}
+                    <div className="bg-muted/50 p-3 rounded-lg">
+                      <p className="text-sm">{msg.message}</p>
+                    </div>
+
+                    {/* AI Analysis */}
+                    {msg.analysis.summary && (
+                      <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                        <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                          📋 {msg.analysis.summary}
+                        </p>
+                      </div>
+                    )}
+
+                    {msg.analysis.activities && msg.analysis.activities.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium">Atividades identificadas:</p>
+                        {msg.analysis.activities.map((act, i) => (
+                          <div key={i} className="flex items-center gap-2 text-sm">
+                            {act.status === 'realizada' ? (
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                            ) : act.status === 'parcial' ? (
+                              <AlertCircle className="w-4 h-4 text-yellow-500" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 text-red-500" />
+                            )}
+                            <span className="font-medium">{act.subject}:</span>
+                            <span className="text-muted-foreground">{act.description}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Teacher selection */}
+                    <div className="flex items-center gap-4 pt-2 border-t">
+                      <span className="text-sm font-medium">Enviar para:</span>
+                      <Select 
+                        value={msg.selectedTeacherId || ''} 
+                        onValueChange={(v) => setTeacherForMessage(msg.messageId, v)}
+                      >
+                        <SelectTrigger className="w-64">
+                          <SelectValue placeholder="Selecione um professor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teachers.map(t => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {analyzedMessages.length === 0 && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Brain className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Clique em "Analisar Mensagens" para buscar deveres de casa</p>
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+
+      {activeTab === 'pending' && (
+        <ScrollArea className="h-[500px]">
+          <div className="space-y-4">
+            {pendingReports.map((report) => {
+              let parsedContent: any = {};
+              try {
+                parsedContent = JSON.parse(report.processed_content);
+              } catch {
+                parsedContent = { summary: report.processed_content };
+              }
+
+              return (
+                <Card key={report.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          {report.guardians?.name || 'Responsável'}
+                          {report.students?.name && (
+                            <Badge variant="outline">
+                              <GraduationCap className="w-3 h-3 mr-1" />
+                              {report.students.name}
+                            </Badge>
+                          )}
+                        </CardTitle>
+                        <CardDescription>
+                          {format(new Date(report.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                        </CardDescription>
+                      </div>
+                      <Badge variant={report.status === 'failed' ? 'destructive' : 'secondary'}>
+                        {report.status === 'failed' ? 'Falha' : 'Pendente'}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="bg-muted/50 p-3 rounded-lg">
+                      <p className="text-sm">{report.original_message}</p>
+                    </div>
+
+                    {parsedContent.summary && (
+                      <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                        <p className="text-sm text-blue-700 dark:text-blue-300">
+                          📋 {parsedContent.summary}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-4 pt-2 border-t">
+                      <span className="text-sm font-medium">Professor:</span>
+                      <Select 
+                        value={report.teacher_id || ''} 
+                        onValueChange={(v) => setTeacherForPending(report.id, v)}
+                      >
+                        <SelectTrigger className="w-64">
+                          <SelectValue placeholder="Selecione um professor" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {teachers.map(t => (
+                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        size="sm"
+                        onClick={() => sendPendingReport(report)}
+                        disabled={!report.teacher_id}
+                      >
+                        <Send className="w-4 h-4 mr-2" />
+                        Enviar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+
+            {pendingReports.length === 0 && (
+              <div className="text-center py-12 text-muted-foreground">
+                <CheckCircle2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>Nenhum relatório pendente</p>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      )}
+    </div>
+  );
+}
