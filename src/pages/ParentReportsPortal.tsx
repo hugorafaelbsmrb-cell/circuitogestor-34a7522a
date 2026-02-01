@@ -386,16 +386,41 @@ export default function ParentReportsPortal() {
   const parseReportContent = (report: Report) => {
     // Try to parse as JSON for weekly reports
     if (report.report_type === 'weekly' || report.report_type === 'semanal') {
+      // First, try JSON parsing
       try {
         const content = typeof report.content === 'string' ? JSON.parse(report.content) : report.content;
         // Verify it has structured content keys (Portuguese or English)
         if (content && (content.desempenho_geral || content.pontos_positivos || content.dificuldades || content.recomendacoes || content.observacoes || content.performance || content.positive_points || content.difficulties || content.recommendations || content.observations)) {
           return content;
         }
-        return null;
       } catch {
-        return null;
+        // JSON parse failed, try markdown format
       }
+      
+      // Try to parse markdown format: **Chave:** Valor
+      if (typeof report.content === 'string' && report.content.includes('**')) {
+        const parsed: Record<string, string> = {};
+        
+        // Extract sections using regex
+        const desempenhoMatch = report.content.match(/\*\*Desempenho Geral:\*\*\s*([\s\S]*?)(?=\*\*Pontos Positivos:|$)/i);
+        const pontosMatch = report.content.match(/\*\*Pontos Positivos:\*\*\s*([\s\S]*?)(?=\*\*Dificuldades:|$)/i);
+        const dificuldadesMatch = report.content.match(/\*\*Dificuldades:\*\*\s*([\s\S]*?)(?=\*\*Recomendações:|$)/i);
+        const recomendacoesMatch = report.content.match(/\*\*Recomendações:\*\*\s*([\s\S]*?)(?=\*\*Observações:|--- SUGESTÕES|$)/i);
+        const observacoesMatch = report.content.match(/\*\*Observações:\*\*\s*([\s\S]*?)(?=--- SUGESTÕES|$)/i);
+        
+        if (desempenhoMatch) parsed.desempenho_geral = desempenhoMatch[1].trim();
+        if (pontosMatch) parsed.pontos_positivos = pontosMatch[1].trim();
+        if (dificuldadesMatch) parsed.dificuldades = dificuldadesMatch[1].trim();
+        if (recomendacoesMatch) parsed.recomendacoes = recomendacoesMatch[1].trim();
+        if (observacoesMatch) parsed.observacoes = observacoesMatch[1].trim();
+        
+        // Return if we found at least one section
+        if (Object.keys(parsed).length > 0) {
+          return parsed;
+        }
+      }
+      
+      return null;
     }
     return null;
   };
