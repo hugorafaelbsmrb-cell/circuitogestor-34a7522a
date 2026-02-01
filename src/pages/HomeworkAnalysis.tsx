@@ -6,7 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { 
   BookOpen, 
   Brain, 
@@ -19,9 +22,10 @@ import {
   GraduationCap,
   Loader2,
   AlertCircle,
-  Image as ImageIcon
+  Image as ImageIcon,
+  CalendarIcon
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Teacher {
@@ -82,11 +86,40 @@ export default function HomeworkAnalysis() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [scanStats, setScanStats] = useState({ total: 0, analyzed: 0, found: 0 });
   const [activeTab, setActiveTab] = useState<'scan' | 'pending'>('pending');
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(subDays(new Date(), 1));
+  const [dateTo, setDateTo] = useState<Date | undefined>(new Date());
+  const [periodPreset, setPeriodPreset] = useState<string>('yesterday');
 
   useEffect(() => {
     fetchTeachers();
     fetchPendingReports();
   }, []);
+
+  const handlePeriodPreset = (preset: string) => {
+    setPeriodPreset(preset);
+    const today = new Date();
+    switch (preset) {
+      case 'today':
+        setDateFrom(today);
+        setDateTo(today);
+        break;
+      case 'yesterday':
+        setDateFrom(subDays(today, 1));
+        setDateTo(subDays(today, 1));
+        break;
+      case 'last3days':
+        setDateFrom(subDays(today, 3));
+        setDateTo(today);
+        break;
+      case 'last7days':
+        setDateFrom(subDays(today, 7));
+        setDateTo(today);
+        break;
+      case 'custom':
+        // Keep current dates for custom
+        break;
+    }
+  };
 
   const fetchTeachers = async () => {
     const { data } = await supabase
@@ -121,8 +154,17 @@ export default function HomeworkAnalysis() {
   const scanMessages = async () => {
     setIsScanning(true);
     try {
+      const body: any = { action: 'scan' };
+      
+      if (dateFrom) {
+        body.dateFrom = startOfDay(dateFrom).toISOString();
+      }
+      if (dateTo) {
+        body.dateTo = endOfDay(dateTo).toISOString();
+      }
+
       const { data, error } = await supabase.functions.invoke('analyze-homework-messages', {
-        body: { action: 'scan' }
+        body
       });
 
       if (error) throw error;
@@ -324,31 +366,119 @@ export default function HomeworkAnalysis() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <BookOpen className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Análise de Deveres de Casa</h1>
-            <p className="text-muted-foreground">
-              IA analisa mensagens e extrai informações de atividades escolares
-            </p>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <BookOpen className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Análise de Deveres de Casa</h1>
+              <p className="text-muted-foreground">
+                IA analisa mensagens e extrai informações de atividades escolares
+              </p>
+            </div>
           </div>
         </div>
-        <Button onClick={scanMessages} disabled={isScanning}>
-          {isScanning ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Analisando...
-            </>
-          ) : (
-            <>
-              <Brain className="w-4 h-4 mr-2" />
-              Analisar Mensagens
-            </>
-          )}
-        </Button>
+
+        {/* Period Filter */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Período:</span>
+              </div>
+              
+              <Select value={periodPreset} onValueChange={handlePeriodPreset}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Hoje</SelectItem>
+                  <SelectItem value="yesterday">Ontem</SelectItem>
+                  <SelectItem value="last3days">Últimos 3 dias</SelectItem>
+                  <SelectItem value="last7days">Últimos 7 dias</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {periodPreset === 'custom' && (
+                <>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-36 justify-start text-left font-normal",
+                          !dateFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateFrom ? format(dateFrom, "dd/MM/yyyy", { locale: ptBR }) : "De"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateFrom}
+                        onSelect={setDateFrom}
+                        initialFocus
+                        locale={ptBR}
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <span className="text-muted-foreground">até</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-36 justify-start text-left font-normal",
+                          !dateTo && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateTo ? format(dateTo, "dd/MM/yyyy", { locale: ptBR }) : "Até"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateTo}
+                        onSelect={setDateTo}
+                        initialFocus
+                        locale={ptBR}
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </>
+              )}
+
+              {periodPreset !== 'custom' && dateFrom && dateTo && (
+                <Badge variant="secondary" className="text-xs">
+                  {format(dateFrom, "dd/MM", { locale: ptBR })} - {format(dateTo, "dd/MM", { locale: ptBR })}
+                </Badge>
+              )}
+
+              <Button onClick={scanMessages} disabled={isScanning} className="ml-auto">
+                {isScanning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Analisando...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="w-4 h-4 mr-2" />
+                    Analisar Mensagens
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Stats */}
