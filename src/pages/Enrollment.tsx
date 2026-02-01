@@ -1332,53 +1332,56 @@ export default function Enrollment() {
         console.warn('Failed to send enrollment welcome (non-blocking):', welcomeError);
       }
 
-      // 10. Send signature link via WhatsApp if enabled
+      // 10. Send signature link via WhatsApp if enabled (with 10s delay after welcome message)
       if (sendSignatureLinkWhatsApp && contract) {
-        try {
-          // Fetch signature template
-          const { data: templateData } = await supabase
-            .from('app_settings')
-            .select('value')
-            .eq('key', 'whatsapp_template_contract_signature')
-            .single();
+        // Wait 10 seconds before sending the signature link to ensure it arrives after the welcome message
+        setTimeout(async () => {
+          try {
+            // Fetch signature template
+            const { data: templateData } = await supabase
+              .from('app_settings')
+              .select('value')
+              .eq('key', 'whatsapp_template_contract_signature')
+              .single();
 
-          // Get signature token from contract
-          const { data: contractData } = await supabase
-            .from('contracts')
-            .select('signature_token')
-            .eq('id', contract.id)
-            .single();
+            // Get signature token from contract
+            const { data: contractData } = await supabase
+              .from('contracts')
+              .select('signature_token')
+              .eq('id', contract.id)
+              .single();
 
-          if (contractData?.signature_token) {
-            const signatureLink = `${window.location.origin}/assinar/${contractData.signature_token}`;
-            const guardianFirstName = guardian.name.split(' ')[0];
-            
-            let message = templateData?.value || 
-              `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
-            
-            message = message
-              .replace('{nome}', guardianFirstName)
-              .replace('{aluno}', student.name)
-              .replace('{curso}', selectedCourse.name)
-              .replace('{link}', signatureLink)
-              .replace(/\\n/g, '\n');
+            if (contractData?.signature_token) {
+              const signatureLink = `${window.location.origin}/assinar/${contractData.signature_token}`;
+              const guardianFirstName = guardian.name.split(' ')[0];
+              
+              let message = templateData?.value || 
+                `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
+              
+              message = message
+                .replace('{nome}', guardianFirstName)
+                .replace('{aluno}', student.name)
+                .replace('{curso}', selectedCourse.name)
+                .replace('{link}', signatureLink)
+                .replace(/\\n/g, '\n');
 
-            const signatureResponse = await supabase.functions.invoke('wapi-send-message', {
-              body: {
-                phone: guardian.phone,
-                message,
-              },
-            });
+              const signatureResponse = await supabase.functions.invoke('wapi-send-message', {
+                body: {
+                  phone: guardian.phone,
+                  message,
+                },
+              });
 
-            if (signatureResponse.data?.success) {
-              console.log('Signature link sent successfully via WhatsApp');
-            } else if (signatureResponse.error) {
-              console.warn('Signature link send error:', signatureResponse.error);
+              if (signatureResponse.data?.success) {
+                console.log('Signature link sent successfully via WhatsApp (after 10s delay)');
+              } else if (signatureResponse.error) {
+                console.warn('Signature link send error:', signatureResponse.error);
+              }
             }
+          } catch (signatureError) {
+            console.warn('Failed to send signature link (non-blocking):', signatureError);
           }
-        } catch (signatureError) {
-          console.warn('Failed to send signature link (non-blocking):', signatureError);
-        }
+        }, 10000); // 10 seconds delay
       }
 
       setCurrentStep('summary');
