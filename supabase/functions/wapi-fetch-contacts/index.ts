@@ -19,14 +19,14 @@ Deno.serve(async (req) => {
     const { data: settings, error: settingsError } = await supabase
       .from("app_settings")
       .select("key, value")
-      .in("key", ["W_API_INSTANCE_ID", "W_API_TOKEN", "W_API_URL"]);
+      .in("key", ["W_API_SESSION", "W_API_TOKEN", "W_API_URL"]);
 
     if (settingsError) throw settingsError;
 
     const getSettingValue = (key: string) =>
       settings?.find((s) => s.key === key)?.value || null;
 
-    const instanceId = getSettingValue("W_API_INSTANCE_ID");
+    const instanceId = getSettingValue("W_API_SESSION");
     const token = getSettingValue("W_API_TOKEN");
     const baseUrl = getSettingValue("W_API_URL") || "https://api.w-api.app";
 
