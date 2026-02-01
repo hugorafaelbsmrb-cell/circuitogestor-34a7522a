@@ -152,9 +152,13 @@ Analise a seguinte mensagem${hasImage ? " e imagem" : ""} e identifique se cont�
 - Lições ou exercícios para entregar
 - Conteúdo ministrado em aula com atividades pendentes
 - Comunicados de escola com tarefas
+- Agenda de atividades diárias
 
 IMPORTANTE: Considere como dever de casa QUALQUER mensagem que mencione:
+- "agenda de atividades diárias"
 - "ATIVIDADE EM CASA" ou "ATIVIDADE DE CASA" ou "PARA CASA"
+- "Atividade em sala"
+- "Atividade de sala"
 - "Páginas X a Y" para fazer
 - "Data de entrega" ou "DATA DA ENTREGA" de atividades
 - Tarefas com prazo
@@ -163,9 +167,11 @@ IMPORTANTE: Considere como dever de casa QUALQUER mensagem que mencione:
 - Conteúdo ministrado com atividades pendentes
 - Agenda diária de escola
 - Roteiro de estudos
+- "Senhores Pais e/ou Responsáveis"
 
 ${hasImage ? "ANALISE A IMAGEM COM ATENÇÃO: Pode ser print de agenda, foto de caderno, atividades, roteiro diário ou comunicado escolar." : ""}
 
+Telefone do remetente: ${msg.phone}
 Remetente: ${(msg.guardians as any)?.name || 'Escola/Grupo'}
 Mensagem: "${msg.message || '(apenas imagem)'}"
 
@@ -185,11 +191,12 @@ Retorne um JSON válido:
   "summary": "resumo das atividades pendentes",
   "parentNotes": "observações adicionais",
   "hasImageContent": ${hasImage ? "true" : "false"},
-  "imageDescription": "descrição da imagem se aplicável"
+  "imageDescription": "descrição da imagem se aplicável",
+  "sourceInfo": "telefone ou nome do remetente"
 }
 
 ATENÇÃO MÁXIMA: 
-- Se a mensagem mencionar "ATIVIDADE EM CASA", "ATIVIDADE DE CASA", "PARA CASA", "DATA DE ENTREGA", "páginas", agenda escolar ou similar, retorne isHomework=true com confidence >= 0.8.
+- Se a mensagem mencionar "agenda de atividades diárias", "ATIVIDADE EM CASA", "Atividade em sala", "PARA CASA", "DATA DE ENTREGA", "páginas", agenda escolar ou similar, retorne isHomework=true com confidence >= 0.8.
 - Mensagens de grupos escolares com roteiro diário são SEMPRE homework.
 - Na dúvida, marque como isHomework=true para revisão manual.
 
@@ -268,7 +275,8 @@ Retorne APENAS o JSON, sem texto adicional.`;
                     hasImage: hasImage,
                     createdAt: msg.created_at,
                     guardianId: msg.guardian_id,
-                    guardianName: (msg.guardians as any)?.name,
+                    guardianName: (msg.guardians as any)?.name || 'Grupo/Escola',
+                    sourcePhone: msg.phone,
                     analysis: {
                       studentName: analysis.studentName,
                       subjects: analysis.subjects,
@@ -277,7 +285,8 @@ Retorne APENAS o JSON, sem texto adicional.`;
                       parentNotes: analysis.parentNotes,
                       confidence: analysis.confidence,
                       hasImageContent: analysis.hasImageContent,
-                      imageDescription: analysis.imageDescription
+                      imageDescription: analysis.imageDescription,
+                      sourceInfo: analysis.sourceInfo || msg.phone
                     }
                   });
                   console.log(`Added homework result for message ${msg.id}`);

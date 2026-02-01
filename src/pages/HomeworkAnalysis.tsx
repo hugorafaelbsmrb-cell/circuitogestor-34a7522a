@@ -45,6 +45,7 @@ interface HomeworkAnalysis {
   createdAt: string;
   guardianId: string;
   guardianName: string;
+  sourcePhone?: string;
   studentId?: string;
   studentName?: string;
   analysis: {
@@ -60,6 +61,7 @@ interface HomeworkAnalysis {
     confidence: number;
     hasImageContent?: boolean;
     imageDescription?: string;
+    sourceInfo?: string;
   };
   selectedTeacherId?: string;
   selected?: boolean;
@@ -573,11 +575,16 @@ export default function HomeworkAnalysis() {
                             <span className="text-muted-foreground">•</span>
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <User className="w-4 h-4" />
-                              <span className="font-normal text-sm">{msg.guardianName}</span>
+                              <span className="font-normal text-sm">{msg.guardianName || 'Grupo/Escola'}</span>
                             </div>
                           </CardTitle>
-                          <CardDescription>
-                            {format(new Date(msg.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          <CardDescription className="flex items-center gap-2 flex-wrap">
+                            <span>{format(new Date(msg.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                            {(msg.sourcePhone || msg.phone) && (
+                              <Badge variant="outline" className="text-xs font-normal">
+                                📱 {msg.sourcePhone || msg.phone}
+                              </Badge>
+                            )}
                           </CardDescription>
                         </div>
                       </div>
