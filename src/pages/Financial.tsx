@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText, Printer, Filter, HandCoins, Loader2 } from 'lucide-react';
+import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText, Printer, Filter, HandCoins, Loader2, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
+import { PixQrCodeModal } from '@/components/financial/PixQrCodeModal';
 
 interface Payment {
   id: string;
@@ -44,11 +45,24 @@ export default function Financial() {
   const [activeTab, setActiveTab] = useState('overview');
   const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
   
+  // PIX Modal state
+  const [pixModalOpen, setPixModalOpen] = useState(false);
+  const [selectedPaymentForPix, setSelectedPaymentForPix] = useState<PaymentWithGuardian | null>(null);
+  
   // Debtors filter state
   const [debtorPeriodFilter, setDebtorPeriodFilter] = useState('all');
   const [debtorStartDate, setDebtorStartDate] = useState('');
   const [debtorEndDate, setDebtorEndDate] = useState('');
   const debtorsPrintRef = useRef<HTMLDivElement>(null);
+
+  const handleOpenPixModal = (payment: PaymentWithGuardian) => {
+    if (!payment.asaas_payment_id) {
+      toast.error('Este pagamento não possui ID do Asaas');
+      return;
+    }
+    setSelectedPaymentForPix(payment);
+    setPixModalOpen(true);
+  };
 
   // Fetch payments from database
   const fetchPayments = async () => {
@@ -791,6 +805,18 @@ export default function Financial() {
                                     Baixa
                                   </Button>
                                 )}
+                                {payment.asaas_payment_id && (payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    title="Ver PIX"
+                                    onClick={() => handleOpenPixModal(payment)}
+                                    className="gap-1"
+                                  >
+                                    <QrCode className="w-4 h-4" />
+                                    <span className="hidden sm:inline">PIX</span>
+                                  </Button>
+                                )}
                                 {payment.invoice_url && (
                                   <Button variant="outline" size="sm" asChild title="Ver Boleto">
                                     <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
@@ -1104,6 +1130,23 @@ export default function Financial() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* PIX QR Code Modal */}
+      {selectedPaymentForPix && (
+        <PixQrCodeModal
+          isOpen={pixModalOpen}
+          onClose={() => {
+            setPixModalOpen(false);
+            setSelectedPaymentForPix(null);
+          }}
+          paymentId={selectedPaymentForPix.asaas_payment_id || ''}
+          paymentDescription={selectedPaymentForPix.description}
+          paymentValue={selectedPaymentForPix.value}
+          dueDate={selectedPaymentForPix.due_date}
+          guardianName={selectedPaymentForPix.guardian_name}
+          guardianPhone={selectedPaymentForPix.guardian_phone}
+        />
+      )}
     </div>
   );
 }

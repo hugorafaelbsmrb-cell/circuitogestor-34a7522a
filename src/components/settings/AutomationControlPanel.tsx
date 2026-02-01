@@ -86,6 +86,15 @@ const automationConfigs: AutomationConfig[] = [
     category: 'payments',
   },
   {
+    key: 'auto_payment_pix_created',
+    title: 'PIX ao Criar Parcela',
+    description: 'Envia automaticamente o código PIX ao gerar nova parcela/carnê',
+    icon: CreditCard,
+    category: 'payments',
+    hasTemplate: true,
+    templateCategory: 'pix_created',
+  },
+  {
     key: 'auto_payment_reminder_48h',
     title: 'Lembrete 48h Antes',
     description: 'Envia lembrete 48h antes do vencimento do boleto',
