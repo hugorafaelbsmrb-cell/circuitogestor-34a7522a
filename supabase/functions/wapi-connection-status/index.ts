@@ -37,7 +37,10 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization');
+    console.log('Auth header present:', !!authHeader);
+    
     if (!authHeader?.startsWith('Bearer ')) {
+      console.log('Missing or invalid auth header');
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -45,22 +48,30 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    console.log('Supabase URL:', supabaseUrl);
+    console.log('Service key available:', !!supabaseServiceKey);
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    // Use service role to verify user token
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify user using getClaims (works with signing-keys)
+    // Verify user using getUser with service role
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      console.error('Auth error:', claimsError);
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    console.log('Token length:', token.length);
+    
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    console.log('getUser result:', { hasUser: !!userData?.user, error: userError?.message });
+    
+    if (userError || !userData?.user) {
+      console.error('Auth error:', userError);
+      return new Response(JSON.stringify({ error: 'Unauthorized', details: userError?.message }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    
+    console.log('User authenticated:', userData.user.email);
 
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
