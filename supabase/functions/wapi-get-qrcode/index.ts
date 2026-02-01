@@ -36,17 +36,18 @@ Deno.serve(async (req) => {
       },
     });
 
-    // Verify user by passing their JWT token
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !userData?.user) {
-      console.error('Auth verification failed:', userError?.message);
-      return new Response(JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired session' }), {
+    // CRITICAL: Use getClaims() for Lovable Cloud ES256 tokens
+    // getClaims validates JWT signature without requiring session to exist
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      console.error('Auth verification failed:', claimsError?.message);
+      return new Response(JSON.stringify({ error: 'Unauthorized', details: 'Invalid or expired token' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     
-    console.log('User authenticated:', userData.user.email);
+    console.log('User authenticated:', claimsData.claims.email);
 
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
