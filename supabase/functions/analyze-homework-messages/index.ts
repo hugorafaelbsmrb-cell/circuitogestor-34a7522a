@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 // Lovable AI Gateway - no rate limits like Google's free tier
-const LOVABLE_AI_URL = "https://ai-gateway.lovable.dev/v1/chat/completions";
+const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 async function getLovableApiKey(): Promise<string | null> {
   const envKey = Deno.env.get("LOVABLE_API_KEY");
