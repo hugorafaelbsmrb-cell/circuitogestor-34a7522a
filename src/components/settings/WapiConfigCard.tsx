@@ -34,8 +34,8 @@ export function WapiConfigCard({ editedSettings, setEditedSettings }: WapiConfig
   const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // W-API PRO uses api.wapi.com.br exclusively
-  const PRO_BASE_URL = 'https://api.wapi.com.br';
+  // W-API PRO uses api.w-api.app exclusively
+  const PRO_BASE_URL = 'https://api.w-api.app';
 
   const normalizeWapiUrl = (_url?: string) => {
     // Always use PRO domain - ignore any stored URL
