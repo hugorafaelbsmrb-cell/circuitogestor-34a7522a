@@ -1,223 +1,305 @@
 
-# Plano: Cliente de Email Integrado ao Sistema
 
-## Visao Geral
+# Plano: Sistema de Controle de Dispositivos Inteligentes (Tomadas e Lâmpadas)
 
-Criar um modulo de email completo que permite:
-1. **Configurar credenciais IMAP/SMTP** de qualquer provedor de email
-2. **Ler emails recebidos** da caixa de entrada
-3. **Enviar emails** para qualquer destinatario
-4. **Gerenciar conversas** de forma organizada
+## Visão Geral
 
-Isso sera util para comunicacao com parceiros, contador, fornecedores, etc., sem vinculo com os contatos de alunos/responsaveis.
+Implementar um módulo de automação IoT que permita:
+1. **Listar dispositivos** (lâmpadas e tomadas inteligentes)
+2. **Controlar dispositivos** (ligar/desligar individualmente ou em grupo)
+3. **Agendar automações** (programar horários de funcionamento)
+4. **Monitorar consumo** (quando suportado pelo dispositivo)
 
 ---
 
-## Arquitetura Proposta
+## Análise das Opções Disponíveis
+
+### Opção 1: Tuya Cloud API (Recomendada)
+
+**Vantagens:**
+- Maior ecossistema de dispositivos compatíveis no mercado brasileiro
+- Lâmpadas e tomadas muito acessíveis (a partir de R$ 25-50)
+- API Cloud bem documentada e gratuita para uso pessoal/comercial pequeno
+- Suporte a agendamentos nativos na plataforma
+
+**Desvantagens:**
+- Requer assinatura HMAC-SHA256 em cada requisição (complexidade média)
+- Dependência de internet para funcionar
+
+**Dispositivos compatíveis:** Qualquer dispositivo "Smart Life" ou "Tuya" (milhares de marcas)
+
+---
+
+### Opção 2: Shelly (Alternativa Premium)
+
+**Vantagens:**
+- API REST simples, sem autenticação complexa para uso local
+- Dispositivos de alta qualidade, fabricação europeia
+- Funciona localmente (sem internet) E via cloud
+- Excelente para instalações elétricas profissionais
+
+**Desvantagens:**
+- Dispositivos mais caros (R$ 100-250 cada)
+- Menos variedade no Brasil
+
+---
+
+### Opção 3: Home Assistant (Hub Central)
+
+**Vantagens:**
+- Integra Tuya, Shelly, e centenas de outras marcas
+- Controle 100% local após configuração
+- Interface web completa já pronta
+- Open source
+
+**Desvantagens:**
+- Requer servidor dedicado (Raspberry Pi ou similar)
+- Curva de aprendizado maior
+- Manutenção técnica necessária
+
+---
+
+## Recomendação
+
+**Tuya Cloud API** é a melhor opção para sua escola porque:
+1. Custo-benefício excelente (dispositivos baratos e amplamente disponíveis)
+2. Não precisa de hardware adicional (hub)
+3. Pode ser integrado diretamente ao sistema existente
+4. Funcionalidade de agendamento nativa
+
+---
+
+## Arquitetura Proposta (Tuya)
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                    FLUXO DO CLIENTE DE EMAIL                    │
+│                 ARQUITETURA IoT - TUYA CLOUD                    │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  1. Configuracao (Pagina Settings)                              │
-│     - Host IMAP, porta, usuario, senha                          │
-│     - Host SMTP, porta, usuario, senha                          │
-│     - Email remetente (From)                                    │
-│         ↓                                                       │
-│  2. Armazenamento (Supabase Secrets / app_settings)             │
-│     - Credenciais salvas de forma segura                        │
-│         ↓                                                       │
-│  3. Edge Functions                                              │
-│     - email-fetch: Le emails via IMAP                           │
-│     - email-send: Envia emails via SMTP                         │
-│         ↓                                                       │
-│  4. Interface (Nova Pagina /email)                              │
-│     - Lista de emails recebidos                                 │
-│     - Visualizador de email                                     │
-│     - Compositor de novo email                                  │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────────┐   │
+│  │  Lâmpadas   │     │   Tomadas   │     │ Outros Devices  │   │
+│  │  Smart Life │     │  Smart Life │     │   Compatíveis   │   │
+│  └──────┬──────┘     └──────┬──────┘     └───────┬─────────┘   │
+│         │                   │                     │             │
+│         └───────────────────┼─────────────────────┘             │
+│                             ▼                                   │
+│                    ┌────────────────┐                          │
+│                    │   Tuya Cloud   │                          │
+│                    │   (API REST)   │                          │
+│                    └────────┬───────┘                          │
+│                             │                                   │
+│                             ▼                                   │
+│                    ┌────────────────┐                          │
+│                    │ Edge Function  │                          │
+│                    │  tuya-control  │                          │
+│                    └────────┬───────┘                          │
+│                             │                                   │
+│         ┌───────────────────┼───────────────────┐              │
+│         ▼                   ▼                   ▼              │
+│  ┌─────────────┐   ┌─────────────────┐  ┌──────────────┐       │
+│  │  Listar     │   │  Controlar      │  │  Agendar     │       │
+│  │  Devices    │   │  Liga/Desliga   │  │  Automações  │       │
+│  └─────────────┘   └─────────────────┘  └──────────────┘       │
+│                                                                 │
+│                    ┌────────────────┐                          │
+│                    │  Nova Página   │                          │
+│                    │  /automacao    │                          │
+│                    └────────────────┘                          │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Componentes a Criar
+## Componentes a Implementar
 
-### Banco de Dados
+### 1. Credenciais Tuya Necessárias
 
-**Nova tabela: `email_messages`** (cache local dos emails)
+O usuário precisará criar uma conta gratuita no [Tuya IoT Platform](https://iot.tuya.com) e obter:
 
-| Coluna | Tipo | Descricao |
+| Credencial | Descrição |
+|------------|-----------|
+| `TUYA_CLIENT_ID` | Access ID do projeto IoT |
+| `TUYA_CLIENT_SECRET` | Access Secret do projeto |
+| `TUYA_API_ENDPOINT` | URL da região (ex: `https://openapi.tuyaus.com`) |
+
+### 2. Banco de Dados
+
+**Nova tabela: `iot_devices`**
+
+| Coluna | Tipo | Descrição |
 |--------|------|-----------|
-| id | UUID | Identificador unico |
-| message_id | TEXT | ID unico do email (IMAP) |
-| from_address | TEXT | Remetente |
-| to_addresses | TEXT[] | Destinatarios |
-| subject | TEXT | Assunto |
-| body_text | TEXT | Corpo em texto plano |
-| body_html | TEXT | Corpo em HTML |
-| received_at | TIMESTAMP | Data de recebimento |
-| is_read | BOOLEAN | Lido/nao lido |
-| folder | TEXT | Pasta (INBOX, SENT, etc) |
-| direction | TEXT | 'inbound' ou 'outbound' |
+| id | UUID | Identificador interno |
+| tuya_device_id | TEXT | ID do dispositivo na Tuya |
+| name | TEXT | Nome amigável (ex: "Luz Sala 1") |
+| category | TEXT | Categoria (lamp, socket, switch) |
+| room | TEXT | Cômodo/Local (Sala 1, Corredor) |
+| is_online | BOOLEAN | Status de conexão |
+| last_status | JSONB | Último estado conhecido |
+| last_sync_at | TIMESTAMP | Última sincronização |
 
-### Edge Functions
+**Nova tabela: `iot_schedules`**
 
-| Funcao | Descricao |
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID | Identificador |
+| device_id | UUID | Referência ao dispositivo |
+| action | TEXT | 'turn_on' ou 'turn_off' |
+| time | TIME | Horário de execução |
+| days_of_week | INTEGER[] | Dias (1=Seg, 7=Dom) |
+| is_active | BOOLEAN | Agendamento ativo |
+
+### 3. Edge Functions
+
+| Função | Descrição |
 |--------|-----------|
-| `email-fetch` | Conecta via IMAP, busca emails novos e salva no banco |
-| `email-send` | Envia email via SMTP e registra no historico |
-| `email-config-test` | Testa conexao IMAP/SMTP antes de salvar |
+| `tuya-auth` | Obtém token de acesso (expira em 2h) |
+| `tuya-devices` | Lista/sincroniza dispositivos |
+| `tuya-control` | Envia comandos (ligar/desligar) |
+| `tuya-schedules` | Gerencia agendamentos |
 
-### Paginas e Componentes
+### 4. Interface
 
-| Arquivo | Descricao |
-|---------|-----------|
-| `src/pages/EmailClient.tsx` | Pagina principal do cliente de email |
-| `src/components/email/EmailList.tsx` | Lista de emails |
-| `src/components/email/EmailViewer.tsx` | Visualizador de email selecionado |
-| `src/components/email/EmailComposer.tsx` | Modal para compor novo email |
-| `src/components/settings/EmailConfigCard.tsx` | Card de configuracao IMAP/SMTP |
+**Nova página: `/automacao`**
 
-### Sidebar
-
-Adicionar novo item no menu principal:
-- Icone: `Mail`
-- Label: "E-mail"
-- Path: `/email`
+- **Aba Dispositivos**: Lista todos os dispositivos com toggle para ligar/desligar
+- **Aba Salas**: Agrupa dispositivos por local com controle em grupo
+- **Aba Agendamentos**: Cria e gerencia horários automáticos
+- **Aba Configurações**: Credenciais Tuya e sincronização
 
 ---
 
-## Configuracoes Necessarias
+## Fluxo de Implementação
 
-O usuario precisara fornecer as seguintes informacoes:
+### Passo 1: Configuração Inicial
+1. Usuário cria conta no Tuya IoT Platform
+2. Cria um projeto e obtém Client ID e Secret
+3. Vincula dispositivos via app Smart Life
+4. Insere credenciais no sistema
 
-### IMAP (Leitura)
-- Servidor IMAP (ex: `imap.gmail.com`, `imap.hostinger.com`)
-- Porta (ex: 993 para SSL)
-- Usuario (email completo)
-- Senha (ou App Password para Gmail)
+### Passo 2: Sincronização
+1. Sistema busca lista de dispositivos via API
+2. Armazena no banco de dados local
+3. Atualiza status periodicamente
 
-### SMTP (Envio)
-- Servidor SMTP (ex: `smtp.gmail.com`, `smtp.hostinger.com`)
-- Porta (ex: 465 para SSL ou 587 para TLS)
-- Usuario (email completo)
-- Senha
-- Email remetente (From)
+### Passo 3: Controle
+1. Usuário clica para ligar/desligar
+2. Sistema envia comando via Edge Function
+3. Atualiza interface em tempo real
+
+### Passo 4: Agendamentos
+1. Usuário define horário e ação
+2. Sistema usa cron job ou Tuya Timer API
+3. Dispositivo executa automaticamente
 
 ---
 
-## Bibliotecas Utilizadas
+## Interface Proposta
 
-### Para Edge Functions (Deno)
-- **ImapFlow** via npm: - Leitura de emails IMAP
-- **Nodemailer** via npm: - Envio de emails SMTP
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Automação IoT                                [+ Sincronizar]  │
+├─────────────────────────────────────────────────────────────────┤
+│  [Dispositivos] [Por Sala] [Agendamentos] [Config]             │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌────────────────────┐  ┌────────────────────┐                │
+│  │ 💡 Luz Sala 1      │  │ 💡 Luz Corredor    │                │
+│  │ Status: Ligada     │  │ Status: Desligada  │                │
+│  │ [====○====] ON     │  │ [○=========] OFF   │                │
+│  └────────────────────┘  └────────────────────┘                │
+│                                                                 │
+│  ┌────────────────────┐  ┌────────────────────┐                │
+│  │ 🔌 Tomada Lab 1    │  │ 🔌 Tomada Lab 2    │                │
+│  │ Status: Ligada     │  │ Status: Offline    │                │
+│  │ [====○====] ON     │  │ [  Indisponível  ] │                │
+│  └────────────────────┘  └────────────────────┘                │
+│                                                                 │
+│  ── Controle Rápido ────────────────────────────               │
+│  [Desligar Tudo]  [Ligar Sala 1]  [Modo Economia]              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-Exemplo de import no Deno:
+---
+
+## Detalhes Técnicos
+
+### Assinatura Tuya API (HMAC-SHA256)
+
+A API Tuya requer assinatura em cada requisição:
+
 ```typescript
-import { ImapFlow } from "npm:imapflow@1.0.183";
-import nodemailer from "npm:nodemailer@6.9.8";
+// Pseudocódigo da assinatura
+const timestamp = Date.now().toString();
+const nonce = crypto.randomUUID();
+const stringToSign = `${clientId}${accessToken}${timestamp}${nonce}${method}\n${contentSha256}\n${headers}\n${url}`;
+const signature = hmacSha256(stringToSign, clientSecret).toUpperCase();
+```
+
+### Comandos de Controle
+
+```typescript
+// Ligar lâmpada
+await fetch(`${TUYA_ENDPOINT}/v1.0/devices/${deviceId}/commands`, {
+  method: 'POST',
+  body: JSON.stringify({
+    commands: [{ code: 'switch_led', value: true }]
+  })
+});
+
+// Desligar tomada
+await fetch(`${TUYA_ENDPOINT}/v1.0/devices/${deviceId}/commands`, {
+  method: 'POST',
+  body: JSON.stringify({
+    commands: [{ code: 'switch_1', value: false }]
+  })
+});
 ```
 
 ---
 
-## Interface do Cliente de Email
+## Requisitos para Começar
 
-### Layout Principal (`/email`)
+1. **Conta Tuya IoT Platform** (gratuita)
+   - Acesse: https://iot.tuya.com
+   - Crie um projeto "Smart Home"
+   - Vincule sua conta do app Smart Life
 
-```text
-┌──────────────────────────────────────────────────────────────┐
-│  [+ Novo Email]                              [Atualizar]     │
-├───────────────────┬──────────────────────────────────────────┤
-│  Caixa de Entrada │  De: contador@empresa.com                │
-│  > Email 1        │  Assunto: Nota Fiscal Dezembro           │
-│    Email 2        │  Data: 01/02/2026 14:30                  │
-│    Email 3        │  ─────────────────────────────────────── │
-│                   │                                          │
-│  Enviados         │  Ola,                                    │
-│    Email 4        │                                          │
-│                   │  Segue em anexo a nota fiscal...         │
-│                   │                                          │
-│                   │  Atenciosamente,                         │
-│                   │  Contador                                │
-│                   │                                          │
-│                   │  [Responder] [Encaminhar] [Arquivar]     │
-└───────────────────┴──────────────────────────────────────────┘
-```
+2. **Dispositivos Compatíveis**
+   - Qualquer lâmpada/tomada com selo "Works with Tuya" ou "Smart Life"
+   - Recomendação: Lâmpadas WiFi 9W (~R$ 30) e Tomadas WiFi 10A (~R$ 40)
 
-### Compositor de Email
-
-```text
-┌────────────────────────────────────────────────────────────────┐
-│  Novo Email                                              [X]   │
-├────────────────────────────────────────────────────────────────┤
-│  Para:    [                                        ]           │
-│  Assunto: [                                        ]           │
-│  ──────────────────────────────────────────────────────────────│
-│  |                                                   |         │
-│  |  Digite sua mensagem aqui...                      |         │
-│  |                                                   |         │
-│  |                                                   |         │
-│  |                                                   |         │
-│  ──────────────────────────────────────────────────────────────│
-│                                    [Cancelar] [Enviar]         │
-└────────────────────────────────────────────────────────────────┘
-```
+3. **Rede WiFi 2.4GHz**
+   - A maioria dos dispositivos IoT só funciona em 2.4GHz
 
 ---
 
-## Fluxo de Configuracao
+## Sidebar
 
-1. Usuario acessa **Configuracoes > E-mail**
-2. Preenche credenciais IMAP e SMTP
-3. Clica em "Testar Conexao" para validar
-4. Credenciais sao salvas de forma segura
-5. Usuario acessa `/email` para usar o cliente
-
----
-
-## Consideracoes de Seguranca
-
-- Credenciais IMAP/SMTP serao armazenadas como secrets no backend
-- Edge functions acessam credenciais via `Deno.env.get()`
-- Emails sao cacheados localmente para performance
-- RLS garante que apenas usuarios autenticados acessem
+Novo item no menu (seção "Relatórios e Gestão"):
+- Ícone: `Lightbulb` ou `Power`
+- Label: "Automação"
+- Path: `/automacao`
 
 ---
 
-## Limitacoes e Alternativas
+## Resumo de Entregáveis
 
-### Limitacao: Complexidade IMAP
-A integracao IMAP em Edge Functions pode ter limitacoes de timeout para caixas de entrada muito grandes.
-
-### Alternativa Recomendada: API de Email
-Se voce usa **Gmail** ou **Outlook**, podemos usar APIs oficiais:
-- **Gmail API** - mais confiavel, suporta OAuth
-- **Microsoft Graph API** - para Outlook/365
-
-Essas APIs sao mais robustas que IMAP puro, mas exigem configuracao de OAuth.
+1. Tabelas `iot_devices` e `iot_schedules`
+2. Edge Functions para autenticação e controle Tuya
+3. Página `/automacao` com interface completa
+4. Card de configuração em Settings para credenciais
+5. Funcionalidade de agendamentos
+6. Controle em grupo por sala
 
 ---
 
-## Resumo de Entregaveis
+## Alternativas Futuras
 
-1. Tabela `email_messages` para cache de emails
-2. Edge function `email-fetch` para leitura IMAP
-3. Edge function `email-send` para envio SMTP
-4. Card de configuracao em Settings
-5. Pagina `/email` com cliente completo
-6. Item no sidebar para acesso rapido
+Se você preferir não depender de cloud externo, podemos avaliar:
 
----
+- **Shelly**: Dispositivos com API local (mais caros, mas independentes)
+- **Home Assistant**: Hub central open source (requer Raspberry Pi)
+- **ESP32 DIY**: Construir seus próprios dispositivos (complexo, mas totalmente customizável)
 
-## Proximos Passos
-
-Antes de implementar, preciso confirmar:
-
-**Qual provedor de email voce usa?**
-- Se for Gmail, recomendo usar a Gmail API (mais estavel)
-- Se for Hostinger, Locaweb ou similar, usaremos IMAP/SMTP
-- Se for Outlook/365, podemos usar Microsoft Graph API
-
-Isso vai definir a melhor abordagem tecnica para sua integracao.
