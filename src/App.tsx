@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SchoolProvider } from "@/contexts/SchoolContext";
 import { AuthProvider, useAuthContext } from "@/contexts/AuthContext";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { PWAInstallBanner } from "@/components/pwa/PWAInstallBanner";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Enrollment from "./pages/Enrollment";
@@ -39,7 +38,6 @@ import Teachers from "./pages/Teachers";
 import PedagogicalAnalysis from "./pages/PedagogicalAnalysis";
 import CanteenPublic from "./pages/CanteenPublic";
 import CanteenAdminPage from "./pages/CanteenAdmin";
-import InstallApp from "./pages/InstallApp";
 import TeacherLogin from "./pages/TeacherLogin";
 import ParentReportsPortal from "./pages/ParentReportsPortal";
 import NotFound from "./pages/NotFound";
@@ -81,7 +79,6 @@ const App = () => (
           <Route path="/campanha" element={<CampaignLanding />} />
           <Route path="/cantina" element={<CanteenPublic />} />
           <Route path="/presenca" element={<AttendancePublic />} />
-          <Route path="/instalar" element={<InstallApp />} />
           <Route path="/professor-login" element={<TeacherLogin />} />
           <Route path="/relatorios-pais" element={<ParentReportsPortal />} />
           
