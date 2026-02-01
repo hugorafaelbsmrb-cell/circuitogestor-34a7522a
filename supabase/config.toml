@@ -48,3 +48,6 @@ verify_jwt = false
 
 [functions.email-config-test]
 verify_jwt = false
+
+[functions.site-contact-lead]
+verify_jwt = false
