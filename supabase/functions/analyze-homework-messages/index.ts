@@ -5,8 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function getGoogleApiKey(): Promise<string | null> {
-  const envKey = Deno.env.get("GOOGLE_API_KEY");
+const LOVABLE_API_URL = "https://api.lovable.dev/v1";
+
+async function getLovableApiKey(): Promise<string | null> {
+  const envKey = Deno.env.get("LOVABLE_API_KEY");
   if (envKey) return envKey;
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -17,7 +19,7 @@ async function getGoogleApiKey(): Promise<string | null> {
   const { data } = await supabase
     .from("app_settings")
     .select("value")
-    .eq("key", "GOOGLE_API_KEY")
+    .eq("key", "LOVABLE_API_KEY")
     .maybeSingle();
 
   return data?.value || null;
@@ -57,10 +59,10 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const GOOGLE_API_KEY = await getGoogleApiKey();
-    if (!GOOGLE_API_KEY) {
+    const LOVABLE_API_KEY = await getLovableApiKey();
+    if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({ 
-        error: "Chave da API do Google não configurada" 
+        error: "Chave da API Lovable não configurada" 
       }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -146,22 +148,6 @@ Deno.serve(async (req) => {
         for (const msg of batch) {
           const hasImage = msg.media_url && msg.media_type?.startsWith("image");
           
-          // Build the content parts for this message
-          const contentParts: any[] = [];
-          
-          // Add image if present
-          if (hasImage && msg.media_url) {
-            const imageBase64 = await fetchImageAsBase64(msg.media_url);
-            if (imageBase64) {
-              contentParts.push({
-                inline_data: {
-                  mime_type: getMimeType(msg.media_url, msg.media_type),
-                  data: imageBase64
-                }
-              });
-            }
-          }
-          
           // Build the prompt
           const prompt = `Você é um assistente que analisa mensagens de WhatsApp de pais/responsáveis de uma escola.
 
@@ -197,18 +183,38 @@ Retorne um JSON com o formato:
 
 Retorne APENAS o JSON, sem explicações adicionais.`;
 
-          contentParts.push({ text: prompt });
-
           try {
-            // Use gemini-2.5-flash for multimodal (supports images)
+            // Build content for the message (OpenAI format for Lovable AI Gateway)
+            const contentParts: any[] = [];
+            
+            // Add image if present
+            if (hasImage && msg.media_url) {
+              const imageBase64 = await fetchImageAsBase64(msg.media_url);
+              if (imageBase64) {
+                contentParts.push({
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${getMimeType(msg.media_url, msg.media_type)};base64,${imageBase64}`
+                  }
+                });
+              }
+            }
+            
+            contentParts.push({ type: "text", text: prompt });
+
             const aiResponse = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
+              `${LOVABLE_API_URL}/chat/completions`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${LOVABLE_API_KEY}`
+                },
                 body: JSON.stringify({
-                  contents: [{ role: "user", parts: contentParts }],
-                  generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+                  model: "google/gemini-2.5-flash",
+                  messages: [{ role: "user", content: contentParts }],
+                  temperature: 0.3,
+                  max_tokens: 2048,
                 }),
               }
             );
@@ -219,7 +225,8 @@ Retorne APENAS o JSON, sem explicações adicionais.`;
             }
 
             const aiData = await aiResponse.json();
-            const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+            // Lovable AI Gateway returns OpenAI-compatible format
+            const aiContent = aiData.choices?.[0]?.message?.content || "{}";
 
             try {
               const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
