@@ -48,20 +48,16 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
-    console.log('Supabase URL:', supabaseUrl);
-    console.log('Service key available:', !!supabaseServiceKey);
+    // Create client with user's auth header to verify identity
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
-    // Use service role to verify user token
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Verify user using getUser with service role
-    const token = authHeader.replace('Bearer ', '');
-    console.log('Token length:', token.length);
-    
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
-    console.log('getUser result:', { hasUser: !!userData?.user, error: userError?.message });
+    // Verify user - this uses the session from the auth header
+    const { data: userData, error: userError } = await userClient.auth.getUser();
     
     if (userError || !userData?.user) {
       console.error('Auth error:', userError);
@@ -72,6 +68,9 @@ Deno.serve(async (req) => {
     }
     
     console.log('User authenticated:', userData.user.email);
+
+    // Use service role client for database operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
