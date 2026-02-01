@@ -44,6 +44,8 @@ import TeacherLogin from "./pages/TeacherLogin";
 import ParentReportsPortal from "./pages/ParentReportsPortal";
 import NotFound from "./pages/NotFound";
 import ExternalApiManager from "./pages/ExternalApiManager";
+import AttendancePublic from "./pages/AttendancePublic";
+import AttendanceAdmin from "./pages/AttendanceAdmin";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -78,6 +80,7 @@ const App = () => (
           <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
           <Route path="/campanha" element={<CampaignLanding />} />
           <Route path="/cantina" element={<CanteenPublic />} />
+          <Route path="/presenca" element={<AttendancePublic />} />
           <Route path="/instalar" element={<InstallApp />} />
           <Route path="/professor-login" element={<TeacherLogin />} />
           <Route path="/relatorios-pais" element={<ParentReportsPortal />} />
@@ -118,6 +121,7 @@ const App = () => (
                       <Route path="/soroban-alunos" element={<SorobanStudents />} />
                       <Route path="/professores" element={<Teachers />} />
                       <Route path="/analise-pedagogica" element={<PedagogicalAnalysis />} />
+                      <Route path="/presenca-admin" element={<AttendanceAdmin />} />
                       <Route path="/usuarios" element={<Users />} />
                       <Route path="/whatsapp-config" element={<WhatsAppConfig />} />
                       <Route path="/envio-massa" element={<BulkMessages />} />

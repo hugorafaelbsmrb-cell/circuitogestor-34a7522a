@@ -77,6 +77,70 @@ export type Database = {
         }
         Relationships: []
       }
+      attendance_records: {
+        Row: {
+          attendance_date: string
+          checked_in_at: string | null
+          class_group_id: string | null
+          created_at: string
+          enrollment_id: string | null
+          expected_time: string
+          id: string
+          notification_sent_at: string | null
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          attendance_date?: string
+          checked_in_at?: string | null
+          class_group_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          expected_time: string
+          id?: string
+          notification_sent_at?: string | null
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          attendance_date?: string
+          checked_in_at?: string | null
+          class_group_id?: string | null
+          created_at?: string
+          enrollment_id?: string | null
+          expected_time?: string
+          id?: string
+          notification_sent_at?: string | null
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_class_group_id_fkey"
+            columns: ["class_group_id"]
+            isOneToOne: false
+            referencedRelation: "class_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_settings: {
         Row: {
           config: Json | null
