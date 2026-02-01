@@ -88,6 +88,10 @@ Deno.serve(async (req) => {
     const reportDate = new Date(report.report_date);
     const formattedDate = reportDate.toLocaleDateString('pt-BR');
 
+    // Generate portal link
+    const baseUrl = Deno.env.get('SITE_URL') || 'https://circuitogestor.lovable.app';
+    const portalLink = `${baseUrl}/consultar-relatorios`;
+
     // Default template
     const defaultTemplate = `Olá, {nome_responsavel}! 👋
 
@@ -96,7 +100,8 @@ O relatório pedagógico de *{nome_aluno}* já está disponível! 📚
 📅 Data: {data_relatorio}
 📝 {titulo_relatorio}
 
-Acesse o portal de acompanhamento familiar para visualizar o relatório completo e acompanhar o desenvolvimento do seu filho(a).
+📱 Acesse o portal para visualizar:
+{link_portal}
 
 Atenciosamente,
 *{nome_escola}*`;
@@ -110,7 +115,8 @@ Atenciosamente,
       .replace(/{nome_aluno}/g, studentName)
       .replace(/{data_relatorio}/g, formattedDate)
       .replace(/{titulo_relatorio}/g, report.title)
-      .replace(/{nome_escola}/g, schoolName);
+      .replace(/{nome_escola}/g, schoolName)
+      .replace(/{link_portal}/g, portalLink);
 
     // Format phone
     const cleanPhone = guardian.phone.replace(/\D/g, '');
