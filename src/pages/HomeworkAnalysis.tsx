@@ -41,6 +41,8 @@ interface HomeworkAnalysis {
   createdAt: string;
   guardianId: string;
   guardianName: string;
+  studentId?: string;
+  studentName?: string;
   analysis: {
     studentName?: string;
     subjects?: string[];
@@ -57,6 +59,7 @@ interface HomeworkAnalysis {
   };
   selectedTeacherId?: string;
   selected?: boolean;
+  isSending?: boolean;
 }
 
 interface PendingReport {
@@ -184,33 +187,8 @@ export default function HomeworkAnalysis() {
 
     try {
       for (const msg of selectedMessages) {
-        const teacher = teachers.find(t => t.id === msg.selectedTeacherId);
-        if (!teacher) continue;
-
-        // Format message for teacher
-        const formattedMessage = formatHomeworkMessage(msg, teacher);
-
-        // Send via W-API
-        const { error } = await supabase.functions.invoke('wapi-send-message', {
-          body: { 
-            phone: teacher.phone, 
-            message: formattedMessage 
-          }
-        });
-
-        if (!error) {
-          // Save to homework_reports
-          await supabase.from('homework_reports').insert({
-            whatsapp_message_id: msg.messageId,
-            guardian_id: msg.guardianId,
-            teacher_id: teacher.id,
-            original_message: msg.message,
-            processed_content: formattedMessage,
-            status: 'sent',
-            sent_at: new Date().toISOString()
-          });
-          successCount++;
-        }
+        await sendSingleMessage(msg);
+        successCount++;
       }
 
       toast.success(`${successCount} relatórios enviados com sucesso!`);
@@ -222,6 +200,43 @@ export default function HomeworkAnalysis() {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const sendSingleMessage = async (msg: HomeworkAnalysis) => {
+    const teacher = teachers.find(t => t.id === msg.selectedTeacherId);
+    if (!teacher) {
+      toast.error('Selecione um professor primeiro');
+      return false;
+    }
+
+    const formattedMessage = formatHomeworkMessage(msg, teacher);
+
+    const { error } = await supabase.functions.invoke('wapi-send-message', {
+      body: { 
+        phone: teacher.phone, 
+        message: formattedMessage 
+      }
+    });
+
+    if (error) {
+      toast.error('Erro ao enviar mensagem');
+      return false;
+    }
+
+    await supabase.from('homework_reports').insert({
+      whatsapp_message_id: msg.messageId,
+      guardian_id: msg.guardianId,
+      student_id: msg.studentId || null,
+      teacher_id: teacher.id,
+      original_message: msg.message,
+      processed_content: formattedMessage,
+      status: 'sent',
+      sent_at: new Date().toISOString()
+    });
+
+    setAnalyzedMessages(prev => prev.filter(m => m.messageId !== msg.messageId));
+    toast.success(`Relatório enviado para ${teacher.name}!`);
+    return true;
   };
 
   const sendPendingReport = async (report: PendingReport) => {
@@ -420,15 +435,16 @@ export default function HomeworkAnalysis() {
                           onCheckedChange={() => toggleMessageSelection(msg.messageId)}
                         />
                         <div>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            {msg.guardianName}
-                            {msg.analysis.studentName && (
-                              <Badge variant="outline">
-                                <GraduationCap className="w-3 h-3 mr-1" />
-                                {msg.analysis.studentName}
-                              </Badge>
-                            )}
+                          <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <GraduationCap className="w-4 h-4 text-primary" />
+                              <span className="font-bold">{msg.studentName || msg.analysis.studentName || 'Aluno não identificado'}</span>
+                            </div>
+                            <span className="text-muted-foreground">•</span>
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <User className="w-4 h-4" />
+                              <span className="font-normal text-sm">{msg.guardianName}</span>
+                            </div>
                           </CardTitle>
                           <CardDescription>
                             {format(new Date(msg.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
@@ -494,8 +510,8 @@ export default function HomeworkAnalysis() {
                       </div>
                     )}
 
-                    {/* Teacher selection */}
-                    <div className="flex items-center gap-4 pt-2 border-t">
+                    {/* Teacher selection and individual send */}
+                    <div className="flex items-center gap-4 pt-2 border-t flex-wrap">
                       <span className="text-sm font-medium">Enviar para:</span>
                       <Select 
                         value={msg.selectedTeacherId || ''} 
@@ -510,6 +526,18 @@ export default function HomeworkAnalysis() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <Button 
+                        size="sm"
+                        onClick={() => sendSingleMessage(msg)}
+                        disabled={!msg.selectedTeacherId || msg.isSending}
+                      >
+                        {msg.isSending ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Send className="w-4 h-4 mr-2" />
+                        )}
+                        Enviar
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
