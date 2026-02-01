@@ -308,15 +308,16 @@ export default function HomeworkAnalysis() {
 
       console.log('Resposta do envio:', { data, error });
 
-      // Check if there was an invoke error OR if the response indicates failure
+      // Check if there was an invoke error
       if (error) {
         console.error('Erro ao invocar função:', error);
         toast.error(`Erro ao enviar: ${error.message || 'Falha na comunicação'}`);
         return false;
       }
 
-      // Check if W-API returned success
-      if (!data?.success) {
+      // Check if W-API returned success - the edge function returns { success: true } OR messageId in data
+      const isSuccess = data?.success === true || data?.data?.messageId || data?.messageId;
+      if (!isSuccess && data?.error) {
         console.error('W-API retornou erro:', data);
         toast.error(`Erro do WhatsApp: ${data?.error || 'Falha no envio'}`);
         return false;
@@ -376,7 +377,9 @@ export default function HomeworkAnalysis() {
         throw new Error(error.message || 'Erro ao invocar função');
       }
 
-      if (!data?.success) {
+      // Check if W-API returned success - the edge function returns { success: true } OR messageId in data
+      const isSuccess = data?.success === true || data?.data?.messageId || data?.messageId;
+      if (!isSuccess && data?.error) {
         throw new Error(data?.error || 'Falha no envio via WhatsApp');
       }
 
@@ -905,7 +908,9 @@ export default function HomeworkAnalysis() {
                 throw new Error(error.message || 'Erro ao invocar função');
               }
 
-              if (!data?.success) {
+              // Check if W-API returned success - the edge function returns { success: true } OR messageId in data
+              const isSuccess = data?.success === true || data?.data?.messageId || data?.messageId;
+              if (!isSuccess && data?.error) {
                 throw new Error(data?.error || 'Falha no envio via WhatsApp');
               }
 
