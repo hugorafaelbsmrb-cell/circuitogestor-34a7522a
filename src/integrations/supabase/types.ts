@@ -1135,6 +1135,92 @@ export type Database = {
           },
         ]
       }
+      iot_devices: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_on: boolean | null
+          is_online: boolean | null
+          last_status: Json | null
+          last_sync_at: string | null
+          name: string
+          room: string | null
+          tuya_device_id: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_on?: boolean | null
+          is_online?: boolean | null
+          last_status?: Json | null
+          last_sync_at?: string | null
+          name: string
+          room?: string | null
+          tuya_device_id: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_on?: boolean | null
+          is_online?: boolean | null
+          last_status?: Json | null
+          last_sync_at?: string | null
+          name?: string
+          room?: string | null
+          tuya_device_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      iot_schedules: {
+        Row: {
+          action: string
+          created_at: string
+          days_of_week: number[]
+          device_id: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          time: string
+          updated_at: string
+        }
+        Insert: {
+          action?: string
+          created_at?: string
+          days_of_week?: number[]
+          device_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          time: string
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          days_of_week?: number[]
+          device_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "iot_schedules_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "iot_devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           assigned_to: string | null
