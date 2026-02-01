@@ -296,32 +296,52 @@ export default function HomeworkAnalysis() {
 
     const formattedMessage = formatHomeworkMessage(msg, teacher);
 
-    const { error } = await supabase.functions.invoke('wapi-send-message', {
-      body: { 
-        phone: teacher.phone, 
-        message: formattedMessage 
-      }
-    });
+    try {
+      console.log('Enviando dever para professor:', teacher.name, teacher.phone);
+      
+      const { data, error } = await supabase.functions.invoke('wapi-send-message', {
+        body: { 
+          phone: teacher.phone, 
+          message: formattedMessage 
+        }
+      });
 
-    if (error) {
-      toast.error('Erro ao enviar mensagem');
+      console.log('Resposta do envio:', { data, error });
+
+      // Check if there was an invoke error OR if the response indicates failure
+      if (error) {
+        console.error('Erro ao invocar função:', error);
+        toast.error(`Erro ao enviar: ${error.message || 'Falha na comunicação'}`);
+        return false;
+      }
+
+      // Check if W-API returned success
+      if (!data?.success) {
+        console.error('W-API retornou erro:', data);
+        toast.error(`Erro do WhatsApp: ${data?.error || 'Falha no envio'}`);
+        return false;
+      }
+
+      // Success - save to homework_reports
+      await supabase.from('homework_reports').insert({
+        whatsapp_message_id: msg.messageId,
+        guardian_id: msg.guardianId,
+        student_id: msg.studentId || null,
+        teacher_id: teacher.id,
+        original_message: msg.message,
+        processed_content: formattedMessage,
+        status: 'sent',
+        sent_at: new Date().toISOString()
+      });
+
+      setAnalyzedMessages(prev => prev.filter(m => m.messageId !== msg.messageId));
+      toast.success(`Relatório enviado para ${teacher.name}!`);
+      return true;
+    } catch (err) {
+      console.error('Erro inesperado ao enviar:', err);
+      toast.error('Erro inesperado ao enviar mensagem');
       return false;
     }
-
-    await supabase.from('homework_reports').insert({
-      whatsapp_message_id: msg.messageId,
-      guardian_id: msg.guardianId,
-      student_id: msg.studentId || null,
-      teacher_id: teacher.id,
-      original_message: msg.message,
-      processed_content: formattedMessage,
-      status: 'sent',
-      sent_at: new Date().toISOString()
-    });
-
-    setAnalyzedMessages(prev => prev.filter(m => m.messageId !== msg.messageId));
-    toast.success(`Relatório enviado para ${teacher.name}!`);
-    return true;
   };
 
   const sendPendingReport = async (report: PendingReport) => {
@@ -344,11 +364,21 @@ export default function HomeworkAnalysis() {
         // Use as-is if not JSON
       }
 
-      const { error } = await supabase.functions.invoke('wapi-send-message', {
+      console.log('Enviando relatório pendente para:', teacher.name, teacher.phone);
+
+      const { data, error } = await supabase.functions.invoke('wapi-send-message', {
         body: { phone: teacher.phone, message: messageToSend }
       });
 
-      if (error) throw error;
+      console.log('Resposta do envio pendente:', { data, error });
+
+      if (error) {
+        throw new Error(error.message || 'Erro ao invocar função');
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Falha no envio via WhatsApp');
+      }
 
       await supabase
         .from('homework_reports')
@@ -360,7 +390,7 @@ export default function HomeworkAnalysis() {
       fetchSentReports();
     } catch (error) {
       console.error('Send error:', error);
-      toast.error('Erro ao enviar');
+      toast.error(`Erro ao enviar: ${error instanceof Error ? error.message : 'Falha desconhecida'}`);
     }
   };
 
@@ -863,11 +893,21 @@ export default function HomeworkAnalysis() {
                 // Use as-is
               }
 
-              const { error } = await supabase.functions.invoke('wapi-send-message', {
+              console.log('Reenviando para professor:', teacher.name, teacher.phone);
+
+              const { data, error } = await supabase.functions.invoke('wapi-send-message', {
                 body: { phone: teacher.phone, message: messageToSend }
               });
 
-              if (error) throw error;
+              console.log('Resposta do reenvio:', { data, error });
+
+              if (error) {
+                throw new Error(error.message || 'Erro ao invocar função');
+              }
+
+              if (!data?.success) {
+                throw new Error(data?.error || 'Falha no envio via WhatsApp');
+              }
 
               // Update the existing record with new teacher and resent timestamp
               await supabase
@@ -882,7 +922,7 @@ export default function HomeworkAnalysis() {
               fetchSentReports();
             } catch (error) {
               console.error('Resend error:', error);
-              toast.error('Erro ao reenviar');
+              toast.error(`Erro ao reenviar: ${error instanceof Error ? error.message : 'Falha desconhecida'}`);
             }
           }}
         />
