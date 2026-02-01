@@ -71,7 +71,6 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <PWAInstallBanner />
       <BrowserRouter>
         <Routes>
           {/* Public routes - no authentication required */}
