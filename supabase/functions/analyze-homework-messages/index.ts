@@ -5,8 +5,28 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Lovable AI Gateway - higher rate limits than Google free tier
-const LOVABLE_AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+// External Gemini 2.5 Flash API - consistent across all AI features
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
+
+async function getGoogleApiKey(supabase: any): Promise<string | null> {
+  const envKey = Deno.env.get("GOOGLE_API_KEY");
+  if (envKey) {
+    return envKey;
+  }
+
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "GOOGLE_API_KEY")
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching GOOGLE_API_KEY from app_settings:", error);
+    return null;
+  }
+
+  return data?.value || null;
+}
 
 async function fetchImageAsBase64(url: string): Promise<string | null> {
   try {
@@ -42,19 +62,20 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Use Lovable API Key - automatically provided
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
+    // Use external Google Gemini API Key - consistent with other AI features
+    const GOOGLE_API_KEY = await getGoogleApiKey(supabase);
+    if (!GOOGLE_API_KEY) {
+      console.error("GOOGLE_API_KEY not configured");
       return new Response(JSON.stringify({ 
-        error: "Chave da API Lovable não configurada" 
+        error: "Chave da API do Google não configurada. Acesse Configurações > Inteligência Artificial para adicionar sua chave.",
+        requires_api_key: true
       }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log("Using Lovable AI Gateway for analysis");
+    console.log("Using external Gemini 2.5 Flash API for homework analysis");
 
     const { action, dateFrom, dateTo } = await req.json();
 
@@ -238,40 +259,37 @@ ATENÇÃO MÁXIMA:
 Retorne APENAS o JSON, sem texto adicional.`;
 
           try {
-            // Build content for Lovable AI Gateway (OpenAI-compatible format)
-            const messageContent: any[] = [];
+            // Build content for Gemini API
+            const parts: any[] = [{ text: prompt }];
             
-            // Add text prompt first
-            messageContent.push({ type: "text", text: prompt });
-            
-            // Add image if present (as base64 data URL)
+            // Add image if present (as inline_data for Gemini)
             if (hasImage && msg.media_url) {
               console.log(`Fetching image for message ${msg.id}`);
               const imageBase64 = await fetchImageAsBase64(msg.media_url);
               if (imageBase64) {
-                messageContent.push({
-                  type: "image_url",
-                  image_url: {
-                    url: `data:${getMimeType(msg.media_url, msg.media_type)};base64,${imageBase64}`
+                parts.push({
+                  inline_data: {
+                    mime_type: getMimeType(msg.media_url, msg.media_type),
+                    data: imageBase64
                   }
                 });
                 console.log(`Image added for message ${msg.id}`);
               }
             }
 
-            console.log(`Calling Lovable AI for message ${msg.id}`);
+            console.log(`Calling Gemini API for message ${msg.id}`);
             
-            const aiResponse = await fetch(LOVABLE_AI_URL, {
+            const aiResponse = await fetch(`${GEMINI_API_URL}?key=${GOOGLE_API_KEY}`, {
               method: "POST",
               headers: { 
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${LOVABLE_API_KEY}`
+                "Content-Type": "application/json"
               },
               body: JSON.stringify({
-                model: "google/gemini-2.5-flash",
-                messages: [{ role: "user", content: messageContent }],
-                temperature: 0.3,
-                max_tokens: 2048,
+                contents: [{ role: "user", parts }],
+                generationConfig: {
+                  temperature: 0.3,
+                  maxOutputTokens: 2048,
+                }
               }),
             });
 
@@ -288,7 +306,7 @@ Retorne APENAS o JSON, sem texto adicional.`;
             }
 
             const aiData = await aiResponse.json();
-            const aiContent = aiData.choices?.[0]?.message?.content || "{}";
+            const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
             
             console.log(`AI response for ${msg.id}:`, aiContent.substring(0, 200));
 
