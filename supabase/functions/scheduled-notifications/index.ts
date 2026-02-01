@@ -293,6 +293,122 @@ async function processBirthdayGreetings(supabase: any, supabaseUrl: string, supa
   }
 }
 
+async function processPixReminder2Days(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
+  console.log('Processing PIX reminders 2 days before due...');
+  
+  const template = await getTemplate(supabase, 'pix_reminder');
+  
+  // Get payments due in 2 days
+  const today = new Date();
+  const twoDaysFromNow = new Date(today);
+  twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
+  const targetDate = twoDaysFromNow.toISOString().split('T')[0];
+  
+  const { data: payments } = await supabase
+    .from('payments')
+    .select(`
+      id, guardian_id, value, due_date, description, asaas_payment_id,
+      guardian:guardians(id, name, phone)
+    `)
+    .eq('status', 'PENDING')
+    .eq('due_date', targetDate)
+    .not('asaas_payment_id', 'is', null);
+  
+  if (!payments || payments.length === 0) {
+    console.log('No payments due in 2 days with Asaas ID');
+    return;
+  }
+  
+  console.log(`Found ${payments.length} payments due in 2 days`);
+  
+  // Get W-API and Asaas config
+  const { data: settings } = await supabase
+    .from('app_settings')
+    .select('key, value')
+    .in('key', ['W_API_URL', 'W_API_TOKEN', 'W_API_SESSION', 'ASAAS_API_KEY', 'ASAAS_API_URL']);
+  
+  const config: Record<string, string> = {};
+  settings?.forEach((s: any) => {
+    if (s.value) config[s.key] = s.value;
+  });
+  
+  const asaasApiKey = Deno.env.get('ASAAS_API_KEY') || config.ASAAS_API_KEY;
+  const asaasApiUrl = config.ASAAS_API_URL || 'https://api.asaas.com/v3';
+  
+  if (!asaasApiKey) {
+    console.log('Asaas API key not configured');
+    return;
+  }
+  
+  for (const payment of payments) {
+    if (!payment.guardian || !payment.asaas_payment_id) continue;
+    
+    try {
+      // Get PIX QR Code from Asaas
+      const pixResponse = await fetch(`${asaasApiUrl}/payments/${payment.asaas_payment_id}/pixQrCode`, {
+        method: 'GET',
+        headers: {
+          'accept': 'application/json',
+          'access_token': asaasApiKey,
+        },
+      });
+      
+      if (!pixResponse.ok) {
+        console.log(`Failed to get PIX for payment ${payment.id}`);
+        continue;
+      }
+      
+      const pixData = await pixResponse.json();
+      const pixCode = pixData.payload;
+      
+      if (!pixCode) {
+        console.log(`No PIX payload for payment ${payment.id}`);
+        continue;
+      }
+      
+      // Build message
+      const valueFormatted = `R$ ${Number(payment.value).toFixed(2).replace('.', ',')}`;
+      const dueDateFormatted = new Date(payment.due_date).toLocaleDateString('pt-BR');
+      
+      let message = template || `💳 *Lembrete de Pagamento - PIX*
+
+Olá, {nome_responsavel}!
+
+Sua parcela vence em 2 dias:
+
+📋 *Descrição:* {descricao}
+💰 *Valor:* {valor}
+📅 *Vencimento:* {vencimento}
+
+📱 *Código PIX (copie e cole):*
+\`\`\`
+{codigo_pix}
+\`\`\`
+
+Att,
+{nome_escola}`;
+      
+      message = message
+        .replace(/{nome_responsavel}/g, payment.guardian.name.split(' ')[0])
+        .replace(/{descricao}/g, payment.description)
+        .replace(/{valor}/g, valueFormatted)
+        .replace(/{vencimento}/g, dueDateFormatted)
+        .replace(/{codigo_pix}/g, pixCode)
+        .replace(/{nome_escola}/g, schoolName);
+      
+      await sendWhatsAppMessage(
+        supabase, supabaseUrl, supabaseKey,
+        payment.guardian.phone, message, payment.guardian.id,
+        'auto_payment_pix_reminder_2d', 'pix_reminder'
+      );
+      
+      await new Promise(resolve => setTimeout(resolve, 3500));
+    } catch (error) {
+      console.error(`Error processing PIX for payment ${payment.id}:`, error);
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -334,6 +450,10 @@ Deno.serve(async (req) => {
     
     if (enabledKeys.includes('auto_birthday_greeting')) {
       await processBirthdayGreetings(supabase, supabaseUrl, supabaseKey, schoolName);
+    }
+    
+    if (enabledKeys.includes('auto_payment_pix_reminder_2d')) {
+      await processPixReminder2Days(supabase, supabaseUrl, supabaseKey, schoolName);
     }
     
     return new Response(
