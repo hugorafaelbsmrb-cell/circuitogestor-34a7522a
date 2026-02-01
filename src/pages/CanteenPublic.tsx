@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { StudentSearchInput } from '@/components/canteen/StudentSearchInput';
 import { ProductSelector } from '@/components/canteen/ProductSelector';
 import { CartSummary } from '@/components/canteen/CartSummary';
-import { CanteenInstallBanner } from '@/components/pwa/CanteenInstallBanner';
 import { UtensilsCrossed, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
@@ -236,9 +235,6 @@ export default function CanteenPublic() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* PWA Install Banner */}
-      <CanteenInstallBanner />
-
       {/* Header */}
       <div className="bg-primary text-primary-foreground p-4 sticky top-0 z-10">
         <div className="max-w-lg mx-auto flex items-center gap-3">
