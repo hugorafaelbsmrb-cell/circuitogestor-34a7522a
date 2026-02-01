@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import type { AsaasCustomer, AsaasPayment, AsaasBoleto, AsaasInstallment } from '@/types/school';
+import type { AsaasCustomer, AsaasPayment, AsaasInstallment } from '@/types/school';
+
+interface PixQrCodeResult {
+  success: boolean;
+  payload: string; // Código PIX "copia e cola"
+  encodedImage: string; // QR Code em base64
+  expirationDate: string;
+}
 
 interface CreateCustomerData {
   name: string;
@@ -347,6 +354,23 @@ export function useAsaasPayment() {
     }
   };
 
+  const getPixQrCode = async (paymentId: string): Promise<PixQrCodeResult | null> => {
+    setIsLoading(true);
+    try {
+      const result = await callAsaasFunction('getPixQrCode', { paymentId });
+      return result as PixQrCodeResult;
+    } catch (error) {
+      toast({
+        title: 'Erro ao obter código PIX',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     isLoading,
     createCustomer,
@@ -362,5 +386,6 @@ export function useAsaasPayment() {
     undoReceivedInCash,
     searchCustomerByCpf,
     syncGuardians,
+    getPixQrCode,
   };
 }
