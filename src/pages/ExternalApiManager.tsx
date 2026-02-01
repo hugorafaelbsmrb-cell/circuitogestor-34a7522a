@@ -5,13 +5,14 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Key, ShoppingBag, FolderTree, Package, Users, FileText, Image, Eye, EyeOff, CheckCircle, XCircle, Loader2, Settings } from 'lucide-react';
+import { Key, ShoppingBag, FolderTree, Package, Users, FileText, Image, Eye, EyeOff, CheckCircle, XCircle, Loader2, Settings, MessageSquare } from 'lucide-react';
 import { ProductsTab } from '@/components/external-api/ProductsTab';
 import { CategoriesTab } from '@/components/external-api/CategoriesTab';
 import { OrdersTab } from '@/components/external-api/OrdersTab';
 import { UsersTab } from '@/components/external-api/UsersTab';
 import { SiteContentTab } from '@/components/external-api/SiteContentTab';
 import { ImagesTab } from '@/components/external-api/ImagesTab';
+import { ContactsTab } from '@/components/external-api/ContactsTab';
 import { useExternalApiConfig } from '@/hooks/useExternalApiConfig';
 
 export default function ExternalApiManager() {
@@ -55,10 +56,14 @@ export default function ExternalApiManager() {
       </div>
 
       <Tabs defaultValue="config" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="config" className="flex items-center gap-1">
             <Settings className="h-4 w-4" />
             Configuração
+          </TabsTrigger>
+          <TabsTrigger value="contacts" className="flex items-center gap-1">
+            <MessageSquare className="h-4 w-4" />
+            Contatos
           </TabsTrigger>
           <TabsTrigger value="products" disabled={!isConfigured} className="flex items-center gap-1">
             <ShoppingBag className="h-4 w-4" />
@@ -180,6 +185,10 @@ export default function ExternalApiManager() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="contacts">
+          <ContactsTab />
         </TabsContent>
 
         <TabsContent value="products">
