@@ -51,3 +51,6 @@ verify_jwt = false
 
 [functions.site-contact-lead]
 verify_jwt = false
+
+[functions.analyze-homework-messages]
+verify_jwt = false

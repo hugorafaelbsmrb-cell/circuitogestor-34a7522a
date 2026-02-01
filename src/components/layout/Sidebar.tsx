@@ -89,6 +89,7 @@ const menuSections: MenuSection[] = [
       { icon: BookOpen, label: 'Alunos Soroban', path: '/soroban-alunos', permissionKey: 'soroban', adminOnly: false },
       { icon: GraduationCap, label: 'Professores', path: '/professores', permissionKey: 'teachers', adminOnly: true },
       { icon: FileCheck, label: 'Análise Pedagógica', path: '/analise-pedagogica', permissionKey: 'teachers', adminOnly: true },
+      { icon: ClipboardList, label: 'Deveres de Casa', path: '/deveres-casa', permissionKey: 'teachers', adminOnly: false },
     ]
   },
   {
