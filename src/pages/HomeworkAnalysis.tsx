@@ -938,7 +938,7 @@ interface SentReportsTabProps {
   onResend: (reportId: string, teacherId: string) => Promise<void>;
 }
 
-function SentReportsTab({ sentReports, teachers, onResend }: SentReportsTabProps) {
+const SentReportsTab = ({ sentReports, teachers, onResend }: SentReportsTabProps) => {
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [selectedTeachers, setSelectedTeachers] = useState<Record<string, string>>({});
 
@@ -949,20 +949,39 @@ function SentReportsTab({ sentReports, teachers, onResend }: SentReportsTabProps
       return;
     }
     setResendingId(reportId);
-    await onResend(reportId, teacherId);
-    setResendingId(null);
+    try {
+      await onResend(reportId, teacherId);
+    } finally {
+      setResendingId(null);
+    }
   };
+
+  const handleTeacherSelect = (reportId: string, teacherId: string) => {
+    setSelectedTeachers(prev => ({ ...prev, [reportId]: teacherId }));
+  };
+
+  if (sentReports.length === 0) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <Send className="w-12 h-12 mx-auto mb-4 opacity-50" />
+        <p>Nenhum dever enviado ainda</p>
+      </div>
+    );
+  }
 
   return (
     <ScrollArea className="h-[500px]">
       <div className="space-y-4">
         {sentReports.map((report) => {
-          let parsedContent: any = {};
+          let parsedContent: { summary?: string } = {};
           try {
             parsedContent = JSON.parse(report.processed_content);
           } catch {
             parsedContent = { summary: report.processed_content };
           }
+
+          const selectedTeacherId = selectedTeachers[report.id] || '';
+          const isResending = resendingId === report.id;
 
           return (
             <Card key={report.id}>
@@ -971,12 +990,12 @@ function SentReportsTab({ sentReports, teachers, onResend }: SentReportsTabProps
                   <div>
                     <CardTitle className="text-base flex items-center gap-2">
                       <User className="w-4 h-4" />
-                      {report.guardians?.name || 'Responsável'}
+                      <span>{report.guardians?.name || 'Responsável'}</span>
                       {report.students?.name && (
-                        <Badge variant="outline">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground">
                           <GraduationCap className="w-3 h-3 mr-1" />
                           {report.students.name}
-                        </Badge>
+                        </span>
                       )}
                     </CardTitle>
                     <CardDescription className="flex flex-col gap-1">
@@ -992,14 +1011,14 @@ function SentReportsTab({ sentReports, teachers, onResend }: SentReportsTabProps
                   </div>
                   <div className="flex items-center gap-2">
                     {report.teachers?.name && (
-                      <Badge variant="secondary">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground">
                         <User className="w-3 h-3 mr-1" />
                         {report.teachers.name}
-                      </Badge>
+                      </span>
                     )}
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                       Enviado
-                    </Badge>
+                    </span>
                   </div>
                 </div>
               </CardHeader>
@@ -1017,8 +1036,8 @@ function SentReportsTab({ sentReports, teachers, onResend }: SentReportsTabProps
                 <div className="flex items-center gap-4 pt-2 border-t flex-wrap">
                   <span className="text-sm font-medium">Reenviar para:</span>
                   <Select 
-                    value={selectedTeachers[report.id] || ''} 
-                    onValueChange={(v) => setSelectedTeachers(prev => ({ ...prev, [report.id]: v }))}
+                    value={selectedTeacherId} 
+                    onValueChange={(value) => handleTeacherSelect(report.id, value)}
                   >
                     <SelectTrigger className="w-64">
                       <SelectValue placeholder="Selecione outro professor" />
@@ -1033,9 +1052,9 @@ function SentReportsTab({ sentReports, teachers, onResend }: SentReportsTabProps
                     size="sm"
                     variant="outline"
                     onClick={() => handleResend(report.id)}
-                    disabled={resendingId === report.id || !selectedTeachers[report.id]}
+                    disabled={isResending || !selectedTeacherId}
                   >
-                    {resendingId === report.id ? (
+                    {isResending ? (
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     ) : (
                       <RefreshCw className="w-4 h-4 mr-2" />
@@ -1047,14 +1066,7 @@ function SentReportsTab({ sentReports, teachers, onResend }: SentReportsTabProps
             </Card>
           );
         })}
-
-        {sentReports.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            <Send className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Nenhum dever enviado ainda</p>
-          </div>
-        )}
       </div>
     </ScrollArea>
   );
-}
+};
