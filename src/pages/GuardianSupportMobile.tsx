@@ -40,6 +40,17 @@ const phonesMatch = (phone1: string, phone2: string): boolean => {
   return n1.slice(-8) === n2.slice(-8) && n1.slice(-8).length === 8;
 };
 
+const formatPhone = (phone: string): string => {
+  const clean = phone.replace(/\D/g, '');
+  if (clean.length === 13) {
+    return `(${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
+  }
+  if (clean.length === 11) {
+    return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
+  }
+  return phone;
+};
+
 const calculateUnreadCount = (messages: WhatsAppMessage[]): { unreadCount: number; lastMessageAt: string | null } => {
   if (messages.length === 0) return { unreadCount: 0, lastMessageAt: null };
   
@@ -266,16 +277,6 @@ export default function GuardianSupportMobile() {
     });
   }, [guardians, students, enrollments, classGroups, courses, allMessages, unknownMessages, whatsappContactsMap]);
 
-  const formatPhone = (phone: string): string => {
-    const clean = phone.replace(/\D/g, '');
-    if (clean.length === 13) {
-      return `(${clean.slice(2, 4)}) ${clean.slice(4, 9)}-${clean.slice(9)}`;
-    }
-    if (clean.length === 11) {
-      return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
-    }
-    return phone;
-  };
 
   // Show chat view if conversation is selected
   if (selectedConversation) {
