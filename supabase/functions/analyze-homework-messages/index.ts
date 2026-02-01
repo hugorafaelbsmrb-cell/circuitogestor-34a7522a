@@ -23,6 +23,30 @@ async function getGoogleApiKey(): Promise<string | null> {
   return data?.value || null;
 }
 
+async function fetchImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.error("Failed to fetch image:", response.status);
+      return null;
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    return base64;
+  } catch (error) {
+    console.error("Error fetching image:", error);
+    return null;
+  }
+}
+
+function getMimeType(url: string, mediaType?: string): string {
+  if (mediaType?.includes("image/")) return mediaType;
+  if (url.includes(".png")) return "image/png";
+  if (url.includes(".gif")) return "image/gif";
+  if (url.includes(".webp")) return "image/webp";
+  return "image/jpeg";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -43,10 +67,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { action, messageIds, dateFrom, dateTo } = await req.json();
+    const { action, dateFrom, dateTo } = await req.json();
 
     if (action === "scan") {
-      // Scan recent messages for homework content
+      // Scan recent messages for homework content (including images)
       let query = supabase
         .from("whatsapp_messages")
         .select(`
@@ -55,6 +79,8 @@ Deno.serve(async (req) => {
           message,
           created_at,
           guardian_id,
+          media_url,
+          media_type,
           guardians!whatsapp_messages_guardian_id_fkey (
             id,
             name,
@@ -109,95 +135,127 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Batch analyze messages with AI
-      const batchSize = 10;
       const results: any[] = [];
-
+      
+      // Process messages in smaller batches to handle images properly
+      const batchSize = 5;
       for (let i = 0; i < Math.min(unprocessedMessages.length, 30); i += batchSize) {
         const batch = unprocessedMessages.slice(i, i + batchSize);
         
-        const batchPrompt = `Você é um assistente que analisa mensagens de WhatsApp de pais/responsáveis de uma escola.
+        // Process each message individually when it has an image
+        for (const msg of batch) {
+          const hasImage = msg.media_url && msg.media_type?.startsWith("image");
+          
+          // Build the content parts for this message
+          const contentParts: any[] = [];
+          
+          // Add image if present
+          if (hasImage && msg.media_url) {
+            const imageBase64 = await fetchImageAsBase64(msg.media_url);
+            if (imageBase64) {
+              contentParts.push({
+                inline_data: {
+                  mime_type: getMimeType(msg.media_url, msg.media_type),
+                  data: imageBase64
+                }
+              });
+            }
+          }
+          
+          // Build the prompt
+          const prompt = `Você é um assistente que analisa mensagens de WhatsApp de pais/responsáveis de uma escola.
 
-Analise as seguintes mensagens e identifique quais contêm informações sobre tarefas de casa, atividades escolares ou roteiro diário de estudos.
+Analise a seguinte mensagem${hasImage ? " e imagem" : ""} e identifique se contém informações sobre tarefas de casa, atividades escolares, roteiro diário de estudos ou deveres.
 
-Mensagens para análise:
-${batch.map((m, idx) => `[${idx + 1}] De: ${(m.guardians as any)?.name || 'Desconhecido'}\nMensagem: "${m.message}"\n`).join('\n')}
+${hasImage ? "IMPORTANTE: Analise cuidadosamente a IMAGEM anexada. Ela pode conter:" : ""}
+${hasImage ? "- Print/screenshot de agenda escolar" : ""}
+${hasImage ? "- Foto de caderno com tarefas" : ""}
+${hasImage ? "- Imagem de atividades ou exercícios" : ""}
+${hasImage ? "- Print de comunicado da escola" : ""}
 
-Para cada mensagem, retorne um JSON com o formato:
+Responsável: ${(msg.guardians as any)?.name || 'Desconhecido'}
+Mensagem de texto: "${msg.message || '(apenas imagem)'}"
+
+Retorne um JSON com o formato:
 {
-  "analyses": [
+  "isHomework": true/false,
+  "confidence": 0.0-1.0,
+  "studentName": "nome do aluno se mencionado ou identificado",
+  "subjects": ["matérias identificadas"],
+  "activities": [
     {
-      "index": 1,
-      "isHomework": true/false,
-      "confidence": 0.0-1.0,
-      "studentName": "nome do aluno se mencionado",
-      "subjects": ["matérias identificadas"],
-      "activities": [
-        {
-          "subject": "matéria",
-          "description": "descrição da atividade",
-          "status": "realizada/não realizada/parcial"
-        }
-      ],
-      "summary": "resumo breve",
-      "parentNotes": "observações do responsável"
+      "subject": "matéria",
+      "description": "descrição da atividade",
+      "status": "realizada/não realizada/parcial/a fazer"
     }
-  ]
+  ],
+  "summary": "resumo breve do conteúdo",
+  "parentNotes": "observações do responsável se houver",
+  "hasImageContent": ${hasImage ? "true" : "false"},
+  "imageDescription": "descrição do que foi identificado na imagem (se aplicável)"
 }
 
 Retorne APENAS o JSON, sem explicações adicionais.`;
 
-        const aiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: batchPrompt }] }],
-              generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
-            }),
-          }
-        );
+          contentParts.push({ text: prompt });
 
-        if (!aiResponse.ok) {
-          console.error("AI error:", await aiResponse.text());
-          continue;
-        }
-
-        const aiData = await aiResponse.json();
-        const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-        try {
-          const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            
-            for (const analysis of parsed.analyses || []) {
-              const msgIndex = analysis.index - 1;
-              const originalMsg = batch[msgIndex];
-              
-              if (originalMsg && analysis.isHomework && analysis.confidence >= 0.6) {
-                results.push({
-                  messageId: originalMsg.id,
-                  phone: originalMsg.phone,
-                  message: originalMsg.message,
-                  createdAt: originalMsg.created_at,
-                  guardianId: originalMsg.guardian_id,
-                  guardianName: (originalMsg.guardians as any)?.name,
-                  analysis: {
-                    studentName: analysis.studentName,
-                    subjects: analysis.subjects,
-                    activities: analysis.activities,
-                    summary: analysis.summary,
-                    parentNotes: analysis.parentNotes,
-                    confidence: analysis.confidence
-                  }
-                });
+          try {
+            // Use gemini-2.5-flash for multimodal (supports images)
+            const aiResponse = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: [{ role: "user", parts: contentParts }],
+                  generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+                }),
               }
+            );
+
+            if (!aiResponse.ok) {
+              console.error("AI error for message", msg.id, ":", await aiResponse.text());
+              continue;
             }
+
+            const aiData = await aiResponse.json();
+            const aiContent = aiData.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+
+            try {
+              const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const analysis = JSON.parse(jsonMatch[0]);
+                
+                if (analysis.isHomework && analysis.confidence >= 0.5) {
+                  results.push({
+                    messageId: msg.id,
+                    phone: msg.phone,
+                    message: msg.message,
+                    mediaUrl: msg.media_url,
+                    mediaType: msg.media_type,
+                    hasImage: hasImage,
+                    createdAt: msg.created_at,
+                    guardianId: msg.guardian_id,
+                    guardianName: (msg.guardians as any)?.name,
+                    analysis: {
+                      studentName: analysis.studentName,
+                      subjects: analysis.subjects,
+                      activities: analysis.activities,
+                      summary: analysis.summary,
+                      parentNotes: analysis.parentNotes,
+                      confidence: analysis.confidence,
+                      hasImageContent: analysis.hasImageContent,
+                      imageDescription: analysis.imageDescription
+                    }
+                  });
+                }
+              }
+            } catch (parseError) {
+              console.error("Parse error for message", msg.id, ":", parseError);
+            }
+          } catch (fetchError) {
+            console.error("Fetch error for message", msg.id, ":", fetchError);
           }
-        } catch (parseError) {
-          console.error("Parse error:", parseError);
         }
       }
 
@@ -224,7 +282,7 @@ Retorne APENAS o JSON, sem explicações adicionais.`;
             guardian_id: report.guardianId,
             student_id: report.studentId || null,
             teacher_id: report.teacherId || null,
-            original_message: report.message,
+            original_message: report.message || "(imagem)",
             processed_content: JSON.stringify(report.analysis),
             status: "pending"
           })

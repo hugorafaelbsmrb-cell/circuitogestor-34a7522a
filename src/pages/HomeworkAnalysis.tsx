@@ -18,7 +18,8 @@ import {
   MessageSquare,
   GraduationCap,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -34,6 +35,9 @@ interface HomeworkAnalysis {
   messageId: string;
   phone: string;
   message: string;
+  mediaUrl?: string;
+  mediaType?: string;
+  hasImage?: boolean;
   createdAt: string;
   guardianId: string;
   guardianName: string;
@@ -48,6 +52,8 @@ interface HomeworkAnalysis {
     summary?: string;
     parentNotes?: string;
     confidence: number;
+    hasImageContent?: boolean;
+    imageDescription?: string;
   };
   selectedTeacherId?: string;
   selected?: boolean;
@@ -435,15 +441,35 @@ export default function HomeworkAnalysis() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {/* Image preview if present */}
+                    {msg.hasImage && msg.mediaUrl && (
+                      <div className="relative">
+                        <div className="flex items-center gap-2 mb-2">
+                          <ImageIcon className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-medium">Imagem analisada pela IA</span>
+                        </div>
+                        <img 
+                          src={msg.mediaUrl} 
+                          alt="Imagem da mensagem" 
+                          className="max-w-xs rounded-lg border shadow-sm"
+                        />
+                        {msg.analysis.imageDescription && (
+                          <p className="mt-2 text-sm text-muted-foreground italic">
+                            🔍 {msg.analysis.imageDescription}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Original message */}
                     <div className="bg-muted/50 p-3 rounded-lg">
-                      <p className="text-sm">{msg.message}</p>
+                      <p className="text-sm">{msg.message || "(apenas imagem)"}</p>
                     </div>
 
                     {/* AI Analysis */}
                     {msg.analysis.summary && (
-                      <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                        <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      <div className="p-3 bg-primary/5 rounded-lg border border-primary/10">
+                        <p className="text-sm font-medium">
                           📋 {msg.analysis.summary}
                         </p>
                       </div>
