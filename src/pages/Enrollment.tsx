@@ -150,6 +150,14 @@ export default function Enrollment() {
     }
   });
 
+  // Helper to format date as YYYY-MM-DD using local components (avoids UTC conversion issues)
+  const formatDateToLocalString = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Calculate age from birth date
   const calculateAge = (birthDate: string): number | null => {
     if (!birthDate) return null;
@@ -1087,11 +1095,11 @@ export default function Enrollment() {
           : '';
         const description = `Mensalidade - ${selectedCourse.name} - Aluno: ${student.name}${discountInfo}`;
         
-        // Calculate dates
+        // Calculate dates (using local formatting to avoid timezone issues)
         const proRataDueDate = calculateProRataDueDate();
-        const proRataDueDateStr = proRataDueDate.toISOString().split('T')[0];
+        const proRataDueDateStr = formatDateToLocalString(proRataDueDate);
         const firstDueDate = calculateFirstDueDate();
-        const firstDueDateStr = firstDueDate.toISOString().split('T')[0];
+        const firstDueDateStr = formatDateToLocalString(firstDueDate);
         
         // Calculate pro-rata value
         const proRataValue = calculateTotalWithProRata.proRataValue;
@@ -1318,7 +1326,7 @@ Att,
         }
       } else if (!needsEntryBoleto) {
         // When not generating carnê now and no entry boleto, create a pending payment record
-        const firstDueDateStr = calculateFirstDueDate().toISOString().split('T')[0];
+        const firstDueDateStr = formatDateToLocalString(calculateFirstDueDate());
         
         await createPayment({
           enrollment_id: enrollment.id,
@@ -2716,8 +2724,8 @@ Att,
               payment: {
                 installments: parseInt(formData.payment.installments),
                 dueDayOfMonth: parseInt(formData.payment.dueDayOfMonth),
-                firstDueDate: calculateFirstDueDate().toISOString().split('T')[0],
-                entryBoletoDueDate: enrollmentResult.proRataBoleto ? calculateProRataDueDate().toISOString().split('T')[0] : undefined,
+                firstDueDate: formatDateToLocalString(calculateFirstDueDate()),
+                entryBoletoDueDate: enrollmentResult.proRataBoleto ? formatDateToLocalString(calculateProRataDueDate()) : undefined,
                 proRataValue: calculateTotalWithProRata.proRataValue,
                 regularValue: calculateTotalWithProRata.regularValue,
                 total: calculateTotalWithProRata.total,

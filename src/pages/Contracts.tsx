@@ -466,11 +466,15 @@ export default function Contracts() {
       const regularValue = Number(contract.total_value) / installmentCount;
       const totalValue = Number(contract.total_value);
       
-      // 3. Calculate first due date
+      // 3. Calculate first due date (using local date formatting to avoid timezone issues)
       const today = new Date();
       const selectedDay = parseInt(carneDueDay);
       const firstDueDate = new Date(today.getFullYear(), today.getMonth() + 1, selectedDay);
-      const firstDueDateStr = firstDueDate.toISOString().split('T')[0];
+      // Format as YYYY-MM-DD using local components to avoid UTC conversion issues
+      const year = firstDueDate.getFullYear();
+      const month = String(firstDueDate.getMonth() + 1).padStart(2, '0');
+      const day = String(firstDueDate.getDate()).padStart(2, '0');
+      const firstDueDateStr = `${year}-${month}-${day}`;
       
       const description = `Mensalidade - ${course.name} - Aluno: ${student.name}`;
       
