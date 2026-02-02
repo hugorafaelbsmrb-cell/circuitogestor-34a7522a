@@ -1,209 +1,167 @@
 
-# Plano: Página Mobile Dedicada para Atendimento aos Pais
+# Plano: Corrigir Modal de Geração de Carnê para Exibir Saldo Restante
 
 ## Problema Identificado
 
-A página atual de "Atendimento aos Pais" (`/atendimento-pais`) foi projetada para desktop com um layout Kanban de 5 colunas, tornando-a difícil de usar em dispositivos móveis:
-- Colunas muito estreitas em telas pequenas
-- Muita informação visual competindo por espaço
-- Navegação complexa com dropdowns e modais pesados
-- Interface não otimizada para toque
+No contrato do aluno **Miguel Valandro e Silva**, o modal de geração de carnê está mostrando valores incorretos:
 
-## Solução Proposta
+| Campo | Valor Atual (Errado) | Valor Correto |
+|-------|---------------------|---------------|
+| Valor Total | R$ 4.500,00 | R$ 4.250,00 |
+| Parcelas disponíveis | 1 a 12 | 1 a 17 |
+| Base de cálculo | Contrato cheio | Saldo restante |
 
-Criar uma **nova rota pública** `/suporte-mobile` exclusiva para atendimento via celular, com design fluido e limpo inspirado em apps de mensagens modernos como WhatsApp.
+**Causa raiz**: O modal usa o `total_value` do contrato para cálculos, ignorando pagamentos já efetuados (entrada de R$ 250,00).
 
 ---
 
-## Arquitetura da Solução
+## Solução
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    PÁGINA MOBILE: /suporte-mobile               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  HEADER FIXO                                             │   │
-│  │  [Logo] Atendimento    [Pesquisar] [Filtro] [Sync]      │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  FILTROS HORIZONTAIS (pills scrolláveis)                │   │
-│  │  [Todos] [Não Lidos] [Reforço] [Robótica] [Soroban]...  │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  LISTA DE CONVERSAS (scroll infinito)                   │   │
-│  │                                                         │   │
-│  │  ┌─────────────────────────────────────────────────┐   │   │
-│  │  │ [Avatar] Maria Silva              14:32  [●2]   │   │   │
-│  │  │          Alunos: João, Ana                       │   │   │
-│  │  │          "Olá, gostaria de saber..."            │   │   │
-│  │  └─────────────────────────────────────────────────┘   │   │
-│  │                                                         │   │
-│  │  ┌─────────────────────────────────────────────────┐   │   │
-│  │  │ [Avatar] Carlos Souza             12:15         │   │   │
-│  │  │          Aluno: Pedro                           │   │   │
-│  │  │          "Tudo certo, obrigado!"                │   │   │
-│  │  └─────────────────────────────────────────────────┘   │   │
-│  │                                                         │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │  TELA DE CHAT (fullscreen ao selecionar)                │   │
-│  │                                                         │   │
-│  │  [← Voltar] Maria Silva                    [📞] [⋮]    │   │
-│  │  ─────────────────────────────────────────────────────  │   │
-│  │                                                         │   │
-│  │  ┌────────────────┐                                    │   │
-│  │  │ Mensagem...    │                                    │   │
-│  │  └────────────────┘                                    │   │
-│  │                        ┌────────────────┐              │   │
-│  │                        │ Resposta...    │              │   │
-│  │                        └────────────────┘              │   │
-│  │                                                         │   │
-│  │  ─────────────────────────────────────────────────────  │   │
-│  │  [+] [📷] [Input: Digite sua mensagem...     ] [Enviar] │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+Modificar a função `handleOpenCarneModal` para:
+1. Buscar todos os pagamentos já registrados para o contrato
+2. Calcular o saldo restante (total do contrato - valor já pago)
+3. Calcular as parcelas restantes (parcelas originais - parcelas pagas)
+4. Usar esses valores no modal
+
+---
+
+## Alterações Técnicas
+
+### Arquivo: `src/pages/Contracts.tsx`
+
+#### 1. Adicionar estado para armazenar o saldo restante
+
+```typescript
+// Novo estado para tracking do saldo
+const [remainingValue, setRemainingValue] = useState<number>(0);
+const [remainingInstallments, setRemainingInstallments] = useState<number>(12);
+```
+
+#### 2. Modificar `handleOpenCarneModal` para calcular saldo
+
+```typescript
+const handleOpenCarneModal = async (enrollment: typeof enrollments[0]) => {
+  const contract = getContractForEnrollment(enrollment.id);
+  // ... validações existentes ...
+  
+  // Buscar pagamentos já realizados
+  const { data: existingPayments } = await supabase
+    .from('payments')
+    .select('value, due_date, description')
+    .eq('contract_id', contract.id);
+  
+  // Calcular total já pago
+  const totalPaid = existingPayments?.reduce((sum, p) => sum + Number(p.value), 0) || 0;
+  
+  // Calcular saldo restante
+  const totalValue = Number(contract.total_value);
+  const remaining = totalValue - totalPaid;
+  
+  // Calcular parcelas restantes
+  const originalInstallments = contract.installment_count || 12;
+  const paidInstallments = existingPayments?.length || 0;
+  const remainingCount = originalInstallments - paidInstallments;
+  
+  setRemainingValue(remaining);
+  setRemainingInstallments(Math.max(1, remainingCount));
+  
+  // Pre-preencher com parcelas restantes
+  setCarneInstallments(remainingCount.toString());
+  // ... resto da lógica ...
+};
+```
+
+#### 3. Atualizar o modal para usar saldo restante
+
+```typescript
+{/* Contract Info - Atualizado */}
+<div className="bg-secondary/30 rounded-lg p-4">
+  <p className="text-sm text-muted-foreground">Aluno</p>
+  <p className="font-medium">{studentName}</p>
+  
+  <p className="text-sm text-muted-foreground mt-2">Valor Total do Contrato</p>
+  <p className="text-lg font-medium">
+    R$ {Number(contract.total_value).toFixed(2).replace('.', ',')}
+  </p>
+  
+  {/* Novo: Mostrar saldo restante */}
+  <p className="text-sm text-muted-foreground mt-2">Saldo a Gerar</p>
+  <p className="text-xl font-bold text-primary">
+    R$ {remainingValue.toFixed(2).replace('.', ',')}
+  </p>
+</div>
+```
+
+#### 4. Atualizar opções de parcelas para usar quantidade restante
+
+```typescript
+{/* Número de Parcelas - Dinâmico */}
+<Select value={carneInstallments} onValueChange={setCarneInstallments}>
+  <SelectContent>
+    {Array.from({ length: remainingInstallments }, (_, i) => i + 1).map((n) => (
+      <SelectItem key={n} value={n.toString()}>
+        {n}x de R$ {(remainingValue / n).toFixed(2).replace('.', ',')}
+      </SelectItem>
+    ))}
+  </SelectContent>
+</Select>
+```
+
+#### 5. Atualizar `handleGenerateCarne` para usar saldo
+
+```typescript
+const handleGenerateCarne = async () => {
+  // ...
+  // Usar remainingValue ao invés de total_value
+  const installmentCount = parseInt(carneInstallments);
+  const totalValue = remainingValue; // ← Mudança aqui
+  
+  // ... resto da lógica permanece igual ...
+};
 ```
 
 ---
 
-## Características do Design Mobile
-
-### 1. Layout de Lista de Conversas
-- Tela inicial com lista estilo WhatsApp/Telegram
-- Cards grandes e tocáveis (min 64px de altura)
-- Preview da última mensagem
-- Badge de mensagens não lidas
-- Horário da última interação
-- Nome do(s) aluno(s) visível
-
-### 2. Filtros Inteligentes
-- Pills horizontais com scroll touch
-- Filtro por categoria (curso)
-- Filtro rápido "Não Lidos" 
-- Busca por nome/telefone
-
-### 3. Chat Fullscreen
-- Ao tocar em um contato, abre chat em tela cheia
-- Botão de voltar claro no topo
-- Área de mensagens com scroll suave
-- Input fixo no rodapé
-- Suporte a respostas rápidas (templates)
-- Botões de ação: ligar, WhatsApp externo
-
-### 4. Gestos e Micro-interações
-- Pull-to-refresh para atualizar lista
-- Animações suaves nas transições
-- Feedback tátil nos botões
-
----
-
-## Componentes a Criar
-
-| Componente | Descrição |
-|------------|-----------|
-| `src/pages/GuardianSupportMobile.tsx` | Página principal mobile |
-| `src/components/support/MobileConversationList.tsx` | Lista de conversas estilo mensageiro |
-| `src/components/support/MobileConversationItem.tsx` | Card individual de conversa |
-| `src/components/support/MobileChatView.tsx` | Tela de chat fullscreen |
-| `src/components/support/MobileFilterPills.tsx` | Filtros horizontais scrolláveis |
-| `src/components/support/MobileQuickReplies.tsx` | Respostas rápidas otimizadas |
-
----
-
-## Fluxo de Navegação
+## Fluxo Visual Atualizado
 
 ```text
-/suporte-mobile
-     │
-     ├──> Lista de Conversas (view padrão)
-     │         │
-     │         ├──> Filtrar por categoria
-     │         ├──> Buscar contato
-     │         └──> Tap em conversa
-     │                   │
-     │                   └──> Chat Fullscreen
-     │                             │
-     │                             ├──> Enviar mensagem
-     │                             ├──> Respostas rápidas
-     │                             ├──> Abrir WhatsApp
-     │                             └──> Voltar para lista
-     │
-     └──> Pull-to-refresh (sincroniza mensagens)
+┌─────────────────────────────────────────────────────┐
+│ Gerar Carnê de Pagamento                            │
+├─────────────────────────────────────────────────────┤
+│ Aluno: Miguel Valandro e Silva                      │
+│                                                     │
+│ Valor Total do Contrato: R$ 4.500,00                │
+│ Já Pago: R$ 250,00 (1 entrada)                      │
+│ ─────────────────────────────────                   │
+│ Saldo a Gerar: R$ 4.250,00                          │
+│                                                     │
+│ ┌─────────────────┐  ┌─────────────────┐            │
+│ │ Parcelas: 17▼   │  │ Dia Venc.: 27▼  │            │
+│ └─────────────────┘  └─────────────────┘            │
+│                                                     │
+│ ┌─────────────────────────────────────┐             │
+│ │ Parcelas: 17x                       │             │
+│ │ Valor da Parcela: R$ 250,00         │             │
+│ │ Primeiro Vencimento: 27/02/2026     │             │
+│ └─────────────────────────────────────┘             │
+│                                                     │
+│                    [Cancelar] [Gerar Carnê]         │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Detalhes Técnicos
+## Arquivos a Modificar
 
-### Estado e Dados
-- Reutiliza a mesma lógica de dados do `GuardianSupport.tsx`
-- Combina guardians cadastrados + contatos desconhecidos em lista unificada
-- Ordena por: não lidos primeiro, depois por última mensagem
-- Cache local com React Query
-
-### Autenticação
-- Página protegida (requer login)
-- Herda o mesmo sistema de autenticação do sistema principal
-
-### Performance Mobile
-- Virtualização de lista para grandes volumes
-- Lazy loading de avatares
-- Debounce na busca
-- Otimização de re-renders
+| Arquivo | Alterações |
+|---------|------------|
+| `src/pages/Contracts.tsx` | Adicionar estados, calcular saldo, atualizar modal |
 
 ---
 
-## Alterações em Arquivos Existentes
+## Benefícios
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/App.tsx` | Adicionar rota `/suporte-mobile` protegida |
-| `src/components/layout/Sidebar.tsx` | Opcional: link para versão mobile |
-
----
-
-## Interface Visual (Estilo)
-
-### Paleta
-- Background: `bg-background` (claro/escuro conforme tema)
-- Cards: `bg-card` com borda sutil
-- Destaque não lidos: `bg-primary/5` com borda `border-primary/30`
-- Badges: vermelho para não lidos
-
-### Tipografia
-- Nome: `text-base font-semibold`
-- Alunos: `text-sm text-muted-foreground`
-- Preview: `text-sm text-muted-foreground line-clamp-1`
-- Horário: `text-xs text-muted-foreground`
-
-### Espaçamento
-- Padding lateral: `px-4`
-- Gap entre cards: `gap-1`
-- Altura mínima do card: `py-3`
-
----
-
-## Benefícios da Nova Página
-
-1. **Experiência nativa mobile** - Parece um app de mensagens
-2. **Foco na tarefa** - Uma conversa por vez, sem distrações
-3. **Velocidade** - Carregamento rápido e transições suaves
-4. **Acessibilidade** - Áreas de toque grandes, contrastes adequados
-5. **Offline-friendly** - Cache de dados para uso com conexão instável
-
----
-
-## Resumo de Entregáveis
-
-1. Nova página `src/pages/GuardianSupportMobile.tsx`
-2. Componente de lista `MobileConversationList.tsx`
-3. Componente de chat fullscreen `MobileChatView.tsx`
-4. Componente de filtros `MobileFilterPills.tsx`
-5. Integração de rota em `App.tsx`
-6. Estilos otimizados para touch e mobile
-
+1. **Precisão**: O valor gerado será exatamente o saldo pendente
+2. **Consistência**: Contratos com entrada já paga terão o carnê gerado corretamente
+3. **Flexibilidade**: O número de parcelas será dinâmico baseado no contrato original
+4. **Transparência**: O usuário verá claramente o que já foi pago vs. o que será gerado
