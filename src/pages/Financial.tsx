@@ -55,6 +55,10 @@ export default function Financial() {
   const [debtorEndDate, setDebtorEndDate] = useState('');
   const debtorsPrintRef = useRef<HTMLDivElement>(null);
 
+  // Status filter for all payments tab
+  const [entryStatusFilter, setEntryStatusFilter] = useState('all');
+  const [carneStatusFilter, setCarneStatusFilter] = useState('all');
+
   const handleOpenPixModal = (payment: PaymentWithGuardian) => {
     if (!payment.asaas_payment_id) {
       toast.error('Este pagamento não possui ID do Asaas');
@@ -214,7 +218,7 @@ export default function Financial() {
   }, [carnes]);
 
   // Separate entry boletos from carnê installments
-  const { entryBoletos, carnePayments } = useMemo(() => {
+  const { entryBoletos, carnePayments, filteredEntryBoletos, filteredCarnePayments } = useMemo(() => {
     const entry: PaymentWithGuardian[] = [];
     const carne: PaymentWithGuardian[] = [];
     
@@ -230,9 +234,23 @@ export default function Financial() {
         carne.push(p);
       }
     });
+
+    // Apply status filter
+    const filteredEntry = entryStatusFilter === 'all' 
+      ? entry 
+      : entry.filter(p => p.status === entryStatusFilter);
     
-    return { entryBoletos: entry, carnePayments: carne };
-  }, [payments]);
+    const filteredCarne = carneStatusFilter === 'all' 
+      ? carne 
+      : carne.filter(p => p.status === carneStatusFilter);
+    
+    return { 
+      entryBoletos: entry, 
+      carnePayments: carne, 
+      filteredEntryBoletos: filteredEntry, 
+      filteredCarnePayments: filteredCarne 
+    };
+  }, [payments, entryStatusFilter, carneStatusFilter]);
 
   // Calculate financial metrics from payments
   const metrics = useMemo(() => {
@@ -763,18 +781,40 @@ export default function Financial() {
           {/* Entry Boletos Section */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <HandCoins className="w-5 h-5 text-blue-500" />
-                Boletos de Entrada
-              </CardTitle>
-              <CardDescription>
-                {entryBoletos.length} boletos de entrada/pro-rata
-              </CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <HandCoins className="w-5 h-5 text-blue-500" />
+                    Boletos de Entrada
+                  </CardTitle>
+                  <CardDescription>
+                    {filteredEntryBoletos.length} de {entryBoletos.length} boletos de entrada/pro-rata
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <Select value={entryStatusFilter} onValueChange={setEntryStatusFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="PENDING">Pendente</SelectItem>
+                      <SelectItem value="RECEIVED">Recebido</SelectItem>
+                      <SelectItem value="CONFIRMED">Confirmado</SelectItem>
+                      <SelectItem value="RECEIVED_IN_CASH">Pago em Dinheiro</SelectItem>
+                      <SelectItem value="OVERDUE">Vencido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              {entryBoletos.length === 0 ? (
+              {filteredEntryBoletos.length === 0 ? (
                 <div className="text-center py-6 text-muted-foreground">
-                  Nenhum boleto de entrada cadastrado.
+                  {entryBoletos.length === 0 
+                    ? 'Nenhum boleto de entrada cadastrado.' 
+                    : 'Nenhum boleto encontrado com o filtro selecionado.'}
                 </div>
               ) : (
                 <div className="max-h-[400px] overflow-y-auto">
@@ -790,7 +830,7 @@ export default function Financial() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {entryBoletos.map((payment) => {
+                      {filteredEntryBoletos.map((payment) => {
                         const isProRata = payment.description.toLowerCase().includes('pro-rata') || 
                                           payment.description.toLowerCase().includes('pró-rata');
                         
@@ -869,18 +909,40 @@ export default function Financial() {
           {/* Carnê Installments Section */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" />
-                Parcelas de Carnês
-              </CardTitle>
-              <CardDescription>
-                {carnePayments.length} parcelas de carnês cadastrados
-              </CardDescription>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    Parcelas de Carnês
+                  </CardTitle>
+                  <CardDescription>
+                    {filteredCarnePayments.length} de {carnePayments.length} parcelas de carnês cadastrados
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <Select value={carneStatusFilter} onValueChange={setCarneStatusFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="PENDING">Pendente</SelectItem>
+                      <SelectItem value="RECEIVED">Recebido</SelectItem>
+                      <SelectItem value="CONFIRMED">Confirmado</SelectItem>
+                      <SelectItem value="RECEIVED_IN_CASH">Pago em Dinheiro</SelectItem>
+                      <SelectItem value="OVERDUE">Vencido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              {carnePayments.length === 0 ? (
+              {filteredCarnePayments.length === 0 ? (
                 <div className="text-center py-6 text-muted-foreground">
-                  Nenhuma parcela de carnê cadastrada.
+                  {carnePayments.length === 0 
+                    ? 'Nenhuma parcela de carnê cadastrada.' 
+                    : 'Nenhuma parcela encontrada com o filtro selecionado.'}
                 </div>
               ) : (
                 <div className="max-h-[600px] overflow-y-auto">
@@ -896,7 +958,7 @@ export default function Financial() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {carnePayments.map((payment) => (
+                      {filteredCarnePayments.map((payment) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
