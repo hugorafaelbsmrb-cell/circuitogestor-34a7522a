@@ -389,7 +389,7 @@ export default function Contracts() {
     }
   };
 
-  const handleOpenCarneModal = (enrollment: typeof enrollments[0]) => {
+  const handleOpenCarneModal = async (enrollment: typeof enrollments[0]) => {
     const contract = getContractForEnrollment(enrollment.id);
     if (!contract) {
       toast({
@@ -403,8 +403,36 @@ export default function Contracts() {
     
     // Pre-fill with contract installments and due day from enrollment
     const contractContent = contract.contract_content as any;
-    const savedDueDay = contractContent?.dueDayOfMonth;
+    let savedDueDay = contractContent?.dueDayOfMonth;
     const savedInstallments = contract.installment_count;
+    
+    // Se não tiver dueDayOfMonth salvo, buscar das parcelas existentes (parcela regular, não entrada)
+    if (!savedDueDay) {
+      const { data: existingPayments } = await supabase
+        .from('payments')
+        .select('due_date, description')
+        .eq('contract_id', contract.id)
+        .order('due_date', { ascending: true });
+      
+      if (existingPayments && existingPayments.length > 0) {
+        // Priorizar parcela regular (não entrada/pro-rata)
+        const regularPayment = existingPayments.find(p => 
+          p.description?.includes('Parcela') && 
+          !p.description?.toLowerCase().includes('entrada') &&
+          !p.description?.toLowerCase().includes('pro-rata')
+        );
+        
+        if (regularPayment) {
+          // Extrair dia usando método local (evita problemas de timezone)
+          const [year, month, day] = regularPayment.due_date.split('-').map(Number);
+          savedDueDay = day;
+        } else {
+          // Se só tem entrada, usar o primeiro pagamento
+          const [year, month, day] = existingPayments[0].due_date.split('-').map(Number);
+          savedDueDay = day;
+        }
+      }
+    }
     
     setCarneInstallments(savedInstallments?.toString() || '6');
     setCarneDueDay(savedDueDay?.toString() || '10');
