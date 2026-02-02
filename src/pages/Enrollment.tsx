@@ -114,7 +114,8 @@ export default function Enrollment() {
   const [enrollmentResult, setEnrollmentResult] = useState<{
     contract: { id: string; content: any } | null;
     carne: { id: string; asaasInstallmentId: string } | null;
-    proRataBoleto: { id: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null;
+    proRataBoleto: { id: string; asaasPaymentId: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null;
+    pixAlreadySent?: boolean;
   } | null>(null);
   
   const contractPrintRef = useRef<HTMLDivElement>(null);
@@ -122,6 +123,8 @@ export default function Enrollment() {
   const [useEntryBoleto, setUseEntryBoleto] = useState(true); // Boleto de entrada com valor cheio
   const [generateCarneNow, setGenerateCarneNow] = useState(true); // Gerar carnê no ato da matrícula
   const [sendSignatureLinkWhatsApp, setSendSignatureLinkWhatsApp] = useState(true); // Enviar link de assinatura via WhatsApp
+  const [sendPixNow, setSendPixNow] = useState(true); // Enviar código PIX via WhatsApp
+  const [pixSentForEntry, setPixSentForEntry] = useState(false); // Controle se PIX foi enviado
   const [customPrice, setCustomPrice] = useState<string>(''); // Valor personalizado
   const [formData, setFormData] = useState({
     student: { 
@@ -1030,7 +1033,7 @@ export default function Enrollment() {
       
       let asaasCustomer: { id: string } | null = null;
       let carneData = null;
-      let proRataBoletoData: { id: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null = null;
+      let proRataBoletoData: { id: string; asaasPaymentId: string; invoiceUrl: string | null; bankSlipUrl: string | null } | null = null;
       
       if (isFullDiscount) {
         // 100% discount - only generate contract, no boletos or carnês
@@ -1126,6 +1129,7 @@ export default function Enrollment() {
         if (entryBoleto) {
           proRataBoletoData = {
             id: entryBoleto.id,
+            asaasPaymentId: entryBoleto.id,
             invoiceUrl: entryBoleto.invoiceUrl || null,
             bankSlipUrl: entryBoleto.bankSlipUrl || null,
           };
@@ -1147,8 +1151,8 @@ export default function Enrollment() {
             external_reference: enrollment.id,
           });
           
-          // Auto-send PIX code if automation is enabled
-          if (isAutomationEnabled('auto_payment_pix_created') && entryBoleto.id) {
+          // Send PIX code if user opted to do so
+          if (sendPixNow && entryBoleto.id) {
             try {
               const pixResult = await getPixQrCode(entryBoleto.id);
               if (pixResult?.payload && guardian.phone) {
@@ -1181,10 +1185,11 @@ Att,
                   phone: guardian.phone,
                   message: pixMessage,
                 });
-                console.log('PIX code sent automatically for entry boleto:', entryBoleto.id);
+                console.log('PIX code sent for entry boleto:', entryBoleto.id);
+                setPixSentForEntry(true);
               }
             } catch (pixError) {
-              console.warn('Failed to send PIX automatically (non-blocking):', pixError);
+              console.warn('Failed to send PIX (non-blocking):', pixError);
             }
           }
         }
@@ -1343,6 +1348,7 @@ Att,
         },
         carne: carneData,
         proRataBoleto: proRataBoletoData,
+        pixAlreadySent: pixSentForEntry,
       });
 
       // Build toast message based on what was generated
@@ -2664,6 +2670,31 @@ Att,
                   </p>
                 </div>
               </div>
+              {/* Send PIX Code Option - only show when entry boleto will be generated */}
+              {calculateTotalWithProRata.hasEntryBoleto && parseInt(formData.payment.installments) > 1 && (
+                <div 
+                  className={cn(
+                    "rounded-xl p-4 flex items-start gap-3 cursor-pointer transition-all",
+                    sendPixNow ? "bg-success/10 border border-success/30" : "bg-muted/50 border border-transparent"
+                  )}
+                  onClick={() => setSendPixNow(!sendPixNow)}
+                >
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors",
+                    sendPixNow ? "border-success bg-success" : "border-muted-foreground"
+                  )}>
+                    {sendPixNow && <Check className="w-3 h-3 text-success-foreground" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">Enviar código PIX via WhatsApp</p>
+                    <p className="text-sm text-muted-foreground">
+                      {sendPixNow 
+                        ? "O responsável receberá o código PIX 'Copia e Cola' para pagamento da entrada."
+                        : "O código PIX NÃO será enviado automaticamente. Poderá ser enviado posteriormente."}
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2694,6 +2725,7 @@ Att,
               contract: enrollmentResult.contract,
               carne: enrollmentResult.carne,
               proRataBoleto: enrollmentResult.proRataBoleto,
+              pixAlreadySent: enrollmentResult.pixAlreadySent,
             }}
             onPrintContract={handlePrintContract}
             onViewCarne={handleViewCarne}
