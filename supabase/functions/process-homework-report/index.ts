@@ -260,7 +260,7 @@ Responda em JSON com o formato:
     ];
     const randomMotivation = motivationalMessages[Math.floor(Math.random() * motivationalMessages.length)];
     
-    let teacherMessage = `📚 *Roteiro de Atividades de ${studentDisplayName}*\n\n`;
+    let teacherMessage = `📚 *Roteiro de Atividades*\n👤 *Aluno(a):* ${studentDisplayName}\n\n`;
     
     if (classification.summary) {
       teacherMessage += `📋 *Resumo:* ${classification.summary}\n\n`;
