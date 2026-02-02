@@ -213,6 +213,27 @@ export default function Financial() {
     };
   }, [carnes]);
 
+  // Separate entry boletos from carnê installments
+  const { entryBoletos, carnePayments } = useMemo(() => {
+    const entry: PaymentWithGuardian[] = [];
+    const carne: PaymentWithGuardian[] = [];
+    
+    payments.forEach(p => {
+      const isEntry = p.description.toLowerCase().includes('entrada') || 
+                      p.description.toLowerCase().includes('pro-rata') ||
+                      p.description.toLowerCase().includes('pró-rata') ||
+                      p.installment_number === null;
+      
+      if (isEntry) {
+        entry.push(p);
+      } else {
+        carne.push(p);
+      }
+    });
+    
+    return { entryBoletos: entry, carnePayments: carne };
+  }, [payments]);
+
   // Calculate financial metrics from payments
   const metrics = useMemo(() => {
     // Payments for current month
@@ -739,23 +760,24 @@ export default function Financial() {
 
         {/* All Payments Tab */}
         <TabsContent value="all-payments" className="space-y-4">
+          {/* Entry Boletos Section */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" />
-                Todos os Pagamentos
+                <HandCoins className="w-5 h-5 text-blue-500" />
+                Boletos de Entrada
               </CardTitle>
               <CardDescription>
-                {payments.length} pagamentos cadastrados - clique no ícone para visualizar/reimprimir boleto
+                {entryBoletos.length} boletos de entrada/pro-rata
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {payments.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Nenhum pagamento cadastrado ainda.
+              {entryBoletos.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  Nenhum boleto de entrada cadastrado.
                 </div>
               ) : (
-                <div className="max-h-[600px] overflow-y-auto">
+                <div className="max-h-[400px] overflow-y-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -768,8 +790,9 @@ export default function Financial() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {payments.map((payment) => {
-                        const isProRata = payment.description.toLowerCase().includes('pro-rata');
+                      {entryBoletos.map((payment) => {
+                        const isProRata = payment.description.toLowerCase().includes('pro-rata') || 
+                                          payment.description.toLowerCase().includes('pró-rata');
                         
                         return (
                           <TableRow key={payment.id}>
@@ -809,7 +832,7 @@ export default function Financial() {
                                   <Button 
                                     variant="outline" 
                                     size="sm" 
-                                    title="Ver PIX"
+                                    title="Ver/Enviar PIX"
                                     onClick={() => handleOpenPixModal(payment)}
                                     className="gap-1"
                                   >
@@ -836,6 +859,107 @@ export default function Financial() {
                           </TableRow>
                         );
                       })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Carnê Installments Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                Parcelas de Carnês
+              </CardTitle>
+              <CardDescription>
+                {carnePayments.length} parcelas de carnês cadastrados
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {carnePayments.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  Nenhuma parcela de carnê cadastrada.
+                </div>
+              ) : (
+                <div className="max-h-[600px] overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Descrição</TableHead>
+                        <TableHead>Responsável</TableHead>
+                        <TableHead>Vencimento</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {carnePayments.map((payment) => (
+                        <TableRow key={payment.id}>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              {payment.description}
+                              {payment.installment_number && (
+                                <Badge variant="outline" className="text-xs">
+                                  Parcela {payment.installment_number}
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{payment.guardian_name}</TableCell>
+                          <TableCell>{formatDate(payment.due_date)}</TableCell>
+                          <TableCell className="text-right font-medium">{formatCurrency(payment.value)}</TableCell>
+                          <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {(payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  className="gap-1"
+                                  onClick={() => handleReceiveInCash(payment)}
+                                  disabled={processingPaymentId === payment.id || isAsaasLoading}
+                                >
+                                  {processingPaymentId === payment.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <HandCoins className="w-4 h-4" />
+                                  )}
+                                  Baixa
+                                </Button>
+                              )}
+                              {payment.asaas_payment_id && (payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm" 
+                                  title="Ver/Enviar PIX"
+                                  onClick={() => handleOpenPixModal(payment)}
+                                  className="gap-1"
+                                >
+                                  <QrCode className="w-4 h-4" />
+                                  <span className="hidden sm:inline">PIX</span>
+                                </Button>
+                              )}
+                              {payment.invoice_url && (
+                                <Button variant="outline" size="sm" asChild title="Ver Boleto">
+                                  <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
+                                    <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                </Button>
+                              )}
+                              {payment.bank_slip_url && (
+                                <Button variant="outline" size="sm" asChild title="Baixar PDF">
+                                  <a href={payment.bank_slip_url} target="_blank" rel="noopener noreferrer">
+                                    <Printer className="w-4 h-4" />
+                                  </a>
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </div>
@@ -949,6 +1073,18 @@ export default function Financial() {
                               )}
                               Baixa
                             </Button>
+                            {payment.asaas_payment_id && (
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                title="Ver/Enviar PIX"
+                                onClick={() => handleOpenPixModal(payment)}
+                                className="gap-1"
+                              >
+                                <QrCode className="w-4 h-4" />
+                                <span className="hidden sm:inline">PIX</span>
+                              </Button>
+                            )}
                             {payment.invoice_url && (
                               <Button variant="ghost" size="sm" asChild>
                                 <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
@@ -1099,6 +1235,18 @@ export default function Financial() {
                                           )}
                                           Baixa
                                         </Button>
+                                        {payment.asaas_payment_id && (
+                                          <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            title="Ver/Enviar PIX"
+                                            onClick={() => handleOpenPixModal(payment)}
+                                            className="gap-1"
+                                          >
+                                            <QrCode className="w-4 h-4" />
+                                            <span className="hidden sm:inline">PIX</span>
+                                          </Button>
+                                        )}
                                         {payment.invoice_url && (
                                           <Button variant="ghost" size="sm" asChild title="Ver Fatura">
                                             <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
