@@ -905,7 +905,13 @@ export default function Contracts() {
                   <span className="font-medium text-primary">
                     {(() => {
                       const today = new Date();
-                      const firstDue = new Date(today.getFullYear(), today.getMonth() + 1, parseInt(carneDueDay));
+                      const selectedDay = parseInt(carneDueDay);
+                      const currentDay = today.getDate();
+                      // If selected day hasn't passed yet this month -> due this month
+                      // If selected day has already passed -> due next month
+                      const firstDue = selectedDay > currentDay 
+                        ? new Date(today.getFullYear(), today.getMonth(), selectedDay)
+                        : new Date(today.getFullYear(), today.getMonth() + 1, selectedDay);
                       return firstDue.toLocaleDateString('pt-BR');
                     })()}
                   </span>
