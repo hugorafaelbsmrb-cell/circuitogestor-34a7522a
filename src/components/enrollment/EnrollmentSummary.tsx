@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Check, Printer, Eye, FileText, CreditCard, Download, Loader2, MessageSquare } from 'lucide-react';
+import { Check, Printer, Eye, FileText, CreditCard, Download, Loader2, MessageSquare, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useWapiMessage } from '@/hooks/useWapiMessage';
+import { useAsaasPayment } from '@/hooks/useAsaasPayment';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -44,9 +45,11 @@ interface EnrollmentData {
   } | null;
   proRataBoleto: {
     id: string;
+    asaasPaymentId?: string;
     invoiceUrl: string | null;
     bankSlipUrl: string | null;
   } | null;
+  pixAlreadySent?: boolean; // Track if PIX was already sent during enrollment
 }
 
 interface EnrollmentSummaryProps {
@@ -72,10 +75,13 @@ export function EnrollmentSummary({
 }: EnrollmentSummaryProps) {
   const { toast } = useToast();
   const { sendMessage, checkConfig } = useWapiMessage();
+  const { getPixQrCode } = useAsaasPayment();
   const [isSendingBoleto, setIsSendingBoleto] = useState(false);
   const [isSendingCarne, setIsSendingCarne] = useState(false);
+  const [isSendingPix, setIsSendingPix] = useState(false);
   const [boletoSent, setBoletoSent] = useState(false);
   const [carneSent, setCarneSent] = useState(false);
+  const [pixSent, setPixSent] = useState(data.pixAlreadySent || false);
   
   const totalValue = data.payment.total;
   const hasProRataBoleto = data.proRataBoleto && (data.proRataBoleto.invoiceUrl || data.proRataBoleto.bankSlipUrl);
@@ -211,6 +217,90 @@ export function EnrollmentSummary({
       setIsSendingCarne(false);
     }
   };
+
+  const sendPixViaWhatsApp = async () => {
+    if (!hasProRataBoleto || !data.guardian.phone || !data.proRataBoleto?.asaasPaymentId) return;
+    
+    setIsSendingPix(true);
+    try {
+      const config = await checkConfig();
+      if (!config.isConfigured) {
+        toast({
+          title: 'W-API não configurada',
+          description: 'Configure a W-API em Configurações > WhatsApp.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Get PIX code from Asaas
+      const pixResult = await getPixQrCode(data.proRataBoleto.asaasPaymentId);
+      if (!pixResult?.payload) {
+        toast({
+          title: 'Erro ao obter PIX',
+          description: 'Não foi possível gerar o código PIX.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Get school name
+      const { data: schoolConfig } = await supabase
+        .from('contract_config')
+        .select('school_name')
+        .single();
+      
+      const schoolName = schoolConfig?.school_name || 'Nossa Escola';
+      const formattedValue = `R$ ${data.payment.proRataValue.toFixed(2).replace('.', ',')}`;
+      const formattedDate = data.payment.entryBoletoDueDate 
+        ? format(new Date(data.payment.entryBoletoDueDate + 'T12:00:00'), 'dd/MM/yyyy', { locale: ptBR })
+        : format(new Date(), 'dd/MM/yyyy', { locale: ptBR });
+      const firstName = data.guardian.name.split(' ')[0];
+
+      const message = `💳 *Código PIX para Pagamento*
+
+Olá, ${firstName}!
+
+Segue o código PIX para pagamento da entrada da matrícula de *${data.student.name}*:
+
+📋 *Descrição:* Entrada (1ª Parcela) - ${data.course?.name || 'Curso'}
+💰 *Valor:* ${formattedValue}
+📅 *Vencimento:* ${formattedDate}
+
+📱 *Código PIX (copie e cole):*
+\`\`\`
+${pixResult.payload}
+\`\`\`
+
+✅ Basta copiar o código acima e colar no seu aplicativo bancário!
+
+Att,
+*${schoolName}*`;
+
+      const success = await sendMessage({
+        phone: data.guardian.phone,
+        message,
+      });
+
+      if (success) {
+        setPixSent(true);
+        toast({
+          title: 'PIX enviado!',
+          description: 'O código PIX foi enviado via WhatsApp.',
+        });
+      }
+    } catch (error) {
+      console.error('Error sending PIX:', error);
+      toast({
+        title: 'Erro ao enviar',
+        description: 'Não foi possível enviar o código PIX.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingPix(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Success Banner */}
@@ -554,6 +644,23 @@ export function EnrollmentSummary({
                     <MessageSquare className="w-4 h-4" />
                   )}
                   {boletoSent ? 'Boleto Enviado' : 'Enviar Boleto de Entrada'}
+                </Button>
+              )}
+              {hasProRataBoleto && data.proRataBoleto?.asaasPaymentId && (
+                <Button 
+                  variant="outline"
+                  className="flex-1 gap-2 border-blue-500/50 text-blue-700 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-blue-950/30"
+                  onClick={sendPixViaWhatsApp}
+                  disabled={isSendingPix || pixSent}
+                >
+                  {isSendingPix ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : pixSent ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <Smartphone className="w-4 h-4" />
+                  )}
+                  {pixSent ? 'PIX Enviado' : 'Enviar Código PIX'}
                 </Button>
               )}
               {data.carne && (
