@@ -1022,6 +1022,7 @@ export default function Enrollment() {
         installments: parseInt(formData.payment.installments),
         installmentValue: finalPrice,
         totalValue: finalPrice * parseInt(formData.payment.installments),
+        dueDayOfMonth: parseInt(formData.payment.dueDayOfMonth), // Dia de vencimento escolhido na matrícula
         discounts: appliedDiscounts,
         totalDiscount: calculateDiscountedPrice.totalDiscount * parseInt(formData.payment.installments),
         clauses: contractClauses.filter(c => c.is_active).map(c => ({

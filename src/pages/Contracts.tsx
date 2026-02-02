@@ -400,8 +400,14 @@ export default function Contracts() {
       return;
     }
     setSelectedContractForCarne({ enrollment, contract });
-    setCarneInstallments('6');
-    setCarneDueDay('10');
+    
+    // Pre-fill with contract installments and due day from enrollment
+    const contractContent = contract.contract_content as any;
+    const savedDueDay = contractContent?.dueDayOfMonth;
+    const savedInstallments = contract.installment_count;
+    
+    setCarneInstallments(savedInstallments?.toString() || '6');
+    setCarneDueDay(savedDueDay?.toString() || '10');
     setShowCarneModal(true);
   };
 
