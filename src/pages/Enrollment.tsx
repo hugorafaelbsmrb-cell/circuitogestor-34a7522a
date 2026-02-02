@@ -387,15 +387,22 @@ export default function Enrollment() {
     return proRataDate;
   };
 
-  // Calculate the first regular installment due date (next month on selected day)
+  // Calculate the first regular installment due date
+  // If selected day hasn't passed yet this month -> due this month
+  // If selected day has already passed -> due next month
   const calculateFirstDueDate = () => {
     const today = new Date();
     const selectedDay = parseInt(formData.payment.dueDayOfMonth);
+    const currentDay = today.getDate();
     
-    // First installment is always next month from today
-    let dueDate = new Date(today.getFullYear(), today.getMonth() + 1, selectedDay);
-    
-    return dueDate;
+    // Check if the selected day is still in the future this month
+    if (selectedDay > currentDay) {
+      // Due date is this month
+      return new Date(today.getFullYear(), today.getMonth(), selectedDay);
+    } else {
+      // Due date is next month (selected day already passed)
+      return new Date(today.getFullYear(), today.getMonth() + 1, selectedDay);
+    }
   };
 
   // Calculate pro-rata value for first installment
