@@ -792,22 +792,48 @@ export default function Enrollment() {
         status: 'active',
       });
 
-      // 4a. Auto-convert any leads matching this guardian (by phone or CPF)
+      // 4a. Auto-convert the SPECIFIC lead matching this student (by phone/CPF AND student_name)
+      // This prevents converting leads for other students of the same guardian
       try {
-        const { error: leadUpdateError } = await supabase
+        // First, try to find and convert only the lead for THIS specific student
+        const studentNameForSearch = student.name.trim();
+        
+        const { data: matchingLeads, error: leadSearchError } = await supabase
           .from('leads')
-          .update({
-            status: 'converted',
-            converted_at: new Date().toISOString(),
-            enrollment_id: enrollment.id,
-          })
+          .select('id, student_name')
           .or(`phone.eq.${normalizedPhone},guardian_cpf.eq.${cleanCpf}`)
           .in('status', ['new', 'contacted', 'qualified', 'pre_enrollment']);
         
-        if (leadUpdateError) {
-          console.warn('Lead conversion warning:', leadUpdateError);
-        } else {
-          console.log('Leads auto-converted for guardian:', normalizedPhone);
+        if (!leadSearchError && matchingLeads && matchingLeads.length > 0) {
+          // Find the lead that matches this specific student by name
+          const specificLead = matchingLeads.find(lead => {
+            const leadStudentName = (lead.student_name || '').trim().toLowerCase();
+            const enrolledStudentName = studentNameForSearch.toLowerCase();
+            // Match by exact name or similar (normalize for comparison)
+            return leadStudentName === enrolledStudentName || 
+                   leadStudentName.includes(enrolledStudentName) ||
+                   enrolledStudentName.includes(leadStudentName);
+          });
+          
+          if (specificLead) {
+            // Convert only this specific lead
+            const { error: leadUpdateError } = await supabase
+              .from('leads')
+              .update({
+                status: 'converted',
+                converted_at: new Date().toISOString(),
+                enrollment_id: enrollment.id,
+              })
+              .eq('id', specificLead.id);
+            
+            if (leadUpdateError) {
+              console.warn('Lead conversion warning:', leadUpdateError);
+            } else {
+              console.log(`Lead ${specificLead.id} converted for student: ${studentNameForSearch}`);
+            }
+          } else {
+            console.log('No matching lead found for this specific student');
+          }
         }
       } catch (leadError) {
         console.warn('Lead auto-conversion error (non-blocking):', leadError);
