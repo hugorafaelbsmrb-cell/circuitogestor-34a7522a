@@ -70,6 +70,11 @@ export default function Contracts() {
   const [carneDueDay, setCarneDueDay] = useState('10');
   const [isGeneratingCarne, setIsGeneratingCarne] = useState(false);
   
+  // State for remaining balance calculation
+  const [remainingValue, setRemainingValue] = useState<number>(0);
+  const [totalPaidValue, setTotalPaidValue] = useState<number>(0);
+  const [remainingInstallments, setRemainingInstallments] = useState<number>(12);
+  
   // Signature modal state
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [selectedContractForSignature, setSelectedContractForSignature] = useState<{
@@ -399,42 +404,58 @@ export default function Contracts() {
       });
       return;
     }
+    
+    // Buscar pagamentos já realizados para calcular saldo restante
+    const { data: existingPayments } = await supabase
+      .from('payments')
+      .select('value, due_date, description')
+      .eq('contract_id', contract.id)
+      .order('due_date', { ascending: true });
+    
+    // Calcular total já pago
+    const totalPaid = existingPayments?.reduce((sum, p) => sum + Number(p.value), 0) || 0;
+    
+    // Calcular saldo restante
+    const totalValue = Number(contract.total_value);
+    const remaining = totalValue - totalPaid;
+    
+    // Calcular parcelas restantes
+    const originalInstallments = contract.installment_count || 12;
+    const paidInstallments = existingPayments?.length || 0;
+    const remainingCount = Math.max(1, originalInstallments - paidInstallments);
+    
+    setRemainingValue(remaining);
+    setTotalPaidValue(totalPaid);
+    setRemainingInstallments(remainingCount);
+    
     setSelectedContractForCarne({ enrollment, contract });
     
-    // Pre-fill with contract installments and due day from enrollment
+    // Pre-fill with remaining installments and due day from enrollment
     const contractContent = contract.contract_content as any;
     let savedDueDay = contractContent?.dueDayOfMonth;
-    const savedInstallments = contract.installment_count;
     
     // Se não tiver dueDayOfMonth salvo, buscar das parcelas existentes (parcela regular, não entrada)
-    if (!savedDueDay) {
-      const { data: existingPayments } = await supabase
-        .from('payments')
-        .select('due_date, description')
-        .eq('contract_id', contract.id)
-        .order('due_date', { ascending: true });
+    if (!savedDueDay && existingPayments && existingPayments.length > 0) {
+      // Priorizar parcela regular (não entrada/pro-rata)
+      const regularPayment = existingPayments.find(p => 
+        p.description?.includes('Parcela') && 
+        !p.description?.toLowerCase().includes('entrada') &&
+        !p.description?.toLowerCase().includes('pro-rata')
+      );
       
-      if (existingPayments && existingPayments.length > 0) {
-        // Priorizar parcela regular (não entrada/pro-rata)
-        const regularPayment = existingPayments.find(p => 
-          p.description?.includes('Parcela') && 
-          !p.description?.toLowerCase().includes('entrada') &&
-          !p.description?.toLowerCase().includes('pro-rata')
-        );
-        
-        if (regularPayment) {
-          // Extrair dia usando método local (evita problemas de timezone)
-          const [year, month, day] = regularPayment.due_date.split('-').map(Number);
-          savedDueDay = day;
-        } else {
-          // Se só tem entrada, usar o primeiro pagamento
-          const [year, month, day] = existingPayments[0].due_date.split('-').map(Number);
-          savedDueDay = day;
-        }
+      if (regularPayment) {
+        // Extrair dia usando método local (evita problemas de timezone)
+        const [, , day] = regularPayment.due_date.split('-').map(Number);
+        savedDueDay = day;
+      } else {
+        // Se só tem entrada, usar o primeiro pagamento
+        const [, , day] = existingPayments[0].due_date.split('-').map(Number);
+        savedDueDay = day;
       }
     }
     
-    setCarneInstallments(savedInstallments?.toString() || '6');
+    // Pre-preencher com parcelas restantes
+    setCarneInstallments(remainingCount.toString());
     setCarneDueDay(savedDueDay?.toString() || '10');
     setShowCarneModal(true);
   };
@@ -495,10 +516,10 @@ export default function Contracts() {
         throw new Error('Erro ao criar cliente no sistema de pagamentos');
       }
       
-      // 2. Calculate values
+      // 2. Calculate values - usar saldo restante ao invés do valor total
       const installmentCount = parseInt(carneInstallments);
-      const regularValue = Number(contract.total_value) / installmentCount;
-      const totalValue = Number(contract.total_value);
+      const totalValue = remainingValue;
+      const regularValue = totalValue / installmentCount;
       
       // 3. Calculate first due date
       // If selected day hasn't passed yet this month -> due this month
@@ -881,10 +902,27 @@ export default function Contracts() {
               <div className="bg-secondary/30 rounded-lg p-4">
                 <p className="text-sm text-muted-foreground">Aluno</p>
                 <p className="font-medium">{getStudentById(selectedContractForCarne.enrollment.student_id)?.name}</p>
-                <p className="text-sm text-muted-foreground mt-2">Valor Total do Contrato</p>
-                <p className="text-xl font-bold text-primary">
+                
+                <p className="text-sm text-muted-foreground mt-3">Valor Total do Contrato</p>
+                <p className="text-lg font-medium">
                   R$ {Number(selectedContractForCarne.contract.total_value).toFixed(2).replace('.', ',')}
                 </p>
+                
+                {totalPaidValue > 0 && (
+                  <>
+                    <p className="text-sm text-muted-foreground mt-2">Já Pago</p>
+                    <p className="text-md text-success font-medium">
+                      - R$ {totalPaidValue.toFixed(2).replace('.', ',')}
+                    </p>
+                  </>
+                )}
+                
+                <div className="border-t border-border/50 mt-3 pt-3">
+                  <p className="text-sm text-muted-foreground">Saldo a Gerar</p>
+                  <p className="text-xl font-bold text-primary">
+                    R$ {remainingValue.toFixed(2).replace('.', ',')}
+                  </p>
+                </div>
               </div>
               
               {/* Installment Config */}
@@ -896,9 +934,9 @@ export default function Contracts() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                      {Array.from({ length: remainingInstallments }, (_, i) => i + 1).map((n) => (
                         <SelectItem key={n} value={n.toString()}>
-                          {n}x de R$ {(Number(selectedContractForCarne.contract.total_value) / n).toFixed(2).replace('.', ',')}
+                          {n}x de R$ {(remainingValue / n).toFixed(2).replace('.', ',')}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -931,7 +969,7 @@ export default function Contracts() {
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm text-muted-foreground">Valor da Parcela</span>
                   <span className="font-medium">
-                    R$ {(Number(selectedContractForCarne.contract.total_value) / parseInt(carneInstallments)).toFixed(2).replace('.', ',')}
+                    R$ {(remainingValue / parseInt(carneInstallments || '1')).toFixed(2).replace('.', ',')}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-primary/20">
