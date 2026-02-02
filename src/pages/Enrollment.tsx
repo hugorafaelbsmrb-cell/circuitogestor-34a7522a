@@ -12,6 +12,8 @@ import { useSchool } from '@/contexts/SchoolContext';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
+import { useAutomationSettings } from '@/hooks/useAutomationSettings';
+import { useWapiMessage } from '@/hooks/useWapiMessage';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { EnrollmentSummary } from '@/components/enrollment/EnrollmentSummary';
 import { ContractPrintView } from '@/components/enrollment/ContractPrintView';
@@ -89,8 +91,10 @@ export default function Enrollment() {
     isLoading: isDataLoading
   } = useSchool();
   
-  const { isLoading: isAsaasLoading, createCustomer, createBoleto: createAsaasBoleto, createCarne: createAsaasCarne, getInstallmentBooklet, listInstallmentPayments } = useAsaasPayment();
+  const { isLoading: isAsaasLoading, createCustomer, createBoleto: createAsaasBoleto, createCarne: createAsaasCarne, getInstallmentBooklet, listInstallmentPayments, getPixQrCode } = useAsaasPayment();
   const { branding } = useSystemBranding();
+  const { isEnabled: isAutomationEnabled } = useAutomationSettings();
+  const { sendMessage: sendWhatsAppMessage } = useWapiMessage();
   
   // Check if this is an enrollment for an existing student (second course flow)
   const existingStudentId = searchParams.get('studentId');
@@ -1142,6 +1146,47 @@ export default function Enrollment() {
             installment_number: 1,
             external_reference: enrollment.id,
           });
+          
+          // Auto-send PIX code if automation is enabled
+          if (isAutomationEnabled('auto_payment_pix_created') && entryBoleto.id) {
+            try {
+              const pixResult = await getPixQrCode(entryBoleto.id);
+              if (pixResult?.payload && guardian.phone) {
+                const valueFormatted = `R$ ${entryBoleto.value.toFixed(2).replace('.', ',')}`;
+                const dueDateFormatted = new Date(entryBoleto.dueDate).toLocaleDateString('pt-BR');
+                const firstName = guardian.name.split(' ')[0];
+                const schoolName = contractConfig?.school_name || branding?.name || 'Escola';
+                
+                const pixMessage = `💳 *Código PIX para Pagamento*
+
+Olá, ${firstName}!
+
+Segue o código PIX para pagamento da ${useProRata ? 'parcela pro-rata (entrada)' : 'primeira parcela'} da matrícula de *${student.name}*:
+
+📋 *Descrição:* ${useProRata ? 'Pro-Rata (1ª Parcela)' : 'Entrada (1ª Parcela)'} - ${selectedCourse.name}
+💰 *Valor:* ${valueFormatted}
+📅 *Vencimento:* ${dueDateFormatted}
+
+📱 *Código PIX (copie e cole):*
+\`\`\`
+${pixResult.payload}
+\`\`\`
+
+✅ Basta copiar o código acima e colar no seu aplicativo bancário!
+
+Att,
+*${schoolName}*`;
+
+                await sendWhatsAppMessage({
+                  phone: guardian.phone,
+                  message: pixMessage,
+                });
+                console.log('PIX code sent automatically for entry boleto:', entryBoleto.id);
+              }
+            } catch (pixError) {
+              console.warn('Failed to send PIX automatically (non-blocking):', pixError);
+            }
+          }
         }
       }
       
