@@ -690,6 +690,17 @@ export function useSchoolData() {
     const enrollment = enrollments.find(e => e.id === enrollmentId);
     if (!enrollment) throw new Error('Matrícula não encontrada');
 
+    // IMPORTANT: Clear enrollment_id reference in leads table FIRST
+    // This prevents foreign key constraint violation
+    const { error: leadsError } = await supabase
+      .from('leads')
+      .update({ enrollment_id: null })
+      .eq('enrollment_id', enrollmentId);
+    
+    if (leadsError) {
+      console.warn('Erro ao limpar referência de lead:', leadsError);
+    }
+
     // Get related carnês
     const enrollmentCarnes = carnes.filter(c => c.enrollment_id === enrollmentId);
     
