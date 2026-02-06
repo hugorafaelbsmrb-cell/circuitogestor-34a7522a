@@ -99,3 +99,6 @@ verify_jwt = false
 
 [functions.asaas-sync-payments]
 verify_jwt = false
+
+[functions.wapi-sync-lead-contacts]
+verify_jwt = false
