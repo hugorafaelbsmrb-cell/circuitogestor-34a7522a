@@ -681,6 +681,8 @@ export type Database = {
           custom_duration: string | null
           custom_name: string | null
           custom_price: number | null
+          floating_cta_enabled: boolean | null
+          floating_cta_text: string | null
           gallery_images: Json | null
           hero_image: string | null
           hero_subtitle: string | null
@@ -689,6 +691,8 @@ export type Database = {
           is_active: boolean
           testimonials: Json | null
           updated_at: string
+          urgency_banner_message: string | null
+          urgency_banner_variant: string | null
         }
         Insert: {
           benefits?: Json | null
@@ -698,6 +702,8 @@ export type Database = {
           custom_duration?: string | null
           custom_name?: string | null
           custom_price?: number | null
+          floating_cta_enabled?: boolean | null
+          floating_cta_text?: string | null
           gallery_images?: Json | null
           hero_image?: string | null
           hero_subtitle?: string | null
@@ -706,6 +712,8 @@ export type Database = {
           is_active?: boolean
           testimonials?: Json | null
           updated_at?: string
+          urgency_banner_message?: string | null
+          urgency_banner_variant?: string | null
         }
         Update: {
           benefits?: Json | null
@@ -715,6 +723,8 @@ export type Database = {
           custom_duration?: string | null
           custom_name?: string | null
           custom_price?: number | null
+          floating_cta_enabled?: boolean | null
+          floating_cta_text?: string | null
           gallery_images?: Json | null
           hero_image?: string | null
           hero_subtitle?: string | null
@@ -723,6 +733,8 @@ export type Database = {
           is_active?: boolean
           testimonials?: Json | null
           updated_at?: string
+          urgency_banner_message?: string | null
+          urgency_banner_variant?: string | null
         }
         Relationships: [
           {
