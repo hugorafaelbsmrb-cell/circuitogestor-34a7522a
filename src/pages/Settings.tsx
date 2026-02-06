@@ -155,6 +155,7 @@ export default function Settings() {
     setIsSaving(true);
     
     try {
+      // Update existing settings
       for (const setting of settings) {
         if (editedSettings[setting.key] !== (setting.value || '')) {
           const { error } = await supabase
@@ -164,6 +165,21 @@ export default function Settings() {
           
           if (error) throw error;
         }
+      }
+      
+      // Create ASAAS_WEBHOOK_SECRET if it doesn't exist but has a value
+      const webhookSecretExists = settings.some(s => s.key === 'ASAAS_WEBHOOK_SECRET');
+      if (!webhookSecretExists && editedSettings['ASAAS_WEBHOOK_SECRET']) {
+        const { error } = await supabase
+          .from('app_settings')
+          .insert({
+            key: 'ASAAS_WEBHOOK_SECRET',
+            value: editedSettings['ASAAS_WEBHOOK_SECRET'],
+            description: 'Token de autenticação para o webhook do Asaas',
+            is_secret: true,
+          });
+        
+        if (error && !error.message.includes('duplicate key')) throw error;
       }
 
       toast({
@@ -741,20 +757,25 @@ export default function Settings() {
         );
 
       case 'webhooks':
+        const webhookSecret = settings.find(s => s.key === 'ASAAS_WEBHOOK_SECRET');
+        const webhookSecretValue = editedSettings['ASAAS_WEBHOOK_SECRET'] || '';
+        const isSecretConfigured = webhookSecretValue && webhookSecretValue.length > 0;
+        
         return (
           <Card className="border-border/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Webhook className="w-5 h-5" />
-                Webhook de Pagamentos
+                Webhook de Pagamentos (Asaas)
               </CardTitle>
               <CardDescription>
-                Configure esta URL no painel do seu gateway de pagamento (Asaas)
+                Configure esta URL e token de segurança no painel do Asaas
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              {/* URL Section */}
               <div className="space-y-2">
-                <Label className="font-medium">URL do Webhook</Label>
+                <Label className="font-medium">1. URL do Webhook</Label>
                 <div className="flex gap-2">
                   <Input
                     readOnly
@@ -776,10 +797,88 @@ export default function Settings() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Copie esta URL e configure no painel do Asaas em: Configurações → Integrações → Webhooks
+                  Configure no Asaas: Integrações → Webhooks → Nova configuração
                 </p>
               </div>
               
+              {/* Token Section */}
+              <div className="space-y-2">
+                <Label className="font-medium flex items-center gap-2">
+                  2. Token de Autenticação
+                  {isSecretConfigured ? (
+                    <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Configurado
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                      <AlertTriangle className="w-3 h-3 mr-1" />
+                      Não configurado
+                    </Badge>
+                  )}
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    type={showSecrets['ASAAS_WEBHOOK_SECRET'] ? 'text' : 'password'}
+                    value={webhookSecretValue}
+                    onChange={(e) => setEditedSettings(prev => ({ ...prev, 'ASAAS_WEBHOOK_SECRET': e.target.value }))}
+                    placeholder="Defina um token seguro (ex: minha-escola-webhook-2024)"
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => toggleShowSecret('ASAAS_WEBHOOK_SECRET')}
+                  >
+                    {showSecrets['ASAAS_WEBHOOK_SECRET'] ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </Button>
+                  {webhookSecretValue && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        navigator.clipboard.writeText(webhookSecretValue);
+                        toast({
+                          title: 'Token copiado',
+                          description: 'Use este token no campo "Token de acesso" do webhook no Asaas.',
+                        });
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Este token deve ser configurado no campo <strong>"Token de acesso"</strong> do webhook no painel Asaas
+                </p>
+                {!webhookSecret && webhookSecretValue && (
+                  <p className="text-xs text-amber-500 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    Clique em "Salvar alterações" para criar esta configuração
+                  </p>
+                )}
+              </div>
+              
+              {/* Instructions */}
+              <div className="p-4 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                <h4 className="font-medium mb-2 text-blue-700 dark:text-blue-400">📋 Passo a passo</h4>
+                <ol className="text-sm text-muted-foreground space-y-2 list-decimal list-inside">
+                  <li>Defina um token seguro no campo acima e salve</li>
+                  <li>Acesse o <strong>Painel Asaas</strong> → <strong>Integrações</strong> → <strong>Webhooks</strong></li>
+                  <li>Clique em <strong>"Nova configuração"</strong></li>
+                  <li>Cole a <strong>URL</strong> do webhook acima</li>
+                  <li>No campo <strong>"Token de acesso"</strong>, cole o mesmo token definido aqui</li>
+                  <li>Selecione os eventos: PAYMENT_RECEIVED, PAYMENT_CONFIRMED, PAYMENT_OVERDUE</li>
+                  <li>Salve a configuração no Asaas</li>
+                </ol>
+              </div>
+              
+              {/* Supported Events */}
               <div className="p-4 rounded-lg bg-muted/50 border border-border">
                 <h4 className="font-medium mb-2 flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-500" />
@@ -792,6 +891,20 @@ export default function Settings() {
                   <li>• <code className="text-xs bg-muted px-1 rounded">PAYMENT_REFUNDED</code> - Pagamento estornado</li>
                 </ul>
               </div>
+              
+              {/* Security Warning */}
+              {!isSecretConfigured && (
+                <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                  <h4 className="font-medium mb-1 text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4" />
+                    Aviso de Segurança
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    Sem o token de autenticação configurado, o webhook aceita requisições de qualquer origem. 
+                    Configure um token para garantir que apenas o Asaas possa enviar notificações.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         );
