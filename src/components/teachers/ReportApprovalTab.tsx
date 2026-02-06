@@ -86,6 +86,7 @@ export default function ReportApprovalTab() {
   const [isSendingNotification, setIsSendingNotification] = useState<string | null>(null);
   const [isHidingReport, setIsHidingReport] = useState<string | null>(null);
   const [autoNotifyEnabled, setAutoNotifyEnabled] = useState(false);
+  const [autoTeacherNotifyEnabled, setAutoTeacherNotifyEnabled] = useState(false);
   const [isTogglingAuto, setIsTogglingAuto] = useState(false);
 
   // Combine local and external reports
@@ -98,8 +99,10 @@ export default function ReportApprovalTab() {
   }, [statusFilter]);
 
   const checkAutoNotifyStatus = async () => {
-    const enabled = isEnabled('auto_report_notification');
-    setAutoNotifyEnabled(enabled);
+    const parentEnabled = isEnabled('auto_report_notification');
+    const teacherEnabled = isEnabled('auto_teacher_report_notification');
+    setAutoNotifyEnabled(parentEnabled);
+    setAutoTeacherNotifyEnabled(teacherEnabled);
   };
 
   useEffect(() => {
@@ -513,18 +516,33 @@ export default function ReportApprovalTab() {
         description: 'O relatório foi liberado para o portal de acompanhamento familiar',
       });
 
-      // Send automatic notification if enabled
+      // Send automatic notification to parent if enabled
       if (autoNotifyEnabled && report.student?.guardian?.phone) {
         try {
           await supabase.functions.invoke('send-report-notification', {
             body: { reportId },
           });
           toast({
-            title: 'Notificação enviada',
+            title: 'Notificação enviada ao responsável',
             description: `${report.student.guardian.name} foi notificado automaticamente`,
           });
         } catch (notifyError) {
-          console.error('Auto notification failed:', notifyError);
+          console.error('Parent notification failed:', notifyError);
+        }
+      }
+
+      // Send automatic notification to teacher if enabled
+      if (autoTeacherNotifyEnabled && report.teacher) {
+        try {
+          await supabase.functions.invoke('send-teacher-report-notification', {
+            body: { reportId, status: 'approved' },
+          });
+          toast({
+            title: 'Professor notificado',
+            description: `${report.teacher.name} foi notificado da aprovação`,
+          });
+        } catch (notifyError) {
+          console.error('Teacher notification failed:', notifyError);
         }
       }
 
@@ -610,10 +628,29 @@ export default function ReportApprovalTab() {
 
         if (error) throw error;
 
-        toast({
-          title: 'Relatório rejeitado',
-          description: 'O professor será notificado para revisão',
-        });
+        // Send automatic notification to teacher if enabled
+        if (autoTeacherNotifyEnabled && selectedReport.teacher) {
+          try {
+            await supabase.functions.invoke('send-teacher-report-notification', {
+              body: { 
+                reportId: selectedReport.id, 
+                status: 'rejected',
+                rejectionReason: rejectionReason.trim(),
+              },
+            });
+            toast({
+              title: 'Professor notificado',
+              description: `${selectedReport.teacher.name} foi notificado da revisão necessária`,
+            });
+          } catch (notifyError) {
+            console.error('Teacher rejection notification failed:', notifyError);
+          }
+        } else {
+          toast({
+            title: 'Relatório rejeitado',
+            description: 'O professor será notificado para revisão',
+          });
+        }
 
         setRejectionReason('');
         setIsRejectModalOpen(false);
