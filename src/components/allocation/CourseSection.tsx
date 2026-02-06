@@ -116,91 +116,92 @@ export function CourseSection({ courseName, data, teachers, shiftFilter, systemL
       <head>
         <title>Agenda - ${displayName}${teacherDisplayName ? ` - ${teacherDisplayName}` : ''}</title>
         <style>
-          @page { size: landscape; margin: 15mm; }
+          @page { size: landscape; margin: 8mm; }
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #1e293b;
             background: white;
-            padding: 20px;
+            padding: 8px;
+            font-size: 9px;
           }
           .header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding-bottom: 16px;
-            border-bottom: 3px solid #ea580c;
-            margin-bottom: 24px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #ea580c;
+            margin-bottom: 8px;
           }
           .header-left {
             display: flex;
             align-items: center;
-            gap: 16px;
+            gap: 8px;
           }
           .logo {
-            width: 50px;
-            height: 50px;
+            width: 28px;
+            height: 28px;
             object-fit: contain;
           }
           .header-info h1 {
-            font-size: 18px;
+            font-size: 12px;
             font-weight: 700;
             color: #1e293b;
           }
           .header-info p {
-            font-size: 12px;
+            font-size: 9px;
             color: #64748b;
-            margin-top: 2px;
+            margin-top: 1px;
           }
           .header-right {
             text-align: right;
           }
           .header-right .date {
-            font-size: 11px;
+            font-size: 8px;
             color: #64748b;
           }
           .header-right .student-total {
-            font-size: 14px;
+            font-size: 10px;
             font-weight: 600;
             color: #ea580c;
-            margin-top: 4px;
+            margin-top: 2px;
           }
           .course-title {
             background: linear-gradient(135deg, #1e293b, #334155);
             color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            margin-bottom: 8px;
             display: flex;
             justify-content: space-between;
             align-items: center;
           }
           .course-title h2 {
-            font-size: 16px;
+            font-size: 11px;
             font-weight: 600;
           }
           .course-title .teacher {
-            font-size: 13px;
+            font-size: 9px;
             opacity: 0.8;
           }
           .shift-section {
-            margin-bottom: 24px;
+            margin-bottom: 8px;
           }
           .shift-header {
             color: white;
-            padding: 8px 16px;
-            border-radius: 6px 6px 0 0;
+            padding: 4px 10px;
+            border-radius: 3px 3px 0 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 9px;
           }
           .student-count {
             background: rgba(255,255,255,0.2);
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            font-size: 8px;
           }
           table {
             width: 100%;
@@ -211,52 +212,53 @@ export function CourseSection({ courseName, data, teachers, shiftFilter, systemL
           }
           th {
             background: #f8fafc;
-            padding: 10px;
+            padding: 4px 6px;
             text-align: center;
             font-weight: 600;
-            font-size: 12px;
+            font-size: 8px;
             color: #475569;
             border: 1px solid #e2e8f0;
           }
           td {
-            padding: 8px;
+            padding: 3px 4px;
             vertical-align: top;
             border: 1px solid #e2e8f0;
-            min-width: 140px;
+            min-width: 100px;
           }
           .student-item {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            padding: 6px 8px;
-            margin-bottom: 4px;
+            border-radius: 2px;
+            padding: 2px 4px;
+            margin-bottom: 2px;
           }
           .student-name {
             display: block;
-            font-size: 11px;
+            font-size: 8px;
             font-weight: 500;
             color: #1e293b;
+            line-height: 1.2;
           }
           .student-time {
             display: block;
-            font-size: 9px;
+            font-size: 7px;
             color: #64748b;
-            margin-top: 2px;
+            margin-top: 1px;
           }
           .empty {
             color: #94a3b8;
-            font-size: 12px;
+            font-size: 8px;
             display: block;
             text-align: center;
-            padding: 20px;
+            padding: 8px;
           }
           .footer {
-            margin-top: 30px;
-            padding-top: 16px;
+            margin-top: 10px;
+            padding-top: 6px;
             border-top: 1px solid #e2e8f0;
             display: flex;
             justify-content: space-between;
-            font-size: 10px;
+            font-size: 7px;
             color: #64748b;
           }
         </style>
