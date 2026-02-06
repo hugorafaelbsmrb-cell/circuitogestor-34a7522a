@@ -52,6 +52,10 @@ interface CourseLandingData {
   benefits: Benefit[];
   gallery_images: GalleryImage[];
   is_active: boolean;
+  custom_name: string;
+  custom_description: string;
+  custom_duration: string;
+  custom_price: string;
 }
 
 const ICON_OPTIONS = ['Star', 'Award', 'GraduationCap', 'Clock', 'Heart', 'Lightbulb', 'Target', 'Users', 'Rocket', 'Brain'];
@@ -132,6 +136,10 @@ export function CourseLandingEditor() {
           benefits,
           gallery_images: galleryImages,
           is_active: data.is_active,
+          custom_name: (data as any).custom_name || '',
+          custom_description: (data as any).custom_description || '',
+          custom_duration: (data as any).custom_duration || '',
+          custom_price: (data as any).custom_price?.toString() || '',
         });
       } else {
         // Create default data
@@ -143,6 +151,10 @@ export function CourseLandingEditor() {
           benefits: [],
           gallery_images: [],
           is_active: true,
+          custom_name: '',
+          custom_description: '',
+          custom_duration: '',
+          custom_price: '',
         });
       }
     } catch (error) {
@@ -164,6 +176,10 @@ export function CourseLandingEditor() {
         benefits: landingData.benefits as unknown as Json,
         gallery_images: landingData.gallery_images as unknown as Json,
         is_active: landingData.is_active,
+        custom_name: landingData.custom_name || null,
+        custom_description: landingData.custom_description || null,
+        custom_duration: landingData.custom_duration || null,
+        custom_price: landingData.custom_price ? parseFloat(landingData.custom_price) : null,
       };
 
       if (landingData.id) {
@@ -517,6 +533,54 @@ export function CourseLandingEditor() {
                                 {landingData.hero_image && (
                                   <img src={landingData.hero_image} alt="Hero preview" className="h-32 w-full object-cover rounded-lg" />
                                 )}
+                              </div>
+                            </div>
+
+                            {/* Custom Course Info */}
+                            <div className="space-y-4">
+                              <h4 className="font-medium">Informações do Curso (personalizadas)</h4>
+                              <p className="text-sm text-muted-foreground">
+                                Deixe em branco para usar os dados originais do curso.
+                              </p>
+                              
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Nome do Curso</Label>
+                                  <Input
+                                    value={landingData.custom_name}
+                                    onChange={(e) => setLandingData({ ...landingData, custom_name: e.target.value })}
+                                    placeholder={selectedCourse?.name || 'Nome original do curso'}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Duração</Label>
+                                  <Input
+                                    value={landingData.custom_duration}
+                                    onChange={(e) => setLandingData({ ...landingData, custom_duration: e.target.value })}
+                                    placeholder="Ex: 6 meses"
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>Descrição</Label>
+                                <Textarea
+                                  value={landingData.custom_description}
+                                  onChange={(e) => setLandingData({ ...landingData, custom_description: e.target.value })}
+                                  placeholder="Descrição personalizada do curso"
+                                  rows={2}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>Preço (R$)</Label>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={landingData.custom_price}
+                                  onChange={(e) => setLandingData({ ...landingData, custom_price: e.target.value })}
+                                  placeholder="Preço personalizado"
+                                />
                               </div>
                             </div>
 

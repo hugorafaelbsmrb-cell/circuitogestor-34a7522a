@@ -677,6 +677,10 @@ export type Database = {
           benefits: Json | null
           course_id: string
           created_at: string
+          custom_description: string | null
+          custom_duration: string | null
+          custom_name: string | null
+          custom_price: number | null
           gallery_images: Json | null
           hero_image: string | null
           hero_subtitle: string | null
@@ -689,6 +693,10 @@ export type Database = {
           benefits?: Json | null
           course_id: string
           created_at?: string
+          custom_description?: string | null
+          custom_duration?: string | null
+          custom_name?: string | null
+          custom_price?: number | null
           gallery_images?: Json | null
           hero_image?: string | null
           hero_subtitle?: string | null
@@ -701,6 +709,10 @@ export type Database = {
           benefits?: Json | null
           course_id?: string
           created_at?: string
+          custom_description?: string | null
+          custom_duration?: string | null
+          custom_name?: string | null
+          custom_price?: number | null
           gallery_images?: Json | null
           hero_image?: string | null
           hero_subtitle?: string | null

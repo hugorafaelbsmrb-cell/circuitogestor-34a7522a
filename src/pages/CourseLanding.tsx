@@ -37,6 +37,10 @@ interface CourseLandingData {
   benefits: Benefit[];
   gallery_images: CampaignImage[];
   is_active: boolean;
+  custom_name: string | null;
+  custom_description: string | null;
+  custom_duration: string | null;
+  custom_price: number | null;
 }
 
 export default function CourseLanding() {
@@ -114,6 +118,10 @@ export default function CourseLanding() {
           benefits,
           gallery_images: galleryImages,
           is_active: landingPageData.is_active,
+          custom_name: (landingPageData as any).custom_name || null,
+          custom_description: (landingPageData as any).custom_description || null,
+          custom_duration: (landingPageData as any).custom_duration || null,
+          custom_price: (landingPageData as any).custom_price || null,
         });
       } else {
         // Use course defaults if no custom landing page
@@ -124,6 +132,10 @@ export default function CourseLanding() {
           benefits: [],
           gallery_images: [],
           is_active: true,
+          custom_name: null,
+          custom_description: null,
+          custom_duration: null,
+          custom_price: null,
         });
       }
     } catch (error) {
@@ -190,22 +202,30 @@ export default function CourseLanding() {
         <div className="max-w-2xl mx-auto">
           <Card className="overflow-hidden border-2 border-primary/20">
             <CardHeader className="bg-primary/5 text-center">
-              <CardTitle className="text-2xl">{course.name}</CardTitle>
-              {course.description && (
-                <p className="text-muted-foreground mt-2">{course.description}</p>
+              <CardTitle className="text-2xl">
+                {landingData.custom_name || course.name}
+              </CardTitle>
+              {(landingData.custom_description || course.description) && (
+                <p className="text-muted-foreground mt-2">
+                  {landingData.custom_description || course.description}
+                </p>
               )}
             </CardHeader>
             <CardContent className="p-6">
               <div className="flex flex-col sm:flex-row justify-center gap-6 text-center">
                 <div>
                   <p className="text-sm text-muted-foreground">Duração</p>
-                  <p className="font-semibold text-lg">{course.duration}</p>
+                  <p className="font-semibold text-lg">
+                    {landingData.custom_duration || course.duration}
+                  </p>
                 </div>
                 <div className="border-l border-border hidden sm:block" />
                 <div>
                   <p className="text-sm text-muted-foreground">Investimento</p>
                   <p className="font-semibold text-lg text-primary">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(course.price)}
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                      landingData.custom_price ?? course.price
+                    )}
                     <span className="text-sm font-normal text-muted-foreground">/mês</span>
                   </p>
                 </div>
