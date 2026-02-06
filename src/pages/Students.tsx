@@ -427,7 +427,7 @@ export default function Students() {
                           size="icon"
                           onClick={() => handleEditScheduleClick(student)}
                           title="Gerenciar horários"
-                          className="text-accent-foreground hover:text-accent-foreground"
+                          className="text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
                         >
                           <Clock className="w-4 h-4" />
                         </Button>
