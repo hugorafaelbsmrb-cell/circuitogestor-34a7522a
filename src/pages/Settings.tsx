@@ -55,6 +55,7 @@ import { CanteenMessageConfigCard } from '@/components/settings/CanteenMessageCo
 import { ReportNotificationConfigCard } from '@/components/settings/ReportNotificationConfigCard';
 import { DropboxConfigCard } from '@/components/settings/DropboxConfigCard';
 import { EmailConfigCard } from '@/components/settings/EmailConfigCard';
+import { TeacherReportNotificationCard } from '@/components/settings/TeacherReportNotificationCard';
 import { cn } from '@/lib/utils';
 import '@/styles/print.css';
 
@@ -753,6 +754,7 @@ export default function Settings() {
             <QuickRepliesConfigCard />
             <CanteenMessageConfigCard />
             <ReportNotificationConfigCard />
+            <TeacherReportNotificationCard />
           </div>
         );
 
