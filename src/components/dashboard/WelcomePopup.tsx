@@ -57,16 +57,22 @@ export function WelcomePopup() {
     return dueDate < now;
   }).length;
 
-  // Get today's birthdays
+  // Get this month's birthdays
   const today = new Date();
-  const todayMonth = today.getMonth() + 1;
+  const currentMonth = today.getMonth() + 1;
   const todayDay = today.getDate();
   
-  const birthdayStudents = students.filter(student => {
-    if (!student.birth_date || !student.is_active) return false;
-    const birthDate = new Date(student.birth_date);
-    return birthDate.getMonth() + 1 === todayMonth && birthDate.getDate() === todayDay;
-  });
+  const birthdayStudents = students
+    .filter(student => {
+      if (!student.birth_date || !student.is_active) return false;
+      const birthDate = new Date(student.birth_date);
+      return birthDate.getMonth() + 1 === currentMonth;
+    })
+    .sort((a, b) => {
+      const dayA = new Date(a.birth_date).getDate();
+      const dayB = new Date(b.birth_date).getDate();
+      return dayA - dayB;
+    });
 
   const greeting = getGreeting();
   const GreetingIcon = greeting.icon;
@@ -112,23 +118,29 @@ export function WelcomePopup() {
               <div className="flex items-center justify-center gap-2 mb-3">
                 <Cake className="w-5 h-5 text-pink-500" />
                 <span className="font-semibold text-foreground">
-                  🎂 Aniversariantes de Hoje
+                  🎂 Aniversariantes do Mês
                 </span>
               </div>
-              <div className="space-y-1">
-                {birthdayStudents.slice(0, 5).map(student => {
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {birthdayStudents.slice(0, 10).map(student => {
                   const birthDate = new Date(student.birth_date);
+                  const birthDay = birthDate.getDate();
                   const age = today.getFullYear() - birthDate.getFullYear();
+                  const isToday = birthDay === todayDay;
                   return (
-                    <div key={student.id} className="text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">{student.name}</span>
-                      <span className="ml-1">({age} anos)</span>
+                    <div key={student.id} className={`text-sm ${isToday ? 'bg-pink-500/20 rounded px-2 py-1' : ''}`}>
+                      <span className="text-muted-foreground">{birthDay.toString().padStart(2, '0')}/</span>
+                      <span className={`font-medium ${isToday ? 'text-pink-600' : 'text-foreground'}`}>
+                        {student.name}
+                      </span>
+                      <span className="ml-1 text-muted-foreground">({age} anos)</span>
+                      {isToday && <span className="ml-1">🎉</span>}
                     </div>
                   );
                 })}
-                {birthdayStudents.length > 5 && (
+                {birthdayStudents.length > 10 && (
                   <div className="text-xs text-muted-foreground mt-2">
-                    +{birthdayStudents.length - 5} outros aniversariantes
+                    +{birthdayStudents.length - 10} outros aniversariantes
                   </div>
                 )}
               </div>
