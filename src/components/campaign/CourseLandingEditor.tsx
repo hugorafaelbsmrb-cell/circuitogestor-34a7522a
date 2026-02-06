@@ -43,6 +43,13 @@ interface GalleryImage {
   title?: string;
 }
 
+interface Testimonial {
+  name: string;
+  role: string;
+  content: string;
+  rating: number;
+}
+
 interface CourseLandingData {
   id?: string;
   course_id: string;
@@ -51,6 +58,7 @@ interface CourseLandingData {
   hero_image: string;
   benefits: Benefit[];
   gallery_images: GalleryImage[];
+  testimonials: Testimonial[];
   is_active: boolean;
   custom_name: string;
   custom_description: string;
@@ -59,6 +67,7 @@ interface CourseLandingData {
 }
 
 const ICON_OPTIONS = ['Star', 'Award', 'GraduationCap', 'Clock', 'Heart', 'Lightbulb', 'Target', 'Users', 'Rocket', 'Brain'];
+const RATING_OPTIONS = [1, 2, 3, 4, 5];
 
 export function CourseLandingEditor() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -108,6 +117,7 @@ export function CourseLandingEditor() {
         // Parse JSON fields
         let benefits: Benefit[] = [];
         let galleryImages: GalleryImage[] = [];
+        let testimonials: Testimonial[] = [];
 
         try {
           if (data.benefits) {
@@ -127,6 +137,15 @@ export function CourseLandingEditor() {
           }
         } catch { /* ignore */ }
 
+        try {
+          if ((data as any).testimonials) {
+            const rawTestimonials = typeof (data as any).testimonials === 'string'
+              ? JSON.parse((data as any).testimonials)
+              : (data as any).testimonials;
+            testimonials = Array.isArray(rawTestimonials) ? rawTestimonials as unknown as Testimonial[] : [];
+          }
+        } catch { /* ignore */ }
+
         setLandingData({
           id: data.id,
           course_id: course.id,
@@ -135,6 +154,7 @@ export function CourseLandingEditor() {
           hero_image: data.hero_image || '',
           benefits,
           gallery_images: galleryImages,
+          testimonials,
           is_active: data.is_active,
           custom_name: (data as any).custom_name || '',
           custom_description: (data as any).custom_description || '',
@@ -150,6 +170,7 @@ export function CourseLandingEditor() {
           hero_image: '',
           benefits: [],
           gallery_images: [],
+          testimonials: [],
           is_active: true,
           custom_name: '',
           custom_description: '',
@@ -175,6 +196,7 @@ export function CourseLandingEditor() {
         hero_image: landingData.hero_image,
         benefits: landingData.benefits as unknown as Json,
         gallery_images: landingData.gallery_images as unknown as Json,
+        testimonials: landingData.testimonials as unknown as Json,
         is_active: landingData.is_active,
         custom_name: landingData.custom_name || null,
         custom_description: landingData.custom_description || null,
@@ -349,6 +371,31 @@ export function CourseLandingEditor() {
     setLandingData({
       ...landingData,
       benefits: landingData.benefits.filter((_, i) => i !== index),
+    });
+  };
+
+  // Testimonials management
+  const addTestimonial = () => {
+    if (!landingData) return;
+    setLandingData({
+      ...landingData,
+      testimonials: [...landingData.testimonials, { name: '', role: '', content: '', rating: 5 }],
+    });
+  };
+
+  const updateTestimonial = (index: number, field: keyof Testimonial, value: string | number) => {
+    if (!landingData) return;
+    setLandingData({
+      ...landingData,
+      testimonials: landingData.testimonials.map((t, i) => i === index ? { ...t, [field]: value } : t),
+    });
+  };
+
+  const removeTestimonial = (index: number) => {
+    if (!landingData) return;
+    setLandingData({
+      ...landingData,
+      testimonials: landingData.testimonials.filter((_, i) => i !== index),
     });
   };
 
@@ -688,6 +735,72 @@ export function CourseLandingEditor() {
                                   <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
                                   <p className="text-sm">Nenhuma imagem na galeria</p>
                                 </div>
+                              )}
+                            </div>
+
+                            {/* Testimonials Section */}
+                            <div className="space-y-4">
+                              <div className="flex items-center justify-between">
+                                <h4 className="font-medium">Depoimentos</h4>
+                                <Button size="sm" variant="outline" onClick={addTestimonial}>
+                                  <Plus className="w-4 h-4 mr-1" />
+                                  Adicionar
+                                </Button>
+                              </div>
+
+                              {landingData.testimonials.map((testimonial, index) => (
+                                <div key={index} className="p-4 border rounded-lg space-y-3">
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1 grid grid-cols-2 gap-3">
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Nome</Label>
+                                        <Input
+                                          value={testimonial.name}
+                                          onChange={(e) => updateTestimonial(index, 'name', e.target.value)}
+                                          placeholder="Nome do responsável"
+                                        />
+                                      </div>
+                                      <div className="space-y-1">
+                                        <Label className="text-xs">Relação</Label>
+                                        <Input
+                                          value={testimonial.role}
+                                          onChange={(e) => updateTestimonial(index, 'role', e.target.value)}
+                                          placeholder="Ex: Mãe do João, 8 anos"
+                                        />
+                                      </div>
+                                    </div>
+                                    <Button size="sm" variant="ghost" className="ml-2" onClick={() => removeTestimonial(index)}>
+                                      <Trash2 className="w-4 h-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Depoimento</Label>
+                                    <Textarea
+                                      value={testimonial.content}
+                                      onChange={(e) => updateTestimonial(index, 'content', e.target.value)}
+                                      placeholder="O que o responsável disse sobre o curso..."
+                                      rows={2}
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Avaliação</Label>
+                                    <select
+                                      value={testimonial.rating}
+                                      onChange={(e) => updateTestimonial(index, 'rating', parseInt(e.target.value))}
+                                      className="w-24 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                    >
+                                      {RATING_OPTIONS.map(rating => (
+                                        <option key={rating} value={rating}>{rating} ⭐</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {landingData.testimonials.length === 0 && (
+                                <p className="text-sm text-muted-foreground text-center py-4">
+                                  Nenhum depoimento adicionado. Clique em "Adicionar" para incluir depoimentos de pais.
+                                </p>
                               )}
                             </div>
 

@@ -687,6 +687,7 @@ export type Database = {
           hero_title: string | null
           id: string
           is_active: boolean
+          testimonials: Json | null
           updated_at: string
         }
         Insert: {
@@ -703,6 +704,7 @@ export type Database = {
           hero_title?: string | null
           id?: string
           is_active?: boolean
+          testimonials?: Json | null
           updated_at?: string
         }
         Update: {
@@ -719,6 +721,7 @@ export type Database = {
           hero_title?: string | null
           id?: string
           is_active?: boolean
+          testimonials?: Json | null
           updated_at?: string
         }
         Relationships: [
