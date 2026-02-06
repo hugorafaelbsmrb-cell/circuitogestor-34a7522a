@@ -42,6 +42,8 @@ export function useAllocationData() {
               name,
               birth_date,
               is_active,
+              teacher_id,
+              teacher:teachers(id, name),
               guardian:guardians(name, phone)
             )
           ),
@@ -74,6 +76,7 @@ export function useAllocationData() {
           const course = classGroup?.course;
           const schedule = classGroup?.schedule;
           const guardian = student?.guardian;
+          const teacher = student?.teacher;
 
           if (student && course && classGroup && schedule) {
             rows.push({
@@ -91,6 +94,8 @@ export function useAllocationData() {
               endTime: schedule.end_time,
               enrollmentStatus: enrollment.status,
               shift: getShift(schedule.start_time),
+              teacherId: student.teacher_id || undefined,
+              teacherName: teacher?.name || undefined,
             });
           }
         });

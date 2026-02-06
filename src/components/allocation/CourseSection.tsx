@@ -12,7 +12,13 @@ interface CourseSectionProps {
 }
 
 export function CourseSection({ courseName, data, teachers, shiftFilter }: CourseSectionProps) {
-  const courseTeachers = teachers.filter(t => t.courseId === data.courseId);
+  // For Reforço Escolar grouped by teacher, use the teacher from data
+  // For other courses, find teachers by courseId
+  const isReforcoByTeacher = data.teacherId && data.teacherName;
+  const courseTeachers = isReforcoByTeacher 
+    ? [{ id: data.teacherId!, name: data.teacherName!, courseId: data.courseId, courseName }]
+    : teachers.filter(t => t.courseId === data.courseId);
+  
   const showMorning = shiftFilter === 'all' || shiftFilter === 'morning';
   const showAfternoon = shiftFilter === 'all' || shiftFilter === 'afternoon';
   
@@ -23,6 +29,17 @@ export function CourseSection({ courseName, data, teachers, shiftFilter }: Cours
     ].map(s => s.studentId))
   ];
 
+  // Extract display name (remove teacher suffix if present for cleaner display)
+  const displayName = courseName.includes(' - ') 
+    ? courseName.split(' - ')[0] 
+    : courseName;
+  
+  const teacherDisplayName = isReforcoByTeacher 
+    ? data.teacherName 
+    : courseTeachers.length > 0 
+      ? courseTeachers.map(t => t.name).join(', ')
+      : null;
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white py-4">
@@ -32,11 +49,11 @@ export function CourseSection({ courseName, data, teachers, shiftFilter }: Cours
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <CardTitle className="text-lg">{courseName}</CardTitle>
-              {courseTeachers.length > 0 && (
+              <CardTitle className="text-lg">{displayName}</CardTitle>
+              {teacherDisplayName && (
                 <p className="text-sm text-white/70 flex items-center gap-1 mt-0.5">
                   <GraduationCap className="w-3.5 h-3.5" />
-                  {courseTeachers.map(t => t.name).join(', ')}
+                  {teacherDisplayName}
                 </p>
               )}
             </div>

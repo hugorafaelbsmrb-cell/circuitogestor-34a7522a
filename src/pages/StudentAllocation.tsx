@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Calendar, Printer, Download, Loader2, Users } from 'lucide-react';
+import { Calendar, Printer, Download, Loader2, Users, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -9,6 +9,7 @@ import { useExportAllocation } from '@/components/allocation/useExportAllocation
 import { AllocationFilters } from '@/components/allocation/AllocationFilters';
 import { AllocationStats } from '@/components/allocation/AllocationStats';
 import { CourseSection } from '@/components/allocation/CourseSection';
+import { AssignTeacherModal } from '@/components/allocation/AssignTeacherModal';
 import { ShiftFilter, GroupedCourseData } from '@/components/allocation/types';
 
 export default function StudentAllocation() {
@@ -16,6 +17,7 @@ export default function StudentAllocation() {
   const [courseFilter, setCourseFilter] = useState('all');
   const [shiftFilter, setShiftFilter] = useState<ShiftFilter>('all');
   const [teacherFilter, setTeacherFilter] = useState('all');
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
 
   const { teachers, allocationData, isLoading } = useAllocationData();
 
@@ -36,15 +38,38 @@ export default function StudentAllocation() {
     return matchesSearch && matchesCourse && matchesShift && matchesTeacher;
   });
 
-  // Group by course, then shift, then day
+  // Group by course (or by teacher for "Reforço Escolar"), then shift, then day
   const groupedData = filteredData.reduce((acc, row) => {
-    if (!acc[row.courseName]) {
-      acc[row.courseName] = { morning: {}, afternoon: {}, courseId: row.courseId };
+    const isReforco = row.courseName.toLowerCase().includes('reforço');
+    
+    // For Reforço Escolar, group by teacher; for others, group by course
+    let groupKey: string;
+    let teacherId: string | undefined;
+    let teacherName: string | undefined;
+    
+    if (isReforco && row.teacherId) {
+      groupKey = `${row.courseName} - ${row.teacherName || 'Sem professor'}`;
+      teacherId = row.teacherId;
+      teacherName = row.teacherName;
+    } else if (isReforco && !row.teacherId) {
+      groupKey = `${row.courseName} - Sem professor atribuído`;
+    } else {
+      groupKey = row.courseName;
     }
-    if (!acc[row.courseName][row.shift][row.dayOfWeek]) {
-      acc[row.courseName][row.shift][row.dayOfWeek] = [];
+    
+    if (!acc[groupKey]) {
+      acc[groupKey] = { 
+        morning: {}, 
+        afternoon: {}, 
+        courseId: row.courseId,
+        teacherId,
+        teacherName
+      };
     }
-    acc[row.courseName][row.shift][row.dayOfWeek].push(row);
+    if (!acc[groupKey][row.shift][row.dayOfWeek]) {
+      acc[groupKey][row.shift][row.dayOfWeek] = [];
+    }
+    acc[groupKey][row.shift][row.dayOfWeek].push(row);
     return acc;
   }, {} as Record<string, GroupedCourseData>);
 
@@ -75,6 +100,10 @@ export default function StudentAllocation() {
           <p className="page-subtitle">Organizado por curso, professor e turno</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setAssignModalOpen(true)} className="gap-2">
+            <UserPlus className="w-4 h-4" />
+            Atribuir Professoras
+          </Button>
           <Button variant="outline" onClick={handleExportCSV} disabled={isGenerating} className="gap-2">
             {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             CSV
@@ -137,6 +166,11 @@ export default function StudentAllocation() {
           </Card>
         )}
       </div>
+
+      <AssignTeacherModal 
+        open={assignModalOpen} 
+        onOpenChange={setAssignModalOpen} 
+      />
     </div>
   );
 }
