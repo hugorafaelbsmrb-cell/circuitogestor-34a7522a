@@ -66,7 +66,7 @@ async function getAsaasConfig(): Promise<AsaasConfig> {
   console.log("=== CONFIGURAÇÃO ASAAS ===");
   console.log("Ambiente:", isProduction ? "PRODUÇÃO" : "SANDBOX");
   console.log("URL Base:", baseUrl);
-  console.log("API Key (primeiros 20 chars):", apiKey.substring(0, 20) + "...");
+  console.log("API Key configurada:", apiKey ? "Sim" : "Não");
   console.log("Juros:", interestValue + "% | Multa:", fineValue + "%");
   console.log("Desconto:", discountEnabled ? `${discountValue}% até ${discountDays} dias antes` : "Desabilitado");
   console.log("==========================");
