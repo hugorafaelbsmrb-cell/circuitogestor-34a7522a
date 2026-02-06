@@ -25,6 +25,13 @@ interface Benefit {
   description: string;
 }
 
+interface Testimonial {
+  name: string;
+  role: string;
+  content: string;
+  rating: number;
+}
+
 interface Course {
   id: string;
   name: string;
@@ -40,6 +47,7 @@ interface CourseLandingData {
   hero_image: string | null;
   benefits: Benefit[];
   gallery_images: CampaignImage[];
+  testimonials: Testimonial[];
   is_active: boolean;
   custom_name: string | null;
   custom_description: string | null;
@@ -96,6 +104,7 @@ export default function CourseLanding() {
         // Parse JSON fields
         let benefits: Benefit[] = [];
         let galleryImages: CampaignImage[] = [];
+        let testimonials: Testimonial[] = [];
 
         try {
           if (landingPageData.benefits) {
@@ -115,12 +124,22 @@ export default function CourseLanding() {
           }
         } catch { /* ignore */ }
 
+        try {
+          if ((landingPageData as any).testimonials) {
+            const rawTestimonials = typeof (landingPageData as any).testimonials === 'string'
+              ? JSON.parse((landingPageData as any).testimonials)
+              : (landingPageData as any).testimonials;
+            testimonials = Array.isArray(rawTestimonials) ? rawTestimonials as unknown as Testimonial[] : [];
+          }
+        } catch { /* ignore */ }
+
         setLandingData({
           hero_title: landingPageData.hero_title,
           hero_subtitle: landingPageData.hero_subtitle,
           hero_image: landingPageData.hero_image,
           benefits,
           gallery_images: galleryImages,
+          testimonials,
           is_active: landingPageData.is_active,
           custom_name: (landingPageData as any).custom_name || null,
           custom_description: (landingPageData as any).custom_description || null,
@@ -135,6 +154,7 @@ export default function CourseLanding() {
           hero_image: null,
           benefits: [],
           gallery_images: [],
+          testimonials: [],
           is_active: true,
           custom_name: null,
           custom_description: null,
@@ -229,7 +249,9 @@ export default function CourseLanding() {
       />
 
       {/* Testimonials */}
-      <TestimonialsSection />
+      <TestimonialsSection 
+        testimonials={landingData.testimonials.length > 0 ? landingData.testimonials : undefined} 
+      />
 
       {/* Lead Capture Form */}
       <section className="py-20 px-4 bg-gradient-to-b from-muted/50 to-background" id="form">
