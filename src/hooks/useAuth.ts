@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { logLogin, logLogout } from '@/utils/auditLog';
+import { checkRateLimit, formatResetTime } from '@/utils/rateLimiter';
 
 export interface UserPermissions {
   dashboard?: boolean;
@@ -108,14 +110,33 @@ export function useAuth() {
   };
 
   const signIn = async (email: string, password: string) => {
+    // Check rate limit before attempting login
+    const rateCheck = checkRateLimit(email, 'login');
+    if (!rateCheck.allowed) {
+      const resetTime = formatResetTime(rateCheck.resetIn);
+      return { 
+        error: { 
+          message: `Muitas tentativas de login. Tente novamente em ${resetTime}.`,
+          name: 'RateLimitError'
+        } as Error 
+      };
+    }
+    
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
+    
+    // Log the login attempt
+    await logLogin(email, !error);
+    
     return { error };
   };
 
   const signOut = async () => {
+    // Log logout before signing out
+    await logLogout();
+    
     const { error } = await supabase.auth.signOut();
     if (!error) {
       setUser(null);
