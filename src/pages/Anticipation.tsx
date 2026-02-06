@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   TrendingUp, 
@@ -11,10 +11,10 @@ import {
   Send,
   RefreshCw,
   DollarSign,
-  Percent,
   Calendar,
   CreditCard,
-  FileText
+  FileText,
+  Search
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -83,6 +83,80 @@ export default function Anticipation() {
   const [simulationType, setSimulationType] = useState<'payment' | 'installment'>('payment');
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Fetch pending payments from local database
+  const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
+    queryKey: ['pending-payments-for-anticipation'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('payments')
+        .select(`
+          id,
+          asaas_payment_id,
+          asaas_installment_id,
+          description,
+          value,
+          due_date,
+          guardian_id,
+          guardians (name)
+        `)
+        .in('status', ['PENDING', 'CONFIRMED'])
+        .not('asaas_payment_id', 'is', null)
+        .gte('due_date', new Date().toISOString().split('T')[0])
+        .order('due_date', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch carnes (installments groups) from local database
+  const { data: pendingCarnes, isLoading: carnesLoading } = useQuery({
+    queryKey: ['pending-carnes-for-anticipation'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('carnes')
+        .select(`
+          id,
+          asaas_installment_id,
+          description,
+          total_value,
+          installment_count,
+          first_due_date,
+          guardian_id,
+          guardians (name)
+        `)
+        .eq('status', 'ACTIVE')
+        .order('first_due_date', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Filter items based on search term
+  const filteredPayments = useMemo(() => {
+    if (!pendingPayments) return [];
+    if (!searchTerm) return pendingPayments;
+    const term = searchTerm.toLowerCase();
+    return pendingPayments.filter(p => 
+      p.description?.toLowerCase().includes(term) ||
+      (p.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
+      p.asaas_payment_id?.toLowerCase().includes(term)
+    );
+  }, [pendingPayments, searchTerm]);
+
+  const filteredCarnes = useMemo(() => {
+    if (!pendingCarnes) return [];
+    if (!searchTerm) return pendingCarnes;
+    const term = searchTerm.toLowerCase();
+    return pendingCarnes.filter(c => 
+      c.description?.toLowerCase().includes(term) ||
+      (c.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
+      c.asaas_installment_id?.toLowerCase().includes(term)
+    );
+  }, [pendingCarnes, searchTerm]);
 
   // Fetch anticipation limits
   const { data: limits, isLoading: limitsLoading } = useQuery({
@@ -256,14 +330,22 @@ export default function Anticipation() {
                 Simular Antecipação
               </CardTitle>
               <CardDescription>
-                Informe o ID da cobrança ou carnê para simular a antecipação
+                Selecione uma cobrança ou carnê para simular a antecipação
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
+              {/* Type selector and search */}
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
-                  <Select value={simulationType} onValueChange={(v) => setSimulationType(v as 'payment' | 'installment')}>
+                  <Select 
+                    value={simulationType} 
+                    onValueChange={(v) => {
+                      setSimulationType(v as 'payment' | 'installment');
+                      setSimulationId('');
+                      setSimulationResult(null);
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -271,40 +353,161 @@ export default function Anticipation() {
                       <SelectItem value="payment">
                         <div className="flex items-center gap-2">
                           <CreditCard className="w-4 h-4" />
-                          Cobrança Avulsa
+                          Cobranças Avulsas
                         </div>
                       </SelectItem>
                       <SelectItem value="installment">
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4" />
-                          Carnê (Parcelamento)
+                          Carnês (Parcelamentos)
                         </div>
                       </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>ID da {simulationType === 'payment' ? 'Cobrança' : 'Parcela'}</Label>
-                  <Input
-                    placeholder={simulationType === 'payment' ? 'pay_xxxxxxxxxx' : 'ins_xxxxxxxxxx'}
-                    value={simulationId}
-                    onChange={(e) => setSimulationId(e.target.value)}
-                  />
+                  <Label>Buscar</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nome ou descrição..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-end">
-                  <Button
-                    onClick={() => simulateMutation.mutate()}
-                    disabled={!simulationId || simulateMutation.isPending}
-                    className="w-full"
-                  >
-                    {simulateMutation.isPending ? (
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    ) : (
-                      <Calculator className="w-4 h-4 mr-2" />
-                    )}
-                    Simular
-                  </Button>
-                </div>
+              </div>
+
+              {/* Selectable list */}
+              <div className="border rounded-lg max-h-64 overflow-y-auto">
+                {simulationType === 'payment' ? (
+                  paymentsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    </div>
+                  ) : filteredPayments.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <CreditCard className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Nenhuma cobrança pendente encontrada</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12"></TableHead>
+                          <TableHead>Responsável</TableHead>
+                          <TableHead>Descrição</TableHead>
+                          <TableHead>Vencimento</TableHead>
+                          <TableHead className="text-right">Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredPayments.map((payment) => (
+                          <TableRow 
+                            key={payment.id}
+                            className={`cursor-pointer transition-colors ${simulationId === payment.asaas_payment_id ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
+                            onClick={() => {
+                              setSimulationId(payment.asaas_payment_id || '');
+                              setSimulationResult(null);
+                            }}
+                          >
+                            <TableCell>
+                              <div className={`w-4 h-4 rounded-full border-2 ${simulationId === payment.asaas_payment_id ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                                {simulationId === payment.asaas_payment_id && (
+                                  <CheckCircle2 className="w-3 h-3 text-primary-foreground" />
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {(payment.guardians as { name: string } | null)?.name || '-'}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {payment.description || '-'}
+                            </TableCell>
+                            <TableCell>
+                              {format(new Date(payment.due_date), "dd/MM/yyyy", { locale: ptBR })}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {formatCurrency(payment.value)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )
+                ) : (
+                  carnesLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    </div>
+                  ) : filteredCarnes.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p>Nenhum carnê ativo encontrado</p>
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-12"></TableHead>
+                          <TableHead>Responsável</TableHead>
+                          <TableHead>Descrição</TableHead>
+                          <TableHead>Parcelas</TableHead>
+                          <TableHead className="text-right">Valor Total</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredCarnes.map((carne) => (
+                          <TableRow 
+                            key={carne.id}
+                            className={`cursor-pointer transition-colors ${simulationId === carne.asaas_installment_id ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
+                            onClick={() => {
+                              setSimulationId(carne.asaas_installment_id || '');
+                              setSimulationResult(null);
+                            }}
+                          >
+                            <TableCell>
+                              <div className={`w-4 h-4 rounded-full border-2 ${simulationId === carne.asaas_installment_id ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
+                                {simulationId === carne.asaas_installment_id && (
+                                  <CheckCircle2 className="w-3 h-3 text-primary-foreground" />
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {(carne.guardians as { name: string } | null)?.name || '-'}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {carne.description || '-'}
+                            </TableCell>
+                            <TableCell>
+                              {carne.installment_count}x
+                            </TableCell>
+                            <TableCell className="text-right font-semibold">
+                              {formatCurrency(carne.total_value)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )
+                )}
+              </div>
+
+              {/* Simulate button */}
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => simulateMutation.mutate()}
+                  disabled={!simulationId || simulateMutation.isPending}
+                  size="lg"
+                >
+                  {simulateMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Calculator className="w-4 h-4 mr-2" />
+                  )}
+                  Simular Antecipação
+                </Button>
               </div>
 
               {simulationResult && (
