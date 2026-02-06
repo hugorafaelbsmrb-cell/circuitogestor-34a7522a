@@ -28,7 +28,8 @@ import {
   Globe,
   FileCheck,
   Mail,
-  Lightbulb
+  Lightbulb,
+  TrendingUp
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
@@ -101,6 +102,7 @@ const menuSections: MenuSection[] = [
       { icon: CreditCard, label: 'Carnês', path: '/carnes', permissionKey: 'carnes', adminOnly: false },
       { icon: FileText, label: 'Contratos', path: '/contratos', permissionKey: 'contracts', adminOnly: false },
       { icon: Percent, label: 'Descontos', path: '/descontos', permissionKey: 'discounts', adminOnly: false },
+      { icon: TrendingUp, label: 'Antecipação', path: '/antecipacao', permissionKey: 'financial', adminOnly: true },
     ]
   },
   {

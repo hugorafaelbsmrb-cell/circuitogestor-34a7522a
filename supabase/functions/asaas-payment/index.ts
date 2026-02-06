@@ -660,6 +660,87 @@ async function getPixQrCode(config: AsaasConfig, paymentId: string) {
   };
 }
 
+// ==================== ANTICIPATION FUNCTIONS ====================
+
+async function simulateAnticipation(config: AsaasConfig, data: { payment?: string; installment?: string }) {
+  console.log("Simulando antecipação:", data.payment ? `payment=${data.payment}` : `installment=${data.installment}`);
+  
+  const body: Record<string, string> = {};
+  if (data.payment) body.payment = data.payment;
+  if (data.installment) body.installment = data.installment;
+  
+  const response = await fetch(`${config.baseUrl}/anticipations/simulate`, {
+    method: "POST",
+    headers: getHeaders(config.apiKey),
+    body: JSON.stringify(body),
+  });
+
+  const result = await handleAsaasResponse(response, "simulateAnticipation");
+  console.log("Simulação concluída - Valor líquido:", result.anticipatedValue, "Taxa:", result.fee);
+  return result;
+}
+
+async function requestAnticipation(config: AsaasConfig, data: { payment?: string; installment?: string }) {
+  console.log("Solicitando antecipação:", data.payment ? `payment=${data.payment}` : `installment=${data.installment}`);
+  
+  const body: Record<string, string> = {};
+  if (data.payment) body.payment = data.payment;
+  if (data.installment) body.installment = data.installment;
+  
+  const response = await fetch(`${config.baseUrl}/anticipations`, {
+    method: "POST",
+    headers: getHeaders(config.apiKey),
+    body: JSON.stringify(body),
+  });
+
+  const result = await handleAsaasResponse(response, "requestAnticipation");
+  console.log("Antecipação solicitada:", result.id, "Status:", result.status);
+  return result;
+}
+
+async function listAnticipations(config: AsaasConfig, filters?: { status?: string; offset?: number; limit?: number }) {
+  console.log("Listando antecipações:", filters);
+  
+  const params = new URLSearchParams();
+  if (filters?.status) params.append("status", filters.status);
+  if (filters?.offset !== undefined) params.append("offset", String(filters.offset));
+  if (filters?.limit !== undefined) params.append("limit", String(filters.limit));
+  
+  const queryString = params.toString();
+  const url = `${config.baseUrl}/anticipations${queryString ? `?${queryString}` : ""}`;
+  
+  const response = await fetch(url, {
+    method: "GET",
+    headers: getHeaders(config.apiKey),
+  });
+
+  const result = await handleAsaasResponse(response, "listAnticipations");
+  console.log("Antecipações encontradas:", result.data?.length || 0);
+  return result;
+}
+
+async function getAnticipation(config: AsaasConfig, anticipationId: string) {
+  console.log("Obtendo antecipação:", anticipationId);
+  
+  const response = await fetch(`${config.baseUrl}/anticipations/${anticipationId}`, {
+    method: "GET",
+    headers: getHeaders(config.apiKey),
+  });
+
+  return await handleAsaasResponse(response, "getAnticipation");
+}
+
+async function getAnticipationLimits(config: AsaasConfig) {
+  console.log("Obtendo limites de antecipação");
+  
+  const response = await fetch(`${config.baseUrl}/anticipations/limits`, {
+    method: "GET",
+    headers: getHeaders(config.apiKey),
+  });
+
+  return await handleAsaasResponse(response, "getAnticipationLimits");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -725,6 +806,21 @@ serve(async (req) => {
         break;
       case "syncAllCustomerNotifications":
         result = await syncAllCustomerNotifications(config);
+        break;
+      case "simulateAnticipation":
+        result = await simulateAnticipation(config, data);
+        break;
+      case "requestAnticipation":
+        result = await requestAnticipation(config, data);
+        break;
+      case "listAnticipations":
+        result = await listAnticipations(config, data);
+        break;
+      case "getAnticipation":
+        result = await getAnticipation(config, data.anticipationId);
+        break;
+      case "getAnticipationLimits":
+        result = await getAnticipationLimits(config);
         break;
       default:
         throw new Error("Ação não reconhecida");
