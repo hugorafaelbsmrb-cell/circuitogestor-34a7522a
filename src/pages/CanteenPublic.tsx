@@ -4,9 +4,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { StudentSearchInput } from '@/components/canteen/StudentSearchInput';
 import { ProductSelector } from '@/components/canteen/ProductSelector';
 import { CartSummary } from '@/components/canteen/CartSummary';
-import { UtensilsCrossed, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { UtensilsCrossed, CheckCircle, CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
+import { format, subDays } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+
 interface StudentSchedule {
   day_of_week: string;
   start_time: string;
@@ -39,6 +46,7 @@ export default function CanteenPublic() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   // Fetch all active students with their schedules from all enrollments
   const { data: students = [] } = useQuery({
@@ -188,6 +196,10 @@ export default function CanteenPublic() {
 
     setIsSubmitting(true);
     try {
+      // Set time to noon of selected date for backdated entries
+      const consumedAt = new Date(selectedDate);
+      consumedAt.setHours(12, 0, 0, 0);
+      
       const response = await supabase.functions.invoke('canteen-register', {
         body: {
           student_id: selectedStudent.id,
@@ -196,7 +208,8 @@ export default function CanteenPublic() {
             quantity: item.quantity,
             unit_price: item.product.price,
             total_price: item.product.price * item.quantity
-          }))
+          })),
+          consumed_at: consumedAt.toISOString()
         }
       });
 
@@ -205,6 +218,7 @@ export default function CanteenPublic() {
       setShowSuccess(true);
       setCart([]);
       setSelectedStudent(null);
+      setSelectedDate(new Date()); // Reset to today
 
       setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
@@ -258,10 +272,46 @@ export default function CanteenPublic() {
 
       {/* Content */}
       <div className="max-w-lg mx-auto p-4 space-y-6">
+        {/* Date Selector */}
+        <div>
+          <label className="text-sm font-medium text-muted-foreground mb-2 block">
+            1. Data do Consumo
+          </label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !selectedDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {selectedDate ? format(selectedDate, "PPP", { locale: ptBR }) : "Selecione a data"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => date && setSelectedDate(date)}
+                disabled={(date) => date > new Date() || date < subDays(new Date(), 30)}
+                initialFocus
+                locale={ptBR}
+              />
+            </PopoverContent>
+          </Popover>
+          {selectedDate && format(selectedDate, 'yyyy-MM-dd') !== format(new Date(), 'yyyy-MM-dd') && (
+            <p className="text-xs text-amber-600 mt-1">
+              ⚠️ Lançamento retroativo para {format(selectedDate, "dd/MM/yyyy", { locale: ptBR })}
+            </p>
+          )}
+        </div>
+
         {/* Student Search */}
         <div>
           <label className="text-sm font-medium text-muted-foreground mb-2 block">
-            1. Selecione o Aluno
+            2. Selecione o Aluno
           </label>
           <StudentSearchInput
             students={students}
@@ -274,7 +324,7 @@ export default function CanteenPublic() {
         {/* Products */}
         <div>
           <label className="text-sm font-medium text-muted-foreground mb-2 block">
-            2. Adicione os Itens
+            3. Adicione os Itens
           </label>
           <ProductSelector
             products={products}
@@ -287,7 +337,7 @@ export default function CanteenPublic() {
         {/* Cart Summary */}
         <div>
           <label className="text-sm font-medium text-muted-foreground mb-2 block">
-            3. Confirme o Pedido
+            4. Confirme o Pedido
           </label>
           <CartSummary
             cart={cart}
