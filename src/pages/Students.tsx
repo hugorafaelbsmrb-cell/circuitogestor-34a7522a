@@ -19,10 +19,12 @@ import {
   UserCheck,
   Filter,
   Trash2,
-  UserCog
+  UserCog,
+  Clock
 } from 'lucide-react';
 import { parseISO, format } from 'date-fns';
 import { LinkTeacherModal } from '@/components/students/LinkTeacherModal';
+import { EditScheduleModal } from '@/components/students/EditScheduleModal';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -81,6 +83,7 @@ export default function Students() {
   const [showInactivateModal, setShowInactivateModal] = useState(false);
   const [showDeleteEnrollmentModal, setShowDeleteEnrollmentModal] = useState(false);
   const [showLinkTeacherModal, setShowLinkTeacherModal] = useState(false);
+  const [showEditScheduleModal, setShowEditScheduleModal] = useState(false);
   const [enrollmentToDelete, setEnrollmentToDelete] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -145,9 +148,18 @@ export default function Students() {
     setShowLinkTeacherModal(true);
   };
 
+  const handleEditScheduleClick = (student: typeof students[0]) => {
+    setSelectedStudent(student);
+    setShowEditScheduleModal(true);
+  };
+
   const handleLinkTeacherSuccess = () => {
     // Refresh student data - the SchoolContext should auto-refresh
     window.location.reload();
+  };
+
+  const handleEditScheduleSuccess = () => {
+    // Optionally refresh or update state
   };
 
   const handleToggleActive = async () => {
@@ -409,6 +421,15 @@ export default function Students() {
                           title="Adicionar curso"
                         >
                           <BookOpen className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleEditScheduleClick(student)}
+                          title="Gerenciar horários"
+                          className="text-accent-foreground hover:text-accent-foreground"
+                        >
+                          <Clock className="w-4 h-4" />
                         </Button>
                         <Button 
                           variant="ghost" 
@@ -926,6 +947,17 @@ export default function Students() {
           teacher_id: (selectedStudent as any).teacher_id 
         } : null}
         onSuccess={handleLinkTeacherSuccess}
+      />
+
+      {/* Edit Schedule Modal */}
+      <EditScheduleModal
+        open={showEditScheduleModal}
+        onOpenChange={setShowEditScheduleModal}
+        student={selectedStudent ? { 
+          id: selectedStudent.id, 
+          name: selectedStudent.name 
+        } : null}
+        onSuccess={handleEditScheduleSuccess}
       />
     </div>
   );
