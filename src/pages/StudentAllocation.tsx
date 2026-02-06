@@ -152,7 +152,7 @@ export default function StudentAllocation() {
         teachers={teachers}
       />
 
-      <AllocationStats filteredData={filteredData} groupedData={groupedData} />
+      <AllocationStats filteredData={filteredData} />
 
       <div className="space-y-4">
         {sortedGroupedData.length > 0 ? (
