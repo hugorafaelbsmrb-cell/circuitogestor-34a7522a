@@ -371,6 +371,27 @@ export function useAsaasPayment() {
     }
   };
 
+  const deletePayment = async (paymentId: string): Promise<boolean> => {
+    setIsLoading(true);
+    try {
+      await callAsaasFunction('deletePayment', { paymentId });
+      toast({
+        title: 'Boleto excluído',
+        description: 'O boleto foi excluído com sucesso.',
+      });
+      return true;
+    } catch (error) {
+      toast({
+        title: 'Erro ao excluir boleto',
+        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     isLoading,
     createCustomer,
@@ -387,5 +408,6 @@ export function useAsaasPayment() {
     searchCustomerByCpf,
     syncGuardians,
     getPixQrCode,
+    deletePayment,
   };
 }

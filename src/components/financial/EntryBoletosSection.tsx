@@ -1,8 +1,9 @@
-import { ExternalLink, FileText, HandCoins, Loader2, CheckCircle2, QrCode, Printer, Calendar, User, Clock, AlertTriangle } from 'lucide-react';
+import { ExternalLink, FileText, HandCoins, Loader2, CheckCircle2, QrCode, Printer, Calendar, User, Clock, AlertTriangle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { format, parseISO, isBefore, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,7 @@ interface EntryBoletosSectionProps {
   onReceiveInCash: (payment: Payment) => void;
   onMarkAsConfirmed: (payment: Payment) => void;
   onOpenPixModal: (payment: Payment) => void;
+  onDeletePayment?: (payment: Payment) => void;
 }
 
 export function EntryBoletosSection({
@@ -46,6 +48,7 @@ export function EntryBoletosSection({
   onReceiveInCash,
   onMarkAsConfirmed,
   onOpenPixModal,
+  onDeletePayment,
 }: EntryBoletosSectionProps) {
   const formatCurrency = (value: number) => {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -292,6 +295,42 @@ export function EntryBoletosSection({
                             <Printer className="w-4 h-4" />
                           </a>
                         </Button>
+                      )}
+                      {isPending && onDeletePayment && payment.asaas_payment_id && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Excluir Boleto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Excluir Boleto</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Tem certeza que deseja excluir este boleto? Esta ação também cancelará a cobrança no Asaas.
+                                <div className="mt-4 p-3 bg-muted rounded-lg space-y-1">
+                                  <p><strong>Valor:</strong> {formatCurrency(payment.value)}</p>
+                                  <p><strong>Vencimento:</strong> {formatDate(payment.due_date)}</p>
+                                  <p><strong>Descrição:</strong> {payment.description}</p>
+                                </div>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => onDeletePayment(payment)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Excluir
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   </div>

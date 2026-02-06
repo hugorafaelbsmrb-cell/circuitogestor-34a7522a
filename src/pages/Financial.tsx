@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText, Printer, Filter, HandCoins, Loader2, QrCode } from 'lucide-react';
+import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText, Printer, Filter, HandCoins, Loader2, QrCode, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,6 +18,7 @@ import { useAsaasPayment } from '@/hooks/useAsaasPayment';
 import { PixQrCodeModal } from '@/components/financial/PixQrCodeModal';
 import { EntryBoletosSection } from '@/components/financial/EntryBoletosSection';
 import { CarneInstallmentsSection } from '@/components/financial/CarneInstallmentsSection';
+import { CreateBoletoModal } from '@/components/financial/CreateBoletoModal';
 interface Payment {
   id: string;
   description: string;
@@ -40,7 +41,7 @@ interface PaymentWithGuardian extends Payment {
 
 export default function Financial() {
   const { guardians, carnes } = useSchool();
-  const { receiveInCash, isLoading: isAsaasLoading } = useAsaasPayment();
+  const { receiveInCash, deletePayment, isLoading: isAsaasLoading } = useAsaasPayment();
   const [payments, setPayments] = useState<PaymentWithGuardian[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -50,6 +51,9 @@ export default function Financial() {
   // PIX Modal state
   const [pixModalOpen, setPixModalOpen] = useState(false);
   const [selectedPaymentForPix, setSelectedPaymentForPix] = useState<PaymentWithGuardian | null>(null);
+  
+  // Create Boleto Modal state
+  const [createBoletoModalOpen, setCreateBoletoModalOpen] = useState(false);
   
   // Debtors filter state
   const [debtorPeriodFilter, setDebtorPeriodFilter] = useState('all');
@@ -200,6 +204,38 @@ export default function Financial() {
     } catch (error) {
       console.error('Error receiving in cash:', error);
       toast.error('Erro ao dar baixa no pagamento');
+    } finally {
+      setProcessingPaymentId(null);
+    }
+  };
+
+  // Handle delete payment (entry boleto)
+  const handleDeletePayment = async (payment: PaymentWithGuardian) => {
+    if (!payment.asaas_payment_id) {
+      toast.error('Este pagamento não possui ID do Asaas');
+      return;
+    }
+    
+    setProcessingPaymentId(payment.id);
+    
+    try {
+      const success = await deletePayment(payment.asaas_payment_id);
+      
+      if (success) {
+        // Delete from local database
+        await supabase
+          .from('payments')
+          .delete()
+          .eq('id', payment.id);
+        
+        // Update local state
+        setPayments(prev => prev.filter(p => p.id !== payment.id));
+        
+        toast.success('Boleto excluído com sucesso!');
+      }
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      toast.error('Erro ao excluir boleto');
     } finally {
       setProcessingPaymentId(null);
     }
@@ -561,6 +597,10 @@ export default function Financial() {
           <p className="page-subtitle">Visão geral e previsibilidade financeira</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => setCreateBoletoModalOpen(true)} size="sm" className="gap-2 flex-1 sm:flex-none">
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Boleto Avulso</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={syncPaymentsWithAsaas} disabled={isSyncing || isLoading} className="gap-2 flex-1 sm:flex-none">
             <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
             <span className="hidden sm:inline">Sincronizar Asaas</span>
@@ -855,6 +895,7 @@ export default function Financial() {
             onReceiveInCash={handleReceiveInCash}
             onMarkAsConfirmed={handleMarkAsConfirmed}
             onOpenPixModal={handleOpenPixModal}
+            onDeletePayment={handleDeletePayment}
           />
 
           {/* Carnê Installments Section */}
@@ -1227,6 +1268,19 @@ export default function Financial() {
           guardianPhone={selectedPaymentForPix.guardian_phone}
         />
       )}
+
+      {/* Create Boleto Modal */}
+      <CreateBoletoModal
+        open={createBoletoModalOpen}
+        onOpenChange={setCreateBoletoModalOpen}
+        guardians={guardians.map(g => ({
+          id: g.id,
+          name: g.name,
+          cpf: g.cpf,
+          asaas_customer_id: g.asaas_customer_id || null,
+        }))}
+        onSuccess={fetchPayments}
+      />
     </div>
   );
 }

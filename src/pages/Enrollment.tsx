@@ -126,6 +126,7 @@ export default function Enrollment() {
   const [sendPixNow, setSendPixNow] = useState(true); // Enviar código PIX via WhatsApp
   const [pixSentForEntry, setPixSentForEntry] = useState(false); // Controle se PIX foi enviado
   const [customPrice, setCustomPrice] = useState<string>(''); // Valor personalizado
+  const [customEntryDueDate, setCustomEntryDueDate] = useState<string>(''); // Data personalizada do boleto de entrada
   const [formData, setFormData] = useState({
     student: { 
       name: '', 
@@ -378,8 +379,12 @@ export default function Enrollment() {
     return { originalPrice, discountedPrice, totalDiscount, isFullDiscount };
   }, [selectedCourse, effectiveCoursePrice, activeDiscounts]);
 
-  // Calculate the pro-rata due date (enrollment date + a few days for processing)
+  // Calculate the pro-rata/entry boleto due date (custom date or enrollment date + 5 days)
   const calculateProRataDueDate = () => {
+    // If custom entry due date is set, use it
+    if (customEntryDueDate) {
+      return new Date(customEntryDueDate + 'T12:00:00'); // Add time to avoid timezone issues
+    }
     const today = new Date();
     // Pro-rata vence 5 dias após a matrícula para dar tempo de processar
     const proRataDate = new Date(today);
@@ -2420,49 +2425,94 @@ Att,
 
             {/* Pro-Rata Toggle - Hidden when 100% discount */}
             {!calculateDiscountedPrice.isFullDiscount && (
-              <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-xl mb-4">
-                <div>
-                  <Label className="font-medium">Cálculo Pro-Rata</Label>
-                  <p className="text-sm text-muted-foreground">
-                    A primeira parcela é calculada proporcionalmente aos dias até o vencimento
-                  </p>
+              <div className="p-4 bg-secondary/30 rounded-xl mb-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="font-medium">Cálculo Pro-Rata</Label>
+                    <p className="text-sm text-muted-foreground">
+                      A primeira parcela é calculada proporcionalmente aos dias até o vencimento
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useProRata}
+                      onChange={(e) => {
+                        setUseProRata(e.target.checked);
+                        // Se ativar pro-rata, desativa boleto de entrada (são mutuamente exclusivos para o cálculo)
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                  </label>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useProRata}
-                    onChange={(e) => {
-                      setUseProRata(e.target.checked);
-                      // Se ativar pro-rata, desativa boleto de entrada (são mutuamente exclusivos para o cálculo)
-                    }}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-                </label>
+                
+                {useProRata && (
+                  <div className="space-y-2 pt-2 border-t border-border/50">
+                    <Label htmlFor="customProRataDueDate" className="text-sm">
+                      Data de Vencimento do Pro-Rata
+                    </Label>
+                    <Input
+                      id="customProRataDueDate"
+                      type="date"
+                      value={customEntryDueDate}
+                      onChange={(e) => setCustomEntryDueDate(e.target.value)}
+                      min={formatDateToLocalString(new Date())}
+                      className="max-w-[200px]"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {customEntryDueDate 
+                        ? `Vencimento: ${new Date(customEntryDueDate + 'T12:00:00').toLocaleDateString('pt-BR')}`
+                        : `Padrão: ${calculateProRataDueDate().toLocaleDateString('pt-BR')} (5 dias após matrícula)`
+                      }
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Entry Boleto Toggle - only show if pro-rata is disabled, has installments, and NOT 100% discount */}
             {!calculateDiscountedPrice.isFullDiscount && !useProRata && (parseInt(formData.payment.installments) > 1 || formData.payment.installments === '0') && (
-              <div className="flex items-center justify-between p-4 bg-primary/10 rounded-xl mb-6 border border-primary/20">
-                <div>
-                  <Label className="font-medium">Boleto de Entrada</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Gera boleto avulso com valor cheio da mensalidade para pagamento imediato
-                  </p>
-                  <p className="text-xs text-primary mt-1">
-                    Vencimento: {calculateProRataDueDate().toLocaleDateString('pt-BR')} (5 dias após matrícula)
-                  </p>
+              <div className="p-4 bg-primary/10 rounded-xl mb-6 border border-primary/20 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="font-medium">Boleto de Entrada</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Gera boleto avulso com valor cheio da mensalidade para pagamento imediato
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={useEntryBoleto}
+                      onChange={(e) => setUseEntryBoleto(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+                  </label>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useEntryBoleto}
-                    onChange={(e) => setUseEntryBoleto(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-2 peer-focus:ring-primary/20 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-background after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
-                </label>
+                
+                {useEntryBoleto && (
+                  <div className="space-y-2 pt-2 border-t border-primary/20">
+                    <Label htmlFor="customEntryDueDate" className="text-sm">
+                      Data de Vencimento do Boleto de Entrada
+                    </Label>
+                    <Input
+                      id="customEntryDueDate"
+                      type="date"
+                      value={customEntryDueDate}
+                      onChange={(e) => setCustomEntryDueDate(e.target.value)}
+                      min={formatDateToLocalString(new Date())}
+                      className="max-w-[200px]"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {customEntryDueDate 
+                        ? `Vencimento: ${new Date(customEntryDueDate + 'T12:00:00').toLocaleDateString('pt-BR')}`
+                        : `Padrão: ${calculateProRataDueDate().toLocaleDateString('pt-BR')} (5 dias após matrícula)`
+                      }
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
