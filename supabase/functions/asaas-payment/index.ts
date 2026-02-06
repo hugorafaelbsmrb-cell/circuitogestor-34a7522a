@@ -26,6 +26,7 @@ interface AsaasConfig {
   discountEnabled: boolean;
   discountValue: number;
   discountDays: number;
+  notificationDisabled: boolean;
 }
 
 // Create Supabase client to read settings from database
@@ -39,7 +40,7 @@ async function getAsaasConfig(): Promise<AsaasConfig> {
   const { data: settings, error } = await supabase
     .from("app_settings")
     .select("key, value")
-    .in("key", ["ASAAS_API_KEY", "ASAAS_ENVIRONMENT", "asaas_interest_value", "asaas_fine_value", "asaas_discount_enabled", "asaas_discount_value", "asaas_discount_days_before"]);
+    .in("key", ["ASAAS_API_KEY", "ASAAS_ENVIRONMENT", "asaas_interest_value", "asaas_fine_value", "asaas_discount_enabled", "asaas_discount_value", "asaas_discount_days_before", "asaas_notification_disabled"]);
   
   if (error) {
     console.error("Erro ao buscar configurações:", error);
@@ -53,6 +54,7 @@ async function getAsaasConfig(): Promise<AsaasConfig> {
   const discountEnabled = settings?.find(s => s.key === "asaas_discount_enabled")?.value === "true";
   const discountValue = parseFloat(settings?.find(s => s.key === "asaas_discount_value")?.value || "0");
   const discountDays = parseInt(settings?.find(s => s.key === "asaas_discount_days_before")?.value || "0");
+  const notificationDisabled = settings?.find(s => s.key === "asaas_notification_disabled")?.value === "true";
   
   if (!apiKey) {
     throw new Error("ASAAS_API_KEY não configurada no banco de dados");
@@ -69,6 +71,7 @@ async function getAsaasConfig(): Promise<AsaasConfig> {
   console.log("API Key configurada:", apiKey ? "Sim" : "Não");
   console.log("Juros:", interestValue + "% | Multa:", fineValue + "%");
   console.log("Desconto:", discountEnabled ? `${discountValue}% até ${discountDays} dias antes` : "Desabilitado");
+  console.log("Notificações Asaas para cliente:", notificationDisabled ? "DESABILITADAS" : "Habilitadas");
   console.log("==========================");
   
   return { 
@@ -79,7 +82,8 @@ async function getAsaasConfig(): Promise<AsaasConfig> {
     fineValue,
     discountEnabled,
     discountValue,
-    discountDays
+    discountDays,
+    notificationDisabled
   };
 }
 
@@ -118,24 +122,33 @@ async function handleAsaasResponse(response: Response, operation: string) {
 
 async function createCustomer(config: AsaasConfig, data: CreateCustomerRequest) {
   console.log("Criando cliente no Asaas:", data.name);
+  console.log("Notificações desabilitadas:", config.notificationDisabled);
+  
+  const customerPayload: Record<string, unknown> = {
+    name: data.name,
+    cpfCnpj: data.cpfCnpj.replace(/\D/g, ""),
+    email: data.email,
+    phone: data.phone.replace(/\D/g, ""),
+    address: data.address,
+    addressNumber: data.addressNumber,
+    province: data.province,
+    postalCode: data.postalCode.replace(/\D/g, ""),
+  };
+  
+  // Add notificationDisabled based on system config
+  if (config.notificationDisabled) {
+    customerPayload.notificationDisabled = true;
+    console.log("Cliente será criado com notificações DESABILITADAS");
+  }
   
   const response = await fetch(`${config.baseUrl}/customers`, {
     method: "POST",
     headers: getHeaders(config.apiKey),
-    body: JSON.stringify({
-      name: data.name,
-      cpfCnpj: data.cpfCnpj.replace(/\D/g, ""),
-      email: data.email,
-      phone: data.phone.replace(/\D/g, ""),
-      address: data.address,
-      addressNumber: data.addressNumber,
-      province: data.province,
-      postalCode: data.postalCode.replace(/\D/g, ""),
-    }),
+    body: JSON.stringify(customerPayload),
   });
 
   const result = await handleAsaasResponse(response, "createCustomer");
-  console.log("Cliente criado com sucesso:", result.id);
+  console.log("Cliente criado com sucesso:", result.id, "| notificationDisabled:", result.notificationDisabled);
   return result;
 }
 
