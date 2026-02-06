@@ -78,6 +78,19 @@ export default function CourseLanding() {
     }
   }, [slug]);
 
+  // Update browser tab title with course name
+  useEffect(() => {
+    if (course) {
+      const displayName = landingData?.custom_name || course.name;
+      document.title = `${displayName} | ${branding.name}`;
+    }
+    
+    // Cleanup: restore default title when leaving the page
+    return () => {
+      document.title = branding.browserTitle || branding.name;
+    };
+  }, [course, landingData?.custom_name, branding.name, branding.browserTitle]);
+
   const loadCourseData = async (courseSlug: string) => {
     try {
       // Find course by slug
