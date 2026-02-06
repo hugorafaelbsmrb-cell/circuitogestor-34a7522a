@@ -7,20 +7,12 @@ import { toast } from 'sonner';
 import { 
   Loader2, 
   Link as LinkIcon, 
-  Image as ImageIcon,
-  FileText,
-  MessageSquare,
+  ExternalLink,
   Settings,
   BookOpen,
-  Layers,
-  ExternalLink
 } from 'lucide-react';
-import { CourseLandingEditor } from '@/components/campaign/CourseLandingEditor';
-import { CampaignImagesTab } from '@/components/campaign/CampaignImagesTab';
-import { CampaignTextsTab } from '@/components/campaign/CampaignTextsTab';
-import { CampaignCoursesTab } from '@/components/campaign/CampaignCoursesTab';
-import { CampaignWhatsAppTab } from '@/components/campaign/CampaignWhatsAppTab';
-import { CampaignSettingsTab } from '@/components/campaign/CampaignSettingsTab';
+import { CampaignGeneralTab } from '@/components/campaign/CampaignGeneralTab';
+import { CampaignCoursesCardsTab } from '@/components/campaign/CampaignCoursesCardsTab';
 
 interface CampaignImage {
   id: string;
@@ -35,15 +27,6 @@ interface Benefit {
   icon: string;
   title: string;
   description: string;
-}
-
-interface Course {
-  id: string;
-  name: string;
-  description: string | null;
-  duration: string;
-  price: number;
-  is_active: boolean | null;
 }
 
 export default function CampaignAdmin() {
@@ -64,12 +47,8 @@ export default function CampaignAdmin() {
   // Images
   const [images, setImages] = useState<CampaignImage[]>([]);
 
-  // Courses
-  const [courses, setCourses] = useState<Course[]>([]);
-
   useEffect(() => {
     loadData();
-    loadCourses();
   }, []);
 
   const loadData = async () => {
@@ -145,22 +124,6 @@ export default function CampaignAdmin() {
       toast.error('Erro ao carregar dados');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadCourses = async () => {
-    try {
-      const { data: coursesData, error } = await supabase
-        .from('courses')
-        .select('id, name, description, duration, price, is_active')
-        .order('name');
-
-      if (error) throw error;
-      if (coursesData) {
-        setCourses(coursesData);
-      }
-    } catch (error) {
-      console.error('Error loading courses:', error);
     }
   };
 
@@ -256,57 +219,29 @@ export default function CampaignAdmin() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="texts" className="space-y-6">
+        {/* Tabs - Simplified to 2 tabs */}
+        <Tabs defaultValue="geral" className="space-y-6">
           <div className="border-b">
-            <TabsList className="w-full justify-start h-auto p-0 bg-transparent gap-0 overflow-x-auto flex-nowrap">
+            <TabsList className="w-full justify-start h-auto p-0 bg-transparent gap-0">
               <TabsTrigger 
-                value="texts" 
-                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-3 gap-2 shrink-0"
+                value="geral" 
+                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-6 py-3 gap-2"
               >
-                <FileText className="w-4 h-4" />
-                <span>Textos</span>
+                <Settings className="w-4 h-4" />
+                <span>Geral</span>
               </TabsTrigger>
               <TabsTrigger 
-                value="images" 
-                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-3 gap-2 shrink-0"
-              >
-                <ImageIcon className="w-4 h-4" />
-                <span>Galeria</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="courses" 
-                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-3 gap-2 shrink-0"
+                value="cursos" 
+                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-6 py-3 gap-2"
               >
                 <BookOpen className="w-4 h-4" />
                 <span>Cursos</span>
               </TabsTrigger>
-              <TabsTrigger 
-                value="landing-pages" 
-                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-3 gap-2 shrink-0"
-              >
-                <Layers className="w-4 h-4" />
-                <span>Por Curso</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="whatsapp" 
-                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-3 gap-2 shrink-0"
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>WhatsApp</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="settings" 
-                className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent rounded-none px-4 py-3 gap-2 shrink-0"
-              >
-                <Settings className="w-4 h-4" />
-                <span>Config</span>
-              </TabsTrigger>
             </TabsList>
           </div>
 
-          <TabsContent value="texts" className="mt-6">
-            <CampaignTextsTab
+          <TabsContent value="geral" className="mt-6">
+            <CampaignGeneralTab
               heroTitle={heroTitle}
               heroSubtitle={heroSubtitle}
               heroImage={heroImage}
@@ -319,48 +254,23 @@ export default function CampaignAdmin() {
               onBenefitsChange={setBenefits}
               onCoursesSectionTitleChange={setCoursesSectionTitle}
               onCoursesSectionSubtitleChange={setCoursesSectionSubtitle}
-              onSave={handleSaveTexts}
-              isSaving={isSaving}
-            />
-          </TabsContent>
-
-          <TabsContent value="images" className="mt-6">
-            <CampaignImagesTab
               images={images}
               onImagesChange={setImages}
-              onReload={loadData}
-            />
-          </TabsContent>
-
-          <TabsContent value="courses" className="mt-6">
-            <CampaignCoursesTab
-              courses={courses}
-              onCoursesChange={setCourses}
-            />
-          </TabsContent>
-
-          <TabsContent value="landing-pages" className="mt-6">
-            <CourseLandingEditor />
-          </TabsContent>
-
-          <TabsContent value="whatsapp" className="mt-6">
-            <CampaignWhatsAppTab
+              onReloadImages={loadData}
               welcomeTemplate={welcomeTemplate}
               autoWelcomeEnabled={autoWelcomeEnabled}
               onWelcomeTemplateChange={setWelcomeTemplate}
               onAutoWelcomeEnabledChange={setAutoWelcomeEnabled}
-              onSave={handleSaveWhatsApp}
+              isActive={isActive}
+              onIsActiveChange={setIsActive}
+              onSave={handleSaveTexts}
+              onSaveWhatsApp={handleSaveWhatsApp}
               isSaving={isSaving}
             />
           </TabsContent>
 
-          <TabsContent value="settings" className="mt-6">
-            <CampaignSettingsTab
-              isActive={isActive}
-              onIsActiveChange={setIsActive}
-              onSave={handleSaveTexts}
-              isSaving={isSaving}
-            />
+          <TabsContent value="cursos" className="mt-6">
+            <CampaignCoursesCardsTab />
           </TabsContent>
         </Tabs>
       </div>

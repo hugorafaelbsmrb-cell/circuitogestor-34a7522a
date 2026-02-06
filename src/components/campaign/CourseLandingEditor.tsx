@@ -87,7 +87,13 @@ const BANNER_VARIANTS = [
   { value: 'secondary', label: 'Neutro' },
 ];
 
-export function CourseLandingEditor() {
+interface CourseLandingEditorProps {
+  courseId?: string;
+  onClose?: () => void;
+  embedded?: boolean;
+}
+
+export function CourseLandingEditor({ courseId, onClose, embedded = false }: CourseLandingEditorProps) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -99,8 +105,35 @@ export function CourseLandingEditor() {
   const [newSlug, setNewSlug] = useState('');
 
   useEffect(() => {
-    loadCourses();
-  }, []);
+    if (courseId) {
+      // Embedded mode: load specific course
+      loadCourseById(courseId);
+    } else {
+      // Standalone mode: load all courses
+      loadCourses();
+    }
+  }, [courseId]);
+
+  const loadCourseById = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, name, slug, is_active')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setCourses([data]);
+        loadLandingData(data);
+      }
+    } catch (error) {
+      console.error('Error loading course:', error);
+      toast.error('Erro ao carregar curso');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadCourses = async () => {
     try {
@@ -255,6 +288,9 @@ export function CourseLandingEditor() {
       }
 
       toast.success('Página salva com sucesso!');
+      if (onClose) {
+        onClose();
+      }
     } catch (error) {
       console.error('Error saving:', error);
       toast.error('Erro ao salvar');
@@ -439,6 +475,278 @@ export function CourseLandingEditor() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Embedded mode: render only the editor content for modal use
+  if (embedded && landingData) {
+    return (
+      <div className="space-y-4">
+        <Tabs defaultValue="hero" className="w-full">
+          <TabsList className="grid w-full grid-cols-6 mb-4">
+            <TabsTrigger value="hero" className="text-xs sm:text-sm">
+              <Sparkles className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Hero</span>
+            </TabsTrigger>
+            <TabsTrigger value="course" className="text-xs sm:text-sm">
+              <Layout className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Curso</span>
+            </TabsTrigger>
+            <TabsTrigger value="benefits" className="text-xs sm:text-sm">
+              <MessageSquare className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Benefícios</span>
+            </TabsTrigger>
+            <TabsTrigger value="gallery" className="text-xs sm:text-sm">
+              <Images className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Galeria</span>
+            </TabsTrigger>
+            <TabsTrigger value="testimonials" className="text-xs sm:text-sm">
+              <Users className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">Depoimentos</span>
+            </TabsTrigger>
+            <TabsTrigger value="cta" className="text-xs sm:text-sm">
+              <Megaphone className="w-4 h-4 sm:mr-1" />
+              <span className="hidden sm:inline">CTAs</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <ScrollArea className="max-h-[50vh] pr-4">
+            {/* Hero Tab */}
+            <TabsContent value="hero" className="space-y-4 mt-0">
+              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                <div>
+                  <Label>Página Ativa</Label>
+                  <p className="text-sm text-muted-foreground">Página visível publicamente</p>
+                </div>
+                <Switch
+                  checked={landingData.is_active}
+                  onCheckedChange={(checked) => setLandingData({ ...landingData, is_active: checked })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Título</Label>
+                <Input
+                  value={landingData.hero_title}
+                  onChange={(e) => setLandingData({ ...landingData, hero_title: e.target.value })}
+                  placeholder="Matricule-se agora!"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Subtítulo</Label>
+                <Textarea
+                  value={landingData.hero_subtitle}
+                  onChange={(e) => setLandingData({ ...landingData, hero_subtitle: e.target.value })}
+                  placeholder="Descrição atrativa do curso"
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Imagem de Fundo</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={landingData.hero_image}
+                    onChange={(e) => setLandingData({ ...landingData, hero_image: e.target.value })}
+                    placeholder="URL da imagem"
+                  />
+                  <label className="cursor-pointer">
+                    <input type="file" accept="image/*" className="hidden" onChange={handleUploadHeroImage} disabled={isUploadingHero} />
+                    <Button asChild variant="outline" disabled={isUploadingHero}>
+                      <span>{isUploadingHero ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}</span>
+                    </Button>
+                  </label>
+                </div>
+                {landingData.hero_image && (
+                  <img src={landingData.hero_image} alt="Hero preview" className="h-24 w-full object-cover rounded-lg" />
+                )}
+              </div>
+            </TabsContent>
+
+            {/* Course Tab */}
+            <TabsContent value="course" className="space-y-4 mt-0">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Nome do Curso</Label>
+                  <Input
+                    value={landingData.custom_name}
+                    onChange={(e) => setLandingData({ ...landingData, custom_name: e.target.value })}
+                    placeholder={selectedCourse?.name || 'Nome original'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Duração</Label>
+                  <Input
+                    value={landingData.custom_duration}
+                    onChange={(e) => setLandingData({ ...landingData, custom_duration: e.target.value })}
+                    placeholder="Ex: 6 meses"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição</Label>
+                <Textarea
+                  value={landingData.custom_description}
+                  onChange={(e) => setLandingData({ ...landingData, custom_description: e.target.value })}
+                  placeholder="Descrição personalizada"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Preço (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={landingData.custom_price}
+                  onChange={(e) => setLandingData({ ...landingData, custom_price: e.target.value })}
+                  placeholder="Preço personalizado"
+                />
+              </div>
+            </TabsContent>
+
+            {/* Benefits Tab */}
+            <TabsContent value="benefits" className="space-y-4 mt-0">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Benefícios</h4>
+                <Button size="sm" variant="outline" onClick={addBenefit}>
+                  <Plus className="w-4 h-4 mr-1" /> Adicionar
+                </Button>
+              </div>
+              {landingData.benefits.map((benefit, index) => (
+                <div key={index} className="flex gap-2 items-start p-3 border rounded-lg">
+                  <div className="flex-1 grid gap-2 sm:grid-cols-3">
+                    <Select value={benefit.icon} onValueChange={(v) => updateBenefit(index, 'icon', v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ICON_OPTIONS.map(icon => <SelectItem key={icon} value={icon}>{icon}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Input value={benefit.title} onChange={(e) => updateBenefit(index, 'title', e.target.value)} placeholder="Título" />
+                    <Input value={benefit.description} onChange={(e) => updateBenefit(index, 'description', e.target.value)} placeholder="Descrição" />
+                  </div>
+                  <Button size="icon" variant="ghost" className="text-destructive" onClick={() => removeBenefit(index)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </TabsContent>
+
+            {/* Gallery Tab */}
+            <TabsContent value="gallery" className="space-y-4 mt-0">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Galeria de Imagens</h4>
+                <label className="cursor-pointer">
+                  <input type="file" accept="image/*" className="hidden" onChange={handleUploadGalleryImage} disabled={isUploadingGallery} />
+                  <Button asChild size="sm" variant="outline" disabled={isUploadingGallery}>
+                    <span>{isUploadingGallery ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />} Adicionar</span>
+                  </Button>
+                </label>
+              </div>
+              {landingData.gallery_images.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
+                  <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Nenhuma imagem adicionada</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {landingData.gallery_images.map((image) => (
+                    <div key={image.id} className="relative group rounded-lg overflow-hidden border">
+                      <img src={image.url} alt={image.title || 'Imagem'} className="w-full aspect-square object-cover" />
+                      <Button size="icon" variant="destructive" className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => removeGalleryImage(image.id)}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Testimonials Tab */}
+            <TabsContent value="testimonials" className="space-y-4 mt-0">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Depoimentos</h4>
+                <Button size="sm" variant="outline" onClick={addTestimonial}>
+                  <Plus className="w-4 h-4 mr-1" /> Adicionar
+                </Button>
+              </div>
+              {landingData.testimonials.map((testimonial, index) => (
+                <div key={index} className="p-3 border rounded-lg space-y-2">
+                  <div className="flex justify-between items-center">
+                    <div className="grid grid-cols-2 gap-2 flex-1">
+                      <Input value={testimonial.name} onChange={(e) => updateTestimonial(index, 'name', e.target.value)} placeholder="Nome" />
+                      <Input value={testimonial.role} onChange={(e) => updateTestimonial(index, 'role', e.target.value)} placeholder="Cargo" />
+                    </div>
+                    <Button size="icon" variant="ghost" className="text-destructive ml-2" onClick={() => removeTestimonial(index)}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <Textarea value={testimonial.content} onChange={(e) => updateTestimonial(index, 'content', e.target.value)} placeholder="Depoimento" rows={2} />
+                  <Select value={testimonial.rating.toString()} onValueChange={(v) => updateTestimonial(index, 'rating', parseInt(v))}>
+                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {RATING_OPTIONS.map(r => <SelectItem key={r} value={r.toString()}>{r} estrelas</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </TabsContent>
+
+            {/* CTA Tab */}
+            <TabsContent value="cta" className="space-y-4 mt-0">
+              <div className="space-y-4">
+                <h4 className="font-medium">Banner de Urgência</h4>
+                <div className="space-y-2">
+                  <Label>Mensagem</Label>
+                  <Input
+                    value={landingData.urgency_banner_message}
+                    onChange={(e) => setLandingData({ ...landingData, urgency_banner_message: e.target.value })}
+                    placeholder="🔥 Últimas vagas com desconto!"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Estilo</Label>
+                  <Select value={landingData.urgency_banner_variant} onValueChange={(v) => setLandingData({ ...landingData, urgency_banner_variant: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {BANNER_VARIANTS.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-4 pt-4 border-t">
+                <h4 className="font-medium">Botão Flutuante (CTA)</h4>
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <div>
+                    <Label>Exibir botão flutuante</Label>
+                    <p className="text-xs text-muted-foreground">Botão fixo no canto da tela</p>
+                  </div>
+                  <Switch checked={landingData.floating_cta_enabled} onCheckedChange={(checked) => setLandingData({ ...landingData, floating_cta_enabled: checked })} />
+                </div>
+                {landingData.floating_cta_enabled && (
+                  <div className="space-y-2">
+                    <Label>Texto do Botão</Label>
+                    <Input
+                      value={landingData.floating_cta_text}
+                      onChange={(e) => setLandingData({ ...landingData, floating_cta_text: e.target.value })}
+                      placeholder="Quero me matricular!"
+                    />
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </ScrollArea>
+
+          <div className="pt-4 border-t mt-4 flex gap-2">
+            <Button onClick={handleSave} disabled={isSaving} className="flex-1">
+              {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Salvar Alterações
+            </Button>
+            {onClose && (
+              <Button variant="outline" onClick={onClose}>
+                Fechar
+              </Button>
+            )}
+          </div>
+        </Tabs>
       </div>
     );
   }
