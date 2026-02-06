@@ -22,10 +22,14 @@ export function CourseSection({ courseName, data, teachers, shiftFilter, systemL
   
   // For Reforço Escolar grouped by teacher, use the teacher from data
   // For other courses, find teachers by courseId
+  // Don't show all teachers for "unassigned" Reforço groups
   const isReforcoByTeacher = data.teacherId && data.teacherName;
+  const isUnassignedReforco = courseName.toLowerCase().includes('reforço') && !data.teacherId;
   const courseTeachers = isReforcoByTeacher 
     ? [{ id: data.teacherId!, name: data.teacherName!, courseId: data.courseId, courseName }]
-    : teachers.filter(t => t.courseId === data.courseId);
+    : isUnassignedReforco 
+      ? [] // Don't list all teachers for unassigned group
+      : teachers.filter(t => t.courseId === data.courseId);
   
   const showMorning = shiftFilter === 'all' || shiftFilter === 'morning';
   const showAfternoon = shiftFilter === 'all' || shiftFilter === 'afternoon';
