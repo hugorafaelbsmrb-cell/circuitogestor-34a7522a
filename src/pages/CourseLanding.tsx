@@ -1,17 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { AnimatedHeroSection } from '@/components/campaign/AnimatedHeroSection';
-import { PhotoGallery } from '@/components/campaign/PhotoGallery';
-import { AnimatedBenefitsSection } from '@/components/campaign/AnimatedBenefitsSection';
-import { CourseInfoCard } from '@/components/campaign/CourseInfoCard';
-import { TestimonialsSection } from '@/components/campaign/TestimonialsSection';
 import { UrgencyBanner } from '@/components/campaign/UrgencyBanner';
 import { FloatingCTA } from '@/components/campaign/FloatingCTA';
 import { LeadCaptureForm } from '@/components/campaign/LeadCaptureForm';
+import { LandingPageSkeleton } from '@/components/campaign/LandingPageSkeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+
+// Lazy load heavier components for faster initial paint
+const PhotoGallery = lazy(() => import('@/components/campaign/PhotoGallery').then(m => ({ default: m.PhotoGallery })));
+const AnimatedBenefitsSection = lazy(() => import('@/components/campaign/AnimatedBenefitsSection').then(m => ({ default: m.AnimatedBenefitsSection })));
+const CourseInfoCard = lazy(() => import('@/components/campaign/CourseInfoCard').then(m => ({ default: m.CourseInfoCard })));
+const TestimonialsSection = lazy(() => import('@/components/campaign/TestimonialsSection').then(m => ({ default: m.TestimonialsSection })));
 
 interface CampaignImage {
   id: string;
@@ -187,11 +189,7 @@ export default function CourseLanding() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <LandingPageSkeleton />;
   }
 
   if (notFound || !course) {
@@ -227,7 +225,7 @@ export default function CourseLanding() {
         variant={(landingData.urgency_banner_variant as 'warning' | 'destructive' | 'default' | 'secondary') || "warning"}
       />
 
-      {/* Hero */}
+      {/* Hero - renders immediately */}
       <AnimatedHeroSection
         title={landingData.hero_title || `Matricule-se em ${displayName}!`}
         subtitle={landingData.hero_subtitle || displayDescription || ''}
@@ -237,46 +235,49 @@ export default function CourseLanding() {
         socialProofCount={150}
       />
 
-      {/* Photo Gallery */}
-      {landingData.gallery_images.length > 0 && (
-        <PhotoGallery images={landingData.gallery_images} />
-      )}
+      {/* Lazy loaded sections */}
+      <Suspense fallback={null}>
+        {/* Photo Gallery */}
+        {landingData.gallery_images.length > 0 && (
+          <PhotoGallery images={landingData.gallery_images} />
+        )}
 
-      {/* Benefits */}
-      {landingData.benefits.length > 0 && (
-        <AnimatedBenefitsSection 
-          benefits={landingData.benefits}
-          title="Benefícios exclusivos"
-          subtitle="Veja o que seu filho vai conquistar"
+        {/* Benefits */}
+        {landingData.benefits.length > 0 && (
+          <AnimatedBenefitsSection 
+            benefits={landingData.benefits}
+            title="Benefícios exclusivos"
+            subtitle="Veja o que seu filho vai conquistar"
+          />
+        )}
+
+        {/* Course Info Card */}
+        <CourseInfoCard
+          name={displayName}
+          description={displayDescription}
+          duration={displayDuration}
+          price={displayPrice}
+          onCtaClick={scrollToForm}
         />
-      )}
 
-      {/* Course Info Card */}
-      <CourseInfoCard
-        name={displayName}
-        description={displayDescription}
-        duration={displayDuration}
-        price={displayPrice}
-        onCtaClick={scrollToForm}
-      />
-
-      {/* Testimonials */}
-      <TestimonialsSection 
-        testimonials={landingData.testimonials.length > 0 ? landingData.testimonials : undefined} 
-      />
+        {/* Testimonials */}
+        <TestimonialsSection 
+          testimonials={landingData.testimonials.length > 0 ? landingData.testimonials : undefined} 
+        />
+      </Suspense>
 
       {/* Lead Capture Form */}
-      <section className="py-20 px-4 bg-gradient-to-b from-muted/50 to-background" id="form">
+      <section className="py-12 sm:py-16 md:py-20 px-4 bg-gradient-to-b from-muted/50 to-background" id="form">
         <div className="max-w-md mx-auto" ref={formRef}>
-          <Card className="shadow-2xl border-2 border-primary/20 overflow-hidden">
-            <div className="h-2 bg-gradient-to-r from-primary to-accent" />
-            <CardHeader className="text-center pb-4 pt-8">
-              <CardTitle className="text-2xl md:text-3xl">Garanta sua vaga agora!</CardTitle>
-              <p className="text-muted-foreground mt-2">
+          <Card className="shadow-xl sm:shadow-2xl border-2 border-primary/20 overflow-hidden">
+            <div className="h-1.5 sm:h-2 bg-gradient-to-r from-primary to-accent" />
+            <CardHeader className="text-center pb-3 sm:pb-4 pt-6 sm:pt-8">
+              <CardTitle className="text-xl sm:text-2xl md:text-3xl">Garanta sua vaga agora!</CardTitle>
+              <p className="text-sm sm:text-base text-muted-foreground mt-2">
                 Preencha o formulário e receba informações exclusivas
               </p>
             </CardHeader>
-            <CardContent className="pb-8">
+            <CardContent className="pb-6 sm:pb-8 px-4 sm:px-6">
               <LeadCaptureForm
                 courses={[course]}
                 selectedCourseId={course.id}
@@ -295,22 +296,23 @@ export default function CourseLanding() {
       )}
 
       {/* Footer */}
-      <footer className="py-12 px-4 bg-card border-t border-border">
+      <footer className="py-8 sm:py-12 px-4 bg-card border-t border-border">
         <div className="max-w-6xl mx-auto text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3 sm:mb-4">
             {branding.logo && (
               <img 
                 src={branding.logo} 
                 alt={branding.name} 
-                className="w-12 h-12 rounded-xl object-contain"
+                className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl object-contain"
+                loading="lazy"
               />
             )}
-            <span className="text-xl font-semibold text-foreground">{branding.name}</span>
+            <span className="text-lg sm:text-xl font-semibold text-foreground">{branding.name}</span>
           </div>
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-xs sm:text-sm text-muted-foreground mb-3 sm:mb-4">
             Transformando o futuro através da educação
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[10px] sm:text-xs text-muted-foreground">
             © {new Date().getFullYear()} {branding.name}. Todos os direitos reservados.
           </p>
         </div>
