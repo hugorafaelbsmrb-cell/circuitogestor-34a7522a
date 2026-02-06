@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import Enrollment from "./pages/Enrollment";
 import PreEnrollmentForm from "./pages/PreEnrollmentForm";
 import CampaignLanding from "./pages/CampaignLanding";
+import CourseLanding from "./pages/CourseLanding";
 import CampaignAdmin from "./pages/CampaignAdmin";
 import Students from "./pages/Students";
 import Guardians from "./pages/Guardians";
@@ -81,6 +82,7 @@ const App = () => (
           <Route path="/assinar/:token" element={<ContractSign />} />
           <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
           <Route path="/campanha" element={<CampaignLanding />} />
+          <Route path="/campanha/:slug" element={<CourseLanding />} />
           <Route path="/cantina" element={<CanteenPublic />} />
           <Route path="/presenca" element={
             <SchoolProvider>

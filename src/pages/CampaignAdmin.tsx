@@ -29,8 +29,10 @@ import {
   ChevronDown,
   Wand2,
   BookOpen,
-  Pencil
+  Pencil,
+  Layers
 } from 'lucide-react';
+import { CourseLandingEditor } from '@/components/campaign/CourseLandingEditor';
 
 interface CampaignImage {
   id: string;
@@ -569,7 +571,7 @@ export default function CampaignAdmin() {
         </div>
 
         <Tabs defaultValue="images" className="space-y-6">
-          <TabsList className="grid w-full max-w-xl grid-cols-5">
+          <TabsList className="grid w-full max-w-2xl grid-cols-6">
             <TabsTrigger value="images" className="gap-2">
               <ImageIcon className="w-4 h-4" />
               <span className="hidden sm:inline">Imagens</span>
@@ -581,6 +583,10 @@ export default function CampaignAdmin() {
             <TabsTrigger value="courses" className="gap-2">
               <BookOpen className="w-4 h-4" />
               <span className="hidden sm:inline">Cursos</span>
+            </TabsTrigger>
+            <TabsTrigger value="landing-pages" className="gap-2">
+              <Layers className="w-4 h-4" />
+              <span className="hidden sm:inline">Por Curso</span>
             </TabsTrigger>
             <TabsTrigger value="whatsapp" className="gap-2">
               <MessageSquare className="w-4 h-4" />
@@ -1126,6 +1132,11 @@ export default function CampaignAdmin() {
                 </Button>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Landing Pages by Course Tab */}
+          <TabsContent value="landing-pages">
+            <CourseLandingEditor />
           </TabsContent>
 
           {/* Settings Tab */}
