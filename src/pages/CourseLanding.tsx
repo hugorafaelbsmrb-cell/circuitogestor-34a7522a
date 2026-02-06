@@ -2,9 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
-import { HeroSection } from '@/components/campaign/HeroSection';
+import { AnimatedHeroSection } from '@/components/campaign/AnimatedHeroSection';
 import { PhotoGallery } from '@/components/campaign/PhotoGallery';
-import { BenefitsSection } from '@/components/campaign/BenefitsSection';
+import { AnimatedBenefitsSection } from '@/components/campaign/AnimatedBenefitsSection';
+import { CourseInfoCard } from '@/components/campaign/CourseInfoCard';
+import { TestimonialsSection } from '@/components/campaign/TestimonialsSection';
+import { UrgencyBanner } from '@/components/campaign/UrgencyBanner';
+import { FloatingCTA } from '@/components/campaign/FloatingCTA';
 import { LeadCaptureForm } from '@/components/campaign/LeadCaptureForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
@@ -177,14 +181,28 @@ export default function CourseLanding() {
     );
   }
 
+  // Get display values (custom or fallback to course)
+  const displayName = landingData.custom_name || course.name;
+  const displayDescription = landingData.custom_description || course.description;
+  const displayDuration = landingData.custom_duration || course.duration;
+  const displayPrice = landingData.custom_price ?? course.price;
+
   return (
     <div className="min-h-screen bg-background">
+      {/* Urgency Banner */}
+      <UrgencyBanner 
+        message="🔥 Últimas vagas com desconto especial! Promoção válida por tempo limitado."
+        variant="warning"
+      />
+
       {/* Hero */}
-      <HeroSection
-        title={landingData.hero_title || `Matricule-se em ${course.name}!`}
-        subtitle={landingData.hero_subtitle || course.description || ''}
+      <AnimatedHeroSection
+        title={landingData.hero_title || `Matricule-se em ${displayName}!`}
+        subtitle={landingData.hero_subtitle || displayDescription || ''}
         backgroundImage={landingData.hero_image || undefined}
         onCtaClick={scrollToForm}
+        urgencyText="Vagas Limitadas!"
+        socialProofCount={150}
       />
 
       {/* Photo Gallery */}
@@ -194,58 +212,37 @@ export default function CourseLanding() {
 
       {/* Benefits */}
       {landingData.benefits.length > 0 && (
-        <BenefitsSection benefits={landingData.benefits} />
+        <AnimatedBenefitsSection 
+          benefits={landingData.benefits}
+          title="Benefícios exclusivos"
+          subtitle="Veja o que seu filho vai conquistar"
+        />
       )}
 
       {/* Course Info Card */}
-      <section className="py-12 px-4 bg-muted/30">
-        <div className="max-w-2xl mx-auto">
-          <Card className="overflow-hidden border-2 border-primary/20">
-            <CardHeader className="bg-primary/5 text-center">
-              <CardTitle className="text-2xl">
-                {landingData.custom_name || course.name}
-              </CardTitle>
-              {(landingData.custom_description || course.description) && (
-                <p className="text-muted-foreground mt-2">
-                  {landingData.custom_description || course.description}
-                </p>
-              )}
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="flex flex-col sm:flex-row justify-center gap-6 text-center">
-                <div>
-                  <p className="text-sm text-muted-foreground">Duração</p>
-                  <p className="font-semibold text-lg">
-                    {landingData.custom_duration || course.duration}
-                  </p>
-                </div>
-                <div className="border-l border-border hidden sm:block" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Investimento</p>
-                  <p className="font-semibold text-lg text-primary">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                      landingData.custom_price ?? course.price
-                    )}
-                    <span className="text-sm font-normal text-muted-foreground">/mês</span>
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
+      <CourseInfoCard
+        name={displayName}
+        description={displayDescription}
+        duration={displayDuration}
+        price={displayPrice}
+        onCtaClick={scrollToForm}
+      />
+
+      {/* Testimonials */}
+      <TestimonialsSection />
 
       {/* Lead Capture Form */}
-      <section className="py-16 px-4 bg-gradient-to-b from-muted/50 to-background" id="form">
+      <section className="py-20 px-4 bg-gradient-to-b from-muted/50 to-background" id="form">
         <div className="max-w-md mx-auto" ref={formRef}>
-          <Card className="shadow-2xl border-2 border-primary/20">
-            <CardHeader className="text-center pb-4">
-              <CardTitle className="text-2xl">Garanta sua vaga!</CardTitle>
-              <p className="text-muted-foreground text-sm mt-2">
-                Preencha o formulário e entraremos em contato
+          <Card className="shadow-2xl border-2 border-primary/20 overflow-hidden">
+            <div className="h-2 bg-gradient-to-r from-primary to-accent" />
+            <CardHeader className="text-center pb-4 pt-8">
+              <CardTitle className="text-2xl md:text-3xl">Garanta sua vaga agora!</CardTitle>
+              <p className="text-muted-foreground mt-2">
+                Preencha o formulário e receba informações exclusivas
               </p>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pb-8">
               <LeadCaptureForm
                 courses={[course]}
                 selectedCourseId={course.id}
@@ -255,20 +252,26 @@ export default function CourseLanding() {
         </div>
       </section>
 
+      {/* Floating CTA */}
+      <FloatingCTA onCtaClick={scrollToForm} />
+
       {/* Footer */}
-      <footer className="py-8 px-4 bg-card border-t border-border">
+      <footer className="py-12 px-4 bg-card border-t border-border">
         <div className="max-w-6xl mx-auto text-center">
           <div className="flex items-center justify-center gap-3 mb-4">
             {branding.logo && (
               <img 
                 src={branding.logo} 
                 alt={branding.name} 
-                className="w-10 h-10 rounded-xl object-contain"
+                className="w-12 h-12 rounded-xl object-contain"
               />
             )}
-            <span className="text-lg font-semibold text-foreground">{branding.name}</span>
+            <span className="text-xl font-semibold text-foreground">{branding.name}</span>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mb-4">
+            Transformando o futuro através da educação
+          </p>
+          <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} {branding.name}. Todos os direitos reservados.
           </p>
         </div>
