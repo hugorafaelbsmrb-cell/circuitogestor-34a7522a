@@ -144,6 +144,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const { profile } = useAuthContext();
   const { branding } = useSystemBranding();
   
+  // Use both profile.role (legacy) and check for proper authorization
+  // The profile.role is kept for backward compatibility but the real check
+  // happens at the server level via RLS and edge functions
   const isAdmin = profile?.role === 'admin';
   const permissions = profile?.permissions || {};
 

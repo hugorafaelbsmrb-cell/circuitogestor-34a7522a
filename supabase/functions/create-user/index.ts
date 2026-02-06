@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-runtime",
 };
 
 interface CreateUserRequest {
@@ -22,6 +22,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     
     // Create admin client with service role key
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -31,33 +32,41 @@ serve(async (req) => {
       },
     });
 
-    // Verify the requesting user is an admin
+    // Verify the requesting user is an admin using getClaims
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
         JSON.stringify({ error: "Não autorizado" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Create client with user's token for getClaims
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user: requestingUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    const { data: claimsData, error: claimsError } = await supabaseUser.auth.getClaims(token);
     
-    if (authError || !requestingUser) {
+    if (claimsError || !claimsData?.claims) {
       return new Response(
-        JSON.stringify({ error: "Não autorizado" }),
+        JSON.stringify({ error: "Token inválido" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Check if requesting user is admin
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", requestingUser.id)
-      .single();
+    const requestingUserId = claimsData.claims.sub;
 
-    if (profile?.role !== "admin") {
+    // Check if requesting user is admin using the secure user_roles table
+    const { data: adminRole, error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", requestingUserId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (roleError || !adminRole) {
       return new Response(
         JSON.stringify({ error: "Apenas administradores podem criar usuários" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -69,6 +78,32 @@ serve(async (req) => {
     if (!email || !password || !fullName) {
       return new Response(
         JSON.stringify({ error: "Email, senha e nome são obrigatórios" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return new Response(
+        JSON.stringify({ error: "Formato de email inválido" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate password length
+    if (password.length < 6) {
+      return new Response(
+        JSON.stringify({ error: "A senha deve ter pelo menos 6 caracteres" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate role
+    const validRoles = ['admin', 'moderator', 'user'];
+    if (!validRoles.includes(role)) {
+      return new Response(
+        JSON.stringify({ error: "Role inválida" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -91,7 +126,20 @@ serve(async (req) => {
       );
     }
 
-    // Update role if it's admin
+    // Add the specified role to user_roles table
+    if (newUser.user && role !== 'user') {
+      // The trigger already adds 'user' role, so we only need to add additional roles
+      const { error: roleInsertError } = await supabaseAdmin
+        .from("user_roles")
+        .insert({ user_id: newUser.user.id, role: role });
+
+      if (roleInsertError) {
+        console.error("Error assigning role:", roleInsertError);
+        // Don't fail the request, just log the error
+      }
+    }
+
+    // Also update profiles table for backward compatibility
     if (role === "admin" && newUser.user) {
       await supabaseAdmin
         .from("profiles")

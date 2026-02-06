@@ -43,6 +43,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { WapiConfigCard } from '@/components/settings/WapiConfigCard';
 import { AutomationControlPanel } from '@/components/settings/AutomationControlPanel';
@@ -90,6 +91,7 @@ export default function Settings() {
   const { toast } = useToast();
   const { profile } = useAuthContext();
   const { branding, updateBranding } = useSystemBranding();
+  const { isAuthorized, isLoading: guardLoading } = useAdminGuard();
   
   const [settings, setSettings] = useState<AppSetting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -439,14 +441,11 @@ export default function Settings() {
     !s.key.startsWith('W_API')
   );
 
-  // Check if current user is admin
-  if (profile?.role !== 'admin') {
+  // Check if guard is still loading or user is not authorized
+  if (guardLoading || !isAuthorized) {
     return (
-      <div className="animate-fade-in">
-        <div className="page-header">
-          <h1 className="page-title">Acesso Negado</h1>
-          <p className="page-subtitle">Você não tem permissão para acessar esta página.</p>
-        </div>
+      <div className="animate-fade-in flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
