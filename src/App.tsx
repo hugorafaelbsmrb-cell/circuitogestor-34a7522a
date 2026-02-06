@@ -82,7 +82,11 @@ const App = () => (
           <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
           <Route path="/campanha" element={<CampaignLanding />} />
           <Route path="/cantina" element={<CanteenPublic />} />
-          <Route path="/presenca" element={<AttendancePublic />} />
+          <Route path="/presenca" element={
+            <SchoolProvider>
+              <AttendancePublic />
+            </SchoolProvider>
+          } />
           <Route path="/professor-login" element={<TeacherLogin />} />
           <Route path="/relatorios-pais" element={<ParentReportsPortal />} />
           
