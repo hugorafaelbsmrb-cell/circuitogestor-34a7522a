@@ -8,7 +8,9 @@ interface ShiftSectionProps {
 }
 
 export function ShiftSection({ shiftData, shiftType }: ShiftSectionProps) {
-  const hasStudents = Object.values(shiftData).flat().length > 0;
+  const allStudents = Object.values(shiftData).flat();
+  const uniqueStudentIds = [...new Set(allStudents.map(s => s.studentId))];
+  const hasStudents = uniqueStudentIds.length > 0;
   if (!hasStudents) return null;
 
   const ShiftIcon = shiftType === 'morning' ? Sun : Sunset;
@@ -25,7 +27,7 @@ export function ShiftSection({ shiftData, shiftType }: ShiftSectionProps) {
         <span className="font-medium">{shiftLabel}</span>
         <span className="text-white/80 text-sm">{shiftTime}</span>
         <Badge variant="secondary" className="ml-auto bg-white/20 text-white hover:bg-white/30">
-          {Object.values(shiftData).flat().length} alunos
+          {uniqueStudentIds.length} alunos
         </Badge>
       </div>
       
