@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Search, UtensilsCrossed, Calendar, Trash2, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Search, UtensilsCrossed, Calendar, Trash2, FileSpreadsheet, Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Consumption {
@@ -159,6 +159,244 @@ export function ConsumptionList() {
     toast.success('Relatório exportado com sucesso!');
   };
 
+  const handlePrintPDF = () => {
+    if (filteredConsumptions.length === 0) {
+      toast.error('Nenhum consumo para imprimir.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const currentDate = new Date().toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const getCategoryEmoji = (category: string) => {
+      switch (category) {
+        case 'lanche': return '🥪';
+        case 'bebida': return '🧃';
+        case 'doce': return '🍬';
+        default: return '📦';
+      }
+    };
+
+    const getCategoryLabel = (category: string) => {
+      switch (category) {
+        case 'lanche': return 'Lanche';
+        case 'bebida': return 'Bebida';
+        case 'doce': return 'Doce';
+        default: return 'Outros';
+      }
+    };
+
+    const tableRows = filteredConsumptions.map(c => `
+      <tr>
+        <td>${c.student?.name || '-'}</td>
+        <td>
+          <span class="category-badge">
+            ${getCategoryEmoji(c.product?.category || 'outros')} ${getCategoryLabel(c.product?.category || 'outros')}
+          </span>
+        </td>
+        <td>${c.product?.name || '-'}</td>
+        <td class="text-center">${c.quantity}</td>
+        <td class="text-right">${formatPrice(c.unit_price)}</td>
+        <td class="text-right font-semibold">${formatPrice(c.total_price)}</td>
+        <td class="text-center">${format(new Date(c.consumed_at), 'dd/MM HH:mm')}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Relatório de Consumos - Cantina</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #1e293b;
+            background: white;
+            padding: 10px;
+            font-size: 10px;
+          }
+          .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ea580c;
+            margin-bottom: 15px;
+          }
+          .header-left h1 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1e293b;
+          }
+          .header-left p {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 2px;
+          }
+          .header-right {
+            text-align: right;
+          }
+          .header-right .date {
+            font-size: 9px;
+            color: #64748b;
+          }
+          .summary-box {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .summary-item {
+            text-align: center;
+          }
+          .summary-label {
+            font-size: 9px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .summary-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-top: 2px;
+          }
+          .summary-value.highlight {
+            color: #ea580c;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+          }
+          th {
+            background: #1e293b;
+            color: white;
+            padding: 8px 6px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+          }
+          th:first-child { border-radius: 4px 0 0 0; }
+          th:last-child { border-radius: 0 4px 0 0; }
+          td {
+            padding: 6px;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 9px;
+          }
+          tr:nth-child(even) { background: #f8fafc; }
+          tr:hover { background: #fef3e7; }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .font-semibold { font-weight: 600; }
+          .category-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 10px;
+            background: #f1f5f9;
+            font-size: 8px;
+          }
+          .footer {
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 8px;
+            color: #64748b;
+          }
+          .total-row {
+            background: #fef3e7 !important;
+            font-weight: 700;
+          }
+          .total-row td {
+            border-top: 2px solid #ea580c;
+            padding: 10px 6px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="header-left">
+            <h1>🍽️ Relatório de Consumos - Cantina</h1>
+            <p>Período: ${format(start, "dd/MM/yyyy", { locale: ptBR })} a ${format(end, "dd/MM/yyyy", { locale: ptBR })}</p>
+          </div>
+          <div class="header-right">
+            <div class="date">Gerado em ${currentDate}</div>
+          </div>
+        </div>
+
+        <div class="summary-box">
+          <div class="summary-item">
+            <div class="summary-label">Total de Registros</div>
+            <div class="summary-value">${filteredConsumptions.length}</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Alunos Atendidos</div>
+            <div class="summary-value">${new Set(filteredConsumptions.map(c => c.student?.id)).size}</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Itens Consumidos</div>
+            <div class="summary-value">${filteredConsumptions.reduce((sum, c) => sum + c.quantity, 0)}</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-label">Valor Total</div>
+            <div class="summary-value highlight">${formatPrice(totalValue)}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Aluno</th>
+              <th>Categoria</th>
+              <th>Produto</th>
+              <th class="text-center">Qtd</th>
+              <th class="text-right">Unit.</th>
+              <th class="text-right">Total</th>
+              <th class="text-center">Data/Hora</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+            <tr class="total-row">
+              <td colspan="3">TOTAL GERAL</td>
+              <td class="text-center">${filteredConsumptions.reduce((sum, c) => sum + c.quantity, 0)}</td>
+              <td></td>
+              <td class="text-right">${formatPrice(totalValue)}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <span>Sistema de Gestão Escolar - Módulo Cantina</span>
+          <span>Página 1 de 1</span>
+        </div>
+      </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+  };
+
   if (isLoading) {
     return <div className="text-center py-8">Carregando consumos...</div>;
   }
@@ -198,6 +436,10 @@ export function ConsumptionList() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={handlePrintPDF} className="gap-2">
+            <Printer className="w-4 h-4" />
+            Imprimir PDF
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportCSV} className="gap-2">
             <FileSpreadsheet className="w-4 h-4" />
             Exportar CSV
