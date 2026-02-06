@@ -87,15 +87,17 @@ export default function StudentAllocation() {
   // Get unique courses for filter
   const uniqueCourses = [...new Set(allocationData.map(r => r.courseName))];
 
-  // Sort courses by priority order
+  // Sort courses by priority order and filter out unassigned Reforço sections
   const sortedGroupedData = useMemo(() => {
-    return Object.entries(groupedData).sort(([a], [b]) => {
-      const orderA = getCourseOrder(a);
-      const orderB = getCourseOrder(b);
-      if (orderA !== orderB) return orderA - orderB;
-      // For same priority, sort alphabetically (handles multiple Reforço teachers)
-      return a.localeCompare(b);
-    });
+    return Object.entries(groupedData)
+      .filter(([key]) => !key.includes('Sem professor atribuído'))
+      .sort(([a], [b]) => {
+        const orderA = getCourseOrder(a);
+        const orderB = getCourseOrder(b);
+        if (orderA !== orderB) return orderA - orderB;
+        // For same priority, sort alphabetically (handles multiple Reforço teachers)
+        return a.localeCompare(b);
+      });
   }, [groupedData]);
 
   const { handlePrint } = usePrintAllocation({
