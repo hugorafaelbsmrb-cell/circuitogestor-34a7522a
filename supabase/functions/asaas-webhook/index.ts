@@ -269,6 +269,44 @@ async function processPaymentEvent(supabaseUrl: string, supabaseKey: string, eve
   }
 }
 
+// Verify webhook access token from Asaas
+async function verifyWebhookToken(req: Request): Promise<boolean> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  // Get webhook secret from database
+  const { data: setting } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", "ASAAS_WEBHOOK_SECRET")
+    .single();
+  
+  const webhookSecret = setting?.value;
+  
+  // If no secret configured, log warning but allow (backwards compatibility)
+  if (!webhookSecret) {
+    console.warn("⚠️ ASAAS_WEBHOOK_SECRET não configurado - webhook sem validação de segurança!");
+    return true;
+  }
+  
+  // Check for access token in header (Asaas sends as asaas-access-token)
+  const accessToken = req.headers.get("asaas-access-token");
+  
+  if (!accessToken) {
+    console.error("❌ Webhook request sem token de autenticação");
+    return false;
+  }
+  
+  if (accessToken !== webhookSecret) {
+    console.error("❌ Token de webhook inválido");
+    return false;
+  }
+  
+  console.log("✅ Token de webhook validado com sucesso");
+  return true;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -277,6 +315,16 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    // Verify webhook authentication
+    const isValidToken = await verifyWebhookToken(req);
+    if (!isValidToken) {
+      console.error("Webhook authentication failed - rejecting request");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized - Invalid webhook token" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+      );
+    }
     
     const body: AsaasWebhookEvent = await req.json();
     console.log("Received Asaas webhook:", JSON.stringify(body, null, 2));
