@@ -672,6 +672,53 @@ export type Database = {
           },
         ]
       }
+      course_landing_pages: {
+        Row: {
+          benefits: Json | null
+          course_id: string
+          created_at: string
+          gallery_images: Json | null
+          hero_image: string | null
+          hero_subtitle: string | null
+          hero_title: string | null
+          id: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          benefits?: Json | null
+          course_id: string
+          created_at?: string
+          gallery_images?: Json | null
+          hero_image?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          benefits?: Json | null
+          course_id?: string
+          created_at?: string
+          gallery_images?: Json | null
+          hero_image?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_landing_pages_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: true
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           contract_duration_months: number | null
@@ -682,6 +729,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           price: number
+          slug: string | null
           updated_at: string
         }
         Insert: {
@@ -693,6 +741,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           price: number
+          slug?: string | null
           updated_at?: string
         }
         Update: {
@@ -704,6 +753,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           price?: number
+          slug?: string | null
           updated_at?: string
         }
         Relationships: []
