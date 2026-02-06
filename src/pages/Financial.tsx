@@ -16,7 +16,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
 import { PixQrCodeModal } from '@/components/financial/PixQrCodeModal';
-
+import { EntryBoletosSection } from '@/components/financial/EntryBoletosSection';
+import { CarneInstallmentsSection } from '@/components/financial/CarneInstallmentsSection';
 interface Payment {
   id: string;
   description: string;
@@ -59,6 +60,9 @@ export default function Financial() {
   // Status filter for all payments tab
   const [entryStatusFilter, setEntryStatusFilter] = useState('all');
   const [carneStatusFilter, setCarneStatusFilter] = useState('all');
+  
+  // Month filter for carnês (default to current month)
+  const [carneMonthFilter, setCarneMonthFilter] = useState(() => format(new Date(), 'yyyy-MM'));
 
   const handleOpenPixModal = (payment: PaymentWithGuardian) => {
     if (!payment.asaas_payment_id) {
@@ -281,7 +285,7 @@ export default function Financial() {
   }, [carnes]);
 
   // Separate entry boletos from carnê installments
-  const { entryBoletos, carnePayments, filteredEntryBoletos, filteredCarnePayments } = useMemo(() => {
+  const { entryBoletos, carnePayments, filteredEntryBoletos } = useMemo(() => {
     const entry: PaymentWithGuardian[] = [];
     const carne: PaymentWithGuardian[] = [];
     
@@ -298,22 +302,17 @@ export default function Financial() {
       }
     });
 
-    // Apply status filter
+    // Apply status filter for entry boletos only (carnês are filtered in component)
     const filteredEntry = entryStatusFilter === 'all' 
       ? entry 
       : entry.filter(p => p.status === entryStatusFilter);
     
-    const filteredCarne = carneStatusFilter === 'all' 
-      ? carne 
-      : carne.filter(p => p.status === carneStatusFilter);
-    
     return { 
       entryBoletos: entry, 
       carnePayments: carne, 
-      filteredEntryBoletos: filteredEntry, 
-      filteredCarnePayments: filteredCarne 
+      filteredEntryBoletos: filteredEntry
     };
-  }, [payments, entryStatusFilter, carneStatusFilter]);
+  }, [payments, entryStatusFilter]);
 
   // Calculate financial metrics from payments
   const metrics = useMemo(() => {
@@ -846,287 +845,31 @@ export default function Financial() {
         {/* All Payments Tab */}
         <TabsContent value="all-payments" className="space-y-4">
           {/* Entry Boletos Section */}
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <HandCoins className="w-5 h-5 text-blue-500" />
-                    Boletos de Entrada
-                  </CardTitle>
-                  <CardDescription>
-                    {filteredEntryBoletos.length} de {entryBoletos.length} boletos de entrada/pro-rata
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-muted-foreground" />
-                  <Select value={entryStatusFilter} onValueChange={setEntryStatusFilter}>
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="PENDING">Pendente</SelectItem>
-                      <SelectItem value="RECEIVED">Recebido</SelectItem>
-                      <SelectItem value="CONFIRMED">Confirmado</SelectItem>
-                      <SelectItem value="RECEIVED_IN_CASH">Pago em Dinheiro</SelectItem>
-                      <SelectItem value="OVERDUE">Vencido</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {filteredEntryBoletos.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  {entryBoletos.length === 0 
-                    ? 'Nenhum boleto de entrada cadastrado.' 
-                    : 'Nenhum boleto encontrado com o filtro selecionado.'}
-                </div>
-              ) : (
-                <div className="max-h-[400px] overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead>Responsável</TableHead>
-                        <TableHead>Vencimento</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredEntryBoletos.map((payment) => {
-                        const isProRata = payment.description.toLowerCase().includes('pro-rata') || 
-                                          payment.description.toLowerCase().includes('pró-rata');
-                        
-                        return (
-                          <TableRow key={payment.id}>
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                {payment.description}
-                                {isProRata && (
-                                  <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-500 border-blue-500/20">
-                                    Pro-Rata
-                                  </Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>{payment.guardian_name}</TableCell>
-                            <TableCell>{formatDate(payment.due_date)}</TableCell>
-                            <TableCell className="text-right font-medium">{formatCurrency(payment.value)}</TableCell>
-                            <TableCell>{getStatusBadge(payment.status)}</TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex items-center justify-end gap-2">
-                                {(payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    className="gap-1"
-                                    onClick={() => handleReceiveInCash(payment)}
-                                    disabled={processingPaymentId === payment.id || isAsaasLoading}
-                                  >
-                                    {processingPaymentId === payment.id ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <HandCoins className="w-4 h-4" />
-                                    )}
-                                    Baixa
-                                  </Button>
-                                )}
-                                {payment.status === 'OVERDUE' && (
-                                  <Button 
-                                    variant="default" 
-                                    size="sm" 
-                                    className="gap-1"
-                                    onClick={() => handleMarkAsConfirmed(payment)}
-                                    disabled={processingPaymentId === payment.id}
-                                  >
-                                    {processingPaymentId === payment.id ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <CheckCircle2 className="w-4 h-4" />
-                                    )}
-                                    Confirmar
-                                  </Button>
-                                )}
-                                {payment.asaas_payment_id && (payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
-                                  <Button 
-                                    variant="outline" 
-                                    size="sm" 
-                                    title="Ver/Enviar PIX"
-                                    onClick={() => handleOpenPixModal(payment)}
-                                    className="gap-1"
-                                  >
-                                    <QrCode className="w-4 h-4" />
-                                    <span className="hidden sm:inline">PIX</span>
-                                  </Button>
-                                )}
-                                {payment.invoice_url && (
-                                  <Button variant="outline" size="sm" asChild title="Ver Boleto">
-                                    <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
-                                      <ExternalLink className="w-4 h-4" />
-                                    </a>
-                                  </Button>
-                                )}
-                                {payment.bank_slip_url && (
-                                  <Button variant="outline" size="sm" asChild title="Baixar PDF">
-                                    <a href={payment.bank_slip_url} target="_blank" rel="noopener noreferrer">
-                                      <Printer className="w-4 h-4" />
-                                    </a>
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <EntryBoletosSection
+            filteredEntryBoletos={filteredEntryBoletos}
+            entryBoletos={entryBoletos}
+            entryStatusFilter={entryStatusFilter}
+            setEntryStatusFilter={setEntryStatusFilter}
+            processingPaymentId={processingPaymentId}
+            isAsaasLoading={isAsaasLoading}
+            onReceiveInCash={handleReceiveInCash}
+            onMarkAsConfirmed={handleMarkAsConfirmed}
+            onOpenPixModal={handleOpenPixModal}
+          />
 
           {/* Carnê Installments Section */}
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-primary" />
-                    Parcelas de Carnês
-                  </CardTitle>
-                  <CardDescription>
-                    {filteredCarnePayments.length} de {carnePayments.length} parcelas de carnês cadastrados
-                  </CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-muted-foreground" />
-                  <Select value={carneStatusFilter} onValueChange={setCarneStatusFilter}>
-                    <SelectTrigger className="w-[150px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="PENDING">Pendente</SelectItem>
-                      <SelectItem value="RECEIVED">Recebido</SelectItem>
-                      <SelectItem value="CONFIRMED">Confirmado</SelectItem>
-                      <SelectItem value="RECEIVED_IN_CASH">Pago em Dinheiro</SelectItem>
-                      <SelectItem value="OVERDUE">Vencido</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {filteredCarnePayments.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  {carnePayments.length === 0 
-                    ? 'Nenhuma parcela de carnê cadastrada.' 
-                    : 'Nenhuma parcela encontrada com o filtro selecionado.'}
-                </div>
-              ) : (
-                <div className="max-h-[600px] overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead>Responsável</TableHead>
-                        <TableHead>Vencimento</TableHead>
-                        <TableHead className="text-right">Valor</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCarnePayments.map((payment) => (
-                        <TableRow key={payment.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {payment.description}
-                              {payment.installment_number && (
-                                <Badge variant="outline" className="text-xs">
-                                  Parcela {payment.installment_number}
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{payment.guardian_name}</TableCell>
-                          <TableCell>{formatDate(payment.due_date)}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(payment.value)}</TableCell>
-                          <TableCell>{getStatusBadge(payment.status)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {(payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  className="gap-1"
-                                  onClick={() => handleReceiveInCash(payment)}
-                                  disabled={processingPaymentId === payment.id || isAsaasLoading}
-                                >
-                                  {processingPaymentId === payment.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <HandCoins className="w-4 h-4" />
-                                  )}
-                                  Baixa
-                                </Button>
-                              )}
-                              {payment.status === 'OVERDUE' && (
-                                <Button 
-                                  variant="default" 
-                                  size="sm" 
-                                  className="gap-1"
-                                  onClick={() => handleMarkAsConfirmed(payment)}
-                                  disabled={processingPaymentId === payment.id}
-                                >
-                                  {processingPaymentId === payment.id ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                  ) : (
-                                    <CheckCircle2 className="w-4 h-4" />
-                                  )}
-                                  Confirmar
-                                </Button>
-                              )}
-                              {payment.asaas_payment_id && (payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  title="Ver/Enviar PIX"
-                                  onClick={() => handleOpenPixModal(payment)}
-                                  className="gap-1"
-                                >
-                                  <QrCode className="w-4 h-4" />
-                                  <span className="hidden sm:inline">PIX</span>
-                                </Button>
-                              )}
-                              {payment.invoice_url && (
-                                <Button variant="outline" size="sm" asChild title="Ver Boleto">
-                                  <a href={payment.invoice_url} target="_blank" rel="noopener noreferrer">
-                                    <ExternalLink className="w-4 h-4" />
-                                  </a>
-                                </Button>
-                              )}
-                              {payment.bank_slip_url && (
-                                <Button variant="outline" size="sm" asChild title="Baixar PDF">
-                                  <a href={payment.bank_slip_url} target="_blank" rel="noopener noreferrer">
-                                    <Printer className="w-4 h-4" />
-                                  </a>
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <CarneInstallmentsSection
+            carnePayments={carnePayments}
+            carneStatusFilter={carneStatusFilter}
+            setCarneStatusFilter={setCarneStatusFilter}
+            carneMonthFilter={carneMonthFilter}
+            setCarneMonthFilter={setCarneMonthFilter}
+            processingPaymentId={processingPaymentId}
+            isAsaasLoading={isAsaasLoading}
+            onReceiveInCash={handleReceiveInCash}
+            onMarkAsConfirmed={handleMarkAsConfirmed}
+            onOpenPixModal={handleOpenPixModal}
+          />
         </TabsContent>
 
         {/* Paid This Month Tab */}
