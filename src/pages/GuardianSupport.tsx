@@ -810,6 +810,7 @@ export default function GuardianSupport() {
   const handleSyncMessages = async () => {
     setIsSyncing(true);
     try {
+      // 1. Sync messages
       const { data, error } = await supabase.functions.invoke('wapi-sync-messages');
 
       if (error) throw error;
@@ -820,59 +821,69 @@ export default function GuardianSupport() {
           title: 'Plano LITE detectado',
           description: 'O histórico de mensagens não está disponível neste plano. Mensagens novas são capturadas automaticamente via webhook.',
         });
-        return;
+      } else {
+        const _debugSummary = (() => {
+          const samples = data?.debug?.samples as
+            | Array<{ phoneSuffix: string; attempts: Array<{ endpoint: string; status: number | null; ok: boolean; note?: string }> }>
+            | undefined;
+          if (!samples?.length) return '';
+
+          const shortEndpoint = (endpoint: string) => {
+            try {
+              return new URL(endpoint).pathname;
+            } catch {
+              return endpoint;
+            }
+          };
+
+          return samples
+            .map((s) => {
+              const parts = (s.attempts || [])
+                .slice(0, 4)
+                .map((a) => `${shortEndpoint(a.endpoint)}=${a.status ?? 'timeout'}`)
+                .join(', ');
+              return `${s.phoneSuffix}: ${parts}`;
+            })
+            .join(' | ');
+        })();
+
+        // Even if the backend returned success=true previously, 0 synced means we need to show the derived reason.
+        if ((data?.synced || 0) === 0) {
+          // Check if all attempts failed with 404 - indicates endpoint not available
+          const allFailed404 = data?.debug?.samples?.every((s: any) => 
+            s.attempts?.every((a: any) => a.status === 404 || a.status === null)
+          );
+          
+          const message = allFailed404
+            ? 'Esta instância não suporta busca de histórico retroativo. Configure o webhook para captura em tempo real das novas mensagens.'
+            : (data?.message || 'Verifique se a instância está conectada e há histórico de conversa.');
+          
+          toast({
+            title: allFailed404 ? 'Histórico não disponível' : 'Nenhuma mensagem sincronizada',
+            description: message,
+            variant: allFailed404 ? 'default' : 'destructive',
+          });
+        } else {
+          toast({
+            title: `Sincronização concluída${data?.plan ? ` (${data.plan})` : ''}`,
+            description: `${data?.synced || 0} mensagens sincronizadas de ${data?.chatsProcessed || 0} conversas.`,
+          });
+        }
       }
 
-      const _debugSummary = (() => {
-        const samples = data?.debug?.samples as
-          | Array<{ phoneSuffix: string; attempts: Array<{ endpoint: string; status: number | null; ok: boolean; note?: string }> }>
-          | undefined;
-        if (!samples?.length) return '';
-
-        const shortEndpoint = (endpoint: string) => {
-          try {
-            return new URL(endpoint).pathname;
-          } catch {
-            return endpoint;
-          }
-        };
-
-        return samples
-          .map((s) => {
-            const parts = (s.attempts || [])
-              .slice(0, 4)
-              .map((a) => `${shortEndpoint(a.endpoint)}=${a.status ?? 'timeout'}`)
-              .join(', ');
-            return `${s.phoneSuffix}: ${parts}`;
-          })
-          .join(' | ');
-      })();
-
-      // Even if the backend returned success=true previously, 0 synced means we need to show the derived reason.
-      if ((data?.synced || 0) === 0) {
-        // Check if all attempts failed with 404 - indicates endpoint not available
-        const allFailed404 = data?.debug?.samples?.every((s: any) => 
-          s.attempts?.every((a: any) => a.status === 404 || a.status === null)
-        );
-        
-        const message = allFailed404
-          ? 'Esta instância não suporta busca de histórico retroativo. Configure o webhook para captura em tempo real das novas mensagens.'
-          : (data?.message || 'Verifique se a instância está conectada e há histórico de conversa.');
-        
-        toast({
-          title: allFailed404 ? 'Histórico não disponível' : 'Nenhuma mensagem sincronizada',
-          description: message,
-          variant: allFailed404 ? 'default' : 'destructive',
-        });
-        return;
-      }
-
-      toast({
-        title: `Sincronização concluída${data?.plan ? ` (${data.plan})` : ''}`,
-        description: `${data?.synced || 0} mensagens sincronizadas de ${data?.chatsProcessed || 0} conversas.`,
+      // 2. Sync lead profile pictures
+      const { data: leadSyncData, error: leadSyncError } = await supabase.functions.invoke('wapi-sync-lead-contacts', {
+        body: { limit: 50 }
       });
 
-      // Reload data to show new messages
+      if (!leadSyncError && leadSyncData?.updated > 0) {
+        toast({
+          title: 'Fotos de perfil atualizadas',
+          description: `${leadSyncData.updated} foto(s) de perfil sincronizada(s).`,
+        });
+      }
+
+      // Reload data to show new messages and updated avatars
       loadData();
     } catch (error) {
       console.error('Error syncing messages:', error);
