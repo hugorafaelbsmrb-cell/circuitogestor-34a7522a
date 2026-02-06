@@ -19,6 +19,7 @@ import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Search, UtensilsCrossed, Calendar, Trash2, FileSpreadsheet, Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
 
 interface Consumption {
   id: string;
@@ -42,6 +43,7 @@ export function ConsumptionList() {
   const [weekFilter, setWeekFilter] = useState('current');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { branding } = useSystemBranding();
 
   const getWeekDates = (filter: string) => {
     const now = new Date();
@@ -231,12 +233,23 @@ export function ConsumptionList() {
             border-bottom: 2px solid #ea580c;
             margin-bottom: 15px;
           }
-          .header-left h1 {
+          .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          .logo {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            border-radius: 6px;
+          }
+          .header-info h1 {
             font-size: 16px;
             font-weight: 700;
             color: #1e293b;
           }
-          .header-left p {
+          .header-info .subtitle {
             font-size: 11px;
             color: #64748b;
             margin-top: 2px;
@@ -332,8 +345,12 @@ export function ConsumptionList() {
       <body>
         <div class="header">
           <div class="header-left">
-            <h1>🍽️ Relatório de Consumos - Cantina</h1>
-            <p>Período: ${format(start, "dd/MM/yyyy", { locale: ptBR })} a ${format(end, "dd/MM/yyyy", { locale: ptBR })}</p>
+            ${branding.logo ? `<img src="${branding.logo}" alt="Logo" class="logo" />` : ''}
+            <div class="header-info">
+              <h1>${branding.name || 'Circuito Kids'}</h1>
+              <p class="subtitle">Relatório de Consumos - Cantina</p>
+              <p class="subtitle">Período: ${format(start, "dd/MM/yyyy", { locale: ptBR })} a ${format(end, "dd/MM/yyyy", { locale: ptBR })}</p>
+            </div>
           </div>
           <div class="header-right">
             <div class="date">Gerado em ${currentDate}</div>
@@ -384,7 +401,7 @@ export function ConsumptionList() {
         </table>
 
         <div class="footer">
-          <span>Sistema de Gestão Escolar - Módulo Cantina</span>
+          <span>${branding.name || 'Circuito Kids'} - Módulo Cantina</span>
           <span>Página 1 de 1</span>
         </div>
       </body>
