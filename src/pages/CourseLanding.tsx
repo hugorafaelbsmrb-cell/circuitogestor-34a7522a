@@ -53,6 +53,10 @@ interface CourseLandingData {
   custom_description: string | null;
   custom_duration: string | null;
   custom_price: number | null;
+  urgency_banner_message: string | null;
+  urgency_banner_variant: string | null;
+  floating_cta_text: string | null;
+  floating_cta_enabled: boolean;
 }
 
 export default function CourseLanding() {
@@ -145,6 +149,10 @@ export default function CourseLanding() {
           custom_description: (landingPageData as any).custom_description || null,
           custom_duration: (landingPageData as any).custom_duration || null,
           custom_price: (landingPageData as any).custom_price || null,
+          urgency_banner_message: (landingPageData as any).urgency_banner_message || null,
+          urgency_banner_variant: (landingPageData as any).urgency_banner_variant || 'warning',
+          floating_cta_text: (landingPageData as any).floating_cta_text || 'Quero me matricular!',
+          floating_cta_enabled: (landingPageData as any).floating_cta_enabled ?? true,
         });
       } else {
         // Use course defaults if no custom landing page
@@ -160,6 +168,10 @@ export default function CourseLanding() {
           custom_description: null,
           custom_duration: null,
           custom_price: null,
+          urgency_banner_message: null,
+          urgency_banner_variant: 'warning',
+          floating_cta_text: 'Quero me matricular!',
+          floating_cta_enabled: true,
         });
       }
     } catch (error) {
@@ -211,8 +223,8 @@ export default function CourseLanding() {
     <div className="min-h-screen bg-background">
       {/* Urgency Banner */}
       <UrgencyBanner 
-        message="🔥 Últimas vagas com desconto especial! Promoção válida por tempo limitado."
-        variant="warning"
+        message={landingData.urgency_banner_message || "🔥 Últimas vagas com desconto especial! Promoção válida por tempo limitado."}
+        variant={(landingData.urgency_banner_variant as 'warning' | 'destructive' | 'default' | 'secondary') || "warning"}
       />
 
       {/* Hero */}
@@ -275,7 +287,12 @@ export default function CourseLanding() {
       </section>
 
       {/* Floating CTA */}
-      <FloatingCTA onCtaClick={scrollToForm} />
+      {landingData.floating_cta_enabled && (
+        <FloatingCTA 
+          onCtaClick={scrollToForm} 
+          buttonText={landingData.floating_cta_text || "Quero me matricular!"}
+        />
+      )}
 
       {/* Footer */}
       <footer className="py-12 px-4 bg-card border-t border-border">

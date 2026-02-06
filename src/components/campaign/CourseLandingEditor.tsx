@@ -7,8 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
 import { 
@@ -21,7 +23,13 @@ import {
   Trash2,
   Pencil,
   ExternalLink,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Sparkles,
+  Layout,
+  MessageSquare,
+  Images,
+  Users,
+  Megaphone
 } from 'lucide-react';
 
 interface Course {
@@ -64,10 +72,20 @@ interface CourseLandingData {
   custom_description: string;
   custom_duration: string;
   custom_price: string;
+  urgency_banner_message: string;
+  urgency_banner_variant: string;
+  floating_cta_text: string;
+  floating_cta_enabled: boolean;
 }
 
 const ICON_OPTIONS = ['Star', 'Award', 'GraduationCap', 'Clock', 'Heart', 'Lightbulb', 'Target', 'Users', 'Rocket', 'Brain'];
 const RATING_OPTIONS = [1, 2, 3, 4, 5];
+const BANNER_VARIANTS = [
+  { value: 'warning', label: 'Amarelo (Urgência)' },
+  { value: 'destructive', label: 'Vermelho (Alerta)' },
+  { value: 'default', label: 'Primário' },
+  { value: 'secondary', label: 'Neutro' },
+];
 
 export function CourseLandingEditor() {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -160,6 +178,10 @@ export function CourseLandingEditor() {
           custom_description: (data as any).custom_description || '',
           custom_duration: (data as any).custom_duration || '',
           custom_price: (data as any).custom_price?.toString() || '',
+          urgency_banner_message: (data as any).urgency_banner_message || '',
+          urgency_banner_variant: (data as any).urgency_banner_variant || 'warning',
+          floating_cta_text: (data as any).floating_cta_text || 'Quero me matricular!',
+          floating_cta_enabled: (data as any).floating_cta_enabled ?? true,
         });
       } else {
         // Create default data
@@ -176,6 +198,10 @@ export function CourseLandingEditor() {
           custom_description: '',
           custom_duration: '',
           custom_price: '',
+          urgency_banner_message: '🔥 Últimas vagas com desconto especial! Promoção válida por tempo limitado.',
+          urgency_banner_variant: 'warning',
+          floating_cta_text: 'Quero me matricular!',
+          floating_cta_enabled: true,
         });
       }
     } catch (error) {
@@ -202,6 +228,10 @@ export function CourseLandingEditor() {
         custom_description: landingData.custom_description || null,
         custom_duration: landingData.custom_duration || null,
         custom_price: landingData.custom_price ? parseFloat(landingData.custom_price) : null,
+        urgency_banner_message: landingData.urgency_banner_message || null,
+        urgency_banner_variant: landingData.urgency_banner_variant || 'warning',
+        floating_cta_text: landingData.floating_cta_text || 'Quero me matricular!',
+        floating_cta_enabled: landingData.floating_cta_enabled,
       };
 
       if (landingData.id) {
@@ -512,129 +542,169 @@ export function CourseLandingEditor() {
                         Editar Página
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-3xl max-h-[90vh]">
+                    <DialogContent className="max-w-4xl max-h-[90vh]">
                       <DialogHeader>
-                        <DialogTitle>Configurar Landing Page - {selectedCourse?.name}</DialogTitle>
+                        <DialogTitle className="flex items-center gap-2">
+                          <Layout className="w-5 h-5" />
+                          Configurar Landing Page - {selectedCourse?.name}
+                        </DialogTitle>
                       </DialogHeader>
-                      <ScrollArea className="max-h-[70vh] pr-4">
-                        {landingData && (
-                          <div className="space-y-6 py-4">
-                            {/* Active toggle */}
-                            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                              <div>
-                                <Label>Página Ativa</Label>
-                                <p className="text-sm text-muted-foreground">Página visível publicamente</p>
-                              </div>
-                              <Switch
-                                checked={landingData.is_active}
-                                onCheckedChange={(checked) => setLandingData({ ...landingData, is_active: checked })}
-                              />
-                            </div>
+                      
+                      {landingData && (
+                        <Tabs defaultValue="hero" className="w-full">
+                          <TabsList className="grid w-full grid-cols-6 mb-4">
+                            <TabsTrigger value="hero" className="text-xs sm:text-sm">
+                              <Sparkles className="w-4 h-4 sm:mr-1" />
+                              <span className="hidden sm:inline">Hero</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="course" className="text-xs sm:text-sm">
+                              <Layout className="w-4 h-4 sm:mr-1" />
+                              <span className="hidden sm:inline">Curso</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="benefits" className="text-xs sm:text-sm">
+                              <MessageSquare className="w-4 h-4 sm:mr-1" />
+                              <span className="hidden sm:inline">Benefícios</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="gallery" className="text-xs sm:text-sm">
+                              <Images className="w-4 h-4 sm:mr-1" />
+                              <span className="hidden sm:inline">Galeria</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="testimonials" className="text-xs sm:text-sm">
+                              <Users className="w-4 h-4 sm:mr-1" />
+                              <span className="hidden sm:inline">Depoimentos</span>
+                            </TabsTrigger>
+                            <TabsTrigger value="cta" className="text-xs sm:text-sm">
+                              <Megaphone className="w-4 h-4 sm:mr-1" />
+                              <span className="hidden sm:inline">CTAs</span>
+                            </TabsTrigger>
+                          </TabsList>
 
-                            {/* Hero Section */}
-                            <div className="space-y-4">
-                              <h4 className="font-medium">Seção Hero</h4>
-                              
-                              <div className="space-y-2">
-                                <Label>Título</Label>
-                                <Input
-                                  value={landingData.hero_title}
-                                  onChange={(e) => setLandingData({ ...landingData, hero_title: e.target.value })}
-                                  placeholder="Matricule-se agora!"
+                          <ScrollArea className="max-h-[60vh] pr-4">
+                            {/* Hero Tab */}
+                            <TabsContent value="hero" className="space-y-4 mt-0">
+                              {/* Active toggle */}
+                              <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                                <div>
+                                  <Label>Página Ativa</Label>
+                                  <p className="text-sm text-muted-foreground">Página visível publicamente</p>
+                                </div>
+                                <Switch
+                                  checked={landingData.is_active}
+                                  onCheckedChange={(checked) => setLandingData({ ...landingData, is_active: checked })}
                                 />
                               </div>
 
-                              <div className="space-y-2">
-                                <Label>Subtítulo</Label>
-                                <Textarea
-                                  value={landingData.hero_subtitle}
-                                  onChange={(e) => setLandingData({ ...landingData, hero_subtitle: e.target.value })}
-                                  placeholder="Descrição atrativa do curso"
-                                  rows={2}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label>Imagem de Fundo</Label>
-                                <div className="flex gap-2">
+                              <div className="space-y-4">
+                                <h4 className="font-medium">Seção Hero</h4>
+                                
+                                <div className="space-y-2">
+                                  <Label>Título</Label>
                                   <Input
-                                    value={landingData.hero_image}
-                                    onChange={(e) => setLandingData({ ...landingData, hero_image: e.target.value })}
-                                    placeholder="URL da imagem ou faça upload"
+                                    value={landingData.hero_title}
+                                    onChange={(e) => setLandingData({ ...landingData, hero_title: e.target.value })}
+                                    placeholder="Matricule-se agora!"
                                   />
-                                  <label className="cursor-pointer">
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      className="hidden"
-                                      onChange={handleUploadHeroImage}
-                                      disabled={isUploadingHero}
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>Subtítulo</Label>
+                                  <Textarea
+                                    value={landingData.hero_subtitle}
+                                    onChange={(e) => setLandingData({ ...landingData, hero_subtitle: e.target.value })}
+                                    placeholder="Descrição atrativa do curso"
+                                    rows={2}
+                                  />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>Imagem de Fundo</Label>
+                                  <div className="flex gap-2">
+                                    <Input
+                                      value={landingData.hero_image}
+                                      onChange={(e) => setLandingData({ ...landingData, hero_image: e.target.value })}
+                                      placeholder="URL da imagem ou faça upload"
                                     />
-                                    <Button asChild variant="outline" disabled={isUploadingHero}>
-                                      <span>
-                                        {isUploadingHero ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                      </span>
-                                    </Button>
-                                  </label>
+                                    <label className="cursor-pointer">
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={handleUploadHeroImage}
+                                        disabled={isUploadingHero}
+                                      />
+                                      <Button asChild variant="outline" disabled={isUploadingHero}>
+                                        <span>
+                                          {isUploadingHero ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                        </span>
+                                      </Button>
+                                    </label>
+                                  </div>
+                                  {landingData.hero_image && (
+                                    <img src={landingData.hero_image} alt="Hero preview" className="h-32 w-full object-cover rounded-lg" />
+                                  )}
                                 </div>
-                                {landingData.hero_image && (
-                                  <img src={landingData.hero_image} alt="Hero preview" className="h-32 w-full object-cover rounded-lg" />
-                                )}
                               </div>
-                            </div>
+                            </TabsContent>
 
-                            {/* Custom Course Info */}
-                            <div className="space-y-4">
-                              <h4 className="font-medium">Informações do Curso (personalizadas)</h4>
-                              <p className="text-sm text-muted-foreground">
-                                Deixe em branco para usar os dados originais do curso.
-                              </p>
-                              
-                              <div className="grid grid-cols-2 gap-4">
+                            {/* Course Info Tab */}
+                            <TabsContent value="course" className="space-y-4 mt-0">
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="font-medium">Informações do Curso</h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    Personalize as informações exibidas. Deixe em branco para usar os dados originais do curso.
+                                  </p>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label>Nome do Curso</Label>
+                                    <Input
+                                      value={landingData.custom_name}
+                                      onChange={(e) => setLandingData({ ...landingData, custom_name: e.target.value })}
+                                      placeholder={selectedCourse?.name || 'Nome original do curso'}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Duração</Label>
+                                    <Input
+                                      value={landingData.custom_duration}
+                                      onChange={(e) => setLandingData({ ...landingData, custom_duration: e.target.value })}
+                                      placeholder="Ex: 6 meses"
+                                    />
+                                  </div>
+                                </div>
+
                                 <div className="space-y-2">
-                                  <Label>Nome do Curso</Label>
-                                  <Input
-                                    value={landingData.custom_name}
-                                    onChange={(e) => setLandingData({ ...landingData, custom_name: e.target.value })}
-                                    placeholder={selectedCourse?.name || 'Nome original do curso'}
+                                  <Label>Descrição</Label>
+                                  <Textarea
+                                    value={landingData.custom_description}
+                                    onChange={(e) => setLandingData({ ...landingData, custom_description: e.target.value })}
+                                    placeholder="Descrição personalizada do curso"
+                                    rows={3}
                                   />
                                 </div>
+
                                 <div className="space-y-2">
-                                  <Label>Duração</Label>
+                                  <Label>Preço (R$)</Label>
                                   <Input
-                                    value={landingData.custom_duration}
-                                    onChange={(e) => setLandingData({ ...landingData, custom_duration: e.target.value })}
-                                    placeholder="Ex: 6 meses"
+                                    type="number"
+                                    step="0.01"
+                                    value={landingData.custom_price}
+                                    onChange={(e) => setLandingData({ ...landingData, custom_price: e.target.value })}
+                                    placeholder="Preço personalizado"
                                   />
                                 </div>
                               </div>
+                            </TabsContent>
 
-                              <div className="space-y-2">
-                                <Label>Descrição</Label>
-                                <Textarea
-                                  value={landingData.custom_description}
-                                  onChange={(e) => setLandingData({ ...landingData, custom_description: e.target.value })}
-                                  placeholder="Descrição personalizada do curso"
-                                  rows={2}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label>Preço (R$)</Label>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  value={landingData.custom_price}
-                                  onChange={(e) => setLandingData({ ...landingData, custom_price: e.target.value })}
-                                  placeholder="Preço personalizado"
-                                />
-                              </div>
-                            </div>
-
-                            {/* Benefits Section */}
-                            <div className="space-y-4">
+                            {/* Benefits Tab */}
+                            <TabsContent value="benefits" className="space-y-4 mt-0">
                               <div className="flex items-center justify-between">
-                                <h4 className="font-medium">Benefícios</h4>
+                                <div>
+                                  <h4 className="font-medium">Benefícios</h4>
+                                  <p className="text-sm text-muted-foreground">Liste os diferenciais do curso</p>
+                                </div>
                                 <Button size="sm" variant="outline" onClick={addBenefit}>
                                   <Plus className="w-4 h-4 mr-1" />
                                   Adicionar
@@ -683,16 +753,19 @@ export function CourseLandingEditor() {
                               ))}
 
                               {landingData.benefits.length === 0 && (
-                                <p className="text-sm text-muted-foreground text-center py-4">
+                                <p className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed rounded-lg">
                                   Nenhum benefício adicionado. Clique em "Adicionar" para começar.
                                 </p>
                               )}
-                            </div>
+                            </TabsContent>
 
-                            {/* Gallery Section */}
-                            <div className="space-y-4">
+                            {/* Gallery Tab */}
+                            <TabsContent value="gallery" className="space-y-4 mt-0">
                               <div className="flex items-center justify-between">
-                                <h4 className="font-medium">Galeria de Imagens</h4>
+                                <div>
+                                  <h4 className="font-medium">Galeria de Imagens</h4>
+                                  <p className="text-sm text-muted-foreground">Adicione fotos de alunos e atividades</p>
+                                </div>
                                 <label className="cursor-pointer">
                                   <input
                                     type="file"
@@ -731,17 +804,20 @@ export function CourseLandingEditor() {
                               </div>
 
                               {landingData.gallery_images.length === 0 && (
-                                <div className="text-center py-6 text-muted-foreground border-2 border-dashed rounded-lg">
+                                <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
                                   <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-50" />
                                   <p className="text-sm">Nenhuma imagem na galeria</p>
                                 </div>
                               )}
-                            </div>
+                            </TabsContent>
 
-                            {/* Testimonials Section */}
-                            <div className="space-y-4">
+                            {/* Testimonials Tab */}
+                            <TabsContent value="testimonials" className="space-y-4 mt-0">
                               <div className="flex items-center justify-between">
-                                <h4 className="font-medium">Depoimentos</h4>
+                                <div>
+                                  <h4 className="font-medium">Depoimentos</h4>
+                                  <p className="text-sm text-muted-foreground">O que os pais dizem sobre o curso</p>
+                                </div>
                                 <Button size="sm" variant="outline" onClick={addTestimonial}>
                                   <Plus className="w-4 h-4 mr-1" />
                                   Adicionar
@@ -798,35 +874,105 @@ export function CourseLandingEditor() {
                               ))}
 
                               {landingData.testimonials.length === 0 && (
-                                <p className="text-sm text-muted-foreground text-center py-4">
-                                  Nenhum depoimento adicionado. Clique em "Adicionar" para incluir depoimentos de pais.
+                                <p className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed rounded-lg">
+                                  Nenhum depoimento adicionado. Se deixar vazio, serão exibidos depoimentos padrão.
                                 </p>
                               )}
-                            </div>
+                            </TabsContent>
 
-                            {/* Save Button */}
+                            {/* CTAs Tab */}
+                            <TabsContent value="cta" className="space-y-6 mt-0">
+                              {/* Urgency Banner */}
+                              <div className="space-y-4">
+                                <div>
+                                  <h4 className="font-medium flex items-center gap-2">
+                                    <Megaphone className="w-4 h-4" />
+                                    Banner de Urgência
+                                  </h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    Aparece no topo da página para criar senso de urgência
+                                  </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>Mensagem do Banner</Label>
+                                  <Input
+                                    value={landingData.urgency_banner_message}
+                                    onChange={(e) => setLandingData({ ...landingData, urgency_banner_message: e.target.value })}
+                                    placeholder="🔥 Últimas vagas com desconto especial!"
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    Deixe em branco para usar o padrão. Use emojis para chamar atenção!
+                                  </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>Estilo do Banner</Label>
+                                  <Select
+                                    value={landingData.urgency_banner_variant}
+                                    onValueChange={(value) => setLandingData({ ...landingData, urgency_banner_variant: value })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {BANNER_VARIANTS.map(variant => (
+                                        <SelectItem key={variant.value} value={variant.value}>
+                                          {variant.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+
+                              {/* Floating CTA */}
+                              <div className="space-y-4 pt-4 border-t">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h4 className="font-medium">Botão Flutuante (CTA)</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                      Botão fixo que aparece ao rolar a página
+                                    </p>
+                                  </div>
+                                  <Switch
+                                    checked={landingData.floating_cta_enabled}
+                                    onCheckedChange={(checked) => setLandingData({ ...landingData, floating_cta_enabled: checked })}
+                                  />
+                                </div>
+
+                                {landingData.floating_cta_enabled && (
+                                  <div className="space-y-2">
+                                    <Label>Texto do Botão</Label>
+                                    <Input
+                                      value={landingData.floating_cta_text}
+                                      onChange={(e) => setLandingData({ ...landingData, floating_cta_text: e.target.value })}
+                                      placeholder="Quero me matricular!"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </TabsContent>
+                          </ScrollArea>
+
+                          {/* Save Button - Always visible */}
+                          <div className="pt-4 border-t mt-4">
                             <Button onClick={handleSave} disabled={isSaving} className="w-full">
                               {isSaving ? (
                                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               ) : (
                                 <Save className="w-4 h-4 mr-2" />
                               )}
-                              Salvar Página
+                              Salvar Alterações
                             </Button>
                           </div>
-                        )}
-                      </ScrollArea>
+                        </Tabs>
+                      )}
                     </DialogContent>
                   </Dialog>
                 </div>
               </div>
             ))}
-
-            {courses.length === 0 && (
-              <p className="text-center py-8 text-muted-foreground">
-                Nenhum curso cadastrado. Cadastre cursos primeiro.
-              </p>
-            )}
           </div>
         </CardContent>
       </Card>

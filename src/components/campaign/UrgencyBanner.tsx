@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
-import { Clock, AlertTriangle, Zap } from 'lucide-react';
+import { Clock, AlertTriangle, Zap, Sparkles } from 'lucide-react';
 
 interface UrgencyBannerProps {
   message?: string;
-  variant?: 'warning' | 'info' | 'promo';
+  variant?: 'warning' | 'destructive' | 'default' | 'secondary';
 }
 
 export function UrgencyBanner({ 
@@ -11,25 +11,28 @@ export function UrgencyBanner({
   variant = 'warning' 
 }: UrgencyBannerProps) {
   const variants = {
-    warning: 'bg-gradient-to-r from-orange-500 to-red-500',
-    info: 'bg-gradient-to-r from-blue-500 to-purple-500',
-    promo: 'bg-gradient-to-r from-green-500 to-emerald-500',
+    warning: 'bg-gradient-to-r from-orange-500 to-amber-500',
+    destructive: 'bg-gradient-to-r from-red-600 to-red-500',
+    default: 'bg-gradient-to-r from-primary to-primary/80',
+    secondary: 'bg-gradient-to-r from-muted-foreground/80 to-muted-foreground',
   };
 
   const icons = {
     warning: AlertTriangle,
-    info: Clock,
-    promo: Zap,
+    destructive: Zap,
+    default: Sparkles,
+    secondary: Clock,
   };
 
-  const Icon = icons[variant];
+  const Icon = icons[variant] || AlertTriangle;
+  const bgClass = variants[variant] || variants.warning;
 
   return (
     <motion.div
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, delay: 1 }}
-      className={`${variants[variant]} text-white py-3 px-4 text-center relative overflow-hidden`}
+      className={`${bgClass} text-white py-3 px-4 text-center relative overflow-hidden`}
     >
       {/* Animated background */}
       <motion.div
