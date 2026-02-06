@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { ArrowUp, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
 interface FloatingCTAProps {
   onCtaClick: () => void;
@@ -16,11 +16,12 @@ export function FloatingCTA({
 
   useEffect(() => {
     const handleScroll = () => {
-      // Show after scrolling 400px
-      setIsVisible(window.scrollY > 400);
+      // Show after scrolling 300px on mobile, 400px on desktop
+      const threshold = window.innerWidth < 640 ? 300 : 400;
+      setIsVisible(window.scrollY > threshold);
     };
 
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -31,16 +32,16 @@ export function FloatingCTA({
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-gradient-to-t from-background via-background to-transparent pointer-events-none"
+          transition={{ duration: 0.25 }}
+          className="fixed bottom-0 left-0 right-0 z-50 p-3 sm:p-4 bg-gradient-to-t from-background via-background/95 to-transparent pointer-events-none safe-area-inset-bottom"
         >
           <div className="max-w-md mx-auto pointer-events-auto">
             <Button 
               size="lg"
               onClick={onCtaClick}
-              className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground font-bold py-6 rounded-full shadow-2xl hover:shadow-xl transition-all duration-300"
+              className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground font-bold py-5 sm:py-6 rounded-full shadow-2xl hover:shadow-xl transition-all duration-300 active:scale-95 text-sm sm:text-base"
             >
-              <Sparkles className="w-5 h-5 mr-2" />
+              <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
               {buttonText}
             </Button>
           </div>

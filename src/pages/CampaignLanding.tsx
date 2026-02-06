@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { HeroSection } from '@/components/campaign/HeroSection';
-import { PhotoGallery } from '@/components/campaign/PhotoGallery';
-import { CourseCards } from '@/components/campaign/CourseCards';
-import { BenefitsSection } from '@/components/campaign/BenefitsSection';
 import { LeadCaptureForm } from '@/components/campaign/LeadCaptureForm';
+import { LandingPageSkeleton } from '@/components/campaign/LandingPageSkeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+
+// Lazy load heavy components for faster initial render
+const PhotoGallery = lazy(() => import('@/components/campaign/PhotoGallery').then(m => ({ default: m.PhotoGallery })));
+const CourseCards = lazy(() => import('@/components/campaign/CourseCards').then(m => ({ default: m.CourseCards })));
+const BenefitsSection = lazy(() => import('@/components/campaign/BenefitsSection').then(m => ({ default: m.BenefitsSection })));
 
 interface CampaignImage {
   id: string;
@@ -51,22 +53,34 @@ export default function CampaignLanding() {
 
   const loadCampaignData = async () => {
     try {
-      // Load settings
-      const { data: settings } = await supabase
-        .from('app_settings')
-        .select('key, value')
-        .in('key', [
-          'campaign_hero_title',
-          'campaign_hero_subtitle',
-          'campaign_hero_image',
-          'campaign_benefits',
-          'campaign_is_active',
-          'campaign_courses_title',
-          'campaign_courses_subtitle',
-        ]);
+      // Load all data in parallel for faster loading
+      const [settingsResult, imagesResult, coursesResult] = await Promise.all([
+        supabase
+          .from('app_settings')
+          .select('key, value')
+          .in('key', [
+            'campaign_hero_title',
+            'campaign_hero_subtitle',
+            'campaign_hero_image',
+            'campaign_benefits',
+            'campaign_is_active',
+            'campaign_courses_title',
+            'campaign_courses_subtitle',
+          ]),
+        supabase
+          .from('campaign_images')
+          .select('id, url, title')
+          .eq('is_active', true)
+          .eq('type', 'student_photo')
+          .order('sort_order', { ascending: true }),
+        supabase
+          .from('courses')
+          .select('id, name, description, duration, price')
+          .eq('is_active', true)
+          .order('name'),
+      ]);
 
-      settings?.forEach((s) => {
-        console.log('⚙️ Loading setting:', s.key, '=', s.value);
+      settingsResult.data?.forEach((s) => {
         switch (s.key) {
           case 'campaign_hero_title':
             if (s.value) setHeroTitle(s.value);
@@ -98,27 +112,12 @@ export default function CampaignLanding() {
         }
       });
 
-      // Load images
-      const { data: campaignImages } = await supabase
-        .from('campaign_images')
-        .select('id, url, title')
-        .eq('is_active', true)
-        .eq('type', 'student_photo')
-        .order('sort_order', { ascending: true });
-
-      if (campaignImages) {
-        setImages(campaignImages);
+      if (imagesResult.data) {
+        setImages(imagesResult.data);
       }
 
-      // Load courses
-      const { data: coursesData } = await supabase
-        .from('courses')
-        .select('id, name, description, duration, price')
-        .eq('is_active', true)
-        .order('name');
-
-      if (coursesData) {
-        setCourses(coursesData);
+      if (coursesResult.data) {
+        setCourses(coursesResult.data);
       }
     } catch (error) {
       console.error('Error loading campaign data:', error);
@@ -137,11 +136,7 @@ export default function CampaignLanding() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <LandingPageSkeleton />;
   }
 
   if (!isActive) {
@@ -161,7 +156,7 @@ export default function CampaignLanding() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero */}
+      {/* Hero - renders immediately */}
       <HeroSection
         title={heroTitle}
         subtitle={heroSubtitle}
@@ -169,21 +164,24 @@ export default function CampaignLanding() {
         onCtaClick={scrollToForm}
       />
 
-      {/* Photo Gallery */}
-      {images.length > 0 && <PhotoGallery images={images} />}
+      {/* Lazy loaded sections with suspense fallback */}
+      <Suspense fallback={null}>
+        {/* Photo Gallery */}
+        {images.length > 0 && <PhotoGallery images={images} />}
 
-      {/* Benefits */}
-      {benefits.length > 0 && <BenefitsSection benefits={benefits} />}
+        {/* Benefits */}
+        {benefits.length > 0 && <BenefitsSection benefits={benefits} />}
 
-      {/* Courses */}
-      {courses.length > 0 && (
-        <CourseCards 
-          courses={courses} 
-          onSelectCourse={handleSelectCourse}
-          sectionTitle={coursesSectionTitle}
-          sectionSubtitle={coursesSectionSubtitle}
-        />
-      )}
+        {/* Courses */}
+        {courses.length > 0 && (
+          <CourseCards 
+            courses={courses} 
+            onSelectCourse={handleSelectCourse}
+            sectionTitle={coursesSectionTitle}
+            sectionSubtitle={coursesSectionSubtitle}
+          />
+        )}
+      </Suspense>
 
       {/* Lead Capture Form */}
       <section className="py-16 px-4 bg-gradient-to-b from-muted/50 to-background" id="form">
