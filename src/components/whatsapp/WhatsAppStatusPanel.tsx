@@ -12,7 +12,8 @@ import {
   Wifi, 
   WifiOff,
   Settings2,
-  ExternalLink
+  ExternalLink,
+  AlertTriangle
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Separator } from '@/components/ui/separator';
@@ -478,7 +480,7 @@ export function WhatsAppStatusPanel({ compact = false }: WhatsAppStatusPanelProp
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Status Info */}
+          {/* Status Info - Connected */}
           {connectionStatus === 'connected' && statusDetails && (
             <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
               <div className="flex items-center gap-2">
@@ -488,13 +490,49 @@ export function WhatsAppStatusPanel({ compact = false }: WhatsAppStatusPanelProp
             </div>
           )}
 
+          {/* Alert - Disconnected */}
+          {connectionStatus === 'disconnected' && isConfigured && (
+            <Alert variant="destructive" className="border-destructive/50 bg-destructive/10">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>WhatsApp Desconectado</AlertTitle>
+              <AlertDescription className="mt-2">
+                <p className="mb-2">
+                  A conexão com o WhatsApp foi perdida. Mensagens automáticas como confirmações de pagamento, 
+                  notificações de ausência e resumos da cantina <strong>não serão enviadas</strong> enquanto desconectado.
+                </p>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={handleGetQrCode}
+                  disabled={isLoadingQr}
+                  className="mt-1"
+                >
+                  <QrCode className="w-4 h-4 mr-2" />
+                  Reconectar via QR Code
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Alert - Error */}
+          {connectionStatus === 'error' && isConfigured && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Erro de Conexão</AlertTitle>
+              <AlertDescription>
+                Não foi possível verificar o status da conexão. Verifique suas credenciais e tente novamente.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {!isConfigured && (
-            <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-warning" />
-                <span className="text-sm">Configure a W-API em Configurações &gt; WhatsApp</span>
-              </div>
-            </div>
+            <Alert className="border-warning/50 bg-warning/10">
+              <AlertCircle className="h-4 w-4 text-warning" />
+              <AlertTitle className="text-warning">Configuração Pendente</AlertTitle>
+              <AlertDescription>
+                Configure a W-API em Configurações → WhatsApp para habilitar o envio de mensagens.
+              </AlertDescription>
+            </Alert>
           )}
 
           {/* Config Fields (compact mode shows minimal) */}
