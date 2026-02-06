@@ -60,6 +60,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuthContext } from '@/contexts/AuthContext';
+import { useAdminGuard } from '@/hooks/useAdminGuard';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -151,6 +152,7 @@ const defaultPermissions: UserPermissions = {
 export default function Users() {
   const { toast } = useToast();
   const { profile: currentProfile, signUp } = useAuthContext();
+  const { isAuthorized, isLoading: guardLoading } = useAdminGuard();
   
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -228,18 +230,29 @@ export default function Users() {
     
     setIsSubmitting(true);
     
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: newRole })
-      .eq('id', editingUser.id);
+    try {
+      // Update profiles table for backward compatibility
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', editingUser.id);
 
-    if (error) {
-      toast({
-        title: 'Erro ao atualizar usuário',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } else {
+      if (profileError) throw profileError;
+
+      // Update user_roles table (the secure source of truth)
+      // First, remove existing roles
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', editingUser.id);
+
+      // Add the new role
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .insert({ user_id: editingUser.id, role: newRole as 'admin' | 'moderator' | 'user' });
+
+      if (roleError) throw roleError;
+
       toast({
         title: 'Usuário atualizado',
         description: 'O perfil foi atualizado com sucesso.',
@@ -247,6 +260,12 @@ export default function Users() {
       fetchProfiles();
       setShowEditModal(false);
       setEditingUser(null);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao atualizar usuário',
+        description: error.message,
+        variant: 'destructive',
+      });
     }
     
     setIsSubmitting(false);
@@ -502,14 +521,11 @@ export default function Users() {
     }
   };
 
-  // Check if current user is admin
-  if (currentProfile?.role !== 'admin') {
+  // Check if guard is still loading or user is not authorized
+  if (guardLoading || !isAuthorized) {
     return (
-      <div className="animate-fade-in">
-        <div className="page-header">
-          <h1 className="page-title">Acesso Negado</h1>
-          <p className="page-subtitle">Você não tem permissão para acessar esta página.</p>
-        </div>
+      <div className="animate-fade-in flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
