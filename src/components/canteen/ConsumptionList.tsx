@@ -5,6 +5,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,11 +18,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { format, startOfWeek, endOfWeek, subWeeks } from 'date-fns';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { format, startOfWeek, endOfWeek, subWeeks, startOfDay, endOfDay, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Search, UtensilsCrossed, Calendar, Trash2, FileSpreadsheet, Loader2, Printer } from 'lucide-react';
+import { Search, UtensilsCrossed, Calendar, Trash2, FileSpreadsheet, Loader2, Printer, CalendarRange } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
+import { cn } from '@/lib/utils';
 
 interface Consumption {
   id: string;
@@ -42,6 +54,9 @@ export function ConsumptionList() {
   const [search, setSearch] = useState('');
   const [weekFilter, setWeekFilter] = useState('current');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printStartDate, setPrintStartDate] = useState<Date | undefined>(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [printEndDate, setPrintEndDate] = useState<Date | undefined>(endOfWeek(new Date(), { weekStartsOn: 1 }));
   const queryClient = useQueryClient();
   const { branding } = useSystemBranding();
 
@@ -161,9 +176,39 @@ export function ConsumptionList() {
     toast.success('Relatório exportado com sucesso!');
   };
 
-  const handlePrintPDF = () => {
-    if (filteredConsumptions.length === 0) {
-      toast.error('Nenhum consumo para imprimir.');
+  const handlePrintPDF = async (customStartDate?: Date, customEndDate?: Date) => {
+    const reportStart = customStartDate || start;
+    const reportEnd = customEndDate || end;
+
+    // If using custom dates, fetch data for those dates
+    let dataToExport = filteredConsumptions;
+    
+    if (customStartDate && customEndDate) {
+      const { data, error } = await supabase
+        .from('canteen_consumptions')
+        .select(`
+          id,
+          quantity,
+          unit_price,
+          total_price,
+          consumed_at,
+          student:students(id, name),
+          product:canteen_products(id, name, category)
+        `)
+        .gte('consumed_at', startOfDay(customStartDate).toISOString())
+        .lte('consumed_at', endOfDay(customEndDate).toISOString())
+        .order('consumed_at', { ascending: false });
+      
+      if (error) {
+        toast.error('Erro ao buscar dados para o relatório.');
+        return;
+      }
+      
+      dataToExport = (data as unknown as Consumption[]) || [];
+    }
+
+    if (dataToExport.length === 0) {
+      toast.error('Nenhum consumo encontrado para o período selecionado.');
       return;
     }
 
@@ -194,7 +239,9 @@ export function ConsumptionList() {
       }
     };
 
-    const tableRows = filteredConsumptions.map(c => `
+    const reportTotal = dataToExport.reduce((sum, c) => sum + c.total_price, 0);
+
+    const tableRows = dataToExport.map(c => `
       <tr>
         <td>${c.student?.name || '-'}</td>
         <td>
@@ -349,7 +396,7 @@ export function ConsumptionList() {
             <div class="header-info">
               <h1>${branding.name || 'Circuito Kids'}</h1>
               <p class="subtitle">Relatório de Consumos - Cantina</p>
-              <p class="subtitle">Período: ${format(start, "dd/MM/yyyy", { locale: ptBR })} a ${format(end, "dd/MM/yyyy", { locale: ptBR })}</p>
+              <p class="subtitle">Período: ${format(reportStart, "dd/MM/yyyy", { locale: ptBR })} a ${format(reportEnd, "dd/MM/yyyy", { locale: ptBR })}</p>
             </div>
           </div>
           <div class="header-right">
@@ -360,19 +407,19 @@ export function ConsumptionList() {
         <div class="summary-box">
           <div class="summary-item">
             <div class="summary-label">Total de Registros</div>
-            <div class="summary-value">${filteredConsumptions.length}</div>
+            <div class="summary-value">${dataToExport.length}</div>
           </div>
           <div class="summary-item">
             <div class="summary-label">Alunos Atendidos</div>
-            <div class="summary-value">${new Set(filteredConsumptions.map(c => c.student?.id)).size}</div>
+            <div class="summary-value">${new Set(dataToExport.map(c => c.student?.id)).size}</div>
           </div>
           <div class="summary-item">
             <div class="summary-label">Itens Consumidos</div>
-            <div class="summary-value">${filteredConsumptions.reduce((sum, c) => sum + c.quantity, 0)}</div>
+            <div class="summary-value">${dataToExport.reduce((sum, c) => sum + c.quantity, 0)}</div>
           </div>
           <div class="summary-item">
             <div class="summary-label">Valor Total</div>
-            <div class="summary-value highlight">${formatPrice(totalValue)}</div>
+            <div class="summary-value highlight">${formatPrice(reportTotal)}</div>
           </div>
         </div>
 
@@ -392,9 +439,9 @@ export function ConsumptionList() {
             ${tableRows}
             <tr class="total-row">
               <td colspan="3">TOTAL GERAL</td>
-              <td class="text-center">${filteredConsumptions.reduce((sum, c) => sum + c.quantity, 0)}</td>
+              <td class="text-center">${dataToExport.reduce((sum, c) => sum + c.quantity, 0)}</td>
               <td></td>
-              <td class="text-right">${formatPrice(totalValue)}</td>
+              <td class="text-right">${formatPrice(reportTotal)}</td>
               <td></td>
             </tr>
           </tbody>
@@ -453,7 +500,7 @@ export function ConsumptionList() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={handlePrintPDF} className="gap-2">
+          <Button variant="outline" size="sm" onClick={() => setPrintDialogOpen(true)} className="gap-2">
             <Printer className="w-4 h-4" />
             Imprimir PDF
           </Button>
@@ -546,6 +593,133 @@ export function ConsumptionList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Print Date Range Dialog */}
+      <Dialog open={printDialogOpen} onOpenChange={setPrintDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarRange className="w-5 h-5 text-primary" />
+              Imprimir Relatório
+            </DialogTitle>
+            <DialogDescription>
+              Selecione o período do relatório que deseja imprimir.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>Data Inicial</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !printStartDate && "text-muted-foreground"
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {printStartDate ? format(printStartDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione..."}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={printStartDate}
+                    onSelect={setPrintStartDate}
+                    disabled={(date) => date > new Date() || date < subMonths(new Date(), 6)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
+            <div className="grid gap-2">
+              <Label>Data Final</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !printEndDate && "text-muted-foreground"
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {printEndDate ? format(printEndDate, "dd/MM/yyyy", { locale: ptBR }) : "Selecione..."}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={printEndDate}
+                    onSelect={setPrintEndDate}
+                    disabled={(date) => date > new Date() || (printStartDate && date < printStartDate)}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setPrintStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }));
+                  setPrintEndDate(endOfWeek(new Date(), { weekStartsOn: 1 }));
+                }}
+              >
+                Esta semana
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setPrintStartDate(startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 }));
+                  setPrintEndDate(endOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 1 }));
+                }}
+              >
+                Semana passada
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const now = new Date();
+                  setPrintStartDate(new Date(now.getFullYear(), now.getMonth(), 1));
+                  setPrintEndDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+                }}
+              >
+                Este mês
+              </Button>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrintDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (printStartDate && printEndDate) {
+                  handlePrintPDF(printStartDate, printEndDate);
+                  setPrintDialogOpen(false);
+                } else {
+                  toast.error('Selecione as datas inicial e final.');
+                }
+              }}
+              disabled={!printStartDate || !printEndDate}
+            >
+              <Printer className="w-4 h-4 mr-2" />
+              Imprimir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
