@@ -195,7 +195,18 @@ export default function Anticipation() {
       const { data, error } = await supabase.functions.invoke('asaas-payment', {
         body: { action: 'simulateAnticipation', data: payload }
       });
-      if (error) throw error;
+      
+      if (error) {
+        // Try to parse the error message from the response
+        const errorMessage = error.message || 'Erro desconhecido';
+        throw new Error(errorMessage);
+      }
+      
+      // Check if the response contains an error from Asaas
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      
       return data;
     },
     onSuccess: (data) => {
@@ -206,8 +217,9 @@ export default function Anticipation() {
       });
     },
     onError: (error: Error) => {
+      setSimulationResult(null);
       toast({
-        title: "Erro na simulação",
+        title: "Antecipação não disponível",
         description: error.message,
         variant: "destructive",
       });
@@ -224,7 +236,16 @@ export default function Anticipation() {
       const { data, error } = await supabase.functions.invoke('asaas-payment', {
         body: { action: 'requestAnticipation', data: payload }
       });
-      if (error) throw error;
+      
+      if (error) {
+        const errorMessage = error.message || 'Erro desconhecido';
+        throw new Error(errorMessage);
+      }
+      
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      
       return data;
     },
     onSuccess: () => {
