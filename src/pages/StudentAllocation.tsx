@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Calendar, Printer, Download, Loader2, Users, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +11,16 @@ import { AllocationStats } from '@/components/allocation/AllocationStats';
 import { CourseSection } from '@/components/allocation/CourseSection';
 import { AssignTeacherModal } from '@/components/allocation/AssignTeacherModal';
 import { ShiftFilter, GroupedCourseData } from '@/components/allocation/types';
+import { useSystemBranding } from '@/hooks/useSystemBranding';
+
+// Course order priority: Reforço first, then Robótica, then Soroban, then others
+const getCourseOrder = (courseName: string): number => {
+  const lowerName = courseName.toLowerCase();
+  if (lowerName.includes('reforço')) return 1;
+  if (lowerName.includes('robótica') || lowerName.includes('robotica')) return 2;
+  if (lowerName.includes('soroban')) return 3;
+  return 4;
+};
 
 export default function StudentAllocation() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,6 +30,7 @@ export default function StudentAllocation() {
   const [assignModalOpen, setAssignModalOpen] = useState(false);
 
   const { teachers, allocationData, isLoading } = useAllocationData();
+  const { branding } = useSystemBranding();
 
   // Apply filters
   const filteredData = allocationData.filter(row => {
@@ -76,6 +87,17 @@ export default function StudentAllocation() {
   // Get unique courses for filter
   const uniqueCourses = [...new Set(allocationData.map(r => r.courseName))];
 
+  // Sort courses by priority order
+  const sortedGroupedData = useMemo(() => {
+    return Object.entries(groupedData).sort(([a], [b]) => {
+      const orderA = getCourseOrder(a);
+      const orderB = getCourseOrder(b);
+      if (orderA !== orderB) return orderA - orderB;
+      // For same priority, sort alphabetically (handles multiple Reforço teachers)
+      return a.localeCompare(b);
+    });
+  }, [groupedData]);
+
   const { handlePrint } = usePrintAllocation({
     filteredData,
     groupedData,
@@ -130,15 +152,17 @@ export default function StudentAllocation() {
 
       <AllocationStats filteredData={filteredData} groupedData={groupedData} />
 
-      <div className="space-y-6">
-        {Object.entries(groupedData).length > 0 ? (
-          Object.entries(groupedData).map(([courseName, data]) => (
+      <div className="space-y-4">
+        {sortedGroupedData.length > 0 ? (
+          sortedGroupedData.map(([courseName, data]) => (
             <CourseSection
               key={courseName}
               courseName={courseName}
               data={data}
               teachers={teachers}
               shiftFilter={shiftFilter}
+              systemLogo={branding.logo || undefined}
+              schoolName={branding.name || undefined}
             />
           ))
         ) : isLoading ? (
