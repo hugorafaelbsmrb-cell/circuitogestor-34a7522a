@@ -70,6 +70,12 @@ const DAY_MAP: Record<string, string> = {
   'Sexta': 'Sexta',
   'Sábado': 'Sábado',
   'Domingo': 'Domingo',
+  // Full day names in Portuguese
+  'Segunda-feira': 'Segunda',
+  'Terça-feira': 'Terça',
+  'Quarta-feira': 'Quarta',
+  'Quinta-feira': 'Quinta',
+  'Sexta-feira': 'Sexta',
 };
 
 export function useAttendance() {
