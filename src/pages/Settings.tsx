@@ -905,6 +905,27 @@ export default function Settings() {
                   </p>
                 </div>
               )}
+              
+              {/* Save Button */}
+              <div className="flex justify-end pt-4 border-t border-border">
+                <Button
+                  onClick={handleSave}
+                  disabled={isSaving || (!webhookSecret && !webhookSecretValue) || (webhookSecret && webhookSecretValue === (webhookSecret.value || ''))}
+                  className="min-w-[140px]"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Salvar Token
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         );
