@@ -42,6 +42,7 @@ export default function Financial() {
   const { receiveInCash, isLoading: isAsaasLoading } = useAsaasPayment();
   const [payments, setPayments] = useState<PaymentWithGuardian[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
   
@@ -96,6 +97,68 @@ export default function Financial() {
       toast.error('Erro ao carregar pagamentos');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Sync payment statuses with Asaas API
+  const syncPaymentsWithAsaas = async () => {
+    setIsSyncing(true);
+    try {
+      const response = await supabase.functions.invoke('asaas-sync-payments', {
+        body: { limit: 20 }
+      });
+      
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+      
+      const data = response.data;
+      
+      if (data.updated > 0) {
+        toast.success(`${data.updated} pagamentos atualizados!`);
+        await fetchPayments(); // Refresh the list
+      } else if (data.errors && data.errors.length > 0) {
+        toast.warning(`Não foi possível sincronizar. Erros de API.`);
+      } else {
+        toast.info('Todos os pagamentos já estão sincronizados');
+      }
+    } catch (error) {
+      console.error('Error syncing payments:', error);
+      toast.error('Erro ao sincronizar pagamentos com Asaas');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Mark payment as confirmed locally (when API sync fails)
+  const handleMarkAsConfirmed = async (payment: PaymentWithGuardian) => {
+    setProcessingPaymentId(payment.id);
+    
+    try {
+      const { error } = await supabase
+        .from('payments')
+        .update({ 
+          status: 'CONFIRMED', 
+          payment_date: new Date().toISOString().split('T')[0],
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', payment.id);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setPayments(prev => prev.map(p => 
+        p.id === payment.id 
+          ? { ...p, status: 'CONFIRMED', payment_date: new Date().toISOString().split('T')[0] }
+          : p
+      ));
+      
+      toast.success('Pagamento marcado como confirmado!');
+    } catch (error) {
+      console.error('Error marking as confirmed:', error);
+      toast.error('Erro ao atualizar pagamento');
+    } finally {
+      setProcessingPaymentId(null);
     }
   };
 
@@ -499,6 +562,10 @@ export default function Financial() {
           <p className="page-subtitle">Visão geral e previsibilidade financeira</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={syncPaymentsWithAsaas} disabled={isSyncing || isLoading} className="gap-2 flex-1 sm:flex-none">
+            <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
+            <span className="hidden sm:inline">Sincronizar Asaas</span>
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchPayments} disabled={isLoading} className="gap-2 flex-1 sm:flex-none">
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
             <span className="hidden sm:inline">Atualizar</span>
@@ -868,6 +935,22 @@ export default function Financial() {
                                     Baixa
                                   </Button>
                                 )}
+                                {payment.status === 'OVERDUE' && (
+                                  <Button 
+                                    variant="default" 
+                                    size="sm" 
+                                    className="gap-1"
+                                    onClick={() => handleMarkAsConfirmed(payment)}
+                                    disabled={processingPaymentId === payment.id}
+                                  >
+                                    {processingPaymentId === payment.id ? (
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                      <CheckCircle2 className="w-4 h-4" />
+                                    )}
+                                    Confirmar
+                                  </Button>
+                                )}
                                 {payment.asaas_payment_id && (payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
                                   <Button 
                                     variant="outline" 
@@ -990,6 +1073,22 @@ export default function Financial() {
                                     <HandCoins className="w-4 h-4" />
                                   )}
                                   Baixa
+                                </Button>
+                              )}
+                              {payment.status === 'OVERDUE' && (
+                                <Button 
+                                  variant="default" 
+                                  size="sm" 
+                                  className="gap-1"
+                                  onClick={() => handleMarkAsConfirmed(payment)}
+                                  disabled={processingPaymentId === payment.id}
+                                >
+                                  {processingPaymentId === payment.id ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="w-4 h-4" />
+                                  )}
+                                  Confirmar
                                 </Button>
                               )}
                               {payment.asaas_payment_id && (payment.status === 'PENDING' || payment.status === 'OVERDUE') && (
@@ -1134,6 +1233,20 @@ export default function Financial() {
                                 <HandCoins className="w-4 h-4" />
                               )}
                               Baixa
+                            </Button>
+                            <Button 
+                              variant="default" 
+                              size="sm" 
+                              className="gap-1"
+                              onClick={() => handleMarkAsConfirmed(payment)}
+                              disabled={processingPaymentId === payment.id}
+                            >
+                              {processingPaymentId === payment.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-4 h-4" />
+                              )}
+                              Confirmar
                             </Button>
                             {payment.asaas_payment_id && (
                               <Button 
@@ -1296,6 +1409,20 @@ export default function Financial() {
                                             <HandCoins className="w-4 h-4" />
                                           )}
                                           Baixa
+                                        </Button>
+                                        <Button 
+                                          variant="default" 
+                                          size="sm" 
+                                          className="gap-1"
+                                          onClick={() => handleMarkAsConfirmed(payment)}
+                                          disabled={processingPaymentId === payment.id}
+                                        >
+                                          {processingPaymentId === payment.id ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                          ) : (
+                                            <CheckCircle2 className="w-4 h-4" />
+                                          )}
+                                          Confirmar
                                         </Button>
                                         {payment.asaas_payment_id && (
                                           <Button 
