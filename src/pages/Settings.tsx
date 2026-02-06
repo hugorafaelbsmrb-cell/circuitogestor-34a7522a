@@ -1097,6 +1097,69 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Notifications Card */}
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquareIcon className="w-5 h-5" />
+                  Notificações do Asaas
+                </CardTitle>
+                <CardDescription>
+                  Controle as notificações automáticas enviadas pelo Asaas aos clientes
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                  <div className="flex-1">
+                    <Label className="font-medium">Desabilitar Notificações do Asaas</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Quando habilitado, o Asaas <strong>não enviará</strong> notificações automáticas (e-mail, SMS, WhatsApp do Asaas) para novos clientes cadastrados
+                    </p>
+                  </div>
+                  <Switch
+                    checked={editedSettings['asaas_notification_disabled'] === 'true'}
+                    onCheckedChange={(checked) => 
+                      setEditedSettings(prev => ({ ...prev, 'asaas_notification_disabled': checked ? 'true' : 'false' }))
+                    }
+                  />
+                </div>
+
+                {editedSettings['asaas_notification_disabled'] === 'true' ? (
+                  <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <h4 className="font-medium mb-1 text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      Notificações Desabilitadas
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Novos clientes serão cadastrados com notificações do Asaas <strong>desabilitadas</strong>. 
+                      Eles não receberão e-mails, SMS ou mensagens do WhatsApp do Asaas sobre cobranças.
+                      Você poderá enviar mensagens via o WhatsApp configurado neste sistema.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/30">
+                    <h4 className="font-medium mb-1 text-green-700 dark:text-green-400 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" />
+                      Notificações Habilitadas
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Novos clientes receberão as notificações padrão do Asaas (e-mail, SMS, WhatsApp do Asaas) 
+                      sobre criação de cobranças, vencimento e atraso.
+                    </p>
+                  </div>
+                )}
+
+                <div className="p-4 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                  <h4 className="font-medium mb-2 text-blue-700 dark:text-blue-400">ℹ️ Importante</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                    <li>Esta configuração afeta apenas <strong>novos clientes</strong> cadastrados após a alteração</li>
+                    <li>Clientes já existentes no Asaas mantêm suas configurações originais</li>
+                    <li>As notificações deste sistema (WhatsApp W-API) continuam funcionando normalmente</li>
+                  </ul>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         );
 
