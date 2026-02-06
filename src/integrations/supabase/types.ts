@@ -368,6 +368,13 @@ export type Database = {
             referencedRelation: "guardians"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "canteen_weekly_summaries_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
+            referencedColumns: ["id"]
+          },
         ]
       }
       carnes: {
@@ -433,6 +440,13 @@ export type Database = {
             columns: ["guardian_id"]
             isOneToOne: false
             referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carnes_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
             referencedColumns: ["id"]
           },
         ]
@@ -661,6 +675,13 @@ export type Database = {
             columns: ["guardian_id"]
             isOneToOne: false
             referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contracts_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
             referencedColumns: ["id"]
           },
           {
@@ -964,6 +985,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "enrollments_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "enrollments_student_id_fkey"
             columns: ["student_id"]
             isOneToOne: false
@@ -1091,6 +1119,13 @@ export type Database = {
             referencedRelation: "guardians"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "guardian_support_tickets_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
+            referencedColumns: ["id"]
+          },
         ]
       }
       guardians: {
@@ -1187,6 +1222,13 @@ export type Database = {
             columns: ["guardian_id"]
             isOneToOne: false
             referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homework_reports_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
             referencedColumns: ["id"]
           },
           {
@@ -1516,10 +1558,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "message_logs_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "message_logs_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_logs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_masked"
             referencedColumns: ["id"]
           },
         ]
@@ -1605,6 +1661,13 @@ export type Database = {
             columns: ["guardian_id"]
             isOneToOne: false
             referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
             referencedColumns: ["id"]
           },
         ]
@@ -1706,6 +1769,13 @@ export type Database = {
             columns: ["guardian_id"]
             isOneToOne: false
             referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_parent_comments_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
             referencedColumns: ["id"]
           },
           {
@@ -1994,6 +2064,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "students_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "students_teacher_id_fkey"
             columns: ["teacher_id"]
             isOneToOne: false
@@ -2223,11 +2300,165 @@ export type Database = {
             referencedRelation: "guardians"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "whatsapp_messages_guardian_id_fkey"
+            columns: ["guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      guardians_masked: {
+        Row: {
+          address: string | null
+          address_number: string | null
+          asaas_customer_id: string | null
+          avatar_url: string | null
+          cpf: string | null
+          created_at: string | null
+          email: string | null
+          id: string | null
+          name: string | null
+          phone: string | null
+          postal_code: string | null
+          province: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: never
+          address_number?: string | null
+          asaas_customer_id?: string | null
+          avatar_url?: string | null
+          cpf?: never
+          created_at?: string | null
+          email?: never
+          id?: string | null
+          name?: string | null
+          phone?: never
+          postal_code?: string | null
+          province?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: never
+          address_number?: string | null
+          asaas_customer_id?: string | null
+          avatar_url?: string | null
+          cpf?: never
+          created_at?: string | null
+          email?: never
+          id?: string | null
+          name?: string | null
+          phone?: never
+          postal_code?: string | null
+          province?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      leads_masked: {
+        Row: {
+          assigned_to: string | null
+          avatar_url: string | null
+          converted_at: string | null
+          created_at: string | null
+          email: string | null
+          enrollment_id: string | null
+          guardian_address: string | null
+          guardian_address_number: string | null
+          guardian_cpf: string | null
+          guardian_postal_code: string | null
+          guardian_province: string | null
+          id: string | null
+          interested_course_id: string | null
+          name: string | null
+          notes: string | null
+          phone: string | null
+          preferred_due_day: number | null
+          source: string | null
+          status: string | null
+          student_birth_date: string | null
+          student_name: string | null
+          student_sex: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          avatar_url?: string | null
+          converted_at?: string | null
+          created_at?: string | null
+          email?: never
+          enrollment_id?: string | null
+          guardian_address?: never
+          guardian_address_number?: string | null
+          guardian_cpf?: never
+          guardian_postal_code?: string | null
+          guardian_province?: string | null
+          id?: string | null
+          interested_course_id?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: never
+          preferred_due_day?: number | null
+          source?: string | null
+          status?: string | null
+          student_birth_date?: string | null
+          student_name?: string | null
+          student_sex?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          avatar_url?: string | null
+          converted_at?: string | null
+          created_at?: string | null
+          email?: never
+          enrollment_id?: string | null
+          guardian_address?: never
+          guardian_address_number?: string | null
+          guardian_cpf?: never
+          guardian_postal_code?: string | null
+          guardian_province?: string | null
+          id?: string | null
+          interested_course_id?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: never
+          preferred_due_day?: number | null
+          source?: string | null
+          status?: string | null
+          student_birth_date?: string | null
+          student_name?: string | null
+          student_sex?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_interested_course_id_fkey"
+            columns: ["interested_course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       has_role: {
