@@ -1114,7 +1114,7 @@ export default function Settings() {
                   <div className="flex-1">
                     <Label className="font-medium">Desabilitar Notificações do Asaas</Label>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Quando habilitado, o Asaas <strong>não enviará</strong> notificações automáticas (e-mail, SMS, WhatsApp do Asaas) para novos clientes cadastrados
+                      Quando habilitado, o Asaas <strong>não enviará</strong> notificações automáticas (e-mail, SMS, WhatsApp do Asaas) para os clientes
                     </p>
                   </div>
                   <Switch
@@ -1132,7 +1132,7 @@ export default function Settings() {
                       Notificações Desabilitadas
                     </h4>
                     <p className="text-sm text-muted-foreground">
-                      Novos clientes serão cadastrados com notificações do Asaas <strong>desabilitadas</strong>. 
+                      Clientes serão configurados com notificações do Asaas <strong>desabilitadas</strong>. 
                       Eles não receberão e-mails, SMS ou mensagens do WhatsApp do Asaas sobre cobranças.
                       Você poderá enviar mensagens via o WhatsApp configurado neste sistema.
                     </p>
@@ -1144,17 +1144,56 @@ export default function Settings() {
                       Notificações Habilitadas
                     </h4>
                     <p className="text-sm text-muted-foreground">
-                      Novos clientes receberão as notificações padrão do Asaas (e-mail, SMS, WhatsApp do Asaas) 
+                      Clientes receberão as notificações padrão do Asaas (e-mail, SMS, WhatsApp do Asaas) 
                       sobre criação de cobranças, vencimento e atraso.
                     </p>
                   </div>
                 )}
 
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={async () => {
+                      try {
+                        setIsSaving(true);
+                        const { data, error } = await supabase.functions.invoke('asaas-payment', {
+                          body: { action: 'syncAllCustomerNotifications' }
+                        });
+                        
+                        if (error) throw error;
+                        
+                        toast({
+                          title: "Sincronização concluída",
+                          description: `${data.updated} de ${data.total} clientes atualizados. ${data.errors?.length > 0 ? `${data.errors.length} erros.` : ''}`,
+                        });
+                      } catch (error: unknown) {
+                        console.error('Erro ao sincronizar:', error);
+                        toast({
+                          title: "Erro na sincronização",
+                          description: error instanceof Error ? error.message : "Erro desconhecido",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    disabled={isSaving}
+                  >
+                    {isSaving ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4 mr-2" />
+                    )}
+                    Aplicar a Todos os Clientes
+                  </Button>
+                </div>
+
                 <div className="p-4 rounded-lg bg-blue-500/5 border border-blue-500/20">
                   <h4 className="font-medium mb-2 text-blue-700 dark:text-blue-400">ℹ️ Importante</h4>
                   <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>Esta configuração afeta apenas <strong>novos clientes</strong> cadastrados após a alteração</li>
-                    <li>Clientes já existentes no Asaas mantêm suas configurações originais</li>
+                    <li>Clique em "Aplicar a Todos" para atualizar clientes já existentes no Asaas</li>
+                    <li>Novos clientes serão automaticamente configurados com a opção selecionada</li>
                     <li>As notificações deste sistema (WhatsApp W-API) continuam funcionando normalmente</li>
                   </ul>
                 </div>

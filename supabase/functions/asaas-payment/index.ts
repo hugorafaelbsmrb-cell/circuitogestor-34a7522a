@@ -152,6 +152,65 @@ async function createCustomer(config: AsaasConfig, data: CreateCustomerRequest) 
   return result;
 }
 
+async function updateCustomer(config: AsaasConfig, customerId: string, data: { notificationDisabled?: boolean }) {
+  console.log("Atualizando cliente no Asaas:", customerId);
+  
+  const response = await fetch(`${config.baseUrl}/customers/${customerId}`, {
+    method: "PUT",
+    headers: getHeaders(config.apiKey),
+    body: JSON.stringify(data),
+  });
+
+  return await handleAsaasResponse(response, "updateCustomer");
+}
+
+async function syncAllCustomerNotifications(config: AsaasConfig) {
+  console.log("Sincronizando notificações para todos os clientes...");
+  console.log("Notificações desabilitadas:", config.notificationDisabled);
+  
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  
+  // Get all guardians with asaas_customer_id
+  const { data: guardians, error } = await supabase
+    .from("guardians")
+    .select("id, name, asaas_customer_id")
+    .not("asaas_customer_id", "is", null)
+    .neq("asaas_customer_id", "");
+  
+  if (error) {
+    throw new Error("Erro ao buscar responsáveis: " + error.message);
+  }
+  
+  console.log(`Encontrados ${guardians?.length || 0} responsáveis com asaas_customer_id`);
+  
+  const results = {
+    total: guardians?.length || 0,
+    updated: 0,
+    errors: [] as { name: string; customerId: string; error: string }[],
+  };
+  
+  for (const guardian of guardians || []) {
+    try {
+      await updateCustomer(config, guardian.asaas_customer_id, {
+        notificationDisabled: config.notificationDisabled,
+      });
+      results.updated++;
+      console.log(`Notificações atualizadas para ${guardian.name}: notificationDisabled=${config.notificationDisabled}`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Erro desconhecido";
+      console.error(`Erro ao atualizar ${guardian.name}:`, errorMsg);
+      results.errors.push({ 
+        name: guardian.name, 
+        customerId: guardian.asaas_customer_id, 
+        error: errorMsg 
+      });
+    }
+  }
+  
+  console.log("Sincronização de notificações concluída:", results);
+  return results;
+}
+
 interface DiscountConfig {
   value: number;
   dueDateLimitDays: number;
@@ -660,6 +719,12 @@ serve(async (req) => {
         break;
       case "getPixQrCode":
         result = await getPixQrCode(config, data.paymentId);
+        break;
+      case "updateCustomer":
+        result = await updateCustomer(config, data.customerId, data.updates);
+        break;
+      case "syncAllCustomerNotifications":
+        result = await syncAllCustomerNotifications(config);
         break;
       default:
         throw new Error("Ação não reconhecida");
