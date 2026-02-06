@@ -15,6 +15,7 @@ interface CartItem {
 interface RequestBody {
   student_id: string;
   items: CartItem[];
+  consumed_at?: string; // Optional: ISO date string for backdated entries
 }
 
 Deno.serve(async (req) => {
@@ -28,7 +29,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: RequestBody = await req.json();
-    const { student_id, items } = body;
+    const { student_id, items, consumed_at } = body;
 
     if (!student_id || !items || items.length === 0) {
       return new Response(
@@ -51,11 +52,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Calculate week reference (Monday of current week)
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    const weekStart = new Date(now.setDate(diff));
+    // Use provided date or current date
+    const consumedDate = consumed_at ? new Date(consumed_at) : new Date();
+    
+    // Calculate week reference (Monday of the week of consumption)
+    const dayOfWeek = consumedDate.getDay();
+    const diff = consumedDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+    const weekStart = new Date(consumedDate);
+    weekStart.setDate(diff);
     const weekReference = weekStart.toISOString().split('T')[0];
 
     // Insert consumption records
@@ -66,7 +70,7 @@ Deno.serve(async (req) => {
       unit_price: item.unit_price,
       total_price: item.total_price,
       week_reference: weekReference,
-      consumed_at: new Date().toISOString()
+      consumed_at: consumedDate.toISOString()
     }));
 
     const { data: insertedData, error: insertError } = await supabase
