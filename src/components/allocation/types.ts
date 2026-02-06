@@ -13,6 +13,8 @@ export interface StudentAllocationRow {
   endTime: string;
   enrollmentStatus: string;
   shift: 'morning' | 'afternoon';
+  teacherId?: string;
+  teacherName?: string;
 }
 
 export interface Teacher {
@@ -29,6 +31,8 @@ export interface GroupedCourseData {
   morning: Record<string, StudentAllocationRow[]>;
   afternoon: Record<string, StudentAllocationRow[]>;
   courseId: string;
+  teacherId?: string;
+  teacherName?: string;
 }
 
 export const DAYS_OF_WEEK = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'] as const;
