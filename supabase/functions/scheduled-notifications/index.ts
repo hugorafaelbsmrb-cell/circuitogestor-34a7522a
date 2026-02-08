@@ -143,7 +143,122 @@ async function sendWhatsAppMessage(
   }
 }
 
+// Check if today is a weekend (Saturday = 6, Sunday = 0)
+function isWeekend(): boolean {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  return dayOfWeek === 0 || dayOfWeek === 6;
+}
+
+// Check if today is Monday
+function isMonday(): boolean {
+  return new Date().getDay() === 1;
+}
+
+// Adjust target date to avoid weekends - if target falls on weekend, adjust accordingly
+// For reminders (future dates): move to Friday before
+// For overdue (past dates): process on Monday
+function adjustDateForWeekends(targetDate: Date, isFutureDate: boolean): Date {
+  const dayOfWeek = targetDate.getDay();
+  
+  if (isFutureDate) {
+    // For future reminders, if the target is weekend, we need to send earlier
+    // But the real issue is: if TODAY is weekend, don't send. Let Monday handle it.
+    return targetDate;
+  } else {
+    // For overdue checks, include weekend dates on Monday
+    return targetDate;
+  }
+}
+
+// Get dates to check for 48h reminders (accounts for weekends)
+function get48hReminderDates(): string[] {
+  const dates: string[] = [];
+  const today = new Date();
+  
+  // Always check payments due in 2 days
+  const twoDaysFromNow = new Date(today);
+  twoDaysFromNow.setDate(today.getDate() + 2);
+  dates.push(twoDaysFromNow.toISOString().split('T')[0]);
+  
+  // If today is Monday, also check payments due on Sunday and Saturday (which would have been reminded on Sat/Sun)
+  if (isMonday()) {
+    // Payments due Wednesday (would have been reminded Sunday)
+    const threeDaysFromNow = new Date(today);
+    threeDaysFromNow.setDate(today.getDate() + 3);
+    dates.push(threeDaysFromNow.toISOString().split('T')[0]);
+    
+    // Payments due Tuesday (would have been reminded Saturday)
+    // But Saturday's reminder already counts 2 days ahead, so that's Monday = today
+    // We need to check if there are payments for today that weren't reminded
+  }
+  
+  return dates;
+}
+
+// Get dates to check for PIX 2-day reminders (accounts for weekends)  
+function getPixReminder2DaysDates(): string[] {
+  const dates: string[] = [];
+  const today = new Date();
+  
+  // Always check payments due in 2 days
+  const twoDaysFromNow = new Date(today);
+  twoDaysFromNow.setDate(today.getDate() + 2);
+  dates.push(twoDaysFromNow.toISOString().split('T')[0]);
+  
+  // If Monday, also include weekend-skipped dates
+  if (isMonday()) {
+    const threeDaysFromNow = new Date(today);
+    threeDaysFromNow.setDate(today.getDate() + 3);
+    dates.push(threeDaysFromNow.toISOString().split('T')[0]);
+  }
+  
+  return dates;
+}
+
+// Get dates for overdue checks (accounts for weekends)
+function getOverdueDates(): { checkDate: string; includeWeekend: boolean } {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  
+  // If Monday, we need to include Saturday and Sunday overdue payments
+  return {
+    checkDate: todayStr,
+    includeWeekend: isMonday()
+  };
+}
+
+// Get dates for PIX 1-day overdue (accounts for weekends)
+function getPixOverdue1DayDates(): string[] {
+  const dates: string[] = [];
+  const today = new Date();
+  
+  // Yesterday
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  dates.push(yesterday.toISOString().split('T')[0]);
+  
+  // If Monday, include Saturday and Friday (payments that became overdue over weekend)
+  if (isMonday()) {
+    const twoDaysAgo = new Date(today);
+    twoDaysAgo.setDate(today.getDate() - 2);
+    dates.push(twoDaysAgo.toISOString().split('T')[0]); // Sunday
+    
+    const threeDaysAgo = new Date(today);
+    threeDaysAgo.setDate(today.getDate() - 3);
+    dates.push(threeDaysAgo.toISOString().split('T')[0]); // Saturday
+  }
+  
+  return dates;
+}
+
 async function processPaymentReminders48h(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
+  // Skip on weekends - will process on Monday
+  if (isWeekend()) {
+    console.log('Skipping 48h payment reminders on weekend');
+    return;
+  }
+  
   console.log('Processing 48h payment reminders...');
   
   const template = await getTemplate(supabase, 'payment_due_48h');
@@ -152,11 +267,9 @@ async function processPaymentReminders48h(supabase: any, supabaseUrl: string, su
     return;
   }
   
-  // Get payments due in 2 days
-  const today = new Date();
-  const twoDaysFromNow = new Date(today);
-  twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
-  const targetDate = twoDaysFromNow.toISOString().split('T')[0];
+  // Get target dates (includes weekend catch-up on Monday)
+  const targetDates = get48hReminderDates();
+  console.log('Checking payment dates:', targetDates);
   
   const { data: payments } = await supabase
     .from('payments')
@@ -165,14 +278,14 @@ async function processPaymentReminders48h(supabase: any, supabaseUrl: string, su
       guardian:guardians(id, name, phone)
     `)
     .eq('status', 'PENDING')
-    .eq('due_date', targetDate);
+    .in('due_date', targetDates);
   
   if (!payments || payments.length === 0) {
-    console.log('No payments due in 48h');
+    console.log('No payments due for reminder dates');
     return;
   }
   
-  console.log(`Found ${payments.length} payments due in 48h`);
+  console.log(`Found ${payments.length} payments for reminder`);
   
   for (const payment of payments) {
     if (!payment.guardian) continue;
@@ -199,6 +312,12 @@ async function processPaymentReminders48h(supabase: any, supabaseUrl: string, su
 }
 
 async function processOverduePayments(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
+  // Skip on weekends - will process on Monday
+  if (isWeekend()) {
+    console.log('Skipping overdue payment notifications on weekend');
+    return;
+  }
+  
   console.log('Processing overdue payment notifications...');
   
   const template = await getTemplate(supabase, 'payment_overdue');
@@ -331,15 +450,19 @@ async function fetchPixCode(asaasApiUrl: string, asaasApiKey: string, paymentId:
 }
 
 async function processPixReminder2Days(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
+  // Skip on weekends - will process on Monday
+  if (isWeekend()) {
+    console.log('Skipping PIX 2-day reminders on weekend');
+    return;
+  }
+  
   console.log('Processing PIX reminders 2 days before due...');
   
   const template = await getTemplate(supabase, 'pix_reminder');
   
-  // Get payments due in 2 days
-  const today = new Date();
-  const twoDaysFromNow = new Date(today);
-  twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
-  const targetDate = twoDaysFromNow.toISOString().split('T')[0];
+  // Get target dates (includes weekend catch-up on Monday)
+  const targetDates = getPixReminder2DaysDates();
+  console.log('Checking PIX reminder dates:', targetDates);
   
   const { data: payments } = await supabase
     .from('payments')
@@ -348,15 +471,15 @@ async function processPixReminder2Days(supabase: any, supabaseUrl: string, supab
       guardian:guardians(id, name, phone)
     `)
     .eq('status', 'PENDING')
-    .eq('due_date', targetDate)
+    .in('due_date', targetDates)
     .not('asaas_payment_id', 'is', null);
   
   if (!payments || payments.length === 0) {
-    console.log('No payments due in 2 days with Asaas ID');
+    console.log('No payments due for PIX reminder dates');
     return;
   }
   
-  console.log(`Found ${payments.length} payments due in 2 days`);
+  console.log(`Found ${payments.length} payments for PIX reminder`);
   
   const { asaasApiKey, asaasApiUrl } = await getAsaasConfig(supabase);
   
@@ -381,7 +504,7 @@ async function processPixReminder2Days(supabase: any, supabaseUrl: string, supab
 
 Olá, {nome_responsavel}!
 
-Sua parcela vence em 2 dias:
+Sua parcela vence em breve:
 
 📋 *Descrição:* {descricao}
 💰 *Valor:* {valor}
@@ -414,15 +537,19 @@ Att,
 }
 
 async function processPixOverdue1Day(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
+  // Skip on weekends - will process on Monday
+  if (isWeekend()) {
+    console.log('Skipping PIX 1-day overdue notifications on weekend');
+    return;
+  }
+  
   console.log('Processing PIX reminders 1 day after due...');
   
   const template = await getTemplate(supabase, 'pix_overdue');
   
-  // Get payments that were due yesterday and are still pending/overdue
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const targetDate = yesterday.toISOString().split('T')[0];
+  // Get target dates (includes weekend catch-up on Monday)
+  const targetDates = getPixOverdue1DayDates();
+  console.log('Checking PIX overdue dates:', targetDates);
   
   const { data: payments } = await supabase
     .from('payments')
@@ -431,15 +558,15 @@ async function processPixOverdue1Day(supabase: any, supabaseUrl: string, supabas
       guardian:guardians(id, name, phone)
     `)
     .in('status', ['PENDING', 'OVERDUE'])
-    .eq('due_date', targetDate)
+    .in('due_date', targetDates)
     .not('asaas_payment_id', 'is', null);
   
   if (!payments || payments.length === 0) {
-    console.log('No overdue payments from yesterday');
+    console.log('No overdue payments for target dates');
     return;
   }
   
-  console.log(`Found ${payments.length} overdue payments from yesterday`);
+  console.log(`Found ${payments.length} overdue payments`);
   
   const { asaasApiKey, asaasApiUrl } = await getAsaasConfig(supabase);
   
@@ -464,7 +591,7 @@ async function processPixOverdue1Day(supabase: any, supabaseUrl: string, supabas
 
 Olá, {nome_responsavel}!
 
-Identificamos que sua parcela venceu ontem e ainda não foi paga:
+Identificamos que sua parcela está vencida:
 
 📋 *Descrição:* {descricao}
 💰 *Valor:* {valor}
