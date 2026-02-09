@@ -1101,9 +1101,10 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                             </TabsTrigger>
                           </TabsList>
 
-                          <ScrollArea className="max-h-[60vh] pr-4">
-                            {/* Hero Tab */}
-                            <TabsContent value="hero" className="space-y-4 mt-0">
+                          {/* Hero Tab */}
+                          <TabsContent value="hero" className="mt-0">
+                            <ScrollArea className="h-[55vh]">
+                              <div className="space-y-4 pr-4">
                               {/* Active toggle */}
                               <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
                                 <div>
@@ -1166,7 +1167,9 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                                   )}
                                 </div>
                               </div>
-                            </TabsContent>
+                              </div>
+                            </ScrollArea>
+                          </TabsContent>
 
                             {/* Course Info Tab */}
                             <TabsContent value="course" className="space-y-4 mt-0">
@@ -1475,7 +1478,9 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                             </TabsContent>
 
                             {/* CTAs Tab */}
-                            <TabsContent value="cta" className="space-y-6 mt-0">
+                            <TabsContent value="cta" className="mt-0">
+                              <ScrollArea className="h-[55vh]">
+                                <div className="space-y-6 pr-4">
                               {/* Urgency Banner */}
                               <div className="space-y-4">
                                 <div>
@@ -1579,8 +1584,9 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                                   </p>
                                 </div>
                               </div>
-                            </TabsContent>
-                          </ScrollArea>
+                              </div>
+                            </ScrollArea>
+                          </TabsContent>
 
                           {/* Save Button - Always visible */}
                           <div className="pt-4 border-t mt-4">
