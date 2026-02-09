@@ -64,6 +64,8 @@ interface CourseLandingData {
   hero_title: string;
   hero_subtitle: string;
   hero_image: string;
+  hero_urgency_text: string;
+  hero_social_proof_count: string;
   benefits: Benefit[];
   gallery_images: GalleryImage[];
   testimonials: Testimonial[];
@@ -216,6 +218,8 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           hero_title: data.hero_title || '',
           hero_subtitle: data.hero_subtitle || '',
           hero_image: data.hero_image || '',
+          hero_urgency_text: (data as any).hero_urgency_text || 'Vagas Limitadas!',
+          hero_social_proof_count: (data as any).hero_social_proof_count?.toString() || '150',
           benefits,
           gallery_images: galleryImages,
           testimonials,
@@ -238,6 +242,8 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           hero_title: `Matricule-se em ${course.name}!`,
           hero_subtitle: 'Transforme o futuro do seu filho com cursos inovadores',
           hero_image: '',
+          hero_urgency_text: 'Vagas Limitadas!',
+          hero_social_proof_count: '150',
           benefits: [],
           gallery_images: [],
           testimonials: [],
@@ -270,6 +276,8 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
         hero_title: landingData.hero_title,
         hero_subtitle: landingData.hero_subtitle,
         hero_image: landingData.hero_image,
+        hero_urgency_text: landingData.hero_urgency_text || 'Vagas Limitadas!',
+        hero_social_proof_count: landingData.hero_social_proof_count ? parseInt(landingData.hero_social_proof_count) : 150,
         benefits: landingData.benefits as unknown as Json,
         gallery_images: landingData.gallery_images as unknown as Json,
         testimonials: landingData.testimonials as unknown as Json,
@@ -559,6 +567,27 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                   placeholder="Descrição atrativa do curso"
                   rows={2}
                 />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Texto de Urgência</Label>
+                  <Input
+                    value={landingData.hero_urgency_text}
+                    onChange={(e) => setLandingData({ ...landingData, hero_urgency_text: e.target.value })}
+                    placeholder="Vagas Limitadas!"
+                  />
+                  <p className="text-xs text-muted-foreground">Badge exibido no hero</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Contador Prova Social</Label>
+                  <Input
+                    type="number"
+                    value={landingData.hero_social_proof_count}
+                    onChange={(e) => setLandingData({ ...landingData, hero_social_proof_count: e.target.value })}
+                    placeholder="150"
+                  />
+                  <p className="text-xs text-muted-foreground">"+X pais interessados"</p>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Imagem de Fundo</Label>

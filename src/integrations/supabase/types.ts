@@ -748,8 +748,10 @@ export type Database = {
           floating_cta_text: string | null
           gallery_images: Json | null
           hero_image: string | null
+          hero_social_proof_count: number | null
           hero_subtitle: string | null
           hero_title: string | null
+          hero_urgency_text: string | null
           id: string
           is_active: boolean
           original_price: number | null
@@ -771,8 +773,10 @@ export type Database = {
           floating_cta_text?: string | null
           gallery_images?: Json | null
           hero_image?: string | null
+          hero_social_proof_count?: number | null
           hero_subtitle?: string | null
           hero_title?: string | null
+          hero_urgency_text?: string | null
           id?: string
           is_active?: boolean
           original_price?: number | null
@@ -794,8 +798,10 @@ export type Database = {
           floating_cta_text?: string | null
           gallery_images?: Json | null
           hero_image?: string | null
+          hero_social_proof_count?: number | null
           hero_subtitle?: string | null
           hero_title?: string | null
+          hero_urgency_text?: string | null
           id?: string
           is_active?: boolean
           original_price?: number | null
