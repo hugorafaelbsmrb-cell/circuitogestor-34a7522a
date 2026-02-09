@@ -66,6 +66,7 @@ interface CourseLandingData {
   hero_image: string;
   hero_urgency_text: string;
   hero_social_proof_count: string;
+  hero_trust_indicators: string[];
   benefits: Benefit[];
   gallery_images: GalleryImage[];
   testimonials: Testimonial[];
@@ -212,6 +213,17 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           }
         } catch { /* ignore */ }
 
+        // Parse trust indicators
+        let trustIndicators: string[] = [];
+        try {
+          if ((data as any).hero_trust_indicators) {
+            const rawIndicators = typeof (data as any).hero_trust_indicators === 'string'
+              ? JSON.parse((data as any).hero_trust_indicators)
+              : (data as any).hero_trust_indicators;
+            trustIndicators = Array.isArray(rawIndicators) ? rawIndicators : [];
+          }
+        } catch { /* ignore */ }
+
         setLandingData({
           id: data.id,
           course_id: course.id,
@@ -220,6 +232,7 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           hero_image: data.hero_image || '',
           hero_urgency_text: (data as any).hero_urgency_text || 'Vagas Limitadas!',
           hero_social_proof_count: (data as any).hero_social_proof_count?.toString() || '150',
+          hero_trust_indicators: trustIndicators.length > 0 ? trustIndicators : ['Sem taxas ocultas', 'Primeira semana grátis', 'Cancele quando quiser'],
           benefits,
           gallery_images: galleryImages,
           testimonials,
@@ -244,6 +257,7 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           hero_image: '',
           hero_urgency_text: 'Vagas Limitadas!',
           hero_social_proof_count: '150',
+          hero_trust_indicators: ['Sem taxas ocultas', 'Primeira semana grátis', 'Cancele quando quiser'],
           benefits: [],
           gallery_images: [],
           testimonials: [],
@@ -278,6 +292,7 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
         hero_image: landingData.hero_image,
         hero_urgency_text: landingData.hero_urgency_text || 'Vagas Limitadas!',
         hero_social_proof_count: landingData.hero_social_proof_count ? parseInt(landingData.hero_social_proof_count) : 150,
+        hero_trust_indicators: landingData.hero_trust_indicators as unknown as Json,
         benefits: landingData.benefits as unknown as Json,
         gallery_images: landingData.gallery_images as unknown as Json,
         testimonials: landingData.testimonials as unknown as Json,
@@ -587,6 +602,54 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                     placeholder="150"
                   />
                   <p className="text-xs text-muted-foreground">"+X pais interessados"</p>
+                </div>
+              </div>
+              
+              {/* Trust Indicators */}
+              <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Indicadores de Confiança</Label>
+                    <p className="text-xs text-muted-foreground">Ex: "Sem taxas ocultas", "Primeira semana grátis"</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setLandingData({
+                      ...landingData,
+                      hero_trust_indicators: [...landingData.hero_trust_indicators, '']
+                    })}
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Adicionar
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {landingData.hero_trust_indicators.map((indicator, index) => (
+                    <div key={index} className="flex gap-2 items-center">
+                      <span className="text-primary font-medium">✓</span>
+                      <Input
+                        value={indicator}
+                        onChange={(e) => {
+                          const updated = [...landingData.hero_trust_indicators];
+                          updated[index] = e.target.value;
+                          setLandingData({ ...landingData, hero_trust_indicators: updated });
+                        }}
+                        placeholder="Ex: Sem taxas ocultas"
+                        className="flex-1"
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="text-destructive h-8 w-8 flex-shrink-0"
+                        onClick={() => {
+                          const updated = landingData.hero_trust_indicators.filter((_, i) => i !== index);
+                          setLandingData({ ...landingData, hero_trust_indicators: updated });
+                        }}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               </div>
               <div className="space-y-2">

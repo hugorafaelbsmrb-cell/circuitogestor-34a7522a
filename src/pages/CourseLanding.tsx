@@ -49,6 +49,7 @@ interface CourseLandingData {
   hero_image: string | null;
   hero_urgency_text: string | null;
   hero_social_proof_count: number | null;
+  hero_trust_indicators: string[];
   benefits: Benefit[];
   gallery_images: CampaignImage[];
   testimonials: Testimonial[];
@@ -166,12 +167,24 @@ export default function CourseLanding() {
           }
         } catch { /* ignore */ }
 
+        // Parse trust indicators
+        let trustIndicators: string[] = [];
+        try {
+          if ((landingPageData as any).hero_trust_indicators) {
+            const rawIndicators = typeof (landingPageData as any).hero_trust_indicators === 'string'
+              ? JSON.parse((landingPageData as any).hero_trust_indicators)
+              : (landingPageData as any).hero_trust_indicators;
+            trustIndicators = Array.isArray(rawIndicators) ? rawIndicators : [];
+          }
+        } catch { /* ignore */ }
+
         setLandingData({
           hero_title: landingPageData.hero_title,
           hero_subtitle: landingPageData.hero_subtitle,
           hero_image: landingPageData.hero_image,
           hero_urgency_text: (landingPageData as any).hero_urgency_text || 'Vagas Limitadas!',
           hero_social_proof_count: (landingPageData as any).hero_social_proof_count || 150,
+          hero_trust_indicators: trustIndicators.length > 0 ? trustIndicators : ['Sem taxas ocultas', 'Primeira semana grátis', 'Cancele quando quiser'],
           benefits,
           gallery_images: galleryImages,
           testimonials,
@@ -195,6 +208,7 @@ export default function CourseLanding() {
           hero_image: null,
           hero_urgency_text: 'Vagas Limitadas!',
           hero_social_proof_count: 150,
+          hero_trust_indicators: ['Sem taxas ocultas', 'Primeira semana grátis', 'Cancele quando quiser'],
           benefits: [],
           gallery_images: [],
           testimonials: [],
@@ -268,6 +282,7 @@ export default function CourseLanding() {
         onCtaClick={scrollToForm}
         urgencyText={landingData.hero_urgency_text || "Vagas Limitadas!"}
         socialProofCount={landingData.hero_social_proof_count || 150}
+        trustIndicators={landingData.hero_trust_indicators}
       />
 
       {/* Lazy loaded sections */}
