@@ -81,6 +81,7 @@ interface CourseLandingData {
   urgency_banner_variant: string;
   floating_cta_text: string;
   floating_cta_enabled: boolean;
+  meta_pixel_id: string;
 }
 
 const ICON_OPTIONS = ['Star', 'Award', 'GraduationCap', 'Clock', 'Heart', 'Lightbulb', 'Target', 'Users', 'Rocket', 'Brain'];
@@ -247,6 +248,7 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           urgency_banner_variant: (data as any).urgency_banner_variant || 'warning',
           floating_cta_text: (data as any).floating_cta_text || 'Quero me matricular!',
           floating_cta_enabled: (data as any).floating_cta_enabled ?? true,
+          meta_pixel_id: (data as any).meta_pixel_id || '',
         });
       } else {
         // Create default data
@@ -272,6 +274,7 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           urgency_banner_variant: 'warning',
           floating_cta_text: 'Quero me matricular!',
           floating_cta_enabled: true,
+          meta_pixel_id: '',
         });
       }
     } catch (error) {
@@ -307,6 +310,7 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
         urgency_banner_variant: landingData.urgency_banner_variant || 'warning',
         floating_cta_text: landingData.floating_cta_text || 'Quero me matricular!',
         floating_cta_enabled: landingData.floating_cta_enabled,
+        meta_pixel_id: landingData.meta_pixel_id || null,
       };
 
       if (landingData.id) {
@@ -1541,6 +1545,39 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                                     />
                                   </div>
                                 )}
+                              </div>
+
+                              {/* Meta Pixel */}
+                              <div className="space-y-4 pt-4 border-t">
+                                <div>
+                                  <h4 className="font-medium flex items-center gap-2">
+                                    📊 Meta Pixel (Facebook)
+                                  </h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    Configure o rastreamento de conversões do Facebook/Instagram
+                                  </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label>ID do Pixel</Label>
+                                  <Input
+                                    value={landingData.meta_pixel_id}
+                                    onChange={(e) => setLandingData({ ...landingData, meta_pixel_id: e.target.value })}
+                                    placeholder="Ex: 1234567890123456"
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    Encontre o ID do seu Pixel no{' '}
+                                    <a 
+                                      href="https://business.facebook.com/events_manager" 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-primary hover:underline"
+                                    >
+                                      Gerenciador de Eventos do Meta
+                                    </a>
+                                    . Deixe vazio para desativar o rastreamento.
+                                  </p>
+                                </div>
                               </div>
                             </TabsContent>
                           </ScrollArea>

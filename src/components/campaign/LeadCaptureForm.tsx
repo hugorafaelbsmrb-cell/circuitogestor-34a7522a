@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, CheckCircle, Send } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { trackMetaEvent, MetaEvents } from '@/components/campaign/MetaPixel';
 
 interface Course {
   id: string;
@@ -70,6 +71,13 @@ export function LeadCaptureForm({ courses, selectedCourseId, onSuccess }: LeadCa
       if (fnError) throw fnError;
 
       console.log('Lead created:', data);
+      
+      // Track lead conversion in Meta Pixel
+      trackMetaEvent(MetaEvents.Lead, {
+        content_name: courses.find(c => c.id === courseId)?.name || 'Unknown Course',
+        content_category: 'Course Lead',
+      });
+      
       setIsSuccess(true);
       onSuccess?.();
     } catch (err) {

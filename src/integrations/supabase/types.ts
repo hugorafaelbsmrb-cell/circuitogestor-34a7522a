@@ -755,6 +755,7 @@ export type Database = {
           hero_urgency_text: string | null
           id: string
           is_active: boolean
+          meta_pixel_id: string | null
           original_price: number | null
           pricing_features: Json | null
           testimonials: Json | null
@@ -781,6 +782,7 @@ export type Database = {
           hero_urgency_text?: string | null
           id?: string
           is_active?: boolean
+          meta_pixel_id?: string | null
           original_price?: number | null
           pricing_features?: Json | null
           testimonials?: Json | null
@@ -807,6 +809,7 @@ export type Database = {
           hero_urgency_text?: string | null
           id?: string
           is_active?: boolean
+          meta_pixel_id?: string | null
           original_price?: number | null
           pricing_features?: Json | null
           testimonials?: Json | null
