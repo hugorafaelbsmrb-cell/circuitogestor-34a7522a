@@ -12,6 +12,7 @@ interface AnimatedHeroSectionProps {
   onCtaClick: () => void;
   urgencyText?: string;
   socialProofCount?: number;
+  trustIndicators?: string[];
 }
 
 export function AnimatedHeroSection({ 
@@ -20,7 +21,8 @@ export function AnimatedHeroSection({
   backgroundImage, 
   onCtaClick,
   urgencyText,
-  socialProofCount 
+  socialProofCount,
+  trustIndicators = ['Sem taxas ocultas', 'Primeira semana grátis', 'Cancele quando quiser']
 }: AnimatedHeroSectionProps) {
   const heroImageUrl = backgroundImage || defaultHeroImage;
   const isMobile = useIsMobile();
@@ -145,22 +147,20 @@ export function AnimatedHeroSection({
         </motion.div>
 
         {/* Trust indicators */}
-        <motion.div 
-          className="mt-6 sm:mt-8 flex flex-wrap justify-center gap-2 sm:gap-4 text-white/70 text-xs sm:text-sm px-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
-        >
-          <span className="flex items-center gap-1">
-            ✓ Sem taxas ocultas
-          </span>
-          <span className="flex items-center gap-1">
-            ✓ Primeira semana grátis
-          </span>
-          <span className="flex items-center gap-1">
-            ✓ Cancele quando quiser
-          </span>
-        </motion.div>
+        {trustIndicators.length > 0 && (
+          <motion.div 
+            className="mt-6 sm:mt-8 flex flex-wrap justify-center gap-2 sm:gap-4 text-white/70 text-xs sm:text-sm px-2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+          >
+            {trustIndicators.map((indicator, index) => (
+              <span key={index} className="flex items-center gap-1">
+                ✓ {indicator}
+              </span>
+            ))}
+          </motion.div>
+        )}
       </div>
 
       {/* Scroll indicator */}

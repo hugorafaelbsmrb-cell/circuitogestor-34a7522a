@@ -751,6 +751,7 @@ export type Database = {
           hero_social_proof_count: number | null
           hero_subtitle: string | null
           hero_title: string | null
+          hero_trust_indicators: Json | null
           hero_urgency_text: string | null
           id: string
           is_active: boolean
@@ -776,6 +777,7 @@ export type Database = {
           hero_social_proof_count?: number | null
           hero_subtitle?: string | null
           hero_title?: string | null
+          hero_trust_indicators?: Json | null
           hero_urgency_text?: string | null
           id?: string
           is_active?: boolean
@@ -801,6 +803,7 @@ export type Database = {
           hero_social_proof_count?: number | null
           hero_subtitle?: string | null
           hero_title?: string | null
+          hero_trust_indicators?: Json | null
           hero_urgency_text?: string | null
           id?: string
           is_active?: boolean
