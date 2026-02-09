@@ -623,34 +623,36 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                     <Plus className="w-4 h-4 mr-1" /> Adicionar
                   </Button>
                 </div>
-                <div className="space-y-2">
-                  {landingData.hero_trust_indicators.map((indicator, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <span className="text-primary font-medium">✓</span>
-                      <Input
-                        value={indicator}
-                        onChange={(e) => {
-                          const updated = [...landingData.hero_trust_indicators];
-                          updated[index] = e.target.value;
-                          setLandingData({ ...landingData, hero_trust_indicators: updated });
-                        }}
-                        placeholder="Ex: Sem taxas ocultas"
-                        className="flex-1"
-                      />
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-destructive h-8 w-8 flex-shrink-0"
-                        onClick={() => {
-                          const updated = landingData.hero_trust_indicators.filter((_, i) => i !== index);
-                          setLandingData({ ...landingData, hero_trust_indicators: updated });
-                        }}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                <ScrollArea className="max-h-[150px]">
+                  <div className="space-y-2 pr-3">
+                    {landingData.hero_trust_indicators.map((indicator, index) => (
+                      <div key={index} className="flex gap-2 items-center">
+                        <span className="text-primary font-medium">✓</span>
+                        <Input
+                          value={indicator}
+                          onChange={(e) => {
+                            const updated = [...landingData.hero_trust_indicators];
+                            updated[index] = e.target.value;
+                            setLandingData({ ...landingData, hero_trust_indicators: updated });
+                          }}
+                          placeholder="Ex: Sem taxas ocultas"
+                          className="flex-1"
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-destructive h-8 w-8 flex-shrink-0"
+                          onClick={() => {
+                            const updated = landingData.hero_trust_indicators.filter((_, i) => i !== index);
+                            setLandingData({ ...landingData, hero_trust_indicators: updated });
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
               </div>
               <div className="space-y-2">
                 <Label>Imagem de Fundo</Label>
