@@ -946,6 +946,37 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                     </div>
                   )}
                 </div>
+                {/* Meta Pixel */}
+                <div className="space-y-4 pt-4 border-t">
+                  <div>
+                    <h4 className="font-medium flex items-center gap-2">
+                      📊 Meta Pixel (Facebook)
+                    </h4>
+                    <p className="text-sm text-muted-foreground">
+                      Configure o rastreamento de conversões do Facebook/Instagram
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>ID do Pixel</Label>
+                    <Input
+                      value={landingData.meta_pixel_id}
+                      onChange={(e) => setLandingData({ ...landingData, meta_pixel_id: e.target.value })}
+                      placeholder="Ex: 1234567890123456"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Encontre o ID do seu Pixel no{' '}
+                      <a 
+                        href="https://business.facebook.com/events_manager" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        Gerenciador de Eventos do Meta
+                      </a>
+                      . Deixe vazio para desativar.
+                    </p>
+                  </div>
+                </div>
               </div>
             </ScrollArea>
           </TabsContent>
