@@ -72,6 +72,8 @@ interface CourseLandingData {
   custom_description: string;
   custom_duration: string;
   custom_price: string;
+  original_price: string;
+  pricing_features: string[];
   urgency_banner_message: string;
   urgency_banner_variant: string;
   floating_cta_text: string;
@@ -197,6 +199,17 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           }
         } catch { /* ignore */ }
 
+        // Parse pricing features
+        let pricingFeatures: string[] = [];
+        try {
+          if ((data as any).pricing_features) {
+            const rawFeatures = typeof (data as any).pricing_features === 'string'
+              ? JSON.parse((data as any).pricing_features)
+              : (data as any).pricing_features;
+            pricingFeatures = Array.isArray(rawFeatures) ? rawFeatures : [];
+          }
+        } catch { /* ignore */ }
+
         setLandingData({
           id: data.id,
           course_id: course.id,
@@ -211,6 +224,8 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           custom_description: (data as any).custom_description || '',
           custom_duration: (data as any).custom_duration || '',
           custom_price: (data as any).custom_price?.toString() || '',
+          original_price: (data as any).original_price?.toString() || '',
+          pricing_features: pricingFeatures.length > 0 ? pricingFeatures : ['Material didático incluso', 'Certificado de conclusão', 'Turmas reduzidas', 'Acompanhamento individual'],
           urgency_banner_message: (data as any).urgency_banner_message || '',
           urgency_banner_variant: (data as any).urgency_banner_variant || 'warning',
           floating_cta_text: (data as any).floating_cta_text || 'Quero me matricular!',
@@ -231,6 +246,8 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
           custom_description: '',
           custom_duration: '',
           custom_price: '',
+          original_price: '',
+          pricing_features: ['Material didático incluso', 'Certificado de conclusão', 'Turmas reduzidas', 'Acompanhamento individual'],
           urgency_banner_message: '🔥 Últimas vagas com desconto especial! Promoção válida por tempo limitado.',
           urgency_banner_variant: 'warning',
           floating_cta_text: 'Quero me matricular!',
@@ -261,6 +278,8 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
         custom_description: landingData.custom_description || null,
         custom_duration: landingData.custom_duration || null,
         custom_price: landingData.custom_price ? parseFloat(landingData.custom_price) : null,
+        original_price: landingData.original_price ? parseFloat(landingData.original_price) : null,
+        pricing_features: landingData.pricing_features as unknown as Json,
         urgency_banner_message: landingData.urgency_banner_message || null,
         urgency_banner_variant: landingData.urgency_banner_variant || 'warning',
         floating_cta_text: landingData.floating_cta_text || 'Quero me matricular!',
@@ -591,15 +610,80 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                   rows={3}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Preço (R$)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={landingData.custom_price}
-                  onChange={(e) => setLandingData({ ...landingData, custom_price: e.target.value })}
-                  placeholder="Preço personalizado"
-                />
+              
+              {/* Pricing section */}
+              <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                <h4 className="font-medium text-sm">Preços e Desconto</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Preço Promocional (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={landingData.custom_price}
+                      onChange={(e) => setLandingData({ ...landingData, custom_price: e.target.value })}
+                      placeholder="Ex: 197,00"
+                    />
+                    <p className="text-xs text-muted-foreground">Preço atual exibido</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Preço Original (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={landingData.original_price}
+                      onChange={(e) => setLandingData({ ...landingData, original_price: e.target.value })}
+                      placeholder="Ex: 297,00"
+                    />
+                    <p className="text-xs text-muted-foreground">Riscado para mostrar desconto</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Features section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Características do Card de Preço</Label>
+                    <p className="text-xs text-muted-foreground">Itens com ✓ exibidos no card</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setLandingData({
+                      ...landingData,
+                      pricing_features: [...landingData.pricing_features, '']
+                    })}
+                  >
+                    <Plus className="w-4 h-4 mr-1" /> Adicionar
+                  </Button>
+                </div>
+                {landingData.pricing_features.map((feature, index) => (
+                  <div key={index} className="flex gap-2 items-center">
+                    <span className="text-primary font-medium">✓</span>
+                    <Input
+                      value={feature}
+                      onChange={(e) => {
+                        const updated = [...landingData.pricing_features];
+                        updated[index] = e.target.value;
+                        setLandingData({ ...landingData, pricing_features: updated });
+                      }}
+                      placeholder="Ex: Material didático incluso"
+                      className="flex-1"
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="text-destructive h-8 w-8"
+                      onClick={() => {
+                        const updated = landingData.pricing_features.filter((_, i) => i !== index);
+                        setLandingData({ ...landingData, pricing_features: updated });
+                      }}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             </TabsContent>
 
@@ -661,33 +745,42 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
             </TabsContent>
 
             {/* Testimonials Tab */}
-            <TabsContent value="testimonials" className="space-y-4 mt-0">
-              <div className="flex items-center justify-between">
+            <TabsContent value="testimonials" className="mt-0">
+              <div className="flex items-center justify-between mb-3">
                 <h4 className="font-medium">Depoimentos</h4>
                 <Button size="sm" variant="outline" onClick={addTestimonial}>
                   <Plus className="w-4 h-4 mr-1" /> Adicionar
                 </Button>
               </div>
-              {landingData.testimonials.map((testimonial, index) => (
-                <div key={index} className="p-3 border rounded-lg space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="grid grid-cols-2 gap-2 flex-1">
-                      <Input value={testimonial.name} onChange={(e) => updateTestimonial(index, 'name', e.target.value)} placeholder="Nome" />
-                      <Input value={testimonial.role} onChange={(e) => updateTestimonial(index, 'role', e.target.value)} placeholder="Cargo" />
+              <ScrollArea className="h-[280px] pr-3">
+                <div className="space-y-3">
+                  {landingData.testimonials.map((testimonial, index) => (
+                    <div key={index} className="p-3 border rounded-lg space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div className="grid grid-cols-2 gap-2 flex-1">
+                          <Input value={testimonial.name} onChange={(e) => updateTestimonial(index, 'name', e.target.value)} placeholder="Nome" />
+                          <Input value={testimonial.role} onChange={(e) => updateTestimonial(index, 'role', e.target.value)} placeholder="Cargo" />
+                        </div>
+                        <Button size="icon" variant="ghost" className="text-destructive ml-2" onClick={() => removeTestimonial(index)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <Textarea value={testimonial.content} onChange={(e) => updateTestimonial(index, 'content', e.target.value)} placeholder="Depoimento" rows={2} />
+                      <Select value={testimonial.rating.toString()} onValueChange={(v) => updateTestimonial(index, 'rating', parseInt(v))}>
+                        <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {RATING_OPTIONS.map(r => <SelectItem key={r} value={r.toString()}>{r} estrelas</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <Button size="icon" variant="ghost" className="text-destructive ml-2" onClick={() => removeTestimonial(index)}>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <Textarea value={testimonial.content} onChange={(e) => updateTestimonial(index, 'content', e.target.value)} placeholder="Depoimento" rows={2} />
-                  <Select value={testimonial.rating.toString()} onValueChange={(v) => updateTestimonial(index, 'rating', parseInt(v))}>
-                    <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {RATING_OPTIONS.map(r => <SelectItem key={r} value={r.toString()}>{r} estrelas</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  ))}
+                  {landingData.testimonials.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed rounded-lg">
+                      Nenhum depoimento. Se vazio, usa depoimentos padrão.
+                    </p>
+                  )}
                 </div>
-              ))}
+              </ScrollArea>
             </TabsContent>
 
             {/* CTA Tab */}
@@ -993,15 +1086,83 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                                   />
                                 </div>
 
-                                <div className="space-y-2">
-                                  <Label>Preço (R$)</Label>
-                                  <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={landingData.custom_price}
-                                    onChange={(e) => setLandingData({ ...landingData, custom_price: e.target.value })}
-                                    placeholder="Preço personalizado"
-                                  />
+                                {/* Pricing section */}
+                                <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                                  <h4 className="font-medium text-sm">Preços e Desconto</h4>
+                                  <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <Label>Preço Promocional (R$)</Label>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={landingData.custom_price}
+                                        onChange={(e) => setLandingData({ ...landingData, custom_price: e.target.value })}
+                                        placeholder="Ex: 197,00"
+                                      />
+                                      <p className="text-xs text-muted-foreground">Preço atual exibido</p>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label>Preço Original (R$)</Label>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        value={landingData.original_price}
+                                        onChange={(e) => setLandingData({ ...landingData, original_price: e.target.value })}
+                                        placeholder="Ex: 297,00"
+                                      />
+                                      <p className="text-xs text-muted-foreground">Riscado para mostrar desconto</p>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Features section */}
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <Label>Características do Card de Preço</Label>
+                                      <p className="text-xs text-muted-foreground">Itens com ✓ exibidos no card</p>
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setLandingData({
+                                        ...landingData,
+                                        pricing_features: [...landingData.pricing_features, '']
+                                      })}
+                                    >
+                                      <Plus className="w-4 h-4 mr-1" /> Adicionar
+                                    </Button>
+                                  </div>
+                                  <ScrollArea className="max-h-[200px]">
+                                    <div className="space-y-2 pr-3">
+                                      {landingData.pricing_features.map((feature, index) => (
+                                        <div key={index} className="flex gap-2 items-center">
+                                          <span className="text-primary font-medium">✓</span>
+                                          <Input
+                                            value={feature}
+                                            onChange={(e) => {
+                                              const updated = [...landingData.pricing_features];
+                                              updated[index] = e.target.value;
+                                              setLandingData({ ...landingData, pricing_features: updated });
+                                            }}
+                                            placeholder="Ex: Material didático incluso"
+                                            className="flex-1"
+                                          />
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="text-destructive h-8 w-8"
+                                            onClick={() => {
+                                              const updated = landingData.pricing_features.filter((_, i) => i !== index);
+                                              setLandingData({ ...landingData, pricing_features: updated });
+                                            }}
+                                          >
+                                            <X className="w-4 h-4" />
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </ScrollArea>
                                 </div>
                               </div>
                             </TabsContent>
@@ -1120,8 +1281,8 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                             </TabsContent>
 
                             {/* Testimonials Tab */}
-                            <TabsContent value="testimonials" className="space-y-4 mt-0">
-                              <div className="flex items-center justify-between">
+                            <TabsContent value="testimonials" className="mt-0">
+                              <div className="flex items-center justify-between mb-3">
                                 <div>
                                   <h4 className="font-medium">Depoimentos</h4>
                                   <p className="text-sm text-muted-foreground">O que os pais dizem sobre o curso</p>
@@ -1132,60 +1293,64 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                                 </Button>
                               </div>
 
-                              {landingData.testimonials.map((testimonial, index) => (
-                                <div key={index} className="p-4 border rounded-lg space-y-3">
-                                  <div className="flex justify-between items-start">
-                                    <div className="flex-1 grid grid-cols-2 gap-3">
+                              <ScrollArea className="h-[300px] pr-3">
+                                <div className="space-y-3">
+                                  {landingData.testimonials.map((testimonial, index) => (
+                                    <div key={index} className="p-4 border rounded-lg space-y-3">
+                                      <div className="flex justify-between items-start">
+                                        <div className="flex-1 grid grid-cols-2 gap-3">
+                                          <div className="space-y-1">
+                                            <Label className="text-xs">Nome</Label>
+                                            <Input
+                                              value={testimonial.name}
+                                              onChange={(e) => updateTestimonial(index, 'name', e.target.value)}
+                                              placeholder="Nome do responsável"
+                                            />
+                                          </div>
+                                          <div className="space-y-1">
+                                            <Label className="text-xs">Relação</Label>
+                                            <Input
+                                              value={testimonial.role}
+                                              onChange={(e) => updateTestimonial(index, 'role', e.target.value)}
+                                              placeholder="Ex: Mãe do João, 8 anos"
+                                            />
+                                          </div>
+                                        </div>
+                                        <Button size="sm" variant="ghost" className="ml-2" onClick={() => removeTestimonial(index)}>
+                                          <Trash2 className="w-4 h-4 text-destructive" />
+                                        </Button>
+                                      </div>
                                       <div className="space-y-1">
-                                        <Label className="text-xs">Nome</Label>
-                                        <Input
-                                          value={testimonial.name}
-                                          onChange={(e) => updateTestimonial(index, 'name', e.target.value)}
-                                          placeholder="Nome do responsável"
+                                        <Label className="text-xs">Depoimento</Label>
+                                        <Textarea
+                                          value={testimonial.content}
+                                          onChange={(e) => updateTestimonial(index, 'content', e.target.value)}
+                                          placeholder="O que o responsável disse sobre o curso..."
+                                          rows={2}
                                         />
                                       </div>
                                       <div className="space-y-1">
-                                        <Label className="text-xs">Relação</Label>
-                                        <Input
-                                          value={testimonial.role}
-                                          onChange={(e) => updateTestimonial(index, 'role', e.target.value)}
-                                          placeholder="Ex: Mãe do João, 8 anos"
-                                        />
+                                        <Label className="text-xs">Avaliação</Label>
+                                        <select
+                                          value={testimonial.rating}
+                                          onChange={(e) => updateTestimonial(index, 'rating', parseInt(e.target.value))}
+                                          className="w-24 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                        >
+                                          {RATING_OPTIONS.map(rating => (
+                                            <option key={rating} value={rating}>{rating} ⭐</option>
+                                          ))}
+                                        </select>
                                       </div>
                                     </div>
-                                    <Button size="sm" variant="ghost" className="ml-2" onClick={() => removeTestimonial(index)}>
-                                      <Trash2 className="w-4 h-4 text-destructive" />
-                                    </Button>
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Depoimento</Label>
-                                    <Textarea
-                                      value={testimonial.content}
-                                      onChange={(e) => updateTestimonial(index, 'content', e.target.value)}
-                                      placeholder="O que o responsável disse sobre o curso..."
-                                      rows={2}
-                                    />
-                                  </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Avaliação</Label>
-                                    <select
-                                      value={testimonial.rating}
-                                      onChange={(e) => updateTestimonial(index, 'rating', parseInt(e.target.value))}
-                                      className="w-24 h-9 rounded-md border border-input bg-background px-3 text-sm"
-                                    >
-                                      {RATING_OPTIONS.map(rating => (
-                                        <option key={rating} value={rating}>{rating} ⭐</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-                              ))}
+                                  ))}
 
-                              {landingData.testimonials.length === 0 && (
-                                <p className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed rounded-lg">
-                                  Nenhum depoimento adicionado. Se deixar vazio, serão exibidos depoimentos padrão.
-                                </p>
-                              )}
+                                  {landingData.testimonials.length === 0 && (
+                                    <p className="text-sm text-muted-foreground text-center py-8 border-2 border-dashed rounded-lg">
+                                      Nenhum depoimento adicionado. Se deixar vazio, serão exibidos depoimentos padrão.
+                                    </p>
+                                  )}
+                                </div>
+                              </ScrollArea>
                             </TabsContent>
 
                             {/* CTAs Tab */}

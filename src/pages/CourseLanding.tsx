@@ -55,6 +55,8 @@ interface CourseLandingData {
   custom_description: string | null;
   custom_duration: string | null;
   custom_price: number | null;
+  original_price: number | null;
+  pricing_features: string[];
   urgency_banner_message: string | null;
   urgency_banner_variant: string | null;
   floating_cta_text: string | null;
@@ -124,6 +126,7 @@ export default function CourseLanding() {
         let benefits: Benefit[] = [];
         let galleryImages: CampaignImage[] = [];
         let testimonials: Testimonial[] = [];
+        let pricingFeatures: string[] = [];
 
         try {
           if (landingPageData.benefits) {
@@ -152,6 +155,15 @@ export default function CourseLanding() {
           }
         } catch { /* ignore */ }
 
+        try {
+          if ((landingPageData as any).pricing_features) {
+            const rawFeatures = typeof (landingPageData as any).pricing_features === 'string'
+              ? JSON.parse((landingPageData as any).pricing_features)
+              : (landingPageData as any).pricing_features;
+            pricingFeatures = Array.isArray(rawFeatures) ? rawFeatures : [];
+          }
+        } catch { /* ignore */ }
+
         setLandingData({
           hero_title: landingPageData.hero_title,
           hero_subtitle: landingPageData.hero_subtitle,
@@ -164,6 +176,8 @@ export default function CourseLanding() {
           custom_description: (landingPageData as any).custom_description || null,
           custom_duration: (landingPageData as any).custom_duration || null,
           custom_price: (landingPageData as any).custom_price || null,
+          original_price: (landingPageData as any).original_price || null,
+          pricing_features: pricingFeatures.length > 0 ? pricingFeatures : ['Material didático incluso', 'Certificado de conclusão', 'Turmas reduzidas', 'Acompanhamento individual'],
           urgency_banner_message: (landingPageData as any).urgency_banner_message || null,
           urgency_banner_variant: (landingPageData as any).urgency_banner_variant || 'warning',
           floating_cta_text: (landingPageData as any).floating_cta_text || 'Quero me matricular!',
@@ -183,6 +197,8 @@ export default function CourseLanding() {
           custom_description: null,
           custom_duration: null,
           custom_price: null,
+          original_price: null,
+          pricing_features: ['Material didático incluso', 'Certificado de conclusão', 'Turmas reduzidas', 'Acompanhamento individual'],
           urgency_banner_message: null,
           urgency_banner_variant: 'warning',
           floating_cta_text: 'Quero me matricular!',
@@ -270,6 +286,8 @@ export default function CourseLanding() {
           description={displayDescription}
           duration={displayDuration}
           price={displayPrice}
+          originalPrice={landingData.original_price || undefined}
+          features={landingData.pricing_features}
           onCtaClick={scrollToForm}
         />
 

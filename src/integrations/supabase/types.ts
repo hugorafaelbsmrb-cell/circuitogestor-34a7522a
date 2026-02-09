@@ -752,6 +752,8 @@ export type Database = {
           hero_title: string | null
           id: string
           is_active: boolean
+          original_price: number | null
+          pricing_features: Json | null
           testimonials: Json | null
           updated_at: string
           urgency_banner_message: string | null
@@ -773,6 +775,8 @@ export type Database = {
           hero_title?: string | null
           id?: string
           is_active?: boolean
+          original_price?: number | null
+          pricing_features?: Json | null
           testimonials?: Json | null
           updated_at?: string
           urgency_banner_message?: string | null
@@ -794,6 +798,8 @@ export type Database = {
           hero_title?: string | null
           id?: string
           is_active?: boolean
+          original_price?: number | null
+          pricing_features?: Json | null
           testimonials?: Json | null
           updated_at?: string
           urgency_banner_message?: string | null
