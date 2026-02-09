@@ -658,32 +658,36 @@ export function CourseLandingEditor({ courseId, onClose, embedded = false }: Cou
                     <Plus className="w-4 h-4 mr-1" /> Adicionar
                   </Button>
                 </div>
-                {landingData.pricing_features.map((feature, index) => (
-                  <div key={index} className="flex gap-2 items-center">
-                    <span className="text-primary font-medium">✓</span>
-                    <Input
-                      value={feature}
-                      onChange={(e) => {
-                        const updated = [...landingData.pricing_features];
-                        updated[index] = e.target.value;
-                        setLandingData({ ...landingData, pricing_features: updated });
-                      }}
-                      placeholder="Ex: Material didático incluso"
-                      className="flex-1"
-                    />
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="text-destructive h-8 w-8"
-                      onClick={() => {
-                        const updated = landingData.pricing_features.filter((_, i) => i !== index);
-                        setLandingData({ ...landingData, pricing_features: updated });
-                      }}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                <ScrollArea className="max-h-[180px] pr-3">
+                  <div className="space-y-2">
+                    {landingData.pricing_features.map((feature, index) => (
+                      <div key={index} className="flex gap-2 items-center">
+                        <span className="text-primary font-medium">✓</span>
+                        <Input
+                          value={feature}
+                          onChange={(e) => {
+                            const updated = [...landingData.pricing_features];
+                            updated[index] = e.target.value;
+                            setLandingData({ ...landingData, pricing_features: updated });
+                          }}
+                          placeholder="Ex: Material didático incluso"
+                          className="flex-1"
+                        />
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-destructive h-8 w-8 flex-shrink-0"
+                          onClick={() => {
+                            const updated = landingData.pricing_features.filter((_, i) => i !== index);
+                            setLandingData({ ...landingData, pricing_features: updated });
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </ScrollArea>
               </div>
             </TabsContent>
 
