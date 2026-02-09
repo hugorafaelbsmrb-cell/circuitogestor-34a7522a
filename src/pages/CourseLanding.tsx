@@ -47,6 +47,8 @@ interface CourseLandingData {
   hero_title: string | null;
   hero_subtitle: string | null;
   hero_image: string | null;
+  hero_urgency_text: string | null;
+  hero_social_proof_count: number | null;
   benefits: Benefit[];
   gallery_images: CampaignImage[];
   testimonials: Testimonial[];
@@ -168,6 +170,8 @@ export default function CourseLanding() {
           hero_title: landingPageData.hero_title,
           hero_subtitle: landingPageData.hero_subtitle,
           hero_image: landingPageData.hero_image,
+          hero_urgency_text: (landingPageData as any).hero_urgency_text || 'Vagas Limitadas!',
+          hero_social_proof_count: (landingPageData as any).hero_social_proof_count || 150,
           benefits,
           gallery_images: galleryImages,
           testimonials,
@@ -189,6 +193,8 @@ export default function CourseLanding() {
           hero_title: `Matricule-se em ${courseData.name}!`,
           hero_subtitle: courseData.description || 'Transforme o futuro do seu filho com cursos inovadores',
           hero_image: null,
+          hero_urgency_text: 'Vagas Limitadas!',
+          hero_social_proof_count: 150,
           benefits: [],
           gallery_images: [],
           testimonials: [],
@@ -260,8 +266,8 @@ export default function CourseLanding() {
         subtitle={landingData.hero_subtitle || displayDescription || ''}
         backgroundImage={landingData.hero_image || undefined}
         onCtaClick={scrollToForm}
-        urgencyText="Vagas Limitadas!"
-        socialProofCount={150}
+        urgencyText={landingData.hero_urgency_text || "Vagas Limitadas!"}
+        socialProofCount={landingData.hero_social_proof_count || 150}
       />
 
       {/* Lazy loaded sections */}
