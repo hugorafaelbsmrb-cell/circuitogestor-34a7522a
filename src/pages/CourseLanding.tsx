@@ -7,6 +7,7 @@ import { UrgencyBanner } from '@/components/campaign/UrgencyBanner';
 import { FloatingCTA } from '@/components/campaign/FloatingCTA';
 import { LeadCaptureForm } from '@/components/campaign/LeadCaptureForm';
 import { LandingPageSkeleton } from '@/components/campaign/LandingPageSkeleton';
+import { MetaPixel, trackMetaEvent, MetaEvents } from '@/components/campaign/MetaPixel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 // Lazy load heavier components for faster initial paint
@@ -64,6 +65,7 @@ interface CourseLandingData {
   urgency_banner_variant: string | null;
   floating_cta_text: string | null;
   floating_cta_enabled: boolean;
+  meta_pixel_id: string | null;
 }
 
 export default function CourseLanding() {
@@ -199,6 +201,7 @@ export default function CourseLanding() {
           urgency_banner_variant: (landingPageData as any).urgency_banner_variant || 'warning',
           floating_cta_text: (landingPageData as any).floating_cta_text || 'Quero me matricular!',
           floating_cta_enabled: (landingPageData as any).floating_cta_enabled ?? true,
+          meta_pixel_id: (landingPageData as any).meta_pixel_id || null,
         });
       } else {
         // Use course defaults if no custom landing page
@@ -223,6 +226,7 @@ export default function CourseLanding() {
           urgency_banner_variant: 'warning',
           floating_cta_text: 'Quero me matricular!',
           floating_cta_enabled: true,
+          meta_pixel_id: null,
         });
       }
     } catch (error) {
@@ -268,6 +272,11 @@ export default function CourseLanding() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Meta Pixel Tracking */}
+      {landingData.meta_pixel_id && (
+        <MetaPixel pixelId={landingData.meta_pixel_id} />
+      )}
+
       {/* Urgency Banner */}
       <UrgencyBanner 
         message={landingData.urgency_banner_message || "🔥 Últimas vagas com desconto especial! Promoção válida por tempo limitado."}
