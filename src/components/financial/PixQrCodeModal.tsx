@@ -93,31 +93,37 @@ export function PixQrCodeModal({
       return;
     }
 
-    const message = `💳 *Código PIX para Pagamento*
+    // First message: payment info
+    const infoMessage = `💳 *Código PIX para Pagamento*
 
 📋 *Descrição:* ${paymentDescription}
 💰 *Valor:* ${formatCurrency(paymentValue)}
 📅 *Vencimento:* ${formatDate(dueDate)}
 
-📱 *Código PIX (Copia e Cola):*
-\`\`\`
-${pixData.payload}
-\`\`\`
+⏰ *Validade:* ${pixData.expirationDate ? formatDate(pixData.expirationDate) : 'Até o vencimento'}
 
-✅ Basta copiar o código acima e colar no seu aplicativo bancário!
+✅ Em seguida enviaremos o código PIX para você copiar e colar no seu aplicativo bancário!`;
 
-⏰ *Validade:* ${pixData.expirationDate ? formatDate(pixData.expirationDate) : 'Até o vencimento'}`;
-
-    const success = await sendMessage({
+    const infoSent = await sendMessage({
       phone: guardianPhone,
-      message,
+      message: infoMessage,
     });
 
-    if (success) {
+    if (infoSent) {
+      // Wait 3 seconds then send PIX code alone
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const pixCodeMessage = pixData.payload;
+      
+      await sendMessage({
+        phone: guardianPhone,
+        message: pixCodeMessage,
+      });
+
       setSent(true);
       toast({
         title: 'PIX enviado!',
-        description: `Código enviado para ${guardianName}.`,
+        description: `Código enviado para ${guardianName} em 2 mensagens.`,
       });
       setTimeout(() => setSent(false), 5000);
     }
