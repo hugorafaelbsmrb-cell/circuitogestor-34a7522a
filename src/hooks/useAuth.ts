@@ -41,54 +41,70 @@ export function useAuth() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    let isMounted = true;
+
+    const fetchProfile = async (userId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (!error && data && isMounted) {
+          setProfile({
+            ...data,
+            permissions: data.permissions as UserPermissions | null,
+          });
+        }
+      } catch {
+        // Profile fetch failed silently
+      }
+    };
+
+    // Listener for ONGOING auth changes (does NOT control isLoading)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        if (!isMounted) return;
         setSession(session);
         setUser(session?.user ?? null);
-        
-        // Defer profile fetch with setTimeout
+
         if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
+          // Fire and forget - don't await, don't set loading
+          fetchProfile(session.user.id);
         } else {
           setProfile(null);
         }
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
-      setIsLoading(false);
-    });
+    // INITIAL load (controls isLoading)
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isMounted) return;
 
-    return () => subscription.unsubscribe();
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        // Fetch profile BEFORE setting loading false
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    
-    if (!error && data) {
-      setProfile({
-        ...data,
-        permissions: data.permissions as UserPermissions | null,
-      });
-    }
-  };
-
   const signUp = async (email: string, password: string, fullName: string) => {
-    // Use admin API approach - create user without auto-login
-    // Since we can't use admin API from client, we sign up and immediately sign out
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -99,18 +115,10 @@ export function useAuth() {
       }
     });
     
-    // If signup was successful and user is now logged in, sign them out
-    // This prevents the admin from being logged out when creating new users
-    if (!error && data.session) {
-      // We need to preserve current session, so we just return success
-      // The new user will need to login separately
-    }
-    
     return { error, user: data.user };
   };
 
   const signIn = async (email: string, password: string) => {
-    // Check rate limit before attempting login
     const rateCheck = checkRateLimit(email, 'login');
     if (!rateCheck.allowed) {
       const resetTime = formatResetTime(rateCheck.resetIn);
@@ -127,14 +135,12 @@ export function useAuth() {
       password,
     });
     
-    // Log the login attempt
     await logLogin(email, !error);
     
     return { error };
   };
 
   const signOut = async () => {
-    // Log logout before signing out
     await logLogout();
     
     const { error } = await supabase.auth.signOut();
@@ -142,10 +148,24 @@ export function useAuth() {
       setUser(null);
       setSession(null);
       setProfile(null);
-      // Clear last route so user starts fresh on next login
       localStorage.removeItem('circuito-last-route');
     }
     return { error };
+  };
+
+  const fetchProfilePublic = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+    
+    if (!error && data) {
+      setProfile({
+        ...data,
+        permissions: data.permissions as UserPermissions | null,
+      });
+    }
   };
 
   const updateProfile = async (data: Partial<Profile>) => {
@@ -172,6 +192,6 @@ export function useAuth() {
     signIn,
     signOut,
     updateProfile,
-    refetchProfile: () => user && fetchProfile(user.id),
+    refetchProfile: () => user && fetchProfilePublic(user.id),
   };
 }

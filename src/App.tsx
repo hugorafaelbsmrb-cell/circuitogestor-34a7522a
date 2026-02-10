@@ -78,34 +78,24 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          {/* Public routes - no authentication required */}
-          <Route path="/assinar/:token" element={<ContractSign />} />
-          <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
-          <Route path="/campanha" element={<CampaignLanding />} />
-          <Route path="/campanha/:slug" element={<CourseLanding />} />
-          <Route path="/cantina" element={<CanteenPublic />} />
-          <Route path="/presenca" element={
-            <SchoolProvider>
-              <AttendancePublic />
-            </SchoolProvider>
-          } />
-          <Route path="/professor-login" element={<TeacherLogin />} />
-          <Route path="/relatorios-pais" element={<ParentReportsPortal />} />
-          
-          {/* Auth route */}
-          <Route path="/auth" element={
-            <AuthProvider>
-              <SchoolProvider>
-                <Auth />
-              </SchoolProvider>
-            </AuthProvider>
-          } />
-          
-          {/* Protected routes - require authentication */}
-          <Route path="/*" element={
-            <AuthProvider>
-              <SchoolProvider>
+        <AuthProvider>
+          <SchoolProvider>
+            <Routes>
+              {/* Public routes - no authentication required */}
+              <Route path="/assinar/:token" element={<ContractSign />} />
+              <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
+              <Route path="/campanha" element={<CampaignLanding />} />
+              <Route path="/campanha/:slug" element={<CourseLanding />} />
+              <Route path="/cantina" element={<CanteenPublic />} />
+              <Route path="/presenca" element={<AttendancePublic />} />
+              <Route path="/professor-login" element={<TeacherLogin />} />
+              <Route path="/relatorios-pais" element={<ParentReportsPortal />} />
+              
+              {/* Auth route */}
+              <Route path="/auth" element={<Auth />} />
+              
+              {/* Protected routes - require authentication */}
+              <Route path="/*" element={
                 <ProtectedRoute>
                   <MainLayout>
                     <Routes>
@@ -147,10 +137,10 @@ const App = () => (
                     </Routes>
                   </MainLayout>
                 </ProtectedRoute>
-              </SchoolProvider>
-            </AuthProvider>
-          } />
-        </Routes>
+              } />
+            </Routes>
+          </SchoolProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
