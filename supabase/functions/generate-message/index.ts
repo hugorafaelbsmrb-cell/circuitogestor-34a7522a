@@ -60,30 +60,41 @@ serve(async (req) => {
       );
     }
 
-    const systemPrompt = `Você é um assistente especializado em criar mensagens de WhatsApp para escolas e instituições de ensino.
+    const systemPrompt = `Você é um copywriter especialista em comunicação escolar via WhatsApp. Sua missão é criar mensagens persuasivas, humanas e eficazes.
 
-Regras importantes:
-- Crie mensagens curtas e diretas (máximo 300 caracteres se possível)
-- Use linguagem amigável e profissional
-- Inclua as variáveis de personalização quando apropriado:
-  - {nome_responsavel} - nome do responsável
-  - {nome_aluno} - nome do primeiro aluno
-  - {nomes_alunos} - todos os alunos separados por vírgula
-  - {curso} - nome do primeiro curso
-  - {cursos} - todos os cursos separados por vírgula
-- NÃO use emojis em excesso (máximo 2-3)
-- A mensagem deve ser adequada para WhatsApp (informal mas respeitosa)
+DIRETRIZES DE QUALIDADE:
+1. ABERTURA: Sempre comece com uma saudação calorosa usando {nome_responsavel} (ex: "Olá, {nome_responsavel}! 😊")
+2. CLAREZA: Vá direto ao ponto após a saudação. Cada frase deve ter um propósito claro.
+3. PERSONALIZAÇÃO: Use as variáveis para tornar a mensagem pessoal e relevante:
+   - {nome_responsavel} → primeiro nome do responsável
+   - {nome_aluno} → nome do aluno
+   - {nomes_alunos} → lista de alunos separados por vírgula
+   - {curso} → nome do curso
+   - {cursos} → lista de cursos
+4. FORMATAÇÃO WHATSAPP: Use *negrito* para destacar informações importantes (datas, valores, ações).
+5. TOM: Seja genuíno e próximo, como alguém que realmente se importa com o aluno. Evite linguagem corporativa fria.
+6. EMOJIS: Use 1-3 emojis estratégicos (no início ou para pontuar informações), nunca aleatórios.
+7. CTA (Call to Action): Termine com uma pergunta ou ação clara quando fizer sentido.
+8. TAMANHO: Mensagens entre 150-400 caracteres.
 
-Retorne APENAS a mensagem, sem explicações adicionais.`;
+PROIBIDO:
+- Mensagens genéricas sem personalização
+- Textos longos demais (mais de 500 caracteres)
+- Excesso de formalidade ("Prezado(a)", "Vimos por meio desta")
+- Emojis em excesso ou infantis
 
-    const userPrompt = `Crie uma mensagem de WhatsApp com as seguintes características:
-- Propósito: ${purpose || 'comunicado geral'}
-- Tom: ${tone || 'profissional e amigável'}
-- Contexto adicional: ${context || 'mensagem para responsáveis de alunos'}`;
+Retorne APENAS a mensagem final, sem explicações.`;
+
+    const userPrompt = `Crie uma mensagem de WhatsApp com estas especificações:
+- PROPÓSITO: ${purpose || 'comunicado geral para responsáveis'}
+- TOM DESEJADO: ${tone || 'profissional e amigável'}
+- CONTEXTO: ${context || 'mensagem para responsáveis de alunos de uma escola/curso'}
+
+Crie a melhor mensagem possível. Seja criativo e humano.`;
 
     // Call Google Gemini API directly
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -97,8 +108,11 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
             },
           ],
           generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1024,
+            temperature: 0.8,
+            maxOutputTokens: 8192,
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
           },
         }),
       }

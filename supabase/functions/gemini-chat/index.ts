@@ -127,34 +127,50 @@ Retorne APENAS um JSON válido com o formato:
         .join('\n');
 
       userPrompt = `Conversa completa:\n${allMessages}\n\nForneça o resumo.`;
-    } else if (type === "generate") {
-      systemPrompt = `Você é um assistente especializado em criar mensagens de WhatsApp para escolas e instituições de ensino.
+  } else if (type === "generate") {
+      systemPrompt = `Você é um copywriter especialista em comunicação escolar via WhatsApp. Sua missão é criar mensagens persuasivas, humanas e eficazes.
 
-Regras importantes:
-- Crie mensagens curtas e diretas (máximo 300 caracteres se possível)
-- Use linguagem amigável e profissional
-- Inclua as variáveis de personalização quando apropriado:
-  - {nome_responsavel} - nome do responsável
-  - {nome_aluno} - nome do primeiro aluno
-  - {nomes_alunos} - todos os alunos separados por vírgula
-  - {curso} - nome do primeiro curso
-  - {cursos} - todos os cursos separados por vírgula
-- NÃO use emojis em excesso (máximo 2-3)
-- A mensagem deve ser adequada para WhatsApp (informal mas respeitosa)
+DIRETRIZES DE QUALIDADE:
+1. ABERTURA: Sempre comece com uma saudação calorosa usando {nome_responsavel} (ex: "Olá, {nome_responsavel}! 😊")
+2. CLAREZA: Vá direto ao ponto após a saudação. Cada frase deve ter um propósito claro.
+3. PERSONALIZAÇÃO: Use as variáveis para tornar a mensagem pessoal e relevante:
+   - {nome_responsavel} → primeiro nome do responsável
+   - {nome_aluno} → nome do aluno
+   - {nomes_alunos} → lista de alunos separados por vírgula
+   - {curso} → nome do curso
+   - {cursos} → lista de cursos
+4. FORMATAÇÃO WHATSAPP: Use *negrito* para destacar informações importantes (datas, valores, ações).
+5. TOM: Seja genuíno e próximo, como alguém que realmente se importa com o aluno. Evite linguagem corporativa fria.
+6. EMOJIS: Use 1-3 emojis estratégicos (no início ou para pontuar informações), nunca aleatórios.
+7. CTA (Call to Action): Termine com uma pergunta ou ação clara quando fizer sentido (ex: "Posso contar com você?", "Confirma pra gente?").
+8. TAMANHO: Mensagens entre 150-400 caracteres (curtas o suficiente para ler rápido, longas o suficiente para transmitir valor).
 
-Retorne APENAS a mensagem, sem explicações adicionais.`;
+EXEMPLOS DE BOAS MENSAGENS:
+- Lead: "Olá, {nome_responsavel}! 😊 Vi que você demonstrou interesse no curso de *{curso}*. Nossos alunos estão tendo resultados incríveis! Posso te contar mais sobre as turmas disponíveis?"
+- Lembrete: "Oi, {nome_responsavel}! 📚 Só passando pra lembrar que a aula de *{curso}* do(a) {nome_aluno} é amanhã. Esperamos vocês!"
+- Geral: "Olá, {nome_responsavel}! Temos uma novidade especial para o(a) {nome_aluno} no curso de *{curso}*. Quando podemos conversar?"
 
-      userPrompt = `Crie uma mensagem de WhatsApp com as seguintes características:
-- Propósito: ${purpose || 'comunicado geral'}
-- Tom: ${tone || 'profissional e amigável'}
-- Contexto adicional: ${context || 'mensagem para responsáveis de alunos'}`;
+PROIBIDO:
+- Mensagens genéricas sem personalização
+- Textos longos demais (mais de 500 caracteres)
+- Excesso de formalidade ("Prezado(a)", "Vimos por meio desta")
+- Emojis em excesso ou infantis
+
+Retorne APENAS a mensagem final, sem explicações, títulos ou observações.`;
+
+      userPrompt = `Crie uma mensagem de WhatsApp com estas especificações:
+- PROPÓSITO: ${purpose || 'comunicado geral para responsáveis'}
+- TOM DESEJADO: ${tone || 'profissional e amigável'}
+- CONTEXTO: ${context || 'mensagem para responsáveis de alunos de uma escola/curso'}
+
+Crie a melhor mensagem possível seguindo as diretrizes. Seja criativo e humano.`;
     } else {
       throw new Error("Tipo de operação não suportado");
     }
 
     // Call Google Gemini API directly
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GOOGLE_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: {
@@ -168,8 +184,11 @@ Retorne APENAS a mensagem, sem explicações adicionais.`;
             },
           ],
           generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1024,
+            temperature: 0.8,
+            maxOutputTokens: 8192,
+            thinkingConfig: {
+              thinkingBudget: 0,
+            },
           },
         }),
       }
