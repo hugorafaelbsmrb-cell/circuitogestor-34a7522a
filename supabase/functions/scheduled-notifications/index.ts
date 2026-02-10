@@ -622,22 +622,20 @@ Segue o código PIX para pagamento:
 💰 *Valor:* {valor}
 📅 *Vencimento:* {vencimento}
 
-📱 *Código PIX (copie e cole):*
-\`\`\`
-{codigo_pix}
-\`\`\`
-
-✅ Basta copiar o código acima e colar no seu aplicativo bancário!
+✅ Em seguida enviaremos o código PIX para você copiar e colar no seu aplicativo bancário!
 
 Att,
 {nome_escola}`;
+    
+    // Remove {codigo_pix} from template if present (it will be sent separately)
+    message = message.replace(/📱 \*Código PIX \(copie e cole\):\*\n```\n\{codigo_pix\}\n```\n?/g, '');
+    message = message.replace(/{codigo_pix}/g, '');
     
     message = message
       .replace(/{nome_responsavel}/g, payment.guardian.name.split(' ')[0])
       .replace(/{descricao}/g, payment.description)
       .replace(/{valor}/g, valueFormatted)
       .replace(/{vencimento}/g, dueDateFormatted)
-      .replace(/{codigo_pix}/g, pixCode)
       .replace(/{nome_escola}/g, schoolName);
     
     const sent = await sendWhatsAppMessage(
@@ -645,6 +643,17 @@ Att,
       payment.guardian.phone, message, payment.guardian.id,
       'auto_payment_pix_created', 'pix_created'
     );
+    
+    // Send PIX code as a separate message
+    if (sent) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const pixMessage = `📱 *Código PIX (copie e cole):*\n\`\`\`\n${pixCode}\n\`\`\``;
+      await sendWhatsAppMessage(
+        supabase, supabaseUrl, supabaseKey,
+        payment.guardian.phone, pixMessage, payment.guardian.id,
+        'auto_payment_pix_created_code', 'pix_created'
+      );
+    }
     
     // Only mark as sent if actually successful, so retries work
     if (sent) {
@@ -742,22 +751,19 @@ Sua parcela vence *hoje*:
 💰 *Valor:* {valor}
 📅 *Vencimento:* {vencimento}
 
-📱 *Código PIX (copie e cole):*
-\`\`\`
-{codigo_pix}
-\`\`\`
-
-✅ Pague agora e evite juros!
+✅ Pague agora e evite juros! Em seguida enviaremos o código PIX.
 
 Att,
 {nome_escola}`;
+    
+    message = message.replace(/📱 \*Código PIX \(copie e cole\):\*\n```\n\{codigo_pix\}\n```\n?/g, '');
+    message = message.replace(/{codigo_pix}/g, '');
     
     message = message
       .replace(/{nome_responsavel}/g, payment.guardian.name.split(' ')[0])
       .replace(/{descricao}/g, payment.description)
       .replace(/{valor}/g, valueFormatted)
       .replace(/{vencimento}/g, dueDateFormatted)
-      .replace(/{codigo_pix}/g, pixCode)
       .replace(/{nome_escola}/g, schoolName);
     
     const sent = await sendWhatsAppMessage(
@@ -765,6 +771,16 @@ Att,
       payment.guardian.phone, message, payment.guardian.id,
       'auto_payment_pix_due_today', 'pix_due_today'
     );
+    
+    if (sent) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const pixMessage = `📱 *Código PIX (copie e cole):*\n\`\`\`\n${pixCode}\n\`\`\``;
+      await sendWhatsAppMessage(
+        supabase, supabaseUrl, supabaseKey,
+        payment.guardian.phone, pixMessage, payment.guardian.id,
+        'auto_payment_pix_due_today_code', 'pix_due_today'
+      );
+    }
     
     if (sent) {
       sentPaymentKeys.add(paymentKey);
@@ -835,29 +851,36 @@ Identificamos que sua parcela está vencida:
 💰 *Valor:* {valor}
 📅 *Vencimento:* {vencimento}
 
-Para evitar juros e multas, regularize agora via PIX:
-
-📱 *Código PIX (copie e cole):*
-\`\`\`
-{codigo_pix}
-\`\`\`
+Para evitar juros e multas, regularize agora via PIX. Em seguida enviaremos o código.
 
 Att,
 {nome_escola}`;
+    
+    message = message.replace(/📱 \*Código PIX \(copie e cole\):\*\n```\n\{codigo_pix\}\n```\n?/g, '');
+    message = message.replace(/{codigo_pix}/g, '');
     
     message = message
       .replace(/{nome_responsavel}/g, payment.guardian.name.split(' ')[0])
       .replace(/{descricao}/g, payment.description)
       .replace(/{valor}/g, valueFormatted)
       .replace(/{vencimento}/g, dueDateFormatted)
-      .replace(/{codigo_pix}/g, pixCode)
       .replace(/{nome_escola}/g, schoolName);
     
-    await sendWhatsAppMessage(
+    const sent = await sendWhatsAppMessage(
       supabase, supabaseUrl, supabaseKey,
       payment.guardian.phone, message, payment.guardian.id,
       'auto_payment_pix_overdue_1d', 'pix_overdue'
     );
+    
+    if (sent) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const pixMessage = `📱 *Código PIX (copie e cole):*\n\`\`\`\n${pixCode}\n\`\`\``;
+      await sendWhatsAppMessage(
+        supabase, supabaseUrl, supabaseKey,
+        payment.guardian.phone, pixMessage, payment.guardian.id,
+        'auto_payment_pix_overdue_1d_code', 'pix_overdue'
+      );
+    }
     
     await new Promise(resolve => setTimeout(resolve, 3500));
   }
