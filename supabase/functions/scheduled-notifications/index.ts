@@ -37,18 +37,9 @@ interface Student {
 }
 
 async function getTemplate(supabase: any, category: string): Promise<string | null> {
-  const { data } = await supabase
-    .from('app_settings')
-    .select('value')
-    .like('key', 'whatsapp_template_%')
-    .single();
-  
-  if (!data) return null;
-  
-  // Fetch all templates and find by category
   const { data: templates } = await supabase
     .from('app_settings')
-    .select('value')
+    .select('key, value')
     .like('key', 'whatsapp_template_%');
   
   if (!templates) return null;
