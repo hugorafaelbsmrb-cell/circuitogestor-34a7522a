@@ -97,19 +97,18 @@ async function sendWhatsAppMessage(
     const cleanPhone = phone.replace(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
     
-    // Send via W-API - using Bearer token authentication
+    // Send via W-API - using correct v1 endpoint format
     const wapiUrl = config.W_API_URL.replace(/\/$/, '');
-    const response = await fetch(`${wapiUrl}/message/send-text`, {
+    const encodedInstanceId = encodeURIComponent(config.W_API_SESSION);
+    const response = await fetch(`${wapiUrl}/v1/message/send-text?instanceId=${encodedInstanceId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.W_API_TOKEN}`,
       },
       body: JSON.stringify({
-        session: config.W_API_SESSION,
         phone: formattedPhone,
         message: message,
-        isGroup: false,
       }),
     });
     

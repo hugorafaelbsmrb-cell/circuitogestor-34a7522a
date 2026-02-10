@@ -187,14 +187,14 @@ Deno.serve(async (req) => {
           .replace(/\\n/g, '\n');
 
         // Send via W-API
-        const response = await fetch(`${wapiUrl}/v1/message/send-text`, {
+        const encodedInstanceId = encodeURIComponent(wapiSession);
+        const response = await fetch(`${wapiUrl}/v1/message/send-text?instanceId=${encodedInstanceId}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${wapiToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            instanceId: wapiSession,
             phone: phone,
             message: message,
           }),
