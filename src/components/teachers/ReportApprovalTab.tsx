@@ -516,15 +516,32 @@ export default function ReportApprovalTab() {
         description: 'O relatório foi liberado para o portal de acompanhamento familiar',
       });
 
+      // After import/update, fetch fresh report data for notifications
+      const { data: freshReport } = await supabase
+        .from('student_reports')
+        .select(`
+          id,
+          title,
+          report_date,
+          student:students(id, name, guardian:guardians(id, name, phone)),
+          teacher:teachers(id, name, phone)
+        `)
+        .eq('id', reportId)
+        .single();
+
+      const freshStudent = freshReport?.student as any;
+      const freshGuardian = freshStudent?.guardian as any;
+      const freshTeacher = freshReport?.teacher as any;
+
       // Send automatic notification to parent if enabled
-      if (autoNotifyEnabled && report.student?.guardian?.phone) {
+      if (autoNotifyEnabled && freshGuardian?.phone) {
         try {
           await supabase.functions.invoke('send-report-notification', {
             body: { reportId },
           });
           toast({
             title: 'Notificação enviada ao responsável',
-            description: `${report.student.guardian.name} foi notificado automaticamente`,
+            description: `${freshGuardian.name} foi notificado automaticamente`,
           });
         } catch (notifyError) {
           console.error('Parent notification failed:', notifyError);
@@ -532,14 +549,14 @@ export default function ReportApprovalTab() {
       }
 
       // Send automatic notification to teacher if enabled
-      if (autoTeacherNotifyEnabled && report.teacher) {
+      if (autoTeacherNotifyEnabled && freshTeacher) {
         try {
           await supabase.functions.invoke('send-teacher-report-notification', {
             body: { reportId, status: 'approved' },
           });
           toast({
             title: 'Professor notificado',
-            description: `${report.teacher.name} foi notificado da aprovação`,
+            description: `${freshTeacher.name} foi notificado da aprovação`,
           });
         } catch (notifyError) {
           console.error('Teacher notification failed:', notifyError);
@@ -605,6 +622,83 @@ export default function ReportApprovalTab() {
 
         console.log('✅ Rejeição na API externa bem-sucedida:', rejectData);
 
+        // Import rejected report locally so we can track it
+        const { data: existingReport } = await supabase
+          .from('student_reports')
+          .select('id')
+          .eq('id', selectedReport.id)
+          .maybeSingle();
+
+        let localReportId = selectedReport.id;
+
+        if (!existingReport) {
+          let studentId: string | null = null;
+          if (selectedReport.student?.name) {
+            const { data: localStudent } = await supabase
+              .from('students')
+              .select('id')
+              .ilike('name', selectedReport.student.name)
+              .maybeSingle();
+            if (localStudent) studentId = localStudent.id;
+          }
+
+          let teacherId: string | null = null;
+          if (selectedReport.teacher?.name) {
+            const { data: localTeacher } = await supabase
+              .from('teachers')
+              .select('id')
+              .ilike('name', selectedReport.teacher.name)
+              .maybeSingle();
+            if (localTeacher) teacherId = localTeacher.id;
+          }
+
+          const { data: insertedReport } = await supabase
+            .from('student_reports')
+            .insert({
+              id: selectedReport.id,
+              title: selectedReport.title,
+              content: selectedReport.content,
+              report_date: selectedReport.report_date,
+              report_type: selectedReport.report_type,
+              status: selectedReport.status,
+              approval_status: 'rejected',
+              rejection_reason: rejectionReason.trim(),
+              student_id: studentId,
+              teacher_id: teacherId,
+            })
+            .select()
+            .single();
+
+          if (insertedReport) localReportId = insertedReport.id;
+        } else {
+          await supabase
+            .from('student_reports')
+            .update({
+              approval_status: 'rejected',
+              rejection_reason: rejectionReason.trim(),
+            })
+            .eq('id', selectedReport.id);
+        }
+
+        // Send teacher notification for external report rejection
+        if (autoTeacherNotifyEnabled && selectedReport.teacher) {
+          try {
+            await supabase.functions.invoke('send-teacher-report-notification', {
+              body: { 
+                reportId: localReportId, 
+                status: 'rejected',
+                rejectionReason: rejectionReason.trim(),
+              },
+            });
+            toast({
+              title: 'Professor notificado',
+              description: `${selectedReport.teacher.name} foi notificado da revisão necessária`,
+            });
+          } catch (notifyError) {
+            console.error('Teacher rejection notification failed:', notifyError);
+          }
+        }
+
         toast({
           title: 'Relatório rejeitado',
           description: 'O professor será notificado para revisão',
@@ -613,7 +707,8 @@ export default function ReportApprovalTab() {
         setRejectionReason('');
         setIsRejectModalOpen(false);
         setIsViewModalOpen(false);
-        fetchExternalReports(); // Refresh external reports
+        fetchLocalReports();
+        fetchExternalReports();
       } else {
         // Local report - update in database
         const { error } = await supabase
