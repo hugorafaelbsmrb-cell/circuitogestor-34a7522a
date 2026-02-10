@@ -642,6 +642,122 @@ Att,
   }
 }
 
+async function processPixDueToday(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
+  // Skip on weekends - will process on Monday
+  if (isWeekend()) {
+    console.log('Skipping PIX due-today reminders on weekend');
+    return;
+  }
+  
+  console.log('Processing PIX due-today reminders...');
+  
+  const template = await getTemplate(supabase, 'pix_due_today');
+  
+  // Get today's date
+  const today = new Date().toISOString().split('T')[0];
+  const dates = [today];
+  
+  // If Monday, also include Saturday and Sunday
+  if (isMonday()) {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    dates.push(yesterday.toISOString().split('T')[0]); // Sunday
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    dates.push(twoDaysAgo.toISOString().split('T')[0]); // Saturday
+  }
+  
+  console.log('Checking PIX due-today dates:', dates);
+  
+  const { data: payments } = await supabase
+    .from('payments')
+    .select(`
+      id, guardian_id, value, due_date, description, asaas_payment_id,
+      guardian:guardians(id, name, phone)
+    `)
+    .eq('status', 'PENDING')
+    .in('due_date', dates)
+    .not('asaas_payment_id', 'is', null);
+  
+  if (!payments || payments.length === 0) {
+    console.log('No payments due today for PIX reminder');
+    return;
+  }
+  
+  // Filter out already notified today
+  const { data: sentLogs } = await supabase
+    .from('message_logs')
+    .select('phone')
+    .eq('automation_key', 'auto_payment_pix_due_today')
+    .eq('status', 'sent')
+    .gte('sent_at', new Date().toISOString().split('T')[0] + 'T00:00:00Z');
+  
+  const sentPhones = new Set((sentLogs || []).map((l: any) => l.phone));
+  
+  console.log(`Found ${payments.length} payments due today, ${sentPhones.size} already notified`);
+  
+  const { asaasApiKey, asaasApiUrl } = await getAsaasConfig(supabase);
+  
+  if (!asaasApiKey) {
+    console.log('Asaas API key not configured');
+    return;
+  }
+  
+  for (const payment of payments) {
+    if (!payment.guardian || !payment.asaas_payment_id) continue;
+    if (sentPhones.has(payment.guardian.phone)) continue;
+    
+    const pixCode = await fetchPixCode(asaasApiUrl, asaasApiKey, payment.asaas_payment_id);
+    if (!pixCode) {
+      console.log(`No PIX payload for payment ${payment.id}`);
+      continue;
+    }
+    
+    const valueFormatted = `R$ ${Number(payment.value).toFixed(2).replace('.', ',')}`;
+    const dueDateFormatted = new Date(payment.due_date).toLocaleDateString('pt-BR');
+    
+    let message = template || `⏰ *Lembrete - Parcela Vence Hoje!*
+
+Olá, {nome_responsavel}!
+
+Sua parcela vence *hoje*:
+
+📋 *Descrição:* {descricao}
+💰 *Valor:* {valor}
+📅 *Vencimento:* {vencimento}
+
+📱 *Código PIX (copie e cole):*
+\`\`\`
+{codigo_pix}
+\`\`\`
+
+✅ Pague agora e evite juros!
+
+Att,
+{nome_escola}`;
+    
+    message = message
+      .replace(/{nome_responsavel}/g, payment.guardian.name.split(' ')[0])
+      .replace(/{descricao}/g, payment.description)
+      .replace(/{valor}/g, valueFormatted)
+      .replace(/{vencimento}/g, dueDateFormatted)
+      .replace(/{codigo_pix}/g, pixCode)
+      .replace(/{nome_escola}/g, schoolName);
+    
+    const sent = await sendWhatsAppMessage(
+      supabase, supabaseUrl, supabaseKey,
+      payment.guardian.phone, message, payment.guardian.id,
+      'auto_payment_pix_due_today', 'pix_due_today'
+    );
+    
+    if (sent) {
+      sentPhones.add(payment.guardian.phone);
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, 3500));
+  }
+}
+
 async function processPixOverdue1Day(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
   // Skip on weekends - will process on Monday
   if (isWeekend()) {
@@ -776,6 +892,10 @@ Deno.serve(async (req) => {
     
     if (enabledKeys.includes('auto_payment_pix_created')) {
       await processPixCreated(supabase, supabaseUrl, supabaseKey, schoolName);
+    }
+    
+    if (enabledKeys.includes('auto_payment_pix_due_today')) {
+      await processPixDueToday(supabase, supabaseUrl, supabaseKey, schoolName);
     }
     
     if (enabledKeys.includes('auto_payment_pix_reminder_2d')) {
