@@ -228,15 +228,26 @@ function getPixOverdue1DayDates(): string[] {
   yesterday.setDate(today.getDate() - 1);
   dates.push(yesterday.toISOString().split('T')[0]);
   
-  // If Monday, include Saturday and Friday (payments that became overdue over weekend)
+  // If Monday, include Saturday, Friday and Thursday (payments that became overdue over weekend)
   if (isMonday()) {
-    const twoDaysAgo = new Date(today);
-    twoDaysAgo.setDate(today.getDate() - 2);
-    dates.push(twoDaysAgo.toISOString().split('T')[0]); // Sunday
-    
-    const threeDaysAgo = new Date(today);
-    threeDaysAgo.setDate(today.getDate() - 3);
-    dates.push(threeDaysAgo.toISOString().split('T')[0]); // Saturday
+    for (let i = 2; i <= 4; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+  }
+  
+  // If Tuesday, also check Friday in case Monday's run missed it
+  const dayOfWeek = today.getDay();
+  if (dayOfWeek === 2) { // Tuesday
+    for (let i = 2; i <= 4; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      if (!dates.includes(dateStr)) {
+        dates.push(dateStr);
+      }
+    }
   }
   
   return dates;
