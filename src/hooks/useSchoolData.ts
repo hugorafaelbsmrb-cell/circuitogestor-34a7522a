@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Session } from '@supabase/supabase-js';
 
 // Database types
 export interface DbGuardian {
@@ -171,8 +170,8 @@ export interface DbDiscount {
 export function useSchoolData() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
-  const [session, setSession] = useState<Session | null>(null);
-  const [sessionChecked, setSessionChecked] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   
   const [guardians, setGuardians] = useState<DbGuardian[]>([]);
   const [students, setStudents] = useState<DbStudent[]>([]);
@@ -187,27 +186,39 @@ export function useSchoolData() {
   const [contractClauses, setContractClauses] = useState<DbContractClause[]>([]);
   const [discounts, setDiscounts] = useState<DbDiscount[]>([]);
 
-  // Listen for auth state changes
+  // Use a single lightweight check - no duplicate onAuthStateChange listener
   useEffect(() => {
+    let isMounted = true;
+    
+    // Just check if there's an existing session once
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (isMounted) {
+        setIsAuthenticated(!!session);
+        setAuthChecked(true);
+      }
+    });
+
+    // Listen only for sign-out to clear data, without triggering token refreshes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setSessionChecked(true);
+      (event) => {
+        if (!isMounted) return;
+        if (event === 'SIGNED_OUT') {
+          setIsAuthenticated(false);
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          setIsAuthenticated(true);
+        }
       }
     );
 
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setSessionChecked(true);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Fetch all data
   const fetchData = useCallback(async () => {
-    if (!session) {
+    if (!isAuthenticated) {
       setIsLoading(false);
       return;
     }
@@ -264,13 +275,13 @@ export function useSchoolData() {
     } finally {
       setIsLoading(false);
     }
-  }, [session, toast]);
+  }, [isAuthenticated, toast]);
 
   // Fetch data when session is available
   useEffect(() => {
-    if (sessionChecked && session) {
+    if (authChecked && isAuthenticated) {
       fetchData();
-    } else if (sessionChecked && !session) {
+    } else if (authChecked && !isAuthenticated) {
       // Clear data when logged out
       setGuardians([]);
       setStudents([]);
@@ -286,11 +297,11 @@ export function useSchoolData() {
       setDiscounts([]);
       setIsLoading(false);
     }
-  }, [sessionChecked, session, fetchData]);
+  }, [authChecked, isAuthenticated, fetchData]);
 
   // Subscribe to realtime updates for key tables
   useEffect(() => {
-    if (!session) return;
+    if (!isAuthenticated) return;
 
     const channel = supabase
       .channel('school-data-changes')
@@ -335,7 +346,7 @@ export function useSchoolData() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [session]);
+  }, [isAuthenticated]);
 
   // Guardian CRUD
   const createGuardian = async (data: Omit<DbGuardian, 'id' | 'created_at' | 'updated_at'>) => {
