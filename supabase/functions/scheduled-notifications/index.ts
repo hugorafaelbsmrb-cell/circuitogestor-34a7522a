@@ -416,22 +416,31 @@ async function getAsaasConfig(supabase: any): Promise<{ asaasApiKey: string | nu
   const { data: settings } = await supabase
     .from('app_settings')
     .select('key, value')
-    .in('key', ['ASAAS_API_KEY', 'ASAAS_API_URL']);
+    .in('key', ['ASAAS_API_KEY', 'ASAAS_API_URL', 'ASAAS_ENVIRONMENT']);
   
   const config: Record<string, string> = {};
   settings?.forEach((s: any) => {
     if (s.value) config[s.key] = s.value;
   });
   
+  const apiKey = config.ASAAS_API_KEY || Deno.env.get('ASAAS_API_KEY') || null;
+  const environment = config.ASAAS_ENVIRONMENT || 'sandbox';
+  const isProduction = environment === 'production';
+  const defaultUrl = isProduction 
+    ? 'https://www.asaas.com/api/v3' 
+    : 'https://sandbox.asaas.com/api/v3';
+  
   return {
-    asaasApiKey: Deno.env.get('ASAAS_API_KEY') || config.ASAAS_API_KEY || null,
-    asaasApiUrl: config.ASAAS_API_URL || 'https://api.asaas.com/v3',
+    asaasApiKey: apiKey,
+    asaasApiUrl: config.ASAAS_API_URL || defaultUrl,
   };
 }
 
 async function fetchPixCode(asaasApiUrl: string, asaasApiKey: string, paymentId: string): Promise<string | null> {
   try {
-    const pixResponse = await fetch(`${asaasApiUrl}/payments/${paymentId}/pixQrCode`, {
+    const url = `${asaasApiUrl}/payments/${paymentId}/pixQrCode`;
+    console.log(`Fetching PIX from: ${url}`);
+    const pixResponse = await fetch(url, {
       method: 'GET',
       headers: {
         'accept': 'application/json',
@@ -439,7 +448,11 @@ async function fetchPixCode(asaasApiUrl: string, asaasApiKey: string, paymentId:
       },
     });
     
-    if (!pixResponse.ok) return null;
+    if (!pixResponse.ok) {
+      const errorText = await pixResponse.text();
+      console.error(`PIX fetch failed for ${paymentId}: ${pixResponse.status} - ${errorText}`);
+      return null;
+    }
     
     const pixData = await pixResponse.json();
     return pixData.payload || null;
@@ -531,6 +544,109 @@ Att,
       payment.guardian.phone, message, payment.guardian.id,
       'auto_payment_pix_reminder_2d', 'pix_reminder'
     );
+    
+    await new Promise(resolve => setTimeout(resolve, 3500));
+  }
+}
+
+async function processPixCreated(supabase: any, supabaseUrl: string, supabaseKey: string, schoolName: string) {
+  console.log('Processing PIX created notifications...');
+  
+  const template = await getTemplate(supabase, 'pix_created');
+  
+  // Get payments created in the last 24 hours that haven't had PIX sent
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString();
+  
+  const { data: payments } = await supabase
+    .from('payments')
+    .select(`
+      id, guardian_id, value, due_date, description, asaas_payment_id, created_at,
+      guardian:guardians(id, name, phone)
+    `)
+    .eq('status', 'PENDING')
+    .gte('created_at', yesterdayStr)
+    .not('asaas_payment_id', 'is', null);
+  
+  if (!payments || payments.length === 0) {
+    console.log('No new payments for PIX notification');
+    return;
+  }
+  
+  // Filter out payments that already had PIX sent
+  const paymentIds = payments.map((p: any) => p.guardian_id);
+  const { data: sentLogs } = await supabase
+    .from('message_logs')
+    .select('guardian_id, phone')
+    .eq('automation_key', 'auto_payment_pix_created')
+    .eq('status', 'sent')
+    .gte('sent_at', yesterdayStr);
+  
+  const sentGuardianPhones = new Set(
+    (sentLogs || []).map((l: any) => l.phone)
+  );
+  
+  console.log(`Found ${payments.length} new payments, ${sentGuardianPhones.size} already notified`);
+  
+  const { asaasApiKey, asaasApiUrl } = await getAsaasConfig(supabase);
+  
+  if (!asaasApiKey) {
+    console.log('Asaas API key not configured');
+    return;
+  }
+  
+  for (const payment of payments) {
+    if (!payment.guardian || !payment.asaas_payment_id) continue;
+    if (sentGuardianPhones.has(payment.guardian.phone)) continue;
+    
+    const pixCode = await fetchPixCode(asaasApiUrl, asaasApiKey, payment.asaas_payment_id);
+    if (!pixCode) {
+      console.log(`No PIX payload for payment ${payment.id}`);
+      continue;
+    }
+    
+    const valueFormatted = `R$ ${Number(payment.value).toFixed(2).replace('.', ',')}`;
+    const dueDateFormatted = new Date(payment.due_date).toLocaleDateString('pt-BR');
+    
+    let message = template || `💳 *Código PIX para Pagamento*
+
+Olá, {nome_responsavel}!
+
+Segue o código PIX para pagamento:
+
+📋 *Descrição:* {descricao}
+💰 *Valor:* {valor}
+📅 *Vencimento:* {vencimento}
+
+📱 *Código PIX (copie e cole):*
+\`\`\`
+{codigo_pix}
+\`\`\`
+
+✅ Basta copiar o código acima e colar no seu aplicativo bancário!
+
+Att,
+{nome_escola}`;
+    
+    message = message
+      .replace(/{nome_responsavel}/g, payment.guardian.name.split(' ')[0])
+      .replace(/{descricao}/g, payment.description)
+      .replace(/{valor}/g, valueFormatted)
+      .replace(/{vencimento}/g, dueDateFormatted)
+      .replace(/{codigo_pix}/g, pixCode)
+      .replace(/{nome_escola}/g, schoolName);
+    
+    const sent = await sendWhatsAppMessage(
+      supabase, supabaseUrl, supabaseKey,
+      payment.guardian.phone, message, payment.guardian.id,
+      'auto_payment_pix_created', 'pix_created'
+    );
+    
+    // Only mark as sent if actually successful, so retries work
+    if (sent) {
+      sentGuardianPhones.add(payment.guardian.phone);
+    }
     
     await new Promise(resolve => setTimeout(resolve, 3500));
   }
@@ -666,6 +782,10 @@ Deno.serve(async (req) => {
     
     if (enabledKeys.includes('auto_birthday_greeting')) {
       await processBirthdayGreetings(supabase, supabaseUrl, supabaseKey, schoolName);
+    }
+    
+    if (enabledKeys.includes('auto_payment_pix_created')) {
+      await processPixCreated(supabase, supabaseUrl, supabaseKey, schoolName);
     }
     
     if (enabledKeys.includes('auto_payment_pix_reminder_2d')) {
