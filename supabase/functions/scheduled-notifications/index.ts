@@ -647,7 +647,7 @@ Att,
     // Send PIX code as a separate message
     if (sent) {
       await new Promise(resolve => setTimeout(resolve, 3000));
-      const pixMessage = `📱 *Código PIX (copie e cole):*\n\`\`\`\n${pixCode}\n\`\`\``;
+      const pixMessage = pixCode;
       await sendWhatsAppMessage(
         supabase, supabaseUrl, supabaseKey,
         payment.guardian.phone, pixMessage, payment.guardian.id,
@@ -774,7 +774,7 @@ Att,
     
     if (sent) {
       await new Promise(resolve => setTimeout(resolve, 3000));
-      const pixMessage = `📱 *Código PIX (copie e cole):*\n\`\`\`\n${pixCode}\n\`\`\``;
+      const pixMessage = pixCode;
       await sendWhatsAppMessage(
         supabase, supabaseUrl, supabaseKey,
         payment.guardian.phone, pixMessage, payment.guardian.id,
@@ -874,7 +874,7 @@ Att,
     
     if (sent) {
       await new Promise(resolve => setTimeout(resolve, 3000));
-      const pixMessage = `📱 *Código PIX (copie e cole):*\n\`\`\`\n${pixCode}\n\`\`\``;
+      const pixMessage = pixCode;
       await sendWhatsAppMessage(
         supabase, supabaseUrl, supabaseKey,
         payment.guardian.phone, pixMessage, payment.guardian.id,
