@@ -575,20 +575,20 @@ async function processPixCreated(supabase: any, supabaseUrl: string, supabaseKey
     return;
   }
   
-  // Filter out payments that already had PIX sent
-  const paymentIds = payments.map((p: any) => p.guardian_id);
+  // Filter out payments that already had PIX sent - track by payment description+guardian to allow multiple children
   const { data: sentLogs } = await supabase
     .from('message_logs')
-    .select('guardian_id, phone')
+    .select('message_preview, guardian_id')
     .eq('automation_key', 'auto_payment_pix_created')
     .eq('status', 'sent')
     .gte('sent_at', yesterdayStr);
   
-  const sentGuardianPhones = new Set(
-    (sentLogs || []).map((l: any) => l.phone)
+  // Build a set of "guardian_id:description_prefix" to deduplicate per-payment, not per-phone
+  const sentPaymentKeys = new Set(
+    (sentLogs || []).map((l: any) => `${l.guardian_id}:${l.message_preview?.substring(0, 50)}`)
   );
   
-  console.log(`Found ${payments.length} new payments, ${sentGuardianPhones.size} already notified`);
+  console.log(`Found ${payments.length} new payments, ${sentPaymentKeys.size} already notified`);
   
   const { asaasApiKey, asaasApiUrl } = await getAsaasConfig(supabase);
   
@@ -599,7 +599,9 @@ async function processPixCreated(supabase: any, supabaseUrl: string, supabaseKey
   
   for (const payment of payments) {
     if (!payment.guardian || !payment.asaas_payment_id) continue;
-    if (sentGuardianPhones.has(payment.guardian.phone)) continue;
+    // Deduplicate per payment (not per phone) so guardians with multiple children get all notifications
+    const paymentKey = `${payment.guardian.id}:${payment.description?.substring(0, 50)}`;
+    if (sentPaymentKeys.has(paymentKey)) continue;
     
     const pixCode = await fetchPixCode(asaasApiUrl, asaasApiKey, payment.asaas_payment_id);
     if (!pixCode) {
@@ -646,7 +648,7 @@ Att,
     
     // Only mark as sent if actually successful, so retries work
     if (sent) {
-      sentGuardianPhones.add(payment.guardian.phone);
+      sentPaymentKeys.add(paymentKey);
     }
     
     await new Promise(resolve => setTimeout(resolve, 3500));
@@ -695,17 +697,19 @@ async function processPixDueToday(supabase: any, supabaseUrl: string, supabaseKe
     return;
   }
   
-  // Filter out already notified today
+  // Filter out already notified today - per payment, not per phone
   const { data: sentLogs } = await supabase
     .from('message_logs')
-    .select('phone')
+    .select('guardian_id, message_preview')
     .eq('automation_key', 'auto_payment_pix_due_today')
     .eq('status', 'sent')
     .gte('sent_at', new Date().toISOString().split('T')[0] + 'T00:00:00Z');
   
-  const sentPhones = new Set((sentLogs || []).map((l: any) => l.phone));
+  const sentPaymentKeys = new Set(
+    (sentLogs || []).map((l: any) => `${l.guardian_id}:${l.message_preview?.substring(0, 50)}`)
+  );
   
-  console.log(`Found ${payments.length} payments due today, ${sentPhones.size} already notified`);
+  console.log(`Found ${payments.length} payments due today, ${sentPaymentKeys.size} already notified`);
   
   const { asaasApiKey, asaasApiUrl } = await getAsaasConfig(supabase);
   
@@ -716,7 +720,8 @@ async function processPixDueToday(supabase: any, supabaseUrl: string, supabaseKe
   
   for (const payment of payments) {
     if (!payment.guardian || !payment.asaas_payment_id) continue;
-    if (sentPhones.has(payment.guardian.phone)) continue;
+    const paymentKey = `${payment.guardian.id}:${payment.description?.substring(0, 50)}`;
+    if (sentPaymentKeys.has(paymentKey)) continue;
     
     const pixCode = await fetchPixCode(asaasApiUrl, asaasApiKey, payment.asaas_payment_id);
     if (!pixCode) {
@@ -762,7 +767,7 @@ Att,
     );
     
     if (sent) {
-      sentPhones.add(payment.guardian.phone);
+      sentPaymentKeys.add(paymentKey);
     }
     
     await new Promise(resolve => setTimeout(resolve, 3500));
