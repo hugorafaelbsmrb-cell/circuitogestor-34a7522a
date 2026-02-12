@@ -635,7 +635,7 @@ export function MessageHistoryModal({
       
       const schoolName = configData?.school_name || 'Escola';
       const formattedValue = `R$ ${selectedPayment.value.toFixed(2).replace('.', ',')}`;
-      const formattedDate = format(new Date(selectedPayment.due_date), 'dd/MM/yyyy', { locale: ptBR });
+      const formattedDate = format(new Date(selectedPayment.due_date + 'T00:00:00'), 'dd/MM/yyyy', { locale: ptBR });
       
       // Build the complete message with the boleto link
       const customMessage = boletoMessage.trim();
@@ -1316,8 +1316,8 @@ export function MessageHistoryModal({
                       {pendingPayments.map((payment) => {
                         const isSelected = selectedPaymentId === payment.id;
                         const formattedValue = `R$ ${payment.value.toFixed(2).replace('.', ',')}`;
-                        const formattedDate = format(new Date(payment.due_date), 'dd/MM/yyyy', { locale: ptBR });
-                        const isOverdue = new Date(payment.due_date) < new Date();
+                        const formattedDate = format(new Date(payment.due_date + 'T00:00:00'), 'dd/MM/yyyy', { locale: ptBR });
+                        const isOverdue = new Date(payment.due_date + 'T00:00:00') < new Date();
 
                         return (
                           <div
