@@ -19,6 +19,16 @@ import { PixQrCodeModal } from '@/components/financial/PixQrCodeModal';
 import { EntryBoletosSection } from '@/components/financial/EntryBoletosSection';
 import { CarneInstallmentsSection } from '@/components/financial/CarneInstallmentsSection';
 import { CreateBoletoModal } from '@/components/financial/CreateBoletoModal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 interface Payment {
   id: string;
   description: string;
@@ -51,6 +61,9 @@ export default function Financial() {
   // PIX Modal state
   const [pixModalOpen, setPixModalOpen] = useState(false);
   const [selectedPaymentForPix, setSelectedPaymentForPix] = useState<PaymentWithGuardian | null>(null);
+  
+  // Confirmation dialog state
+  const [confirmAction, setConfirmAction] = useState<{ type: 'confirm' | 'cash'; payment: PaymentWithGuardian } | null>(null);
   
   // Create Boleto Modal state
   const [createBoletoModalOpen, setCreateBoletoModalOpen] = useState(false);
@@ -135,6 +148,27 @@ export default function Financial() {
       toast.error('Erro ao sincronizar pagamentos com Asaas');
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  // Prompt confirmation before marking as confirmed
+  const promptConfirmPayment = (payment: PaymentWithGuardian) => {
+    setConfirmAction({ type: 'confirm', payment });
+  };
+
+  // Prompt confirmation before receiving in cash
+  const promptReceiveInCash = (payment: PaymentWithGuardian) => {
+    setConfirmAction({ type: 'cash', payment });
+  };
+
+  const handleConfirmActionExecute = async () => {
+    if (!confirmAction) return;
+    const { type, payment } = confirmAction;
+    setConfirmAction(null);
+    if (type === 'confirm') {
+      await handleMarkAsConfirmed(payment);
+    } else {
+      await handleReceiveInCash(payment);
     }
   };
 
@@ -892,8 +926,8 @@ export default function Financial() {
             setEntryStatusFilter={setEntryStatusFilter}
             processingPaymentId={processingPaymentId}
             isAsaasLoading={isAsaasLoading}
-            onReceiveInCash={handleReceiveInCash}
-            onMarkAsConfirmed={handleMarkAsConfirmed}
+            onReceiveInCash={promptReceiveInCash}
+            onMarkAsConfirmed={promptConfirmPayment}
             onOpenPixModal={handleOpenPixModal}
             onDeletePayment={handleDeletePayment}
           />
@@ -907,8 +941,8 @@ export default function Financial() {
             setCarneMonthFilter={setCarneMonthFilter}
             processingPaymentId={processingPaymentId}
             isAsaasLoading={isAsaasLoading}
-            onReceiveInCash={handleReceiveInCash}
-            onMarkAsConfirmed={handleMarkAsConfirmed}
+            onReceiveInCash={promptReceiveInCash}
+            onMarkAsConfirmed={promptConfirmPayment}
             onOpenPixModal={handleOpenPixModal}
           />
         </TabsContent>
@@ -940,6 +974,7 @@ export default function Financial() {
                       <TableHead>Data Pagamento</TableHead>
                       <TableHead className="text-right">Valor</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -951,6 +986,20 @@ export default function Financial() {
                         <TableCell>{payment.payment_date ? formatDate(payment.payment_date) : '-'}</TableCell>
                         <TableCell className="text-right font-medium">{formatCurrency(payment.value)}</TableCell>
                         <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                        <TableCell className="text-right">
+                          {payment.asaas_payment_id && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              title="Ver/Enviar PIX"
+                              onClick={() => handleOpenPixModal(payment)}
+                              className="gap-1"
+                            >
+                              <QrCode className="w-4 h-4" />
+                              <span className="hidden sm:inline">PIX</span>
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -1008,7 +1057,7 @@ export default function Financial() {
                               variant="outline" 
                               size="sm" 
                               className="gap-1"
-                              onClick={() => handleReceiveInCash(payment)}
+                              onClick={() => promptReceiveInCash(payment)}
                               disabled={processingPaymentId === payment.id || isAsaasLoading}
                             >
                               {processingPaymentId === payment.id ? (
@@ -1022,7 +1071,7 @@ export default function Financial() {
                               variant="default" 
                               size="sm" 
                               className="gap-1"
-                              onClick={() => handleMarkAsConfirmed(payment)}
+                              onClick={() => promptConfirmPayment(payment)}
                               disabled={processingPaymentId === payment.id}
                             >
                               {processingPaymentId === payment.id ? (
@@ -1184,7 +1233,7 @@ export default function Financial() {
                                           variant="outline" 
                                           size="sm" 
                                           className="gap-1"
-                                          onClick={() => handleReceiveInCash(payment)}
+                                          onClick={() => promptReceiveInCash(payment)}
                                           disabled={processingPaymentId === payment.id || isAsaasLoading}
                                         >
                                           {processingPaymentId === payment.id ? (
@@ -1198,7 +1247,7 @@ export default function Financial() {
                                           variant="default" 
                                           size="sm" 
                                           className="gap-1"
-                                          onClick={() => handleMarkAsConfirmed(payment)}
+                                          onClick={() => promptConfirmPayment(payment)}
                                           disabled={processingPaymentId === payment.id}
                                         >
                                           {processingPaymentId === payment.id ? (
@@ -1281,6 +1330,27 @@ export default function Financial() {
         }))}
         onSuccess={fetchPayments}
       />
+
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar ação</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmAction?.type === 'confirm' 
+                ? `Tem certeza que deseja marcar o pagamento "${confirmAction?.payment.description}" de ${confirmAction?.payment.guardian_name} como confirmado? Esta ação não pode ser desfeita.`
+                : `Tem certeza que deseja dar baixa manual no pagamento "${confirmAction?.payment.description}" de ${confirmAction?.payment.guardian_name}? Esta ação não pode ser desfeita.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmActionExecute}>
+              {confirmAction?.type === 'confirm' ? 'Confirmar Pagamento' : 'Dar Baixa'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
