@@ -375,18 +375,66 @@ async function processBirthdayGreetings(supabase: any, supabaseUrl: string, supa
     return;
   }
   
-  // Get students with birthday today
+  // Get students with birthday today - use Brazil timezone
   const today = new Date();
-  const monthDay = `${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  // Adjust to Brazil timezone (UTC-3)
+  const brazilOffset = -3 * 60; // minutes
+  const utcOffset = today.getTimezoneOffset(); // minutes
+  const brazilTime = new Date(today.getTime() + (utcOffset + brazilOffset) * 60000);
+  const monthDay = `${String(brazilTime.getMonth() + 1).padStart(2, '0')}-${String(brazilTime.getDate()).padStart(2, '0')}`;
   
-  const { data: students } = await supabase
+  console.log(`Checking birthdays for monthDay: ${monthDay} (UTC date: ${today.toISOString()}, Brazil date: ${brazilTime.toISOString()})`);
+  
+  const { data: students, error: birthdayError } = await supabase
     .from('students')
     .select(`
       id, name, birth_date, guardian_id,
       guardian:guardians(id, name, phone)
     `)
     .eq('is_active', true)
-    .like('birth_date', `%-${monthDay}`);
+    .filter('birth_date', 'like', `%-${monthDay}`);
+  
+  if (birthdayError) {
+    console.error('Error fetching birthday students:', birthdayError);
+    // Fallback: fetch all active students and filter in memory
+    const { data: allStudents } = await supabase
+      .from('students')
+      .select(`
+        id, name, birth_date, guardian_id,
+        guardian:guardians(id, name, phone)
+      `)
+      .eq('is_active', true);
+    
+    const filteredStudents = (allStudents || []).filter((s: any) => {
+      if (!s.birth_date) return false;
+      return s.birth_date.endsWith(`-${monthDay}`);
+    });
+    
+    console.log(`Fallback: found ${filteredStudents.length} birthdays today`);
+    
+    if (filteredStudents.length === 0) {
+      console.log('No birthdays today');
+      return;
+    }
+    
+    for (const student of filteredStudents) {
+      if (!student.guardian) continue;
+      
+      const message = template
+        .replace(/{nome_responsavel}/g, student.guardian.name)
+        .replace(/{nome_aluno}/g, student.name)
+        .replace(/{nome_escola}/g, schoolName);
+      
+      await sendWhatsAppMessage(
+        supabase, supabaseUrl, supabaseKey,
+        student.guardian.phone, message, student.guardian.id,
+        'auto_birthday_greeting', 'birthday'
+      );
+      
+      await new Promise(resolve => setTimeout(resolve, 3500));
+    }
+    return;
+  }
   
   if (!students || students.length === 0) {
     console.log('No birthdays today');
