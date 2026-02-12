@@ -62,15 +62,20 @@ export function WelcomePopup() {
   const currentMonth = today.getMonth() + 1;
   const todayDay = today.getDate();
   
+  const parseBirthDate = (dateStr: string) => {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  };
+
   const birthdayStudents = students
     .filter(student => {
       if (!student.birth_date || !student.is_active) return false;
-      const birthDate = new Date(student.birth_date);
+      const birthDate = parseBirthDate(student.birth_date);
       return birthDate.getMonth() + 1 === currentMonth;
     })
     .sort((a, b) => {
-      const dayA = new Date(a.birth_date).getDate();
-      const dayB = new Date(b.birth_date).getDate();
+      const dayA = parseBirthDate(a.birth_date).getDate();
+      const dayB = parseBirthDate(b.birth_date).getDate();
       return dayA - dayB;
     });
 
@@ -123,9 +128,9 @@ export function WelcomePopup() {
               </div>
               <div className="space-y-1 max-h-32 overflow-y-auto">
                 {birthdayStudents.slice(0, 10).map(student => {
-                  const birthDate = new Date(student.birth_date);
-                  const birthDay = birthDate.getDate();
-                  const age = today.getFullYear() - birthDate.getFullYear();
+                  const birthDate = parseBirthDate(student.birth_date);
+                   const birthDay = birthDate.getDate();
+                   const age = today.getFullYear() - birthDate.getFullYear();
                   const isToday = birthDay === todayDay;
                   return (
                     <div key={student.id} className={`text-sm ${isToday ? 'bg-pink-500/20 rounded px-2 py-1' : ''}`}>
