@@ -115,25 +115,17 @@ Deno.serve(async (req) => {
 
     // GET /teacher-api/teachers - List all teachers with their linked students and courses
     if (req.method === 'GET' && path === 'teachers') {
-      // Get optional course filter
       const courseFilter = url.searchParams.get('course_id');
 
-      // Get all active teachers with their associated course
       let teachersQuery = supabase
         .from('teachers')
         .select(`
-          id, 
-          name, 
-          phone, 
-          email, 
-          is_active,
-          course_id,
+          id, name, phone, email, is_active, course_id,
           course:courses(id, name)
         `)
         .eq('is_active', true)
         .order('name');
 
-      // Apply course filter if provided
       if (courseFilter) {
         teachersQuery = teachersQuery.eq('course_id', courseFilter);
       }
@@ -148,73 +140,95 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get all students with their teacher links and guardian info
-      const { data: students, error: studentsError } = await supabase
-        .from('students')
+      // Get all active enrollments with student, class_group, and course info
+      const { data: enrollments, error: enrollError } = await supabase
+        .from('enrollments')
         .select(`
           id,
-          name,
-          birth_date,
-          sex,
-          teacher_id,
-          guardian:guardians(id, name, phone, email)
+          student:students(id, name, birth_date, sex, is_active, guardian:guardians(id, name, phone, email)),
+          class_group:class_groups(id, name, course_id, course:courses(id, name))
         `)
-        .eq('is_active', true)
-        .order('name');
+        .eq('status', 'active');
 
-      if (studentsError) {
-        console.error('Error fetching students:', studentsError);
+      if (enrollError) {
+        console.error('Error fetching enrollments:', enrollError);
         return new Response(
-          JSON.stringify({ error: 'Failed to fetch students' }),
+          JSON.stringify({ error: 'Failed to fetch enrollments' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
       // Get credentials for each teacher
-      const { data: credentials, error: credError } = await supabase
+      const { data: credentials } = await supabase
         .from('teacher_credentials')
         .select('teacher_id, email, matricula')
         .eq('is_active', true);
 
-      // Build response with teachers and their students
+      // Build response: match students to teachers via course_id
       const teachersWithStudents = teachers?.map(teacher => {
-        const teacherStudents = students?.filter(s => s.teacher_id === teacher.id) || [];
-        const teacherCredential = credentials?.find(c => c.teacher_id === teacher.id);
         const courseData = teacher.course as unknown as { id: string; name: string } | null;
-        
+        const teacherCredential = credentials?.find(c => c.teacher_id === teacher.id);
+
+        // Find students enrolled in courses that match this teacher's course_id
+        const matchedStudents: Array<{
+          id: string; name: string; birth_date: string; sex: string;
+          enrollment_id: string; class_group: string; course: string;
+          guardian_name: string | undefined; guardian_phone: string | undefined; guardian_email: string | undefined;
+        }> = [];
+        const seenStudentIds = new Set<string>();
+
+        if (teacher.course_id && enrollments) {
+          for (const enrollment of enrollments as any[]) {
+            const student = enrollment.student;
+            const classGroup = enrollment.class_group;
+            if (!student || !classGroup || !student.is_active) continue;
+            
+            const enrollmentCourseId = classGroup.course_id || classGroup.course?.id;
+            if (enrollmentCourseId !== teacher.course_id) continue;
+
+            // Avoid duplicate students (same student in multiple class_groups of same course)
+            const key = `${student.id}`;
+            if (seenStudentIds.has(key)) continue;
+            seenStudentIds.add(key);
+
+            matchedStudents.push({
+              id: student.id,
+              name: student.name,
+              birth_date: student.birth_date,
+              sex: student.sex,
+              enrollment_id: enrollment.id,
+              class_group: classGroup.name,
+              course: classGroup.course?.name || courseData?.name || '',
+              guardian_name: student.guardian?.name,
+              guardian_phone: student.guardian?.phone,
+              guardian_email: student.guardian?.email,
+            });
+          }
+        }
+
         return {
           id: teacher.id,
           name: teacher.name,
           phone: teacher.phone,
           email: teacher.email,
-          course: courseData ? {
-            id: courseData.id,
-            name: courseData.name,
-          } : null,
-          credential: teacherCredential ? {
-            email: teacherCredential.email,
-            matricula: teacherCredential.matricula,
-          } : null,
-          students_count: teacherStudents.length,
-          students: teacherStudents.map(s => ({
-            id: s.id,
-            name: s.name,
-            birth_date: s.birth_date,
-            sex: s.sex,
-            guardian_name: (s.guardian as { name?: string })?.name,
-            guardian_phone: (s.guardian as { phone?: string })?.phone,
-            guardian_email: (s.guardian as { email?: string })?.email,
-          })),
+          course: courseData ? { id: courseData.id, name: courseData.name } : null,
+          credential: teacherCredential ? { email: teacherCredential.email, matricula: teacherCredential.matricula } : null,
+          students_count: matchedStudents.length,
+          students: matchedStudents,
         };
       }) || [];
 
+      // Count unique students across all teachers
+      const allStudentIds = new Set<string>();
+      teachersWithStudents.forEach(t => t.students.forEach(s => allStudentIds.add(s.id)));
+
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           count: teachersWithStudents.length,
-          total_students: students?.filter(s => s.teacher_id).length || 0,
+          total_students: allStudentIds.size,
           course_filter: courseFilter || null,
-          teachers: teachersWithStudents 
+          teachers: teachersWithStudents,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
