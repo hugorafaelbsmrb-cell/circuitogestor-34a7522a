@@ -140,20 +140,20 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Get all active enrollments with student, class_group, and course info
-      const { data: enrollments, error: enrollError } = await supabase
-        .from('enrollments')
+      // Get students directly linked via teacher_id
+      const { data: students, error: studentsError } = await supabase
+        .from('students')
         .select(`
-          id,
-          student:students(id, name, birth_date, sex, is_active, guardian:guardians(id, name, phone, email)),
-          class_group:class_groups(id, name, course_id, course:courses(id, name))
+          id, name, birth_date, sex, is_active, teacher_id,
+          guardian:guardians(id, name, phone, email)
         `)
-        .eq('status', 'active');
+        .eq('is_active', true)
+        .not('teacher_id', 'is', null);
 
-      if (enrollError) {
-        console.error('Error fetching enrollments:', enrollError);
+      if (studentsError) {
+        console.error('Error fetching students:', studentsError);
         return new Response(
-          JSON.stringify({ error: 'Failed to fetch enrollments' }),
+          JSON.stringify({ error: 'Failed to fetch students' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -164,47 +164,20 @@ Deno.serve(async (req) => {
         .select('teacher_id, email, matricula')
         .eq('is_active', true);
 
-      // Build response: match students to teachers via course_id
+      // Build response: match students to teachers via teacher_id
       const teachersWithStudents = teachers?.map(teacher => {
         const courseData = teacher.course as unknown as { id: string; name: string } | null;
         const teacherCredential = credentials?.find(c => c.teacher_id === teacher.id);
 
-        // Find students enrolled in courses that match this teacher's course_id
-        const matchedStudents: Array<{
-          id: string; name: string; birth_date: string; sex: string;
-          enrollment_id: string; class_group: string; course: string;
-          guardian_name: string | undefined; guardian_phone: string | undefined; guardian_email: string | undefined;
-        }> = [];
-        const seenStudentIds = new Set<string>();
-
-        if (teacher.course_id && enrollments) {
-          for (const enrollment of enrollments as any[]) {
-            const student = enrollment.student;
-            const classGroup = enrollment.class_group;
-            if (!student || !classGroup || !student.is_active) continue;
-            
-            const enrollmentCourseId = classGroup.course_id || classGroup.course?.id;
-            if (enrollmentCourseId !== teacher.course_id) continue;
-
-            // Avoid duplicate students (same student in multiple class_groups of same course)
-            const key = `${student.id}`;
-            if (seenStudentIds.has(key)) continue;
-            seenStudentIds.add(key);
-
-            matchedStudents.push({
-              id: student.id,
-              name: student.name,
-              birth_date: student.birth_date,
-              sex: student.sex,
-              enrollment_id: enrollment.id,
-              class_group: classGroup.name,
-              course: classGroup.course?.name || courseData?.name || '',
-              guardian_name: student.guardian?.name,
-              guardian_phone: student.guardian?.phone,
-              guardian_email: student.guardian?.email,
-            });
-          }
-        }
+        const linkedStudents = (students as any[])?.filter(s => s.teacher_id === teacher.id).map(s => ({
+          id: s.id,
+          name: s.name,
+          birth_date: s.birth_date,
+          sex: s.sex,
+          guardian_name: s.guardian?.name,
+          guardian_phone: s.guardian?.phone,
+          guardian_email: s.guardian?.email,
+        })) || [];
 
         return {
           id: teacher.id,
@@ -213,8 +186,8 @@ Deno.serve(async (req) => {
           email: teacher.email,
           course: courseData ? { id: courseData.id, name: courseData.name } : null,
           credential: teacherCredential ? { email: teacherCredential.email, matricula: teacherCredential.matricula } : null,
-          students_count: matchedStudents.length,
-          students: matchedStudents,
+          students_count: linkedStudents.length,
+          students: linkedStudents,
         };
       }) || [];
 
