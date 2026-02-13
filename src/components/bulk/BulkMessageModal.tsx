@@ -69,6 +69,7 @@ const categoryOptions = [
   { value: 'enrollment', label: 'Matrícula' },
   { value: 'payment_reminder', label: 'Lembrete de Pagamento' },
   { value: 'general', label: 'Geral' },
+  { value: 'portal_announcement', label: 'Anúncio do Portal' },
 ];
 
 const SEND_DELAY_MS = 3500; // 3.5 seconds between messages to avoid rate limiting
