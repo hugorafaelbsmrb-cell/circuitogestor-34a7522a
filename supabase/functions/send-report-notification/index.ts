@@ -81,6 +81,8 @@ Deno.serve(async (req) => {
     }
 
     const schoolName = config.system_name || 'Circuito Kids';
+    const guardianFirstName = guardian.name?.split(' ')[0] || 'Responsável';
+    const studentName = student?.name || 'Aluno';
 
     // Format report date
     const reportDate = new Date(report.report_date);
