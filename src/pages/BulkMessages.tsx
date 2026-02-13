@@ -157,13 +157,40 @@ export default function BulkMessages() {
   const loadTemplates = async () => {
     setIsLoadingTemplates(true);
     try {
-      const { data, error } = await supabase
+      // Load from bulk_message_templates table
+      const { data: bulkData, error: bulkError } = await supabase
         .from('bulk_message_templates')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setTemplates(data || []);
+      if (bulkError) throw bulkError;
+
+      // Also load from app_settings (whatsapp templates)
+      const { data: settingsData } = await supabase
+        .from('app_settings')
+        .select('*')
+        .like('key', 'whatsapp_template_%');
+
+      const settingsTemplates: MessageTemplate[] = (settingsData || []).map(setting => {
+        try {
+          const p = JSON.parse(setting.value || '{}');
+          return {
+            id: setting.id,
+            name: p.name || setting.key.replace('whatsapp_template_', ''),
+            message: p.message || '',
+            created_at: setting.created_at,
+          };
+        } catch {
+          return {
+            id: setting.id,
+            name: setting.key.replace('whatsapp_template_', ''),
+            message: setting.value || '',
+            created_at: setting.created_at,
+          };
+        }
+      }).filter(t => t.message.length > 0);
+
+      setTemplates([...(bulkData || []), ...settingsTemplates]);
     } catch (error) {
       console.error('Error loading templates:', error);
     } finally {
