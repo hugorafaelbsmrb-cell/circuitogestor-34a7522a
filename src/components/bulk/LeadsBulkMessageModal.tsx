@@ -625,6 +625,9 @@ export function LeadsBulkMessageModal({
                         {courses.filter(c => c.is_active).map(course => (
                           <SelectItem key={course.id} value={course.id}>{course.name}</SelectItem>
                         ))}
+                        <SelectItem value="report_notification">Notificação de Relatório</SelectItem>
+                        <SelectItem value="portal_announcement">Anúncio do Portal</SelectItem>
+                        <SelectItem value="general">Geral</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
