@@ -80,17 +80,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const schoolName = config.system_name || 'Nossa Escola';
-    const guardianFirstName = guardian.name.split(' ')[0];
-    const studentName = student.name;
+    const schoolName = config.system_name || 'Circuito Kids';
 
     // Format report date
     const reportDate = new Date(report.report_date);
     const formattedDate = reportDate.toLocaleDateString('pt-BR');
 
-    // Generate portal link
-    const baseUrl = Deno.env.get('SITE_URL') || 'https://circuitogestor.lovable.app';
-    const portalLink = `${baseUrl}/consultar-relatorios`;
+    // Portal link
+    const portalLink = config.portal_url || 'https://gestor.circuitokids.com.br/relatorios-pais';
 
     // Default template
     const defaultTemplate = `Olá, {nome_responsavel}! 👋
@@ -102,6 +99,8 @@ O relatório pedagógico de *{nome_aluno}* já está disponível! 📚
 
 📱 Acesse o portal para visualizar:
 {link_portal}
+
+Os relatórios são liberados a cada *20 dias*. 📆
 
 Atenciosamente,
 *{nome_escola}*`;
