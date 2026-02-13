@@ -68,8 +68,9 @@ const categoryOptions = [
   { value: 'lead_reactivation', label: 'Lead - Reativação' },
   { value: 'enrollment', label: 'Matrícula' },
   { value: 'payment_reminder', label: 'Lembrete de Pagamento' },
-  { value: 'general', label: 'Geral' },
+  { value: 'report_notification', label: 'Notificação de Relatório' },
   { value: 'portal_announcement', label: 'Anúncio do Portal' },
+  { value: 'general', label: 'Geral' },
 ];
 
 const SEND_DELAY_MS = 3500; // 3.5 seconds between messages to avoid rate limiting
