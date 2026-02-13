@@ -56,6 +56,8 @@ const categoryOptions = [
   { value: 'payment_confirmed', label: 'Pagamento Confirmado' },
   { value: 'birthday', label: 'Aniversário' },
   { value: 'lms_alert', label: 'Alerta Pedagógico LMS' },
+  { value: 'report_notification', label: 'Notificação de Relatório' },
+  { value: 'portal_announcement', label: 'Anúncio do Portal' },
   { value: 'general', label: 'Geral' },
 ];
 
