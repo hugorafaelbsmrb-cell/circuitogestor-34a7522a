@@ -55,7 +55,7 @@ export default function ContractSign() {
 
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     
     // Fetch branding in parallel (non-blocking)
     const fetchBranding = async () => {
