@@ -116,12 +116,15 @@ export default function ParentReportsPortal() {
     }
 
     setIsLoading(true);
+    // Format CPF both ways to match any storage format
+    const formattedCpf = cleanCpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    
     try {
-      // Find guardian by CPF - using maybeSingle to handle not found case properly
+      // Find guardian by CPF - search both formatted and unformatted
       const { data: guardianData, error: guardianError } = await supabase
         .from('guardians')
         .select('id, name, cpf')
-        .eq('cpf', cleanCpf)
+        .or(`cpf.eq.${cleanCpf},cpf.eq.${formattedCpf}`)
         .maybeSingle();
 
       // Check for database errors first
