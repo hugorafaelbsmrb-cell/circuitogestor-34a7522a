@@ -259,6 +259,15 @@ export default function ParentReportsPortal() {
 
       setReports(allReports);
 
+      // Auto-select the month of the most recent report
+      if (allReports.length > 0) {
+        const latestReportDate = allReports[0].report_date; // already sorted desc
+        const latestMonth = format(parseISO(latestReportDate), 'yyyy-MM');
+        setSelectedMonth(latestMonth);
+        // Auto-expand the latest report
+        setExpandedReports({ [allReports[0].id]: true });
+      }
+
       // Mark reports as read by guardian
       if (localReportIds.length > 0) {
         await supabase
