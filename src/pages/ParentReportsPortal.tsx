@@ -231,8 +231,10 @@ export default function ParentReportsPortal() {
         `)
         .eq('student_id', student.id)
         .eq('approval_status', 'approved')
-        .neq('hidden_from_portal', true)
+        .or('hidden_from_portal.is.null,hidden_from_portal.eq.false')
         .order('report_date', { ascending: false });
+
+      console.log('Portal query result:', { studentId: student.id, localReports, localError });
 
       if (!localError && localReports) {
         allReports = localReports.map((r: any) => ({
