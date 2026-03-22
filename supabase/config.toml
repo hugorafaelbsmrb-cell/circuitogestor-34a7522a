@@ -102,3 +102,6 @@ verify_jwt = false
 
 [functions.wapi-sync-lead-contacts]
 verify_jwt = false
+
+[functions.export-data]
+verify_jwt = false
