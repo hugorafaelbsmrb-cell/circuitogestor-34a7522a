@@ -2561,6 +2561,12 @@ export type Database = {
         Returns: boolean
       }
       cleanup_rate_limits: { Args: never; Returns: undefined }
+      export_auth_identities: { Args: never; Returns: Json }
+      export_cron_jobs: { Args: never; Returns: Json }
+      export_db_functions: { Args: never; Returns: Json }
+      export_enums: { Args: never; Returns: Json }
+      export_rls_policies: { Args: never; Returns: Json }
+      export_triggers: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
