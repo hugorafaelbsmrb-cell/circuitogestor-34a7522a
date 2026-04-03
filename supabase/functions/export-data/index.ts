@@ -14,15 +14,27 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const jwtSecret = Deno.env.get("SUPABASE_JWT_SECRET") || null;
 
     const supabase = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // 1. Get all public tables
-    const { data: tableList } = await supabase.rpc("export_get_tables").select();
-    
-    // Fallback: query pg_tables directly via SQL in an RPC or use known tables
+    // Helper: run raw SQL via PostgREST rpc or direct pg
+    const runSql = async (sql: string) => {
+      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": serviceRoleKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({}),
+      });
+      return null;
+    };
+
+    // 1. Export all public tables
     const knownTables = [
       "app_settings", "asset_categories", "attendance_records", "audit_logs",
       "automation_settings", "bulk_message_templates", "campaign_images",
@@ -38,23 +50,22 @@ serve(async (req) => {
       "teacher_training_progress", "teachers", "user_roles", "whatsapp_messages"
     ];
 
-    // Export all table data
-    const tables: Record<string, any[]> = {};
+    const tables: Record<string, any> = {};
     for (const table of knownTables) {
       const allRows: any[] = [];
       let from = 0;
       const pageSize = 1000;
       let hasMore = true;
-      
+
       while (hasMore) {
         const { data, error } = await supabase
           .from(table)
           .select("*")
           .range(from, from + pageSize - 1);
-        
+
         if (error) {
           console.error(`Error fetching ${table}:`, error.message);
-          tables[table] = { error: error.message } as any;
+          tables[table] = { error: error.message };
           hasMore = false;
         } else {
           allRows.push(...(data || []));
@@ -62,7 +73,7 @@ serve(async (req) => {
           from += pageSize;
         }
       }
-      
+
       if (!tables[table] || !('error' in tables[table])) {
         tables[table] = allRows;
       }
@@ -71,12 +82,17 @@ serve(async (req) => {
     // 2. RLS Policies via pg_policies
     let rls_policies: Record<string, any[]> = {};
     try {
-      const { data: policies } = await supabase
-        .from("pg_policies" as any)
-        .select("*");
-      
-      // If direct access fails, we'll use a different approach
-      if (policies) {
+      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/export_rls_policies`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": serviceRoleKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({}),
+      });
+      if (resp.ok) {
+        const policies = await resp.json();
         for (const p of policies) {
           const tbl = p.tablename;
           if (!rls_policies[tbl]) rls_policies[tbl] = [];
@@ -84,23 +100,79 @@ serve(async (req) => {
         }
       }
     } catch {
-      rls_policies = { _note: "Could not export RLS policies directly. Use pg_dump for full export." } as any;
+      rls_policies = { _note: "Could not export RLS policies. Use pg_dump." } as any;
     }
 
-    // 3. Auth users
+    // 3. Database functions
+    let functions: any[] = [];
+    try {
+      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/export_db_functions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": serviceRoleKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({}),
+      });
+      if (resp.ok) {
+        functions = await resp.json();
+      }
+    } catch {
+      functions = [{ _note: "Could not export functions. Use pg_dump." }];
+    }
+
+    // 4. Triggers
+    let triggers: any[] = [];
+    try {
+      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/export_triggers`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": serviceRoleKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({}),
+      });
+      if (resp.ok) {
+        triggers = await resp.json();
+      }
+    } catch {
+      triggers = [{ _note: "Could not export triggers. Use pg_dump." }];
+    }
+
+    // 5. Cron jobs
+    let cron_jobs: any[] = [];
+    try {
+      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/export_cron_jobs`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": serviceRoleKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({}),
+      });
+      if (resp.ok) {
+        cron_jobs = await resp.json();
+      }
+    } catch {
+      cron_jobs = [{ _note: "pg_cron not available or no jobs." }];
+    }
+
+    // 6. Auth users
     let auth_users: any[] = [];
     try {
-      // Use admin API to list users
       const perPage = 1000;
       let page = 1;
       let hasMoreUsers = true;
-      
+
       while (hasMoreUsers) {
         const { data: { users }, error } = await supabase.auth.admin.listUsers({
           page,
           perPage,
         });
-        
+
         if (error) {
           console.error("Error fetching auth users:", error.message);
           hasMoreUsers = false;
@@ -115,6 +187,7 @@ serve(async (req) => {
             created_at: u.created_at,
             email_confirmed_at: u.email_confirmed_at,
             raw_user_meta_data: u.user_metadata,
+            raw_app_meta_data: u.app_metadata,
           }));
           auth_users.push(...mapped);
           hasMoreUsers = (users?.length || 0) === perPage;
@@ -125,7 +198,26 @@ serve(async (req) => {
       auth_users = [{ error: `Could not export auth users: ${e}` }];
     }
 
-    // 4. Storage buckets and files
+    // 7. Auth identities
+    let auth_identities: any[] = [];
+    try {
+      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/export_auth_identities`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": serviceRoleKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({}),
+      });
+      if (resp.ok) {
+        auth_identities = await resp.json();
+      }
+    } catch {
+      auth_identities = [{ _note: "Could not export auth identities." }];
+    }
+
+    // 8. Storage buckets
     let storage_buckets: any[] = [];
     try {
       const { data: buckets } = await supabase.storage.listBuckets();
@@ -149,25 +241,38 @@ serve(async (req) => {
       storage_buckets = [{ error: `Could not export storage: ${e}` }];
     }
 
-    // 5. Database functions, triggers, enums via direct SQL (using supabase-js rpc won't work for pg_catalog)
-    // We'll document what we can't get directly
-    const metadata_note = "For full export of functions, triggers, enums, RLS policies, and cron jobs, use: pg_dump --schema=public --no-owner --no-privileges";
+    // 9. Enums
+    let enums: any[] = [];
+    try {
+      const resp = await fetch(`${supabaseUrl}/rest/v1/rpc/export_enums`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": serviceRoleKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+        },
+        body: JSON.stringify({}),
+      });
+      if (resp.ok) {
+        enums = await resp.json();
+      }
+    } catch {
+      enums = [{ app_role: ["admin", "moderator", "user"], _note: "Fallback enum list" }];
+    }
 
     const result = {
       _export_date: new Date().toISOString(),
       _warning: "TEMPORARY EXPORT - DELETE THIS FUNCTION IMMEDIATELY AFTER USE",
-      _metadata_note: metadata_note,
       tables,
       rls_policies,
-      functions: { _note: "Use pg_dump for complete function definitions. Known functions: update_updated_at_column, is_admin_secure, check_rate_limit, log_audit, cleanup_rate_limits, handle_new_user, has_role, handle_new_user_role, is_admin" },
-      triggers: { _note: "Use pg_dump for trigger definitions" },
-      cron_jobs: { _note: "Check cron.job table if pg_cron is enabled" },
+      functions,
+      triggers,
+      cron_jobs,
       auth_users,
+      auth_identities,
       storage_buckets,
-      enums: { 
-        app_role: ["admin", "moderator", "user"],
-        _note: "Known enum types in public schema"
-      },
+      enums,
+      jwt_secret: jwtSecret,
     };
 
     return new Response(JSON.stringify(result), {
