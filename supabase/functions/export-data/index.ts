@@ -234,8 +234,14 @@ serve(async (req) => {
       supabase_url: supabaseUrl,
     };
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const jsonString = JSON.stringify(result);
+    return new Response(jsonString, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": 'attachment; filename="export-data.json"',
+        "Content-Length": new TextEncoder().encode(jsonString).length.toString(),
+      },
     });
   } catch (error) {
     return new Response(
