@@ -325,7 +325,24 @@ export default function Enrollment() {
     return schedules.filter(s => s.course_id === formData.courseId);
   }, [formData.courseId, schedules]);
 
-  // Find class group for selected schedule
+  // Build dynamic time slots from actual schedules for the selected course
+  const dynamicTimeSlots: TimeSlotItem[] = useMemo(() => {
+    const uniqueSlots = new Map<string, TimeSlotItem>();
+    availableSchedulesForCourse.forEach(s => {
+      const key = `${s.start_time}-${s.end_time}`;
+      if (!uniqueSlots.has(key)) {
+        uniqueSlots.set(key, {
+          id: key,
+          label: `${getPeriodLabel(s.start_time)}`,
+          start: s.start_time,
+          end: s.end_time,
+          period: getPeriodLabel(s.start_time),
+        });
+      }
+    });
+    return Array.from(uniqueSlots.values()).sort((a, b) => a.start.localeCompare(b.start));
+  }, [availableSchedulesForCourse]);
+
   const findClassGroupForSchedule = (dayOfWeek: string, startTime: string) => {
     const schedule = availableSchedulesForCourse.find(
       s => s.day_of_week === dayOfWeek && s.start_time === startTime
