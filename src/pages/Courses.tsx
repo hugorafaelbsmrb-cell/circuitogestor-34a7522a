@@ -58,7 +58,7 @@ export default function Courses() {
       description: formData.description,
       duration: formData.duration,
       price: parseFloat(formData.price) || 0,
-      contract_duration_months: formData.contract_duration_months ? parseInt(formData.contract_duration_months) : null,
+      contract_duration_months: formData.contract_duration_months && formData.contract_duration_months !== 'none' ? parseInt(formData.contract_duration_months) : null,
     };
 
     if (editingCourse) {
