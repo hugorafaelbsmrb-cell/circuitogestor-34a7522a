@@ -2170,7 +2170,7 @@ Att,
                 <p className="text-sm text-muted-foreground mb-4">
                   Clique nos dias que o aluno frequentará as aulas:
                 </p>
-                <div className="grid grid-cols-5 gap-3">
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                   {WEEKDAYS.map((day) => {
                     const timeSlot = dynamicTimeSlots.find(ts => ts.id === selectedTimeSlot);
                     const classGroup = timeSlot ? findClassGroupForSchedule(day, timeSlot.start) : null;
