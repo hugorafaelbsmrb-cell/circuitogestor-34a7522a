@@ -592,7 +592,7 @@ export default function Enrollment() {
   };
 
   const handleToggleDay = (dayOfWeek: string) => {
-    const timeSlot = TIME_SLOTS.find(ts => ts.id === selectedTimeSlot);
+    const timeSlot = dynamicTimeSlots.find(ts => ts.id === selectedTimeSlot);
     if (!timeSlot) {
       toast({
         title: "Selecione um horário",
@@ -2137,7 +2137,7 @@ Att,
                 Horário
               </Label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {TIME_SLOTS.map((slot) => (
+                {dynamicTimeSlots.map((slot) => (
                   <button
                     key={slot.id}
                     onClick={() => {
@@ -2172,7 +2172,7 @@ Att,
                 </p>
                 <div className="grid grid-cols-5 gap-3">
                   {WEEKDAYS.map((day) => {
-                    const timeSlot = TIME_SLOTS.find(ts => ts.id === selectedTimeSlot);
+                    const timeSlot = dynamicTimeSlots.find(ts => ts.id === selectedTimeSlot);
                     const classGroup = timeSlot ? findClassGroupForSchedule(day, timeSlot.start) : null;
                     const hasVacancy = !!classGroup;
                     const isSelected = isDaySelected(day);
