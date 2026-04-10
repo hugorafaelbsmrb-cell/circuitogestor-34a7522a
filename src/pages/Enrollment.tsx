@@ -33,13 +33,14 @@ const steps: { id: Step; title: string; icon: React.ElementType }[] = [
 ];
 
 // Fixed schedule configuration
-const WEEKDAYS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
-const TIME_SLOTS = [
-  { id: 'morning_1', label: 'Manhã 1', start: '08:30', end: '10:00', period: 'Manhã' },
-  { id: 'morning_2', label: 'Manhã 2', start: '10:00', end: '11:30', period: 'Manhã' },
-  { id: 'afternoon_1', label: 'Tarde 1', start: '14:00', end: '15:30', period: 'Tarde' },
-  { id: 'afternoon_2', label: 'Tarde 2', start: '16:00', end: '17:30', period: 'Tarde' },
-];
+const WEEKDAYS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+
+const getPeriodLabel = (startTime: string) => {
+  const hour = parseInt(startTime.split(':')[0]);
+  if (hour < 12) return 'Manhã';
+  if (hour < 18) return 'Tarde';
+  return 'Noite';
+};
 
 // Grade levels for "Reforço Escolar" course
 const GRADE_LEVELS = [
