@@ -33,13 +33,14 @@ const steps: { id: Step; title: string; icon: React.ElementType }[] = [
 ];
 
 // Fixed schedule configuration
-const WEEKDAYS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
-const TIME_SLOTS = [
-  { id: 'morning_1', label: 'Manhã 1', start: '08:30', end: '10:00', period: 'Manhã' },
-  { id: 'morning_2', label: 'Manhã 2', start: '10:00', end: '11:30', period: 'Manhã' },
-  { id: 'afternoon_1', label: 'Tarde 1', start: '14:00', end: '15:30', period: 'Tarde' },
-  { id: 'afternoon_2', label: 'Tarde 2', start: '16:00', end: '17:30', period: 'Tarde' },
-];
+const WEEKDAYS = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+
+const getPeriodLabel = (startTime: string) => {
+  const hour = parseInt(startTime.split(':')[0]);
+  if (hour < 12) return 'Manhã';
+  if (hour < 18) return 'Tarde';
+  return 'Noite';
+};
 
 // Grade levels for "Reforço Escolar" course
 const GRADE_LEVELS = [
@@ -57,9 +58,17 @@ const REFORCO_ESCOLAR_PRICES: Record<number, number> = {
   5: 300,
 };
 
+interface TimeSlotItem {
+  id: string;
+  label: string;
+  start: string;
+  end: string;
+  period: string;
+}
+
 interface SelectedSchedule {
   dayOfWeek: string;
-  timeSlot: typeof TIME_SLOTS[0];
+  timeSlot: TimeSlotItem;
 }
 
 export default function Enrollment() {
@@ -316,7 +325,24 @@ export default function Enrollment() {
     return schedules.filter(s => s.course_id === formData.courseId);
   }, [formData.courseId, schedules]);
 
-  // Find class group for selected schedule
+  // Build dynamic time slots from actual schedules for the selected course
+  const dynamicTimeSlots: TimeSlotItem[] = useMemo(() => {
+    const uniqueSlots = new Map<string, TimeSlotItem>();
+    availableSchedulesForCourse.forEach(s => {
+      const key = `${s.start_time}-${s.end_time}`;
+      if (!uniqueSlots.has(key)) {
+        uniqueSlots.set(key, {
+          id: key,
+          label: `${getPeriodLabel(s.start_time)}`,
+          start: s.start_time,
+          end: s.end_time,
+          period: getPeriodLabel(s.start_time),
+        });
+      }
+    });
+    return Array.from(uniqueSlots.values()).sort((a, b) => a.start.localeCompare(b.start));
+  }, [availableSchedulesForCourse]);
+
   const findClassGroupForSchedule = (dayOfWeek: string, startTime: string) => {
     const schedule = availableSchedulesForCourse.find(
       s => s.day_of_week === dayOfWeek && s.start_time === startTime
@@ -566,7 +592,7 @@ export default function Enrollment() {
   };
 
   const handleToggleDay = (dayOfWeek: string) => {
-    const timeSlot = TIME_SLOTS.find(ts => ts.id === selectedTimeSlot);
+    const timeSlot = dynamicTimeSlots.find(ts => ts.id === selectedTimeSlot);
     if (!timeSlot) {
       toast({
         title: "Selecione um horário",
@@ -2111,7 +2137,7 @@ Att,
                 Horário
               </Label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {TIME_SLOTS.map((slot) => (
+                {dynamicTimeSlots.map((slot) => (
                   <button
                     key={slot.id}
                     onClick={() => {
@@ -2144,9 +2170,9 @@ Att,
                 <p className="text-sm text-muted-foreground mb-4">
                   Clique nos dias que o aluno frequentará as aulas:
                 </p>
-                <div className="grid grid-cols-5 gap-3">
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                   {WEEKDAYS.map((day) => {
-                    const timeSlot = TIME_SLOTS.find(ts => ts.id === selectedTimeSlot);
+                    const timeSlot = dynamicTimeSlots.find(ts => ts.id === selectedTimeSlot);
                     const classGroup = timeSlot ? findClassGroupForSchedule(day, timeSlot.start) : null;
                     const hasVacancy = !!classGroup;
                     const isSelected = isDaySelected(day);
