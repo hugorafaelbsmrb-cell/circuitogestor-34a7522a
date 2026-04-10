@@ -257,67 +257,89 @@ export function generateContractPDF(content: ContractContent): jsPDF {
   doc.text('ANEXOS DO CONTRATO', pageWidth / 2, yPos, { align: 'center' });
   yPos += 12;
 
-  // Annex I - Reforço Escolar
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ANEXO I – REFORÇO ESCOLAR (1º A 5º ANO)', margin, yPos);
-  yPos += 8;
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('• Modalidade: Plano Semestral (06 meses)', margin, yPos);
-  yPos += 6;
-  doc.text('• Opções de Frequência e Valores:', margin, yPos);
-  yPos += 6;
+  // Determine which annexes to show based on course name
+  const courseNameLower = (content.courseName || '').toLowerCase();
+  const isMaternal = courseNameLower.includes('maternal') || courseNameLower.includes('infantil') || courseNameLower.includes('integral');
+  const isReforco = courseNameLower.includes('reforço') || courseNameLower.includes('reforco');
+  const isRobotica = courseNameLower.includes('robótica') || courseNameLower.includes('robotica');
+  const isSoroban = courseNameLower.includes('soroban');
 
-  // Table for Reforço
-  autoTable(doc, {
-    startY: yPos,
-    head: [['Frequência', 'Valor Mensal']],
-    body: [
-      ['2x na semana', 'R$ 200,00'],
-      ['3x na semana', 'R$ 250,00'],
-      ['5x na semana', 'R$ 300,00'],
-    ],
-    styles: { fontSize: 9 },
-    headStyles: { fillColor: [59, 130, 246] },
-    margin: { left: margin },
-    tableWidth: 100,
-  });
+  // Only show relevant annexes - if it's a specific course, show only that one
+  // If none match specifically, show all (backward compatible)
+  const showAll = !isMaternal && !isReforco && !isRobotica && !isSoroban;
 
-  yPos = (doc as any).lastAutoTable.finalY + 12;
+  if (showAll || isReforco) {
+    // Annex I - Reforço Escolar
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ANEXO I – REFORÇO ESCOLAR (1º A 5º ANO)', margin, yPos);
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('• Modalidade: Plano Semestral (06 meses)', margin, yPos);
+    yPos += 6;
+    doc.text('• Opções de Frequência e Valores:', margin, yPos);
+    yPos += 6;
 
-  // Annex II - Robótica Educacional
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ANEXO II – ROBÓTICA EDUCACIONAL', margin, yPos);
-  yPos += 8;
+    // Table for Reforço
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Frequência', 'Valor Mensal']],
+      body: [
+        ['2x na semana', 'R$ 200,00'],
+        ['3x na semana', 'R$ 250,00'],
+        ['5x na semana', 'R$ 300,00'],
+      ],
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [59, 130, 246] },
+      margin: { left: margin },
+      tableWidth: 100,
+    });
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('• Frequência: 02 vezes na semana', margin, yPos);
-  yPos += 6;
-  doc.text('• Plano: Anual (12 meses)', margin, yPos);
-  yPos += 6;
-  doc.text('• Valor Mensal: R$ 250,00', margin, yPos);
-  yPos += 12;
+    yPos = (doc as any).lastAutoTable.finalY + 12;
+  }
 
-  // Annex III - Soroban
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
-  doc.text('ANEXO III – SOROBAN (ÁBACO JAPONÊS)', margin, yPos);
-  yPos += 8;
+  if (showAll || isRobotica) {
+    // Annex II - Robótica Educacional
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ANEXO II – ROBÓTICA EDUCACIONAL', margin, yPos);
+    yPos += 8;
 
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('• Frequência: 02 vezes na semana', margin, yPos);
-  yPos += 6;
-  doc.text('• Duração: Estimada em 18 meses (10 níveis no total)', margin, yPos);
-  yPos += 6;
-  doc.text('• Valor Mensal: R$ 250,00', margin, yPos);
-  yPos += 6;
-  doc.text('• Material Didático (obrigatório): consultar valores', margin, yPos);
-  yPos += 15;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('• Frequência: 02 vezes na semana', margin, yPos);
+    yPos += 6;
+    doc.text('• Plano: Anual (12 meses)', margin, yPos);
+    yPos += 6;
+    doc.text('• Valor Mensal: R$ 250,00', margin, yPos);
+    yPos += 12;
+  }
+
+  if (showAll || isSoroban) {
+    // Annex III - Soroban
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ANEXO III – SOROBAN (ÁBACO JAPONÊS)', margin, yPos);
+    yPos += 8;
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('• Frequência: 02 vezes na semana', margin, yPos);
+    yPos += 6;
+    doc.text('• Duração: Estimada em 18 meses (10 níveis no total)', margin, yPos);
+    yPos += 6;
+    doc.text('• Valor Mensal: R$ 250,00', margin, yPos);
+    yPos += 6;
+    doc.text('• Material Didático (obrigatório): consultar valores', margin, yPos);
+    yPos += 15;
+  }
+
+  // Add spacing if no specific annexes were shown for this course type
+  if (isMaternal) {
+    yPos += 5;
+  }
 
   // Course selected highlight - MODALIDADE CONTRATADA
   if (content.courseName) {
