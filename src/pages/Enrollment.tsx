@@ -58,9 +58,17 @@ const REFORCO_ESCOLAR_PRICES: Record<number, number> = {
   5: 300,
 };
 
+interface TimeSlotItem {
+  id: string;
+  label: string;
+  start: string;
+  end: string;
+  period: string;
+}
+
 interface SelectedSchedule {
   dayOfWeek: string;
-  timeSlot: typeof TIME_SLOTS[0];
+  timeSlot: TimeSlotItem;
 }
 
 export default function Enrollment() {
