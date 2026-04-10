@@ -58,7 +58,7 @@ export default function Courses() {
       description: formData.description,
       duration: formData.duration,
       price: parseFloat(formData.price) || 0,
-      contract_duration_months: formData.contract_duration_months ? parseInt(formData.contract_duration_months) : null,
+      contract_duration_months: formData.contract_duration_months && formData.contract_duration_months !== 'none' ? parseInt(formData.contract_duration_months) : null,
     };
 
     if (editingCourse) {
@@ -149,7 +149,7 @@ export default function Courses() {
                     <SelectItem value="6">6 meses</SelectItem>
                     <SelectItem value="12">12 meses</SelectItem>
                     <SelectItem value="18">18 meses</SelectItem>
-                    <SelectItem value="">Indeterminado</SelectItem>
+                    <SelectItem value="none">Indeterminado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
