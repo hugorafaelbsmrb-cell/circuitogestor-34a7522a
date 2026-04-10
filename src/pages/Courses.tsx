@@ -149,7 +149,7 @@ export default function Courses() {
                     <SelectItem value="6">6 meses</SelectItem>
                     <SelectItem value="12">12 meses</SelectItem>
                     <SelectItem value="18">18 meses</SelectItem>
-                    <SelectItem value="">Indeterminado</SelectItem>
+                    <SelectItem value="none">Indeterminado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
