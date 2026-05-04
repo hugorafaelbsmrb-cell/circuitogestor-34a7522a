@@ -485,9 +485,36 @@ export default function Receipts() {
           </div>
 
           {selectedStudent && (
-            <div className="bg-muted/50 p-3 rounded-md text-sm">
-              <p><strong>Responsável:</strong> {selectedStudent.guardian_name}</p>
+            <div className="bg-muted/50 p-3 rounded-md text-sm space-y-2">
+              <p><strong>Responsável cadastrado:</strong> {selectedStudent.guardian_name}</p>
               <p><strong>CPF:</strong> {selectedStudent.guardian_cpf}</p>
+              <label className="flex items-center gap-2 pt-2 cursor-pointer">
+                <Checkbox
+                  checked={useCustomPayer}
+                  onCheckedChange={(v) => setUseCustomPayer(!!v)}
+                />
+                <span>Emitir recibo em nome de outro responsável</span>
+              </label>
+              {useCustomPayer && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <Label>Nome do pagador</Label>
+                    <Input
+                      value={customPayerName}
+                      onChange={(e) => setCustomPayerName(e.target.value)}
+                      placeholder="Nome completo"
+                    />
+                  </div>
+                  <div>
+                    <Label>CPF do pagador</Label>
+                    <Input
+                      value={customPayerCpf}
+                      onChange={(e) => setCustomPayerCpf(e.target.value)}
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
