@@ -29,7 +29,8 @@ import {
   FileCheck,
   Mail,
   Lightbulb,
-  TrendingUp
+  TrendingUp,
+  Receipt
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthContext } from '@/contexts/AuthContext';
