@@ -188,6 +188,13 @@ export default function Receipts() {
       return;
     }
 
+    const payerName = useCustomPayer ? customPayerName.trim() : selectedStudent.guardian_name;
+    const payerCpf = useCustomPayer ? customPayerCpf.trim() : selectedStudent.guardian_cpf;
+    if (useCustomPayer && (!payerName || !payerCpf)) {
+      toast({ title: 'Informe nome e CPF do responsável pagador', variant: 'destructive' });
+      return;
+    }
+
     setLoading(true);
     try {
       const [signatureDataUrl, logoDataUrl, brandingRes] = await Promise.all([
