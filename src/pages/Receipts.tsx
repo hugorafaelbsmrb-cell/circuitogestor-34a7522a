@@ -94,6 +94,9 @@ export default function Receipts() {
   const [endMonth, setEndMonth] = useState<string>('11');
   const [city, setCity] = useState<string>('');
   const [selectedMonths, setSelectedMonths] = useState<Set<number>>(new Set([0,1,2,3,4,5,6,7,8,9,10,11]));
+  const [useCustomPayer, setUseCustomPayer] = useState(false);
+  const [customPayerName, setCustomPayerName] = useState('');
+  const [customPayerCpf, setCustomPayerCpf] = useState('');
 
   useEffect(() => {
     loadData();
@@ -182,6 +185,13 @@ export default function Receipts() {
     }
     if (!config) {
       toast({ title: 'Configuração de contrato não encontrada', variant: 'destructive' });
+      return;
+    }
+
+    const payerName = useCustomPayer ? customPayerName.trim() : selectedStudent.guardian_name;
+    const payerCpf = useCustomPayer ? customPayerCpf.trim() : selectedStudent.guardian_cpf;
+    if (useCustomPayer && (!payerName || !payerCpf)) {
+      toast({ title: 'Informe nome e CPF do responsável pagador', variant: 'destructive' });
       return;
     }
 
@@ -324,8 +334,8 @@ export default function Receipts() {
           config.school_address,
         ]);
         const yRight = drawParty(margin + colW + 6, 'PAGADOR', [
-          selectedStudent.guardian_name,
-          `CPF ${selectedStudent.guardian_cpf}`,
+          payerName,
+          `CPF ${payerCpf}`,
           'Responsável financeiro',
         ]);
 
@@ -362,7 +372,7 @@ export default function Receipts() {
         doc.setTextColor(...ink);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9.5);
-        const body = `Declaramos, para os devidos fins, ter recebido de ${selectedStudent.guardian_name}, inscrito(a) no CPF sob o nº ${selectedStudent.guardian_cpf}, a importância de R$ ${value.toFixed(2).replace('.', ',')} (${valueToWords(value)}), referente ao pagamento da mensalidade escolar do(a) aluno(a) ${selectedStudent.name}, relativa ao mês de ${MONTHS[monthIdx]} de ${yearNum}.`;
+        const body = `Declaramos, para os devidos fins, ter recebido de ${payerName}, inscrito(a) no CPF sob o nº ${payerCpf}, a importância de R$ ${value.toFixed(2).replace('.', ',')} (${valueToWords(value)}), referente ao pagamento da mensalidade escolar do(a) aluno(a) ${selectedStudent.name}, relativa ao mês de ${MONTHS[monthIdx]} de ${yearNum}.`;
         const bodyLines = doc.splitTextToSize(body, pageW - 2 * margin);
         doc.text(bodyLines, margin, y, { align: 'justify', maxWidth: pageW - 2 * margin });
         y += bodyLines.length * 5 + 4;
@@ -475,9 +485,36 @@ export default function Receipts() {
           </div>
 
           {selectedStudent && (
-            <div className="bg-muted/50 p-3 rounded-md text-sm">
-              <p><strong>Responsável:</strong> {selectedStudent.guardian_name}</p>
+            <div className="bg-muted/50 p-3 rounded-md text-sm space-y-2">
+              <p><strong>Responsável cadastrado:</strong> {selectedStudent.guardian_name}</p>
               <p><strong>CPF:</strong> {selectedStudent.guardian_cpf}</p>
+              <label className="flex items-center gap-2 pt-2 cursor-pointer">
+                <Checkbox
+                  checked={useCustomPayer}
+                  onCheckedChange={(v) => setUseCustomPayer(!!v)}
+                />
+                <span>Emitir recibo em nome de outro responsável</span>
+              </label>
+              {useCustomPayer && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <Label>Nome do pagador</Label>
+                    <Input
+                      value={customPayerName}
+                      onChange={(e) => setCustomPayerName(e.target.value)}
+                      placeholder="Nome completo"
+                    />
+                  </div>
+                  <div>
+                    <Label>CPF do pagador</Label>
+                    <Input
+                      value={customPayerCpf}
+                      onChange={(e) => setCustomPayerCpf(e.target.value)}
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
