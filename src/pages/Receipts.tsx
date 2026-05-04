@@ -94,6 +94,9 @@ export default function Receipts() {
   const [endMonth, setEndMonth] = useState<string>('11');
   const [city, setCity] = useState<string>('');
   const [selectedMonths, setSelectedMonths] = useState<Set<number>>(new Set([0,1,2,3,4,5,6,7,8,9,10,11]));
+  const [useCustomPayer, setUseCustomPayer] = useState(false);
+  const [customPayerName, setCustomPayerName] = useState('');
+  const [customPayerCpf, setCustomPayerCpf] = useState('');
 
   useEffect(() => {
     loadData();
