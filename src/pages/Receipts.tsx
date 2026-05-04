@@ -372,7 +372,7 @@ export default function Receipts() {
         doc.setTextColor(...ink);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9.5);
-        const body = `Declaramos, para os devidos fins, ter recebido de ${selectedStudent.guardian_name}, inscrito(a) no CPF sob o nº ${selectedStudent.guardian_cpf}, a importância de R$ ${value.toFixed(2).replace('.', ',')} (${valueToWords(value)}), referente ao pagamento da mensalidade escolar do(a) aluno(a) ${selectedStudent.name}, relativa ao mês de ${MONTHS[monthIdx]} de ${yearNum}.`;
+        const body = `Declaramos, para os devidos fins, ter recebido de ${payerName}, inscrito(a) no CPF sob o nº ${payerCpf}, a importância de R$ ${value.toFixed(2).replace('.', ',')} (${valueToWords(value)}), referente ao pagamento da mensalidade escolar do(a) aluno(a) ${selectedStudent.name}, relativa ao mês de ${MONTHS[monthIdx]} de ${yearNum}.`;
         const bodyLines = doc.splitTextToSize(body, pageW - 2 * margin);
         doc.text(bodyLines, margin, y, { align: 'justify', maxWidth: pageW - 2 * margin });
         y += bodyLines.length * 5 + 4;
