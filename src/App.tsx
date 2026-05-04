@@ -50,6 +50,7 @@ import AttendanceAdmin from "./pages/AttendanceAdmin";
 import EmailClient from "./pages/EmailClient";
 import IoTAutomation from "./pages/IoTAutomation";
 import Anticipation from "./pages/Anticipation";
+import Receipts from "./pages/Receipts";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -131,7 +132,8 @@ const App = () => (
                       <Route path="/api-externa" element={<ExternalApiManager />} />
                       <Route path="/email" element={<EmailClient />} />
                       <Route path="/automacao" element={<IoTAutomation />} />
-                      <Route path="/antecipacao" element={<Anticipation />} />
+                       <Route path="/antecipacao" element={<Anticipation />} />
+                       <Route path="/recibos-ir" element={<Receipts />} />
                       <Route path="/configuracoes" element={<Settings />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
