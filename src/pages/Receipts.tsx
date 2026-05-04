@@ -187,107 +187,235 @@ export default function Receipts() {
 
     setLoading(true);
     try {
-      const signatureDataUrl = config.representative_signature_url
-        ? await loadImageAsDataUrl(config.representative_signature_url)
-        : null;
+      const [signatureDataUrl, logoDataUrl, brandingRes] = await Promise.all([
+        config.representative_signature_url ? loadImageAsDataUrl(config.representative_signature_url) : Promise.resolve(null),
+        (async () => {
+          const { data } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'system_logo')
+            .maybeSingle();
+          const logoUrl = (data as any)?.value;
+          return logoUrl ? await loadImageAsDataUrl(logoUrl) : null;
+        })(),
+        supabase.from('app_settings').select('value').eq('key', 'system_name').maybeSingle(),
+      ]);
+      const systemName = (brandingRes.data as any)?.value || config.school_name;
 
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
       const margin = 18;
       const months = Array.from(selectedMonths).sort((a,b) => a-b);
       const yearNum = parseInt(year);
 
+      // Brand palette (deep navy + warm gold)
+      const navy: [number, number, number] = [22, 38, 66];
+      const gold: [number, number, number] = [184, 145, 73];
+      const ink: [number, number, number] = [40, 45, 58];
+      const muted: [number, number, number] = [120, 125, 138];
+      const soft: [number, number, number] = [245, 242, 235];
+
       months.forEach((monthIdx, i) => {
         if (i > 0) doc.addPage();
-        let y = 25;
 
-        // Header
-        doc.setFontSize(16);
+        // ===== TOP BAND (navy header) =====
+        doc.setFillColor(...navy);
+        doc.rect(0, 0, pageW, 42, 'F');
+
+        // Gold accent strip
+        doc.setFillColor(...gold);
+        doc.rect(0, 42, pageW, 1.2, 'F');
+
+        // Logo (left)
+        if (logoDataUrl) {
+          try {
+            doc.addImage(logoDataUrl, 'AUTO', margin, 10, 22, 22);
+          } catch {}
+        }
+
+        // Title block (center-right of header)
+        const titleX = logoDataUrl ? margin + 30 : margin;
+        doc.setTextColor(255, 255, 255);
         doc.setFont('helvetica', 'bold');
-        doc.text('RECIBO DE PAGAMENTO', pageW / 2, y, { align: 'center' });
-        y += 6;
-        doc.setFontSize(10);
+        doc.setFontSize(18);
+        doc.text('RECIBO', titleX, 22);
         doc.setFont('helvetica', 'normal');
-        doc.text('Para fins de comprovação de Imposto de Renda', pageW / 2, y, { align: 'center' });
-        y += 12;
+        doc.setFontSize(8);
+        doc.setTextColor(...gold);
+        doc.text('DE PAGAMENTO DE MENSALIDADE ESCOLAR', titleX, 27);
+        doc.setTextColor(220, 220, 230);
+        doc.setFontSize(7);
+        doc.text('Documento hábil para comprovação junto à Receita Federal', titleX, 32);
 
-        // Box with value
-        doc.setDrawColor(100);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(margin, y, pageW - 2 * margin, 14, 2, 2, 'S');
+        // Receipt number (right side)
+        const receiptNo = `Nº ${yearNum}/${String(monthIdx + 1).padStart(2, '0')}-${selectedStudent.id.substring(0, 4).toUpperCase()}`;
+        doc.setFontSize(8);
+        doc.setTextColor(220, 220, 230);
+        doc.text('Recibo', pageW - margin, 18, { align: 'right' });
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(11);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Nº ${yearNum}-${String(monthIdx + 1).padStart(2, '0')}-${selectedStudent.id.substring(0, 6).toUpperCase()}`, margin + 3, y + 5);
-        doc.setFontSize(13);
-        doc.text(`VALOR: R$ ${value.toFixed(2).replace('.', ',')}`, pageW - margin - 3, y + 9, { align: 'right' });
-        y += 22;
-
-        // School info
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.text('RECEBEDOR (PRESTADOR DE SERVIÇOS):', margin, y);
-        y += 5;
+        doc.setTextColor(255, 255, 255);
+        doc.text(receiptNo, pageW - margin, 24, { align: 'right' });
         doc.setFont('helvetica', 'normal');
-        const schoolBlock = `${config.school_name}\nCNPJ: ${config.school_cnpj}\nEndereço: ${config.school_address}`;
-        const schoolLines = doc.splitTextToSize(schoolBlock, pageW - 2 * margin);
-        doc.text(schoolLines, margin, y);
-        y += schoolLines.length * 4.5 + 4;
+        doc.setFontSize(7);
+        doc.setTextColor(...gold);
+        doc.text(`${MONTHS[monthIdx].toUpperCase()} / ${yearNum}`, pageW - margin, 30, { align: 'right' });
 
-        // Payer info
-        doc.setFont('helvetica', 'bold');
-        doc.text('PAGADOR (RESPONSÁVEL FINANCEIRO):', margin, y);
-        y += 5;
+        // ===== VALUE HIGHLIGHT CARD =====
+        let y = 56;
+        doc.setFillColor(...soft);
+        doc.roundedRect(margin, y, pageW - 2 * margin, 22, 2, 2, 'F');
+        doc.setDrawColor(...gold);
+        doc.setLineWidth(0.4);
+        doc.line(margin + 2, y + 2, margin + 2, y + 20); // gold left bar
+
+        doc.setTextColor(...muted);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Nome: ${selectedStudent.guardian_name}`, margin, y);
-        y += 5;
-        doc.text(`CPF: ${selectedStudent.guardian_cpf}`, margin, y);
+        doc.setFontSize(8);
+        doc.text('VALOR RECEBIDO', margin + 7, y + 7);
+
+        doc.setTextColor(...navy);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(22);
+        doc.text(`R$ ${value.toFixed(2).replace('.', ',')}`, margin + 7, y + 17);
+
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(8);
+        doc.setTextColor(...muted);
+        const wordsText = `(${valueToWords(value)})`;
+        const wordsLines = doc.splitTextToSize(wordsText, 80);
+        doc.text(wordsLines, pageW - margin - 4, y + 12, { align: 'right' });
+
+        y += 32;
+
+        // ===== TWO-COLUMN PARTIES =====
+        const colW = (pageW - 2 * margin - 6) / 2;
+        const drawParty = (x: number, label: string, lines: string[]) => {
+          doc.setTextColor(...gold);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          doc.text(label, x, y);
+          doc.setDrawColor(...gold);
+          doc.setLineWidth(0.3);
+          doc.line(x, y + 1.5, x + 18, y + 1.5);
+
+          let ly = y + 7;
+          doc.setTextColor(...ink);
+          lines.forEach((line, idx) => {
+            if (idx === 0) {
+              doc.setFont('helvetica', 'bold');
+              doc.setFontSize(10);
+            } else {
+              doc.setFont('helvetica', 'normal');
+              doc.setFontSize(8.5);
+              doc.setTextColor(...muted);
+            }
+            const wrapped = doc.splitTextToSize(line, colW);
+            doc.text(wrapped, x, ly);
+            ly += wrapped.length * 4.2 + 1;
+          });
+          return ly;
+        };
+
+        const yLeft = drawParty(margin, 'RECEBEDOR', [
+          config.school_name,
+          `CNPJ ${config.school_cnpj}`,
+          config.school_address,
+        ]);
+        const yRight = drawParty(margin + colW + 6, 'PAGADOR', [
+          selectedStudent.guardian_name,
+          `CPF ${selectedStudent.guardian_cpf}`,
+          'Responsável financeiro',
+        ]);
+
+        y = Math.max(yLeft, yRight) + 6;
+
+        // Divider
+        doc.setDrawColor(220, 220, 225);
+        doc.setLineWidth(0.2);
+        doc.line(margin, y, pageW - margin, y);
         y += 8;
 
-        // Student
+        // Student / Reference card
+        doc.setTextColor(...gold);
         doc.setFont('helvetica', 'bold');
-        doc.text('ALUNO BENEFICIÁRIO:', margin, y);
-        y += 5;
-        doc.setFont('helvetica', 'normal');
-        doc.text(selectedStudent.name, margin, y);
-        y += 10;
+        doc.setFontSize(7);
+        doc.text('REFERENTE A', margin, y);
+        doc.line(margin, y + 1.5, margin + 18, y + 1.5);
+        y += 7;
 
-        // Body
-        doc.setFont('helvetica', 'bold');
-        doc.text('DECLARAÇÃO:', margin, y);
-        y += 6;
+        doc.setTextColor(...muted);
         doc.setFont('helvetica', 'normal');
-        const valueWords = valueToWords(value);
-        const body = `Recebemos de ${selectedStudent.guardian_name}, CPF nº ${selectedStudent.guardian_cpf}, a importância de R$ ${value.toFixed(2).replace('.', ',')} (${valueWords}), referente ao pagamento da mensalidade escolar do(a) aluno(a) ${selectedStudent.name}, relativa ao mês de ${MONTHS[monthIdx]} de ${yearNum}.`;
+        doc.setFontSize(8);
+        doc.text('Aluno(a)', margin, y);
+        doc.text('Competência', margin + colW + 6, y);
+        y += 5;
+        doc.setTextColor(...ink);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text(selectedStudent.name, margin, y);
+        doc.text(`${MONTHS[monthIdx]} / ${yearNum}`, margin + colW + 6, y);
+        y += 12;
+
+        // ===== DECLARATION =====
+        doc.setTextColor(...ink);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9.5);
+        const body = `Declaramos, para os devidos fins, ter recebido de ${selectedStudent.guardian_name}, inscrito(a) no CPF sob o nº ${selectedStudent.guardian_cpf}, a importância de R$ ${value.toFixed(2).replace('.', ',')} (${valueToWords(value)}), referente ao pagamento da mensalidade escolar do(a) aluno(a) ${selectedStudent.name}, relativa ao mês de ${MONTHS[monthIdx]} de ${yearNum}.`;
         const bodyLines = doc.splitTextToSize(body, pageW - 2 * margin);
         doc.text(bodyLines, margin, y, { align: 'justify', maxWidth: pageW - 2 * margin });
-        y += bodyLines.length * 5 + 6;
+        y += bodyLines.length * 5 + 4;
 
-        const note = 'Este recibo é emitido para fins de comprovação junto à Receita Federal, conforme legislação vigente do Imposto de Renda.';
+        doc.setFontSize(8.5);
+        doc.setTextColor(...muted);
+        const note = 'Para clareza e validade, firmamos o presente recibo, emitido para fins de comprovação de despesas com instrução junto à Receita Federal do Brasil, nos termos da legislação vigente do Imposto de Renda.';
         const noteLines = doc.splitTextToSize(note, pageW - 2 * margin);
-        doc.text(noteLines, margin, y);
-        y += noteLines.length * 5 + 18;
+        doc.text(noteLines, margin, y, { align: 'justify', maxWidth: pageW - 2 * margin });
+        y += noteLines.length * 4.5 + 14;
 
-        // Date and signature
-        const cityName = city || 'Local';
-        doc.text(`${cityName}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.`, margin, y);
-        y += 25;
+        // City + date
+        const cityName = city || '________________';
+        doc.setTextColor(...ink);
+        doc.setFontSize(9.5);
+        doc.text(`${cityName}, ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}.`, pageW / 2, y, { align: 'center' });
+        y += 22;
 
-        // Signature
-        const sigW = 70;
+        // ===== SIGNATURE =====
+        const sigW = 75;
         const sigX = (pageW - sigW) / 2;
         if (signatureDataUrl) {
           try {
-            doc.addImage(signatureDataUrl, 'PNG', sigX, y - 22, sigW, 20);
+            doc.addImage(signatureDataUrl, 'PNG', sigX, y - 20, sigW, 18);
           } catch {}
         }
+        doc.setDrawColor(...ink);
+        doc.setLineWidth(0.3);
         doc.line(sigX, y, sigX + sigW, y);
-        y += 5;
+        y += 4.5;
         doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(...ink);
         doc.text(config.representative_name || config.school_name, pageW / 2, y, { align: 'center' });
-        y += 4;
+        y += 3.8;
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        doc.text(`${config.school_name} - CNPJ: ${config.school_cnpj}`, pageW / 2, y, { align: 'center' });
+        doc.setFontSize(7.5);
+        doc.setTextColor(...muted);
+        doc.text(`${config.school_name} • CNPJ ${config.school_cnpj}`, pageW / 2, y, { align: 'center' });
+
+        // ===== FOOTER =====
+        doc.setFillColor(...navy);
+        doc.rect(0, pageH - 14, pageW, 14, 'F');
+        doc.setFillColor(...gold);
+        doc.rect(0, pageH - 15.2, pageW, 1.2, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(systemName, margin, pageH - 6);
+        doc.setTextColor(...gold);
+        doc.text(`Recibo ${i + 1} de ${months.length}`, pageW / 2, pageH - 6, { align: 'center' });
+        doc.setTextColor(220, 220, 230);
+        doc.text(`Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`, pageW - margin, pageH - 6, { align: 'right' });
       });
 
       const fileName = `Recibos_${selectedStudent.name.replace(/\s+/g, '_')}_${yearNum}.pdf`;
