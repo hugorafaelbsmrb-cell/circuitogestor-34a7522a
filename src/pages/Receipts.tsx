@@ -334,8 +334,8 @@ export default function Receipts() {
           config.school_address,
         ]);
         const yRight = drawParty(margin + colW + 6, 'PAGADOR', [
-          selectedStudent.guardian_name,
-          `CPF ${selectedStudent.guardian_cpf}`,
+          payerName,
+          `CPF ${payerCpf}`,
           'Responsável financeiro',
         ]);
 
