@@ -103,6 +103,7 @@ const menuSections: MenuSection[] = [
       { icon: FileText, label: 'Contratos', path: '/contratos', permissionKey: 'contracts', adminOnly: false },
       { icon: Percent, label: 'Descontos', path: '/descontos', permissionKey: 'discounts', adminOnly: false },
       { icon: TrendingUp, label: 'Antecipação', path: '/antecipacao', permissionKey: 'financial', adminOnly: true },
+      { icon: Receipt, label: 'Recibos IR', path: '/recibos-ir', permissionKey: 'financial', adminOnly: false },
     ]
   },
   {
