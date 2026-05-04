@@ -219,12 +219,12 @@ export default function Receipts() {
       const months = Array.from(selectedMonths).sort((a,b) => a-b);
       const yearNum = parseInt(year);
 
-      // Brand palette (deep navy + warm gold)
-      const navy: [number, number, number] = [22, 38, 66];
-      const gold: [number, number, number] = [184, 145, 73];
-      const ink: [number, number, number] = [40, 45, 58];
-      const muted: [number, number, number] = [120, 125, 138];
-      const soft: [number, number, number] = [245, 242, 235];
+      // System brand palette (orange primary + warm neutrals)
+      const navy: [number, number, number] = [28, 25, 23];      // deep neutral (foreground)
+      const gold: [number, number, number] = [247, 115, 22];    // primary orange
+      const ink: [number, number, number] = [41, 37, 36];       // text
+      const muted: [number, number, number] = [120, 113, 108];  // muted-foreground
+      const soft: [number, number, number] = [253, 240, 230];   // primary-muted/cream
 
       months.forEach((monthIdx, i) => {
         if (i > 0) doc.addPage();
