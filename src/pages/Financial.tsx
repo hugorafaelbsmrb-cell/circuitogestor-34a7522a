@@ -392,15 +392,14 @@ export default function Financial() {
       return dueDate >= currentMonthStart && dueDate <= currentMonthEnd;
     });
 
-    // Paid this month
-    const paidThisMonth = payments.filter(p => {
-      if (!p.payment_date) return false;
-      const paymentDate = parseISO(p.payment_date);
-      return paymentDate >= currentMonthStart && paymentDate <= currentMonthEnd;
-    });
-
-    // Paid statuses that should be excluded from overdue
+    // Paid statuses
     const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
+
+    // Boletos do mês que já foram pagos (mesma base da previsão)
+    const paidThisMonth = monthPayments.filter(p => paidStatuses.includes(p.status));
+
+    // Boletos do mês ainda pendentes (não pagos)
+    const pendingThisMonth = monthPayments.filter(p => !paidStatuses.includes(p.status));
 
     // Overdue today
     const overdueToday = payments.filter(p => {
@@ -414,14 +413,12 @@ export default function Financial() {
       return isBefore(dueDate, today) && !paidStatuses.includes(p.status);
     });
 
-    // Pending this month
-    const pendingThisMonth = monthPayments.filter(p => 
-      p.status === 'PENDING' || p.status === 'OVERDUE'
-    );
-
-    // Monthly forecast (expected for current month)
+    // Previsão = total de boletos com vencimento neste mês
     const monthlyForecast = monthPayments.reduce((sum, p) => sum + p.value, 0);
+    // Recebido = boletos do mês já pagos
     const monthlyReceived = paidThisMonth.reduce((sum, p) => sum + p.value, 0);
+    // Pendente = boletos do mês ainda em aberto
+    const monthlyPending = pendingThisMonth.reduce((sum, p) => sum + p.value, 0);
 
     return {
       monthPayments,
@@ -431,6 +428,7 @@ export default function Financial() {
       pendingThisMonth,
       monthlyForecast,
       monthlyReceived,
+      monthlyPending,
       overdueTotal: allOverdue.reduce((sum, p) => sum + p.value, 0),
     };
   }, [payments, today, currentMonthStart, currentMonthEnd]);
