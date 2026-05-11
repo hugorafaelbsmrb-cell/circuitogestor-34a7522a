@@ -685,7 +685,7 @@ export default function Financial() {
             <div className="flex items-start justify-between">
               <div className="space-y-0.5 lg:space-y-1 min-w-0">
                 <p className="text-xs lg:text-sm text-muted-foreground truncate">Pendente no Mês</p>
-                <p className="text-lg lg:text-2xl font-bold text-yellow-600">{formatCurrency(metrics.monthlyForecast - metrics.monthlyReceived)}</p>
+                <p className="text-lg lg:text-2xl font-bold text-yellow-600">{formatCurrency(metrics.monthlyPending)}</p>
                 <p className="text-xs text-muted-foreground hidden sm:block">{metrics.pendingThisMonth.length} aguardando</p>
               </div>
               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0">
