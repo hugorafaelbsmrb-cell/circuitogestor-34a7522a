@@ -392,15 +392,14 @@ export default function Financial() {
       return dueDate >= currentMonthStart && dueDate <= currentMonthEnd;
     });
 
-    // Paid this month
-    const paidThisMonth = payments.filter(p => {
-      if (!p.payment_date) return false;
-      const paymentDate = parseISO(p.payment_date);
-      return paymentDate >= currentMonthStart && paymentDate <= currentMonthEnd;
-    });
-
-    // Paid statuses that should be excluded from overdue
+    // Paid statuses
     const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
+
+    // Boletos do mês que já foram pagos (mesma base da previsão)
+    const paidThisMonth = monthPayments.filter(p => paidStatuses.includes(p.status));
+
+    // Boletos do mês ainda pendentes (não pagos)
+    const pendingThisMonth = monthPayments.filter(p => !paidStatuses.includes(p.status));
 
     // Overdue today
     const overdueToday = payments.filter(p => {
@@ -414,14 +413,12 @@ export default function Financial() {
       return isBefore(dueDate, today) && !paidStatuses.includes(p.status);
     });
 
-    // Pending this month
-    const pendingThisMonth = monthPayments.filter(p => 
-      p.status === 'PENDING' || p.status === 'OVERDUE'
-    );
-
-    // Monthly forecast (expected for current month)
+    // Previsão = total de boletos com vencimento neste mês
     const monthlyForecast = monthPayments.reduce((sum, p) => sum + p.value, 0);
+    // Recebido = boletos do mês já pagos
     const monthlyReceived = paidThisMonth.reduce((sum, p) => sum + p.value, 0);
+    // Pendente = boletos do mês ainda em aberto
+    const monthlyPending = pendingThisMonth.reduce((sum, p) => sum + p.value, 0);
 
     return {
       monthPayments,
@@ -431,6 +428,7 @@ export default function Financial() {
       pendingThisMonth,
       monthlyForecast,
       monthlyReceived,
+      monthlyPending,
       overdueTotal: allOverdue.reduce((sum, p) => sum + p.value, 0),
     };
   }, [payments, today, currentMonthStart, currentMonthEnd]);
@@ -687,7 +685,7 @@ export default function Financial() {
             <div className="flex items-start justify-between">
               <div className="space-y-0.5 lg:space-y-1 min-w-0">
                 <p className="text-xs lg:text-sm text-muted-foreground truncate">Pendente no Mês</p>
-                <p className="text-lg lg:text-2xl font-bold text-yellow-600">{formatCurrency(metrics.monthlyForecast - metrics.monthlyReceived)}</p>
+                <p className="text-lg lg:text-2xl font-bold text-yellow-600">{formatCurrency(metrics.monthlyPending)}</p>
                 <p className="text-xs text-muted-foreground hidden sm:block">{metrics.pendingThisMonth.length} aguardando</p>
               </div>
               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0">
