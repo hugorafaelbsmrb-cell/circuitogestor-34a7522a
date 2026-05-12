@@ -98,6 +98,12 @@ export default function Reports() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
+  // Financial report state
+  const [financialPayments, setFinancialPayments] = useState<FinancialPayment[]>([]);
+  const [isLoadingFinancial, setIsLoadingFinancial] = useState(false);
+  const [finStartDate, setFinStartDate] = useState<string>(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [finEndDate, setFinEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+
   // Calculate age helper
   const calculateAge = (birthDate: string): number => {
     const today = new Date();
@@ -109,6 +115,49 @@ export default function Reports() {
     }
     return age;
   };
+
+  const fetchFinancial = async () => {
+    setIsLoadingFinancial(true);
+    const { data: pays } = await supabase
+      .from('payments')
+      .select('id, guardian_id, value, status, due_date, payment_date, description, billing_type')
+      .or(`and(payment_date.gte.${finStartDate},payment_date.lte.${finEndDate}),and(due_date.gte.${finStartDate},due_date.lte.${finEndDate})`)
+      .order('due_date', { ascending: true });
+    
+    const guardianMap = new Map(guardians.map(g => [g.id, g.name]));
+    const enriched = (pays || []).map((p: any) => ({
+      ...p,
+      guardian_name: guardianMap.get(p.guardian_id) || '—',
+    }));
+    setFinancialPayments(enriched);
+    setIsLoadingFinancial(false);
+  };
+
+  useEffect(() => {
+    if (selectedReport === 'financial') fetchFinancial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedReport, finStartDate, finEndDate]);
+
+  const financialBuckets = useMemo(() => {
+    const received = financialPayments.filter(p =>
+      PAID_STATUSES.has(p.status) && p.payment_date &&
+      p.payment_date >= finStartDate && p.payment_date <= finEndDate
+    );
+    const toPay = financialPayments.filter(p =>
+      !PAID_STATUSES.has(p.status) &&
+      p.due_date >= finStartDate && p.due_date <= finEndDate
+    );
+    return {
+      received,
+      toPay,
+      receivedTotal: received.reduce((s, p) => s + Number(p.value), 0),
+      toPayTotal: toPay.reduce((s, p) => s + Number(p.value), 0),
+    };
+  }, [financialPayments, finStartDate, finEndDate]);
+
+  const fmtBRL = (v: number) =>
+    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmtDate = (d?: string | null) => (d ? format(parseISO(d), 'dd/MM/yyyy') : '—');
 
   useEffect(() => {
     fetchLeads();
