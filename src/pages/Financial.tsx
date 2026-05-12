@@ -678,8 +678,8 @@ export default function Financial() {
             <div className="flex items-start justify-between">
               <div className="space-y-0.5 lg:space-y-1 min-w-0">
                 <p className="text-xs lg:text-sm text-muted-foreground truncate">Previsão do Mês</p>
-                <p className="text-lg lg:text-2xl font-bold">{formatCurrency(metrics.monthlyForecast)}</p>
-                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.monthPayments.length} mensalidades</p>
+                <p className="text-lg lg:text-2xl font-bold">{formatCurrency(overviewMetrics.forecastAmount)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{overviewMetrics.forecastInstallments} mensalidades</p>
               </div>
               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                 <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5 text-primary" />
@@ -693,8 +693,8 @@ export default function Financial() {
             <div className="flex items-start justify-between">
               <div className="space-y-0.5 lg:space-y-1 min-w-0">
                 <p className="text-xs lg:text-sm text-muted-foreground truncate">Recebido no Mês</p>
-                <p className="text-lg lg:text-2xl font-bold text-green-600">{formatCurrency(metrics.monthlyReceived)}</p>
-                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.paidThisMonth.length} pagamentos</p>
+                <p className="text-lg lg:text-2xl font-bold text-green-600">{formatCurrency(overviewMetrics.receivedAmount)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{overviewMetrics.receivedPayments.length} pagamentos</p>
               </div>
               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 text-green-500" />
@@ -708,8 +708,8 @@ export default function Financial() {
             <div className="flex items-start justify-between">
               <div className="space-y-0.5 lg:space-y-1 min-w-0">
                 <p className="text-xs lg:text-sm text-muted-foreground truncate">Pendente no Mês</p>
-                <p className="text-lg lg:text-2xl font-bold text-yellow-600">{formatCurrency(metrics.monthlyPending)}</p>
-                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.pendingThisMonth.length} aguardando</p>
+                <p className="text-lg lg:text-2xl font-bold text-yellow-600">{formatCurrency(overviewMetrics.pendingAmount)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{overviewMetrics.remainingInstallments} aguardando</p>
               </div>
               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0">
                 <Clock className="w-4 h-4 lg:w-5 lg:h-5 text-yellow-500" />
