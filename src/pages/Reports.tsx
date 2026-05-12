@@ -614,6 +614,148 @@ export default function Reports() {
       );
     }
 
+    if (selectedReport === 'financial') {
+      const { received, toPay, receivedTotal, toPayTotal } = financialBuckets;
+      return (
+        <div className="space-y-6">
+          {/* Filtros e ações */}
+          <div className="flex flex-wrap items-end gap-4 p-4 bg-secondary/30 rounded-lg">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Data inicial</label>
+              <input
+                type="date"
+                value={finStartDate}
+                onChange={(e) => setFinStartDate(e.target.value)}
+                className="h-10 px-3 border rounded-md bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Data final</label>
+              <input
+                type="date"
+                value={finEndDate}
+                onChange={(e) => setFinEndDate(e.target.value)}
+                className="h-10 px-3 border rounded-md bg-background"
+              />
+            </div>
+            <Button
+              onClick={handleExportCSV}
+              disabled={isGenerating || isLoadingFinancial || (received.length === 0 && toPay.length === 0)}
+              size="sm"
+              className="gap-2 ml-auto"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Exportar CSV
+            </Button>
+          </div>
+
+          {/* Totais */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Recebido no período</CardDescription>
+                <CardTitle className="text-2xl text-green-600">{fmtBRL(receivedTotal)}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{received.length} pagamento(s)</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>A pagar / em aberto</CardDescription>
+                <CardTitle className="text-2xl text-amber-600">{fmtBRL(toPayTotal)}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{toPay.length} cobrança(s)</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {isLoadingFinancial && (
+            <div className="text-center py-8 text-muted-foreground">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+            </div>
+          )}
+
+          {/* Recebidos */}
+          {!isLoadingFinancial && (
+            <div>
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-green-600" />
+                Recebido ({received.length})
+              </h3>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Pagto</TableHead>
+                      <TableHead>Vencto</TableHead>
+                      <TableHead>Responsável</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Forma</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {received.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Nenhum recebimento no período</TableCell></TableRow>
+                    ) : received.map(p => (
+                      <TableRow key={p.id}>
+                        <TableCell>{fmtDate(p.payment_date)}</TableCell>
+                        <TableCell>{fmtDate(p.due_date)}</TableCell>
+                        <TableCell>{p.guardian_name}</TableCell>
+                        <TableCell className="max-w-xs truncate">{p.description}</TableCell>
+                        <TableCell><Badge variant="outline">{BILLING_LABELS[p.billing_type || 'UNDEFINED'] || p.billing_type || '—'}</Badge></TableCell>
+                        <TableCell className="text-right font-medium">{fmtBRL(Number(p.value))}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {/* A pagar */}
+          {!isLoadingFinancial && (
+            <div>
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-amber-600" />
+                A Pagar / Em Aberto ({toPay.length})
+              </h3>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Vencto</TableHead>
+                      <TableHead>Responsável</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Forma</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {toPay.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Nenhuma cobrança em aberto no período</TableCell></TableRow>
+                    ) : toPay.map(p => (
+                      <TableRow key={p.id}>
+                        <TableCell>{fmtDate(p.due_date)}</TableCell>
+                        <TableCell>{p.guardian_name}</TableCell>
+                        <TableCell className="max-w-xs truncate">{p.description}</TableCell>
+                        <TableCell><Badge variant="outline">{BILLING_LABELS[p.billing_type || 'UNDEFINED'] || p.billing_type || '—'}</Badge></TableCell>
+                        <TableCell><Badge variant={p.status === 'OVERDUE' ? 'destructive' : 'secondary'}>{p.status}</Badge></TableCell>
+                        <TableCell className="text-right font-medium">{fmtBRL(Number(p.value))}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return null;
   };
 
