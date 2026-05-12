@@ -722,7 +722,7 @@ export default function Financial() {
           </Button>
           <Button variant="outline" size="sm" onClick={syncPaymentsWithAsaas} disabled={isSyncing || isLoading} className="gap-2 flex-1 sm:flex-none">
             <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
-            <span className="hidden sm:inline">Sincronizar Asaas</span>
+            <span className="hidden sm:inline">Conciliar com Asaas</span>
           </Button>
           <Button variant="outline" size="sm" onClick={fetchPayments} disabled={isLoading} className="gap-2 flex-1 sm:flex-none">
             <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
