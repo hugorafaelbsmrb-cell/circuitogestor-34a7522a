@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText, Printer, Filter, HandCoins, Loader2, QrCode, Plus } from 'lucide-react';
+import { Wallet, TrendingUp, Calendar, AlertTriangle, CheckCircle2, Clock, Users, CalendarDays, Download, RefreshCw, ExternalLink, FileText, Printer, Filter, HandCoins, Loader2, QrCode, Plus, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -70,6 +70,10 @@ export default function Financial() {
   // Create Boleto Modal state
   const [createBoletoModalOpen, setCreateBoletoModalOpen] = useState(false);
   
+  // Overdue reminder state
+  const [isSendingReminders, setIsSendingReminders] = useState(false);
+  const [confirmRemindersOpen, setConfirmRemindersOpen] = useState(false);
+  
   // Debtors filter state
   const [debtorPeriodFilter, setDebtorPeriodFilter] = useState('all');
   const [debtorStartDate, setDebtorStartDate] = useState('');
@@ -124,6 +128,27 @@ export default function Financial() {
   };
 
   // Sync payment statuses with Asaas API
+  const handleSendOverdueReminders = async () => {
+    setConfirmRemindersOpen(false);
+    setIsSendingReminders(true);
+    const totalOverdue = overviewMetrics?.overdueCount ?? 0;
+    const estSeconds = Math.max(0, (totalOverdue - 1) * 5);
+    toast.info(
+      `Enviando lembretes para ${totalOverdue} vencidos (intervalo de 5s). Tempo estimado: ~${Math.ceil(estSeconds / 60)} min.`,
+      { duration: 8000 }
+    );
+    try {
+      const { data, error } = await supabase.functions.invoke('send-overdue-reminders');
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Lembretes enviados: ${data?.sent ?? 0} de ${data?.total ?? 0}${data?.failed ? ` (${data.failed} falhas)` : ''}`);
+    } catch (e: any) {
+      toast.error(`Erro ao enviar lembretes: ${e.message ?? e}`);
+    } finally {
+      setIsSendingReminders(false);
+    }
+  };
+
   const syncPaymentsWithAsaas = async () => {
     setIsSyncing(true);
     try {
@@ -661,6 +686,18 @@ export default function Financial() {
           <Button onClick={() => setCreateBoletoModalOpen(true)} size="sm" className="gap-2 flex-1 sm:flex-none">
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Boleto Avulso</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmRemindersOpen(true)}
+            disabled={isSendingReminders || isLoading || (overviewMetrics?.overdueCount ?? 0) === 0}
+            className="gap-2 flex-1 sm:flex-none border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            {isSendingReminders ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+            <span className="hidden sm:inline">
+              Lembrar Vencidos{overviewMetrics?.overdueCount ? ` (${overviewMetrics.overdueCount})` : ''}
+            </span>
           </Button>
           <Button variant="outline" size="sm" onClick={syncPaymentsWithAsaas} disabled={isSyncing || isLoading} className="gap-2 flex-1 sm:flex-none">
             <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
@@ -1374,6 +1411,30 @@ export default function Financial() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmActionExecute}>
               {confirmAction?.type === 'confirm' ? 'Confirmar Pagamento' : 'Dar Baixa'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRemindersOpen} onOpenChange={setConfirmRemindersOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enviar lembretes de vencimento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Será enviada uma mensagem de WhatsApp (template <strong>payment_overdue</strong>) para os responsáveis de
+              <strong> {overviewMetrics?.overdueCount ?? 0} </strong> cobranças vencidas.
+              <br />
+              O envio é feito com intervalo de 5 segundos entre cada mensagem
+              {overviewMetrics?.overdueCount
+                ? ` (tempo estimado: ~${Math.ceil(((overviewMetrics.overdueCount - 1) * 5) / 60)} min)`
+                : ''}.
+              Mantenha esta aba aberta até a confirmação.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSendOverdueReminders}>
+              Enviar agora
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
