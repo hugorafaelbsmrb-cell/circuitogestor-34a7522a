@@ -128,6 +128,27 @@ export default function Financial() {
   };
 
   // Sync payment statuses with Asaas API
+  const handleSendOverdueReminders = async () => {
+    setConfirmRemindersOpen(false);
+    setIsSendingReminders(true);
+    const totalOverdue = overviewMetrics?.overdueCount ?? 0;
+    const estSeconds = Math.max(0, (totalOverdue - 1) * 5);
+    toast.info(
+      `Enviando lembretes para ${totalOverdue} vencidos (intervalo de 5s). Tempo estimado: ~${Math.ceil(estSeconds / 60)} min.`,
+      { duration: 8000 }
+    );
+    try {
+      const { data, error } = await supabase.functions.invoke('send-overdue-reminders');
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Lembretes enviados: ${data?.sent ?? 0} de ${data?.total ?? 0}${data?.failed ? ` (${data.failed} falhas)` : ''}`);
+    } catch (e: any) {
+      toast.error(`Erro ao enviar lembretes: ${e.message ?? e}`);
+    } finally {
+      setIsSendingReminders(false);
+    }
+  };
+
   const syncPaymentsWithAsaas = async () => {
     setIsSyncing(true);
     try {
