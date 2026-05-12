@@ -209,6 +209,7 @@ async function processPaymentEvent(supabaseUrl: string, supabaseKey: string, eve
       .update({
         asaas_payment_id: payment.id,
         status,
+        value: payment.value,
         payment_date: payment.paymentDate || null,
         invoice_url: payment.invoiceUrl,
         bank_slip_url: payment.bankSlipUrl,
@@ -231,16 +232,50 @@ async function processPaymentEvent(supabaseUrl: string, supabaseKey: string, eve
       
       if (guardian) {
         await sendPaymentConfirmationWhatsApp(
-          supabase,
-          supabaseUrl,
-          supabaseKey,
-          guardian.id,
-          guardian.name,
-          guardian.phone,
-          payment.value,
-          payment.paymentDate || new Date().toISOString()
+          supabase, supabaseUrl, supabaseKey,
+          guardian.id, guardian.name, guardian.phone,
+          payment.value, payment.paymentDate || new Date().toISOString()
         );
       }
+    }
+  } else {
+    // Auto-create payment record when not found in system (PIX automáticos do Asaas)
+    // Link by asaas_customer_id
+    const { data: guardian } = await supabase
+      .from("guardians")
+      .select("id, name, phone")
+      .eq("asaas_customer_id", payment.customer)
+      .maybeSingle();
+    
+    if (guardian) {
+      const { error: insertError } = await supabase.from("payments").insert({
+        guardian_id: guardian.id,
+        asaas_payment_id: payment.id,
+        description: payment.description || "Cobrança Asaas (importação automática)",
+        value: payment.value,
+        due_date: payment.dueDate,
+        payment_date: payment.paymentDate || null,
+        status,
+        billing_type: payment.billingType,
+        invoice_url: payment.invoiceUrl,
+        bank_slip_url: payment.bankSlipUrl,
+      });
+      
+      if (insertError) {
+        console.error(`Failed to auto-create payment ${payment.id}:`, insertError);
+      } else {
+        console.log(`✅ Auto-created payment ${payment.id} for guardian ${guardian.name}`);
+        
+        if (["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(status)) {
+          await sendPaymentConfirmationWhatsApp(
+            supabase, supabaseUrl, supabaseKey,
+            guardian.id, guardian.name, guardian.phone,
+            payment.value, payment.paymentDate || new Date().toISOString()
+          );
+        }
+      }
+    } else {
+      console.warn(`⚠️ Payment ${payment.id} - cliente Asaas ${payment.customer} não corresponde a nenhum responsável no sistema`);
     }
   }
   
