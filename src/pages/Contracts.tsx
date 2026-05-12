@@ -219,6 +219,46 @@ export default function Contracts() {
       });
     }
   };
+
+  // Bulk send signature links to all unsigned active enrollments
+  const [isBulkSending, setIsBulkSending] = useState(false);
+  const handleBulkSendUnsigned = async () => {
+    const pending = enrollments.filter(e => 
+      e.contract_generated && 
+      e.status === 'active' && 
+      !isContractSigned(e.id) &&
+      getSignatureLink(e.id)
+    );
+
+    if (pending.length === 0) {
+      toast({ title: 'Nenhum contrato pendente', description: 'Todos os contratos ativos já foram assinados.' });
+      return;
+    }
+
+    if (!confirm(`Enviar link de assinatura para ${pending.length} responsável(is) via WhatsApp?`)) return;
+
+    setIsBulkSending(true);
+    let sent = 0;
+    let failed = 0;
+
+    for (const enrollment of pending) {
+      try {
+        await handleSendSignatureLinkWhatsApp(enrollment);
+        sent++;
+      } catch {
+        failed++;
+      }
+      // 3.5s delay between messages
+      await new Promise(r => setTimeout(r, 3500));
+    }
+
+    setIsBulkSending(false);
+    toast({
+      title: 'Envio em massa concluído',
+      description: `${sent} enviado(s)${failed > 0 ? `, ${failed} falharam` : ''}.`,
+    });
+  };
+
   // Open signature modal
   const handleOpenSignatureModal = (enrollment: typeof enrollments[0]) => {
     const contract = getContractForEnrollment(enrollment.id);
