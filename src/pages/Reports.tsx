@@ -24,7 +24,8 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   generateStudentsReportPDF, 
   generateBirthdaysReportPDF, 
-  generateLeadsReportPDF 
+  generateLeadsReportPDF,
+  generateFinancialReportPDF
 } from '@/utils/pdfGenerator';
 
 type ReportType = 'students' | 'birthdays' | 'leads' | 'financial' | null;
