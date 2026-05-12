@@ -24,7 +24,8 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   generateStudentsReportPDF, 
   generateBirthdaysReportPDF, 
-  generateLeadsReportPDF 
+  generateLeadsReportPDF,
+  generateFinancialReportPDF
 } from '@/utils/pdfGenerator';
 
 type ReportType = 'students' | 'birthdays' | 'leads' | 'financial' | null;
@@ -333,6 +334,10 @@ export default function Reports() {
         const data = getLeadsReport();
         doc = generateLeadsReportPDF(data);
         filename = `relatorio_leads_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      } else if (selectedReport === 'financial') {
+        const { received, toPay } = financialBuckets;
+        doc = generateFinancialReportPDF(received, toPay, finStartDate, finEndDate);
+        filename = `conferencia_financeira_${finStartDate}_a_${finEndDate}.pdf`;
       }
       
       if (doc) {
