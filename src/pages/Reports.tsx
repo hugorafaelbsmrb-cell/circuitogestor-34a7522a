@@ -193,6 +193,13 @@ export default function Reports() {
       icon: UserCheck,
       color: 'bg-green-500/10 text-green-500',
     },
+    {
+      id: 'financial' as const,
+      title: 'Recebido e A Pagar',
+      description: 'Conferência manual: pagamentos recebidos e em aberto no período',
+      icon: DollarSign,
+      color: 'bg-amber-500/10 text-amber-500',
+    },
   ];
 
   const getStudentsReport = () => {
