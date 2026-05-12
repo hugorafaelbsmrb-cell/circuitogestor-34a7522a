@@ -702,7 +702,7 @@ export function generateFinancialReportPDF(
     body: received.map(p => [
       safeDate(p.payment_date),
       safeDate(p.due_date),
-      p.guardian_name,
+      p.guardian_name || "—",
       p.description,
       BILLING_LABELS_PDF[p.billing_type || 'UNDEFINED'] || p.billing_type || '—',
       fmtBRL(Number(p.value || 0)),
@@ -739,7 +739,7 @@ export function generateFinancialReportPDF(
     head: [['Vencimento', 'Responsável', 'Descrição', 'Forma', 'Status', 'Valor']],
     body: toPay.map(p => [
       safeDate(p.due_date),
-      p.guardian_name,
+      p.guardian_name || "—",
       p.description,
       BILLING_LABELS_PDF[p.billing_type || 'UNDEFINED'] || p.billing_type || '—',
       p.status,
