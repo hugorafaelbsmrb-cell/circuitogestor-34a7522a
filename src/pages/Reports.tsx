@@ -287,6 +287,20 @@ export default function Reports() {
         csvContent += `"${row.name}","${row.phone}","${row.email || ''}","${row.course?.name || ''}","${leadStatusLabels[row.status] || row.status}","${format(parseISO(row.created_at), 'dd/MM/yyyy')}"\n`;
       });
       filename = `relatorio_leads_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    } else if (selectedReport === 'financial') {
+      const { received, toPay, receivedTotal, toPayTotal } = financialBuckets;
+      csvContent = `Conferência Financeira — ${fmtDate(finStartDate)} a ${fmtDate(finEndDate)}\n\n`;
+      csvContent += `=== RECEBIDO (${received.length}) — Total: ${fmtBRL(receivedTotal)} ===\n`;
+      csvContent += 'Data Pagamento,Vencimento,Responsável,Descrição,Forma,Valor,Status\n';
+      received.forEach(p => {
+        csvContent += `"${fmtDate(p.payment_date)}","${fmtDate(p.due_date)}","${p.guardian_name}","${p.description.replace(/"/g, "'")}","${BILLING_LABELS[p.billing_type || 'UNDEFINED'] || p.billing_type || '—'}","${Number(p.value).toFixed(2).replace('.', ',')}","${p.status}"\n`;
+      });
+      csvContent += `\n=== A PAGAR / EM ABERTO (${toPay.length}) — Total: ${fmtBRL(toPayTotal)} ===\n`;
+      csvContent += 'Vencimento,Responsável,Descrição,Forma,Valor,Status\n';
+      toPay.forEach(p => {
+        csvContent += `"${fmtDate(p.due_date)}","${p.guardian_name}","${p.description.replace(/"/g, "'")}","${BILLING_LABELS[p.billing_type || 'UNDEFINED'] || p.billing_type || '—'}","${Number(p.value).toFixed(2).replace('.', ',')}","${p.status}"\n`;
+      });
+      filename = `conferencia_financeira_${finStartDate}_a_${finEndDate}.csv`;
     }
 
     // Create and download CSV
