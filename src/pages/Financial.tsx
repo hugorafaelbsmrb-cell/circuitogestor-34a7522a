@@ -70,6 +70,10 @@ export default function Financial() {
   // Create Boleto Modal state
   const [createBoletoModalOpen, setCreateBoletoModalOpen] = useState(false);
   
+  // Overdue reminder state
+  const [isSendingReminders, setIsSendingReminders] = useState(false);
+  const [confirmRemindersOpen, setConfirmRemindersOpen] = useState(false);
+  
   // Debtors filter state
   const [debtorPeriodFilter, setDebtorPeriodFilter] = useState('all');
   const [debtorStartDate, setDebtorStartDate] = useState('');
