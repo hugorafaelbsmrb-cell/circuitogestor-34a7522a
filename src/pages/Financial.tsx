@@ -271,6 +271,16 @@ export default function Financial() {
           .eq('id', payment.id);
         
         toast.success('Baixa realizada com sucesso!');
+        
+        // Send WhatsApp confirmation to guardian
+        supabase.functions.invoke('send-payment-confirmation', { body: { payment_id: payment.id } })
+          .then(({ data, error }) => {
+            if (error || data?.error) {
+              console.warn('Falha ao enviar confirmação WhatsApp', error || data?.error);
+            } else if (data?.success) {
+              toast.success('Confirmação enviada ao responsável via WhatsApp');
+            }
+          });
       }
     } catch (error) {
       console.error('Error receiving in cash:', error);
