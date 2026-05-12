@@ -49,7 +49,7 @@ interface PaymentWithGuardian extends Payment {
   guardian_email: string;
 }
 
-const PAID_STATUSES = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'] as const;
+const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
 
 export default function Financial() {
   const { guardians, carnes } = useSchool();
@@ -395,21 +395,21 @@ export default function Financial() {
     });
 
     // Boletos do mês que já foram pagos (mesma base da previsão)
-    const paidThisMonth = monthPayments.filter(p => PAID_STATUSES.includes(p.status));
+    const paidThisMonth = monthPayments.filter(p => PAID_STATUSES.has(p.status));
 
     // Boletos do mês ainda pendentes (não pagos)
-    const pendingThisMonth = monthPayments.filter(p => !PAID_STATUSES.includes(p.status));
+    const pendingThisMonth = monthPayments.filter(p => !PAID_STATUSES.has(p.status));
 
     // Overdue today
     const overdueToday = payments.filter(p => {
       const dueDate = parseISO(p.due_date);
-      return isToday(dueDate) && !PAID_STATUSES.includes(p.status);
+      return isToday(dueDate) && !PAID_STATUSES.has(p.status);
     });
 
     // All overdue (past due date and not paid)
     const allOverdue = payments.filter(p => {
       const dueDate = parseISO(p.due_date);
-      return isBefore(dueDate, today) && !PAID_STATUSES.includes(p.status);
+      return isBefore(dueDate, today) && !PAID_STATUSES.has(p.status);
     });
 
     // Previsão = total de boletos com vencimento neste mês
@@ -436,7 +436,7 @@ export default function Financial() {
     const currentMonthForecast = carneMetrics.monthlyForecast[0];
 
     const receivedPayments = payments.filter(p => {
-      if (!p.payment_date || !PAID_STATUSES.includes(p.status)) return false;
+      if (!p.payment_date || !PAID_STATUSES.has(p.status)) return false;
 
       const paymentDate = parseISO(p.payment_date);
       return paymentDate >= currentMonthStart && paymentDate <= currentMonthEnd;
