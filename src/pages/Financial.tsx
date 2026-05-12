@@ -152,8 +152,9 @@ export default function Financial() {
   const syncPaymentsWithAsaas = async () => {
     setIsSyncing(true);
     try {
+      toast.info('Conciliando pagamentos com Asaas... isso pode levar alguns minutos.');
       const response = await supabase.functions.invoke('asaas-sync-payments', {
-        body: { limit: 20 }
+        body: { mode: 'pending_and_overdue', limit: 0 }
       });
       
       if (response.error) {
@@ -163,16 +164,16 @@ export default function Financial() {
       const data = response.data;
       
       if (data.updated > 0) {
-        toast.success(`${data.updated} pagamentos atualizados!`);
-        await fetchPayments(); // Refresh the list
+        toast.success(`${data.updated} de ${data.total} pagamentos atualizados!`);
+        await fetchPayments();
       } else if (data.errors && data.errors.length > 0) {
-        toast.warning(`Não foi possível sincronizar. Erros de API.`);
+        toast.warning(`${data.total} verificados, nenhuma atualização. ${data.errors.length} erros de API.`);
       } else {
-        toast.info('Todos os pagamentos já estão sincronizados');
+        toast.info(`Todos os ${data.total ?? 0} pagamentos já estão sincronizados`);
       }
     } catch (error) {
       console.error('Error syncing payments:', error);
-      toast.error('Erro ao sincronizar pagamentos com Asaas');
+      toast.error('Erro ao conciliar pagamentos com Asaas');
     } finally {
       setIsSyncing(false);
     }
