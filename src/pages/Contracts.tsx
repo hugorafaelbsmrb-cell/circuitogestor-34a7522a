@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Copy, MessageCircle } from 'lucide-react';
+import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Copy, MessageCircle, Send } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
@@ -219,6 +219,46 @@ export default function Contracts() {
       });
     }
   };
+
+  // Bulk send signature links to all unsigned active enrollments
+  const [isBulkSending, setIsBulkSending] = useState(false);
+  const handleBulkSendUnsigned = async () => {
+    const pending = enrollments.filter(e => 
+      e.contract_generated && 
+      e.status === 'active' && 
+      !isContractSigned(e.id) &&
+      getSignatureLink(e.id)
+    );
+
+    if (pending.length === 0) {
+      toast({ title: 'Nenhum contrato pendente', description: 'Todos os contratos ativos já foram assinados.' });
+      return;
+    }
+
+    if (!confirm(`Enviar link de assinatura para ${pending.length} responsável(is) via WhatsApp?`)) return;
+
+    setIsBulkSending(true);
+    let sent = 0;
+    let failed = 0;
+
+    for (const enrollment of pending) {
+      try {
+        await handleSendSignatureLinkWhatsApp(enrollment);
+        sent++;
+      } catch {
+        failed++;
+      }
+      // 3.5s delay between messages
+      await new Promise(r => setTimeout(r, 3500));
+    }
+
+    setIsBulkSending(false);
+    toast({
+      title: 'Envio em massa concluído',
+      description: `${sent} enviado(s)${failed > 0 ? `, ${failed} falharam` : ''}.`,
+    });
+  };
+
   // Open signature modal
   const handleOpenSignatureModal = (enrollment: typeof enrollments[0]) => {
     const contract = getContractForEnrollment(enrollment.id);
@@ -625,12 +665,23 @@ export default function Contracts() {
           <h1 className="page-title">Contratos</h1>
           <p className="page-subtitle">Contratos gerados das matrículas</p>
         </div>
-        <Link to="/contrato-config">
-          <Button variant="outline" className="gap-2">
-            <Settings className="w-4 h-4" />
-            Configurar Contrato
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleBulkSendUnsigned}
+            disabled={isBulkSending || isSendingWhatsApp}
+          >
+            {isBulkSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Enviar pendentes em massa
           </Button>
-        </Link>
+          <Link to="/contrato-config">
+            <Button variant="outline" className="gap-2">
+              <Settings className="w-4 h-4" />
+              Configurar Contrato
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {contractEnrollments.length > 0 ? (
