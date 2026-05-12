@@ -49,6 +49,8 @@ interface PaymentWithGuardian extends Payment {
   guardian_email: string;
 }
 
+const PAID_STATUSES = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'] as const;
+
 export default function Financial() {
   const { guardians, carnes } = useSchool();
   const { receiveInCash, deletePayment, isLoading: isAsaasLoading } = useAsaasPayment();
@@ -392,25 +394,22 @@ export default function Financial() {
       return dueDate >= currentMonthStart && dueDate <= currentMonthEnd;
     });
 
-    // Paid statuses
-    const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
-
     // Boletos do mês que já foram pagos (mesma base da previsão)
-    const paidThisMonth = monthPayments.filter(p => paidStatuses.includes(p.status));
+    const paidThisMonth = monthPayments.filter(p => PAID_STATUSES.includes(p.status));
 
     // Boletos do mês ainda pendentes (não pagos)
-    const pendingThisMonth = monthPayments.filter(p => !paidStatuses.includes(p.status));
+    const pendingThisMonth = monthPayments.filter(p => !PAID_STATUSES.includes(p.status));
 
     // Overdue today
     const overdueToday = payments.filter(p => {
       const dueDate = parseISO(p.due_date);
-      return isToday(dueDate) && !paidStatuses.includes(p.status);
+      return isToday(dueDate) && !PAID_STATUSES.includes(p.status);
     });
 
     // All overdue (past due date and not paid)
     const allOverdue = payments.filter(p => {
       const dueDate = parseISO(p.due_date);
-      return isBefore(dueDate, today) && !paidStatuses.includes(p.status);
+      return isBefore(dueDate, today) && !PAID_STATUSES.includes(p.status);
     });
 
     // Previsão = total de boletos com vencimento neste mês
@@ -432,6 +431,30 @@ export default function Financial() {
       overdueTotal: allOverdue.reduce((sum, p) => sum + p.value, 0),
     };
   }, [payments, today, currentMonthStart, currentMonthEnd]);
+
+  const overviewMetrics = useMemo(() => {
+    const currentMonthForecast = carneMetrics.monthlyForecast[0];
+
+    const receivedPayments = payments.filter(p => {
+      if (!p.payment_date || !PAID_STATUSES.includes(p.status)) return false;
+
+      const paymentDate = parseISO(p.payment_date);
+      return paymentDate >= currentMonthStart && paymentDate <= currentMonthEnd;
+    });
+
+    const receivedAmount = receivedPayments.reduce((sum, p) => sum + p.value, 0);
+    const forecastAmount = currentMonthForecast?.expected ?? 0;
+    const forecastInstallments = currentMonthForecast?.carneCount ?? 0;
+
+    return {
+      forecastAmount,
+      forecastInstallments,
+      receivedPayments,
+      receivedAmount,
+      pendingAmount: Math.max(forecastAmount - receivedAmount, 0),
+      remainingInstallments: Math.max(forecastInstallments - receivedPayments.length, 0),
+    };
+  }, [carneMetrics.monthlyForecast, payments, currentMonthStart, currentMonthEnd]);
 
   // Filter overdue payments by period
   const filteredOverdue = useMemo(() => {
