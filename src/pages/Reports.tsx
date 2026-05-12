@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   FileText, 
   Users, 
@@ -8,7 +8,8 @@ import {
   Loader2,
   Calendar,
   Filter,
-  FileDown
+  FileDown,
+  DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useSchool } from '@/contexts/SchoolContext';
 import { supabase } from '@/integrations/supabase/client';
-import { format, getMonth, parseISO } from 'date-fns';
+import { format, getMonth, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -26,7 +27,24 @@ import {
   generateLeadsReportPDF 
 } from '@/utils/pdfGenerator';
 
-type ReportType = 'students' | 'birthdays' | 'leads' | null;
+type ReportType = 'students' | 'birthdays' | 'leads' | 'financial' | null;
+
+const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
+const BILLING_LABELS: Record<string, string> = {
+  PIX: 'PIX', BOLETO: 'Boleto', CREDIT_CARD: 'Cartão', UNDEFINED: '—',
+};
+
+interface FinancialPayment {
+  id: string;
+  guardian_id: string;
+  value: number;
+  status: string;
+  due_date: string;
+  payment_date: string | null;
+  description: string;
+  billing_type: string | null;
+  guardian_name?: string;
+}
 
 interface Lead {
   id: string;
@@ -80,6 +98,12 @@ export default function Reports() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
+  // Financial report state
+  const [financialPayments, setFinancialPayments] = useState<FinancialPayment[]>([]);
+  const [isLoadingFinancial, setIsLoadingFinancial] = useState(false);
+  const [finStartDate, setFinStartDate] = useState<string>(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [finEndDate, setFinEndDate] = useState<string>(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+
   // Calculate age helper
   const calculateAge = (birthDate: string): number => {
     const today = new Date();
@@ -91,6 +115,49 @@ export default function Reports() {
     }
     return age;
   };
+
+  const fetchFinancial = async () => {
+    setIsLoadingFinancial(true);
+    const { data: pays } = await supabase
+      .from('payments')
+      .select('id, guardian_id, value, status, due_date, payment_date, description, billing_type')
+      .or(`and(payment_date.gte.${finStartDate},payment_date.lte.${finEndDate}),and(due_date.gte.${finStartDate},due_date.lte.${finEndDate})`)
+      .order('due_date', { ascending: true });
+    
+    const guardianMap = new Map(guardians.map(g => [g.id, g.name]));
+    const enriched = (pays || []).map((p: any) => ({
+      ...p,
+      guardian_name: guardianMap.get(p.guardian_id) || '—',
+    }));
+    setFinancialPayments(enriched);
+    setIsLoadingFinancial(false);
+  };
+
+  useEffect(() => {
+    if (selectedReport === 'financial') fetchFinancial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedReport, finStartDate, finEndDate]);
+
+  const financialBuckets = useMemo(() => {
+    const received = financialPayments.filter(p =>
+      PAID_STATUSES.has(p.status) && p.payment_date &&
+      p.payment_date >= finStartDate && p.payment_date <= finEndDate
+    );
+    const toPay = financialPayments.filter(p =>
+      !PAID_STATUSES.has(p.status) &&
+      p.due_date >= finStartDate && p.due_date <= finEndDate
+    );
+    return {
+      received,
+      toPay,
+      receivedTotal: received.reduce((s, p) => s + Number(p.value), 0),
+      toPayTotal: toPay.reduce((s, p) => s + Number(p.value), 0),
+    };
+  }, [financialPayments, finStartDate, finEndDate]);
+
+  const fmtBRL = (v: number) =>
+    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fmtDate = (d?: string | null) => (d ? format(parseISO(d), 'dd/MM/yyyy') : '—');
 
   useEffect(() => {
     fetchLeads();
@@ -125,6 +192,13 @@ export default function Reports() {
       description: 'Lista de leads e seus status de conversão',
       icon: UserCheck,
       color: 'bg-green-500/10 text-green-500',
+    },
+    {
+      id: 'financial' as const,
+      title: 'Recebido e A Pagar',
+      description: 'Conferência manual: pagamentos recebidos e em aberto no período',
+      icon: DollarSign,
+      color: 'bg-amber-500/10 text-amber-500',
     },
   ];
 
@@ -213,6 +287,20 @@ export default function Reports() {
         csvContent += `"${row.name}","${row.phone}","${row.email || ''}","${row.course?.name || ''}","${leadStatusLabels[row.status] || row.status}","${format(parseISO(row.created_at), 'dd/MM/yyyy')}"\n`;
       });
       filename = `relatorio_leads_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    } else if (selectedReport === 'financial') {
+      const { received, toPay, receivedTotal, toPayTotal } = financialBuckets;
+      csvContent = `Conferência Financeira — ${fmtDate(finStartDate)} a ${fmtDate(finEndDate)}\n\n`;
+      csvContent += `=== RECEBIDO (${received.length}) — Total: ${fmtBRL(receivedTotal)} ===\n`;
+      csvContent += 'Data Pagamento,Vencimento,Responsável,Descrição,Forma,Valor,Status\n';
+      received.forEach(p => {
+        csvContent += `"${fmtDate(p.payment_date)}","${fmtDate(p.due_date)}","${p.guardian_name}","${p.description.replace(/"/g, "'")}","${BILLING_LABELS[p.billing_type || 'UNDEFINED'] || p.billing_type || '—'}","${Number(p.value).toFixed(2).replace('.', ',')}","${p.status}"\n`;
+      });
+      csvContent += `\n=== A PAGAR / EM ABERTO (${toPay.length}) — Total: ${fmtBRL(toPayTotal)} ===\n`;
+      csvContent += 'Vencimento,Responsável,Descrição,Forma,Valor,Status\n';
+      toPay.forEach(p => {
+        csvContent += `"${fmtDate(p.due_date)}","${p.guardian_name}","${p.description.replace(/"/g, "'")}","${BILLING_LABELS[p.billing_type || 'UNDEFINED'] || p.billing_type || '—'}","${Number(p.value).toFixed(2).replace('.', ',')}","${p.status}"\n`;
+      });
+      filename = `conferencia_financeira_${finStartDate}_a_${finEndDate}.csv`;
     }
 
     // Create and download CSV
@@ -526,6 +614,148 @@ export default function Reports() {
       );
     }
 
+    if (selectedReport === 'financial') {
+      const { received, toPay, receivedTotal, toPayTotal } = financialBuckets;
+      return (
+        <div className="space-y-6">
+          {/* Filtros e ações */}
+          <div className="flex flex-wrap items-end gap-4 p-4 bg-secondary/30 rounded-lg">
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Data inicial</label>
+              <input
+                type="date"
+                value={finStartDate}
+                onChange={(e) => setFinStartDate(e.target.value)}
+                className="h-10 px-3 border rounded-md bg-background"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Data final</label>
+              <input
+                type="date"
+                value={finEndDate}
+                onChange={(e) => setFinEndDate(e.target.value)}
+                className="h-10 px-3 border rounded-md bg-background"
+              />
+            </div>
+            <Button
+              onClick={handleExportCSV}
+              disabled={isGenerating || isLoadingFinancial || (received.length === 0 && toPay.length === 0)}
+              size="sm"
+              className="gap-2 ml-auto"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              Exportar CSV
+            </Button>
+          </div>
+
+          {/* Totais */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Recebido no período</CardDescription>
+                <CardTitle className="text-2xl text-green-600">{fmtBRL(receivedTotal)}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{received.length} pagamento(s)</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>A pagar / em aberto</CardDescription>
+                <CardTitle className="text-2xl text-amber-600">{fmtBRL(toPayTotal)}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">{toPay.length} cobrança(s)</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {isLoadingFinancial && (
+            <div className="text-center py-8 text-muted-foreground">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+            </div>
+          )}
+
+          {/* Recebidos */}
+          {!isLoadingFinancial && (
+            <div>
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-green-600" />
+                Recebido ({received.length})
+              </h3>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Pagto</TableHead>
+                      <TableHead>Vencto</TableHead>
+                      <TableHead>Responsável</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Forma</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {received.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Nenhum recebimento no período</TableCell></TableRow>
+                    ) : received.map(p => (
+                      <TableRow key={p.id}>
+                        <TableCell>{fmtDate(p.payment_date)}</TableCell>
+                        <TableCell>{fmtDate(p.due_date)}</TableCell>
+                        <TableCell>{p.guardian_name}</TableCell>
+                        <TableCell className="max-w-xs truncate">{p.description}</TableCell>
+                        <TableCell><Badge variant="outline">{BILLING_LABELS[p.billing_type || 'UNDEFINED'] || p.billing_type || '—'}</Badge></TableCell>
+                        <TableCell className="text-right font-medium">{fmtBRL(Number(p.value))}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {/* A pagar */}
+          {!isLoadingFinancial && (
+            <div>
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-amber-600" />
+                A Pagar / Em Aberto ({toPay.length})
+              </h3>
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Vencto</TableHead>
+                      <TableHead>Responsável</TableHead>
+                      <TableHead>Descrição</TableHead>
+                      <TableHead>Forma</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {toPay.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">Nenhuma cobrança em aberto no período</TableCell></TableRow>
+                    ) : toPay.map(p => (
+                      <TableRow key={p.id}>
+                        <TableCell>{fmtDate(p.due_date)}</TableCell>
+                        <TableCell>{p.guardian_name}</TableCell>
+                        <TableCell className="max-w-xs truncate">{p.description}</TableCell>
+                        <TableCell><Badge variant="outline">{BILLING_LABELS[p.billing_type || 'UNDEFINED'] || p.billing_type || '—'}</Badge></TableCell>
+                        <TableCell><Badge variant={p.status === 'OVERDUE' ? 'destructive' : 'secondary'}>{p.status}</Badge></TableCell>
+                        <TableCell className="text-right font-medium">{fmtBRL(Number(p.value))}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return null;
   };
 
@@ -537,7 +767,7 @@ export default function Reports() {
       </div>
 
       {/* Report Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {reportCards.map(card => (
           <Card 
             key={card.id}
