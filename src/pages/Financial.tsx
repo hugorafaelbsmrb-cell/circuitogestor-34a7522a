@@ -433,15 +433,34 @@ export default function Financial() {
   }, [payments, today, currentMonthStart, currentMonthEnd]);
 
   const overviewMetrics = useMemo(() => {
+    const currentMonthForecast = carneMetrics.monthlyForecast[0];
+
+    const paidCarnePaymentsThisMonth = carnePayments.filter(p => {
+      if (!p.payment_date || !PAID_STATUSES.has(p.status)) return false;
+      const paymentDate = parseISO(p.payment_date);
+      return paymentDate >= currentMonthStart && paymentDate <= currentMonthEnd;
+    });
+
+    const receivedAmount = paidCarnePaymentsThisMonth.reduce((sum, p) => sum + p.value, 0);
+    const forecastAmount = currentMonthForecast?.expected ?? 0;
+    const forecastInstallments = currentMonthForecast?.carneCount ?? 0;
+
+    const overdueCarnePayments = carnePayments.filter(p => {
+      const dueDate = parseISO(p.due_date);
+      return isBefore(dueDate, today) && !PAID_STATUSES.has(p.status);
+    });
+
     return {
-      forecastAmount: metrics.monthlyForecast,
-      forecastInstallments: metrics.monthPayments.length,
-      receivedPayments: metrics.paidThisMonth,
-      receivedAmount: metrics.monthlyReceived,
-      pendingAmount: metrics.monthlyPending,
-      remainingInstallments: metrics.pendingThisMonth.length,
+      forecastAmount,
+      forecastInstallments,
+      receivedPayments: paidCarnePaymentsThisMonth,
+      receivedAmount,
+      pendingAmount: Math.max(forecastAmount - receivedAmount, 0),
+      remainingInstallments: Math.max(forecastInstallments - paidCarnePaymentsThisMonth.length, 0),
+      overdueAmount: overdueCarnePayments.reduce((sum, p) => sum + p.value, 0),
+      overdueCount: overdueCarnePayments.length,
     };
-  }, [metrics]);
+  }, [carneMetrics.monthlyForecast, carnePayments, currentMonthStart, currentMonthEnd, today]);
 
   // Filter overdue payments by period
   const filteredOverdue = useMemo(() => {
@@ -710,8 +729,8 @@ export default function Financial() {
             <div className="flex items-start justify-between">
               <div className="space-y-0.5 lg:space-y-1 min-w-0">
                 <p className="text-xs lg:text-sm text-muted-foreground truncate">Total em Atraso</p>
-                <p className="text-lg lg:text-2xl font-bold text-destructive">{formatCurrency(metrics.overdueTotal)}</p>
-                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.allOverdue.length} vencidos</p>
+                <p className="text-lg lg:text-2xl font-bold text-destructive">{formatCurrency(overviewMetrics.overdueAmount)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{overviewMetrics.overdueCount} vencidos</p>
               </div>
               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4 lg:w-5 lg:h-5 text-destructive" />
