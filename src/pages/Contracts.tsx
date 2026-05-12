@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Copy, MessageCircle } from 'lucide-react';
+import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Copy, MessageCircle, Send } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
