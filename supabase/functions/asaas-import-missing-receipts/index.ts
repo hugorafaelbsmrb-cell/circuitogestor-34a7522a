@@ -93,7 +93,6 @@ Deno.serve(async (req) => {
       const { error: insErr } = await supabase.from('payments').insert({
         guardian_id: guardianId,
         asaas_payment_id: p.id,
-        asaas_customer_id: p.customer,
         value: p.value,
         status: p.status,
         billing_type: p.billingType,
