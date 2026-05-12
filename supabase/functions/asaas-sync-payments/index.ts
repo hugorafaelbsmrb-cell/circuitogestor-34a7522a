@@ -165,19 +165,21 @@ serve(async (req) => {
 
         console.log(`Payment ${localPayment.asaas_payment_id}: Asaas status = ${asaasPayment.status}, Local status = ${localPayment.status}`);
 
-        // If status changed, update local database
+        // If status or value changed, update local database (captures juros/desconto)
+        const updates: Record<string, unknown> = {};
+        if (mappedStatus !== localPayment.status) updates.status = mappedStatus;
+        if (asaasPayment.value && Number(asaasPayment.value) > 0) updates.value = asaasPayment.value;
+        updates.payment_date = asaasPayment.paymentDate || null;
+        updates.invoice_url = asaasPayment.invoiceUrl;
+        updates.bank_slip_url = asaasPayment.bankSlipUrl;
+        updates.updated_at = new Date().toISOString();
+
         if (mappedStatus !== localPayment.status) {
           console.log(`Updating payment ${localPayment.id}: ${localPayment.status} -> ${mappedStatus}`);
           
           const { error: updateError } = await supabase
             .from("payments")
-            .update({
-              status: mappedStatus,
-              payment_date: asaasPayment.paymentDate || null,
-              invoice_url: asaasPayment.invoiceUrl,
-              bank_slip_url: asaasPayment.bankSlipUrl,
-              updated_at: new Date().toISOString(),
-            })
+            .update(updates)
             .eq("id", localPayment.id);
 
           if (updateError) {
