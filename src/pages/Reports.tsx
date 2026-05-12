@@ -643,15 +643,27 @@ export default function Reports() {
                 className="h-10 px-3 border rounded-md bg-background"
               />
             </div>
-            <Button
-              onClick={handleExportCSV}
-              disabled={isGenerating || isLoadingFinancial || (received.length === 0 && toPay.length === 0)}
-              size="sm"
-              className="gap-2 ml-auto"
-            >
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              Exportar CSV
-            </Button>
+            <div className="flex gap-2 ml-auto">
+              <Button
+                onClick={handleExportCSV}
+                disabled={isGenerating || isLoadingFinancial || (received.length === 0 && toPay.length === 0)}
+                size="sm"
+                variant="outline"
+                className="gap-2"
+              >
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Exportar CSV
+              </Button>
+              <Button
+                onClick={handleExportPDF}
+                disabled={isGeneratingPDF || isLoadingFinancial || (received.length === 0 && toPay.length === 0)}
+                size="sm"
+                className="gap-2"
+              >
+                {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                Exportar PDF
+              </Button>
+            </div>
           </div>
 
           {/* Totais */}
