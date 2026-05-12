@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   FileText, 
   Users, 
@@ -8,7 +8,8 @@ import {
   Loader2,
   Calendar,
   Filter,
-  FileDown
+  FileDown,
+  DollarSign
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useSchool } from '@/contexts/SchoolContext';
 import { supabase } from '@/integrations/supabase/client';
-import { format, getMonth, parseISO } from 'date-fns';
+import { format, getMonth, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -26,7 +27,24 @@ import {
   generateLeadsReportPDF 
 } from '@/utils/pdfGenerator';
 
-type ReportType = 'students' | 'birthdays' | 'leads' | null;
+type ReportType = 'students' | 'birthdays' | 'leads' | 'financial' | null;
+
+const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
+const BILLING_LABELS: Record<string, string> = {
+  PIX: 'PIX', BOLETO: 'Boleto', CREDIT_CARD: 'Cartão', UNDEFINED: '—',
+};
+
+interface FinancialPayment {
+  id: string;
+  guardian_id: string;
+  value: number;
+  status: string;
+  due_date: string;
+  payment_date: string | null;
+  description: string;
+  billing_type: string | null;
+  guardian_name?: string;
+}
 
 interface Lead {
   id: string;
