@@ -223,6 +223,16 @@ export default function Financial() {
       ));
       
       toast.success('Pagamento marcado como confirmado!');
+      
+      // Send WhatsApp confirmation to guardian
+      supabase.functions.invoke('send-payment-confirmation', { body: { payment_id: payment.id } })
+        .then(({ data, error }) => {
+          if (error || data?.error) {
+            console.warn('Falha ao enviar confirmação WhatsApp', error || data?.error);
+          } else if (data?.success) {
+            toast.success('Confirmação enviada ao responsável via WhatsApp');
+          }
+        });
     } catch (error) {
       console.error('Error marking as confirmed:', error);
       toast.error('Erro ao atualizar pagamento');
