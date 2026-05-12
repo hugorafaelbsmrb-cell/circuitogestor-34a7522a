@@ -81,13 +81,16 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     
-    // Parse request body for optional payment_id filter
+    // Parse request body
     let paymentId: string | null = null;
-    let limit = 10; // Default limit
+    let limit: number | null = 10;
+    let mode: "overdue" | "pending_and_overdue" | "all" = "overdue";
     try {
       const body = await req.json();
       paymentId = body.payment_id || null;
-      limit = body.limit || 10;
+      mode = body.mode || "overdue";
+      // limit=0 or null means no limit
+      limit = body.limit === 0 || body.limit === null ? null : (body.limit ?? 10);
     } catch {
       // No body, use defaults
     }
@@ -95,7 +98,7 @@ serve(async (req) => {
     // Get Asaas configuration from database
     const asaasConfig = await getAsaasConfig(supabase);
 
-    // Get payments to sync - either specific or limited OVERDUE ones
+    // Get payments to sync
     let query = supabase
       .from("payments")
       .select("id, asaas_payment_id, status")
@@ -103,9 +106,15 @@ serve(async (req) => {
     
     if (paymentId) {
       query = query.eq("asaas_payment_id", paymentId);
+    } else if (mode === "pending_and_overdue") {
+      query = query.in("status", ["PENDING", "OVERDUE"]);
+      if (limit) query = query.limit(limit);
+    } else if (mode === "all") {
+      // Reconcile everything (used by "Conciliar com Asaas")
+      if (limit) query = query.limit(limit);
     } else {
-      // Only sync OVERDUE payments (most important), with limit
-      query = query.eq("status", "OVERDUE").limit(limit);
+      query = query.eq("status", "OVERDUE");
+      if (limit) query = query.limit(limit);
     }
 
     const { data: localPayments, error: fetchError } = await query;
