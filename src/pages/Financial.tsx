@@ -687,6 +687,18 @@ export default function Financial() {
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">Boleto Avulso</span>
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmRemindersOpen(true)}
+            disabled={isSendingReminders || isLoading || (overviewMetrics?.overdueCount ?? 0) === 0}
+            className="gap-2 flex-1 sm:flex-none border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          >
+            {isSendingReminders ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bell className="w-4 h-4" />}
+            <span className="hidden sm:inline">
+              Lembrar Vencidos{overviewMetrics?.overdueCount ? ` (${overviewMetrics.overdueCount})` : ''}
+            </span>
+          </Button>
           <Button variant="outline" size="sm" onClick={syncPaymentsWithAsaas} disabled={isSyncing || isLoading} className="gap-2 flex-1 sm:flex-none">
             <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
             <span className="hidden sm:inline">Sincronizar Asaas</span>
