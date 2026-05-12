@@ -586,6 +586,196 @@ export function generateBirthdaysReportPDF(data: BirthdayReportData[], monthName
   return doc;
 }
 
+export interface FinancialReportPayment {
+  payment_date?: string | null;
+  due_date: string;
+  guardian_name: string;
+  description: string;
+  billing_type?: string | null;
+  value: number | string;
+  status: string;
+}
+
+const BILLING_LABELS_PDF: Record<string, string> = {
+  PIX: 'PIX',
+  BOLETO: 'Boleto',
+  CREDIT_CARD: 'Cartão',
+  DEBIT_CARD: 'Débito',
+  TRANSFER: 'Transferência',
+  UNDEFINED: '—',
+};
+
+const fmtBRL = (v: number) =>
+  v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const safeDate = (d?: string | null) => {
+  if (!d) return '—';
+  try {
+    return format(parseISO(d.length === 10 ? `${d}T00:00:00` : d), 'dd/MM/yyyy');
+  } catch {
+    return '—';
+  }
+};
+
+export function generateFinancialReportPDF(
+  received: FinancialReportPayment[],
+  toPay: FinancialReportPayment[],
+  startDate: string,
+  endDate: string,
+): jsPDF {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  const receivedTotal = received.reduce((s, p) => s + Number(p.value || 0), 0);
+  const toPayTotal = toPay.reduce((s, p) => s + Number(p.value || 0), 0);
+
+  // Header
+  doc.setFillColor(15, 23, 42);
+  doc.rect(0, 0, pageWidth, 28, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Conferência Financeira', pageWidth / 2, 12, { align: 'center' });
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    `Período: ${safeDate(startDate)} a ${safeDate(endDate)}`,
+    pageWidth / 2,
+    19,
+    { align: 'center' },
+  );
+  doc.setFontSize(8);
+  doc.text(
+    `Gerado em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`,
+    pageWidth / 2,
+    25,
+    { align: 'center' },
+  );
+  doc.setTextColor(0, 0, 0);
+
+  // Summary cards
+  const cardY = 34;
+  const cardH = 22;
+  const cardW = (pageWidth - 30) / 2;
+
+  // Recebido card
+  doc.setFillColor(220, 252, 231);
+  doc.setDrawColor(34, 197, 94);
+  doc.roundedRect(10, cardY, cardW, cardH, 2, 2, 'FD');
+  doc.setTextColor(22, 101, 52);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('RECEBIDO', 14, cardY + 7);
+  doc.setFontSize(14);
+  doc.text(fmtBRL(receivedTotal), 14, cardY + 15);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${received.length} pagamento(s)`, 14, cardY + 20);
+
+  // A Pagar card
+  doc.setFillColor(254, 243, 199);
+  doc.setDrawColor(245, 158, 11);
+  doc.roundedRect(20 + cardW, cardY, cardW, cardH, 2, 2, 'FD');
+  doc.setTextColor(146, 64, 14);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.text('A PAGAR / EM ABERTO', 24 + cardW, cardY + 7);
+  doc.setFontSize(14);
+  doc.text(fmtBRL(toPayTotal), 24 + cardW, cardY + 15);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${toPay.length} pagamento(s)`, 24 + cardW, cardY + 20);
+
+  doc.setTextColor(0, 0, 0);
+
+  // Recebido table
+  let nextY = cardY + cardH + 8;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(22, 101, 52);
+  doc.text(`Recebido (${received.length})`, 10, nextY);
+  doc.setTextColor(0, 0, 0);
+
+  autoTable(doc, {
+    startY: nextY + 2,
+    head: [['Pagamento', 'Vencimento', 'Responsável', 'Descrição', 'Forma', 'Valor']],
+    body: received.map(p => [
+      safeDate(p.payment_date),
+      safeDate(p.due_date),
+      p.guardian_name,
+      p.description,
+      BILLING_LABELS_PDF[p.billing_type || 'UNDEFINED'] || p.billing_type || '—',
+      fmtBRL(Number(p.value || 0)),
+    ]),
+    foot: [['', '', '', '', 'Total', fmtBRL(receivedTotal)]],
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [34, 197, 94], textColor: 255 },
+    footStyles: { fillColor: [220, 252, 231], textColor: [22, 101, 52], fontStyle: 'bold' },
+    columnStyles: {
+      0: { cellWidth: 22 },
+      1: { cellWidth: 22 },
+      4: { cellWidth: 20 },
+      5: { cellWidth: 26, halign: 'right' },
+    },
+    alternateRowStyles: { fillColor: [247, 254, 231] },
+    margin: { left: 10, right: 10 },
+  });
+
+  // A pagar table
+  // @ts-ignore
+  nextY = (doc as any).lastAutoTable.finalY + 10;
+  if (nextY > doc.internal.pageSize.getHeight() - 40) {
+    doc.addPage();
+    nextY = 20;
+  }
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(146, 64, 14);
+  doc.text(`A Pagar / Em Aberto (${toPay.length})`, 10, nextY);
+  doc.setTextColor(0, 0, 0);
+
+  autoTable(doc, {
+    startY: nextY + 2,
+    head: [['Vencimento', 'Responsável', 'Descrição', 'Forma', 'Status', 'Valor']],
+    body: toPay.map(p => [
+      safeDate(p.due_date),
+      p.guardian_name,
+      p.description,
+      BILLING_LABELS_PDF[p.billing_type || 'UNDEFINED'] || p.billing_type || '—',
+      p.status,
+      fmtBRL(Number(p.value || 0)),
+    ]),
+    foot: [['', '', '', '', 'Total', fmtBRL(toPayTotal)]],
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [245, 158, 11], textColor: 255 },
+    footStyles: { fillColor: [254, 243, 199], textColor: [146, 64, 14], fontStyle: 'bold' },
+    columnStyles: {
+      0: { cellWidth: 22 },
+      3: { cellWidth: 20 },
+      4: { cellWidth: 24 },
+      5: { cellWidth: 26, halign: 'right' },
+    },
+    alternateRowStyles: { fillColor: [255, 251, 235] },
+    margin: { left: 10, right: 10 },
+  });
+
+  // Footer page numbers
+  const pageCount = (doc as any).internal.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text(
+      `Página ${i} de ${pageCount}`,
+      pageWidth - 10,
+      doc.internal.pageSize.getHeight() - 6,
+      { align: 'right' },
+    );
+  }
+
+  return doc;
+}
+
 export function generateLeadsReportPDF(data: LeadReportData[]): jsPDF {
   const doc = new jsPDF();
   
