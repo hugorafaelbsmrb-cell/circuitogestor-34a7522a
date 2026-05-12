@@ -1415,6 +1415,30 @@ export default function Financial() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmRemindersOpen} onOpenChange={setConfirmRemindersOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Enviar lembretes de vencimento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Será enviada uma mensagem de WhatsApp (template <strong>payment_overdue</strong>) para os responsáveis de
+              <strong> {overviewMetrics?.overdueCount ?? 0} </strong> cobranças vencidas.
+              <br />
+              O envio é feito com intervalo de 5 segundos entre cada mensagem
+              {overviewMetrics?.overdueCount
+                ? ` (tempo estimado: ~${Math.ceil(((overviewMetrics.overdueCount - 1) * 5) / 60)} min)`
+                : ''}.
+              Mantenha esta aba aberta até a confirmação.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSendOverdueReminders}>
+              Enviar agora
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
