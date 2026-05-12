@@ -589,7 +589,7 @@ export function generateBirthdaysReportPDF(data: BirthdayReportData[], monthName
 export interface FinancialReportPayment {
   payment_date?: string | null;
   due_date: string;
-  guardian_name: string;
+  guardian_name?: string;
   description: string;
   billing_type?: string | null;
   value: number | string;
