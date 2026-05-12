@@ -433,28 +433,15 @@ export default function Financial() {
   }, [payments, today, currentMonthStart, currentMonthEnd]);
 
   const overviewMetrics = useMemo(() => {
-    const currentMonthForecast = carneMetrics.monthlyForecast[0];
-
-    const receivedPayments = payments.filter(p => {
-      if (!p.payment_date || !PAID_STATUSES.has(p.status)) return false;
-
-      const paymentDate = parseISO(p.payment_date);
-      return paymentDate >= currentMonthStart && paymentDate <= currentMonthEnd;
-    });
-
-    const receivedAmount = receivedPayments.reduce((sum, p) => sum + p.value, 0);
-    const forecastAmount = currentMonthForecast?.expected ?? 0;
-    const forecastInstallments = currentMonthForecast?.carneCount ?? 0;
-
     return {
-      forecastAmount,
-      forecastInstallments,
-      receivedPayments,
-      receivedAmount,
-      pendingAmount: Math.max(forecastAmount - receivedAmount, 0),
-      remainingInstallments: Math.max(forecastInstallments - receivedPayments.length, 0),
+      forecastAmount: metrics.monthlyForecast,
+      forecastInstallments: metrics.monthPayments.length,
+      receivedPayments: metrics.paidThisMonth,
+      receivedAmount: metrics.monthlyReceived,
+      pendingAmount: metrics.monthlyPending,
+      remainingInstallments: metrics.pendingThisMonth.length,
     };
-  }, [carneMetrics.monthlyForecast, payments, currentMonthStart, currentMonthEnd]);
+  }, [metrics]);
 
   // Filter overdue payments by period
   const filteredOverdue = useMemo(() => {
