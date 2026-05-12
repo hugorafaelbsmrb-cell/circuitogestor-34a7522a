@@ -49,6 +49,8 @@ interface PaymentWithGuardian extends Payment {
   guardian_email: string;
 }
 
+const PAID_STATUSES = new Set(['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH']);
+
 export default function Financial() {
   const { guardians, carnes } = useSchool();
   const { receiveInCash, deletePayment, isLoading: isAsaasLoading } = useAsaasPayment();
@@ -392,25 +394,22 @@ export default function Financial() {
       return dueDate >= currentMonthStart && dueDate <= currentMonthEnd;
     });
 
-    // Paid statuses
-    const paidStatuses = ['RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH'];
-
     // Boletos do mês que já foram pagos (mesma base da previsão)
-    const paidThisMonth = monthPayments.filter(p => paidStatuses.includes(p.status));
+    const paidThisMonth = monthPayments.filter(p => PAID_STATUSES.has(p.status));
 
     // Boletos do mês ainda pendentes (não pagos)
-    const pendingThisMonth = monthPayments.filter(p => !paidStatuses.includes(p.status));
+    const pendingThisMonth = monthPayments.filter(p => !PAID_STATUSES.has(p.status));
 
     // Overdue today
     const overdueToday = payments.filter(p => {
       const dueDate = parseISO(p.due_date);
-      return isToday(dueDate) && !paidStatuses.includes(p.status);
+      return isToday(dueDate) && !PAID_STATUSES.has(p.status);
     });
 
     // All overdue (past due date and not paid)
     const allOverdue = payments.filter(p => {
       const dueDate = parseISO(p.due_date);
-      return isBefore(dueDate, today) && !paidStatuses.includes(p.status);
+      return isBefore(dueDate, today) && !PAID_STATUSES.has(p.status);
     });
 
     // Previsão = total de boletos com vencimento neste mês
@@ -432,6 +431,30 @@ export default function Financial() {
       overdueTotal: allOverdue.reduce((sum, p) => sum + p.value, 0),
     };
   }, [payments, today, currentMonthStart, currentMonthEnd]);
+
+  const overviewMetrics = useMemo(() => {
+    const currentMonthForecast = carneMetrics.monthlyForecast[0];
+
+    const receivedPayments = payments.filter(p => {
+      if (!p.payment_date || !PAID_STATUSES.has(p.status)) return false;
+
+      const paymentDate = parseISO(p.payment_date);
+      return paymentDate >= currentMonthStart && paymentDate <= currentMonthEnd;
+    });
+
+    const receivedAmount = receivedPayments.reduce((sum, p) => sum + p.value, 0);
+    const forecastAmount = currentMonthForecast?.expected ?? 0;
+    const forecastInstallments = currentMonthForecast?.carneCount ?? 0;
+
+    return {
+      forecastAmount,
+      forecastInstallments,
+      receivedPayments,
+      receivedAmount,
+      pendingAmount: Math.max(forecastAmount - receivedAmount, 0),
+      remainingInstallments: Math.max(forecastInstallments - receivedPayments.length, 0),
+    };
+  }, [carneMetrics.monthlyForecast, payments, currentMonthStart, currentMonthEnd]);
 
   // Filter overdue payments by period
   const filteredOverdue = useMemo(() => {
@@ -655,8 +678,8 @@ export default function Financial() {
             <div className="flex items-start justify-between">
               <div className="space-y-0.5 lg:space-y-1 min-w-0">
                 <p className="text-xs lg:text-sm text-muted-foreground truncate">Previsão do Mês</p>
-                <p className="text-lg lg:text-2xl font-bold">{formatCurrency(metrics.monthlyForecast)}</p>
-                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.monthPayments.length} mensalidades</p>
+                <p className="text-lg lg:text-2xl font-bold">{formatCurrency(overviewMetrics.forecastAmount)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{overviewMetrics.forecastInstallments} mensalidades</p>
               </div>
               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                 <TrendingUp className="w-4 h-4 lg:w-5 lg:h-5 text-primary" />
@@ -670,8 +693,8 @@ export default function Financial() {
             <div className="flex items-start justify-between">
               <div className="space-y-0.5 lg:space-y-1 min-w-0">
                 <p className="text-xs lg:text-sm text-muted-foreground truncate">Recebido no Mês</p>
-                <p className="text-lg lg:text-2xl font-bold text-green-600">{formatCurrency(metrics.monthlyReceived)}</p>
-                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.paidThisMonth.length} pagamentos</p>
+                <p className="text-lg lg:text-2xl font-bold text-green-600">{formatCurrency(overviewMetrics.receivedAmount)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{overviewMetrics.receivedPayments.length} pagamentos</p>
               </div>
               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-green-500/10 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-4 h-4 lg:w-5 lg:h-5 text-green-500" />
@@ -685,8 +708,8 @@ export default function Financial() {
             <div className="flex items-start justify-between">
               <div className="space-y-0.5 lg:space-y-1 min-w-0">
                 <p className="text-xs lg:text-sm text-muted-foreground truncate">Pendente no Mês</p>
-                <p className="text-lg lg:text-2xl font-bold text-yellow-600">{formatCurrency(metrics.monthlyPending)}</p>
-                <p className="text-xs text-muted-foreground hidden sm:block">{metrics.pendingThisMonth.length} aguardando</p>
+                <p className="text-lg lg:text-2xl font-bold text-yellow-600">{formatCurrency(overviewMetrics.pendingAmount)}</p>
+                <p className="text-xs text-muted-foreground hidden sm:block">{overviewMetrics.remainingInstallments} aguardando</p>
               </div>
               <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-yellow-500/10 flex items-center justify-center shrink-0">
                 <Clock className="w-4 h-4 lg:w-5 lg:h-5 text-yellow-500" />
