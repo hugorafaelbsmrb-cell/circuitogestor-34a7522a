@@ -665,12 +665,23 @@ export default function Contracts() {
           <h1 className="page-title">Contratos</h1>
           <p className="page-subtitle">Contratos gerados das matrículas</p>
         </div>
-        <Link to="/contrato-config">
-          <Button variant="outline" className="gap-2">
-            <Settings className="w-4 h-4" />
-            Configurar Contrato
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleBulkSendUnsigned}
+            disabled={isBulkSending || isSendingWhatsApp}
+          >
+            {isBulkSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Enviar pendentes em massa
           </Button>
-        </Link>
+          <Link to="/contrato-config">
+            <Button variant="outline" className="gap-2">
+              <Settings className="w-4 h-4" />
+              Configurar Contrato
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {contractEnrollments.length > 0 ? (
