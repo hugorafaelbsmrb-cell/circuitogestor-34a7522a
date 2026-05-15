@@ -81,10 +81,12 @@ export default function Anticipation() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [simulationId, setSimulationId] = useState('');
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [simulationType, setSimulationType] = useState<'payment' | 'installment'>('payment');
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; failures: string[] } | null>(null);
 
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
