@@ -1,6 +1,8 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag, Search, Clock } from 'lucide-react';
+import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag, Search, Clock, MessageCircle, FileSignature } from 'lucide-react';
+import { generateContractPDF } from '@/utils/pdfGenerator';
+import { preloadContractImages } from '@/utils/imageLoader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
