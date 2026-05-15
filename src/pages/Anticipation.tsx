@@ -749,6 +749,25 @@ export default function Anticipation() {
                       </div>
                     );
                   })()}
+
+                  {ineligible.length > 0 && (
+                    <div className="mt-4 p-3 rounded-lg border bg-destructive/10 border-destructive/30">
+                      <p className="text-sm font-medium text-destructive flex items-center gap-2 mb-2">
+                        <AlertCircle className="w-4 h-4" />
+                        {ineligible.length} {ineligible.length > 1 ? 'itens não elegíveis serão ignorados' : 'item não elegível será ignorado'}
+                      </p>
+                      <ul className="text-xs text-destructive/90 space-y-1 ml-6 list-disc">
+                        {ineligible.slice(0, 5).map((item) => (
+                          <li key={item.id}>
+                            <span className="font-medium">{getItemLabel(item.id)}</span>: {item.reason}
+                          </li>
+                        ))}
+                        {ineligible.length > 5 && (
+                          <li className="italic">+{ineligible.length - 5} outros</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
