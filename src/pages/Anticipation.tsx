@@ -641,10 +641,15 @@ export default function Anticipation() {
               </div>
 
               {/* Simulate button */}
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-sm text-muted-foreground">
+                  {effectiveIds.length > 0
+                    ? `${effectiveIds.length} ${effectiveIds.length > 1 ? 'itens selecionados' : 'item selecionado'}`
+                    : 'Nenhum item selecionado'}
+                </p>
                 <Button
                   onClick={() => simulateMutation.mutate()}
-                  disabled={!simulationId || simulateMutation.isPending}
+                  disabled={effectiveIds.length === 0 || simulateMutation.isPending}
                   size="lg"
                 >
                   {simulateMutation.isPending ? (
