@@ -118,10 +118,21 @@ Deno.serve(async (req) => {
       body: JSON.stringify(zapPayload),
     });
 
-    const zapData = await zapResp.json();
+    const rawText = await zapResp.text();
+    let zapData: any;
+    try {
+      zapData = JSON.parse(rawText);
+    } catch {
+      zapData = { raw: rawText };
+    }
     if (!zapResp.ok) {
-      console.error('ZapSign error:', zapData);
-      return json({ error: 'Erro ZapSign', details: zapData }, 502);
+      console.error('ZapSign error:', zapResp.status, rawText);
+      return json({
+        error: 'Erro ZapSign',
+        status: zapResp.status,
+        message: typeof zapData === 'object' && zapData?.raw ? zapData.raw : (zapData?.message || zapData?.detail || JSON.stringify(zapData)),
+        details: zapData,
+      }, 502);
     }
 
     const docToken = zapData.token;
