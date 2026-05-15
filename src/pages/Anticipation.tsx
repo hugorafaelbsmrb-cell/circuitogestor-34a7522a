@@ -297,7 +297,12 @@ export default function Anticipation() {
           <h1 className="text-2xl font-bold">Antecipação de Recebíveis</h1>
           <p className="text-muted-foreground">Antecipe o recebimento de suas cobranças</p>
         </div>
-        <Button variant="outline" onClick={() => refetch()}>
+        <Button variant="outline" onClick={() => {
+          refetch();
+          queryClient.invalidateQueries({ queryKey: ['anticipation-limits'] });
+          queryClient.invalidateQueries({ queryKey: ['pending-payments-for-anticipation'] });
+          queryClient.invalidateQueries({ queryKey: ['pending-carnes-for-anticipation'] });
+        }}>
           <RefreshCw className="w-4 h-4 mr-2" />
           Atualizar
         </Button>
