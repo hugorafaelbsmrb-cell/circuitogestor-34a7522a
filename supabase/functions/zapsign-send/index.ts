@@ -112,19 +112,20 @@ Deno.serve(async (req) => {
       external_id: contractId,
     };
 
-    const zapResp = await fetch(`${ZAPSIGN_API}/docs/?api_token=${zapToken}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(zapPayload),
-    });
+    let { zapResp, rawText, zapData } = await createZapSignDocument(zapToken, zapPayload);
 
-    const rawText = await zapResp.text();
-    let zapData: any;
-    try {
-      zapData = JSON.parse(rawText);
-    } catch {
-      zapData = { raw: rawText };
+    const shouldRetryInSandbox =
+      zapResp.status === 402 &&
+      /sandbox/i.test(rawText);
+
+    if (shouldRetryInSandbox) {
+      console.warn('ZapSign production request rejected without API plan; retrying in sandbox mode');
+      ({ zapResp, rawText, zapData } = await createZapSignDocument(zapToken, {
+        ...zapPayload,
+        sandbox: true,
+      }));
     }
+
     if (!zapResp.ok) {
       console.error('ZapSign error:', zapResp.status, rawText);
       const friendly = typeof zapData === 'object' && zapData?.raw
@@ -177,4 +178,22 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+async function createZapSignDocument(apiToken: string, payload: Record<string, unknown>) {
+  const zapResp = await fetch(`${ZAPSIGN_API}/docs/?api_token=${apiToken}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  const rawText = await zapResp.text();
+  let zapData: any;
+  try {
+    zapData = JSON.parse(rawText);
+  } catch {
+    zapData = { raw: rawText };
+  }
+
+  return { zapResp, rawText, zapData };
 }
