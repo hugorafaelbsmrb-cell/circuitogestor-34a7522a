@@ -20,6 +20,7 @@ interface SignedContractData {
   signatureImage: string | null;
   signedIp: string | null;
   signedUserAgent: string | null;
+  zapsignSignedPdfUrl?: string | null;
 }
 
 interface SignedContractModalProps {
