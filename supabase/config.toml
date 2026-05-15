@@ -105,3 +105,9 @@ verify_jwt = false
 
 [functions.export-data]
 verify_jwt = false
+
+[functions.zapsign-send]
+verify_jwt = false
+
+[functions.zapsign-webhook]
+verify_jwt = false
