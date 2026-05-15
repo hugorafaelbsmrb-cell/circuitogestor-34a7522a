@@ -331,7 +331,17 @@ export default function Anticipation() {
           const { data, error } = await supabase.functions.invoke('asaas-payment', {
             body: { action: 'requestAnticipation', data: payload }
           });
-          if (error) throw new Error(error.message || 'Erro desconhecido');
+          if (error) {
+            let detail = error.message || 'Erro desconhecido';
+            try {
+              const ctx: any = (error as any).context;
+              if (ctx && typeof ctx.json === 'function') {
+                const body = await ctx.json();
+                if (body?.error) detail = body.error;
+              }
+            } catch { /* ignore */ }
+            throw new Error(detail);
+          }
           if (data?.error) throw new Error(data.error);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
