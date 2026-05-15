@@ -660,6 +660,7 @@ export default function Settings() {
         return (
           <div className="space-y-6">
             <DropboxConfigCard />
+            <ZapSignConfigCard />
             
             <Card className="border-border/50">
               <CardHeader>
