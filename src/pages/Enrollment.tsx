@@ -1,6 +1,8 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag, Search, Clock } from 'lucide-react';
+import { Check, ChevronRight, User, Users, BookOpen, Calendar, FileText, CreditCard, Loader2, CheckCircle, Percent, Tag, Search, Clock, MessageCircle, FileSignature } from 'lucide-react';
+import { generateContractPDF } from '@/utils/pdfGenerator';
+import { preloadContractImages } from '@/utils/imageLoader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -131,7 +133,9 @@ export default function Enrollment() {
   const [useProRata, setUseProRata] = useState(true);
   const [useEntryBoleto, setUseEntryBoleto] = useState(true); // Boleto de entrada com valor cheio
   const [generateCarneNow, setGenerateCarneNow] = useState(true); // Gerar carnê no ato da matrícula
-  const [sendSignatureLinkWhatsApp, setSendSignatureLinkWhatsApp] = useState(true); // Enviar link de assinatura via WhatsApp
+  // Método de envio do link de assinatura: 'none' (não enviar) | 'internal' (assinatura interna via WhatsApp) | 'zapsign' (ZapSign autenticado via WhatsApp)
+  const [signatureSendMethod, setSignatureSendMethod] = useState<'none' | 'internal' | 'zapsign'>('internal');
+  const sendSignatureLinkWhatsApp = signatureSendMethod !== 'none';
   const [sendPixNow, setSendPixNow] = useState(true); // Enviar código PIX via WhatsApp
   const [pixSentForEntry, setPixSentForEntry] = useState(false); // Controle se PIX foi enviado
   const [customPrice, setCustomPrice] = useState<string>(''); // Valor personalizado
@@ -1457,7 +1461,8 @@ Att,
       }
 
       // 10. Send signature link via WhatsApp if enabled (with 10s delay after welcome message)
-      if (sendSignatureLinkWhatsApp && contract) {
+      if (signatureSendMethod !== 'none' && contract) {
+        const useZapSign = signatureSendMethod === 'zapsign';
         // Wait 10 seconds before sending the signature link to ensure it arrives after the welcome message
         setTimeout(async () => {
           try {
@@ -1468,20 +1473,58 @@ Att,
               .eq('key', 'whatsapp_template_contract_signature')
               .single();
 
-            // Get signature token from contract
-            const { data: contractData } = await supabase
-              .from('contracts')
-              .select('signature_token')
-              .eq('id', contract.id)
-              .single();
+            // Resolve signature link (ZapSign autenticado OU link interno)
+            let signatureLink: string | null = null;
 
-            if (contractData?.signature_token) {
-              const signatureLink = `${window.location.origin}/assinar/${contractData.signature_token}`;
+            if (useZapSign) {
+              try {
+                const preloadedImages = await preloadContractImages({
+                  schoolLogo: (contractContent as any).schoolLogo,
+                  schoolSignatureUrl: (contractContent as any).schoolSignatureUrl,
+                });
+                const pdfDoc = generateContractPDF({
+                  ...(contractContent as any),
+                  schoolLogo: preloadedImages.schoolLogo || undefined,
+                  schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
+                });
+                const dataUri = pdfDoc.output('datauristring');
+                const pdfBase64 = dataUri.split(',')[1];
+
+                const { data: zapResp, error: zapErr } = await supabase.functions.invoke('zapsign-send', {
+                  body: { contractId: contract.id, pdfBase64 },
+                });
+
+                if (zapErr || !zapResp?.signUrl) {
+                  throw new Error(zapResp?.error || zapErr?.message || 'Falha ao criar documento no ZapSign');
+                }
+                signatureLink = zapResp.signUrl;
+              } catch (zapError) {
+                console.error('ZapSign send failed, falling back to internal link:', zapError);
+                toast({
+                  title: 'ZapSign indisponível',
+                  description: 'Enviando link de assinatura interna como alternativa.',
+                  variant: 'destructive',
+                });
+              }
+            }
+
+            if (!signatureLink) {
+              // Fallback / internal flow: usa o token interno
+              const { data: contractData } = await supabase
+                .from('contracts')
+                .select('signature_token')
+                .eq('id', contract.id)
+                .single();
+              if (contractData?.signature_token) {
+                signatureLink = `${window.location.origin}/assinar/${contractData.signature_token}`;
+              }
+            }
+
+            if (signatureLink) {
               const guardianFirstName = guardian.name.split(' ')[0];
-              
-              let message = templateData?.value || 
+              let message = templateData?.value ||
                 `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
-              
+
               message = message
                 .replace('{nome}', guardianFirstName)
                 .replace('{aluno}', student.name)
@@ -1490,14 +1533,11 @@ Att,
                 .replace(/\\n/g, '\n');
 
               const signatureResponse = await supabase.functions.invoke('wapi-send-message', {
-                body: {
-                  phone: guardian.phone,
-                  message,
-                },
+                body: { phone: guardian.phone, message },
               });
 
               if (signatureResponse.data?.success) {
-                console.log('Signature link sent successfully via WhatsApp (after 10s delay)');
+                console.log(`Signature link sent successfully via WhatsApp (${useZapSign ? 'ZapSign' : 'internal'})`);
               } else if (signatureResponse.error) {
                 console.warn('Signature link send error:', signatureResponse.error);
               }
@@ -2740,26 +2780,45 @@ Att,
                   </p>
                 </div>
               </div>
-              <div 
-                className={cn(
-                  "rounded-xl p-4 flex items-start gap-3 cursor-pointer transition-all",
-                  sendSignatureLinkWhatsApp ? "bg-success/10 border border-success/30" : "bg-muted/50 border border-transparent"
-                )}
-                onClick={() => setSendSignatureLinkWhatsApp(!sendSignatureLinkWhatsApp)}
-              >
-                <div className={cn(
-                  "w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors",
-                  sendSignatureLinkWhatsApp ? "border-success bg-success" : "border-muted-foreground"
-                )}>
-                  {sendSignatureLinkWhatsApp && <Check className="w-3 h-3 text-success-foreground" />}
+              <div className="rounded-xl p-4 bg-muted/30 border border-border space-y-3">
+                <div className="flex items-start gap-3">
+                  <FileSignature className="w-5 h-5 mt-0.5 text-foreground" />
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">Envio do contrato para assinatura</p>
+                    <p className="text-sm text-muted-foreground">Escolha como o responsável receberá o contrato.</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">Enviar link de assinatura via WhatsApp</p>
-                  <p className="text-sm text-muted-foreground">
-                    {sendSignatureLinkWhatsApp 
-                      ? "O responsável receberá o link para assinar o contrato digitalmente."
-                      : "O link de assinatura NÃO será enviado automaticamente."}
-                  </p>
+                <div className="grid gap-2">
+                  {([
+                    { id: 'internal', icon: MessageCircle, title: 'Assinatura interna via WhatsApp', desc: 'Link gerado pelo sistema. Assinatura simples (sem autenticação ZapSign).' },
+                    { id: 'zapsign', icon: FileSignature, title: 'Assinatura autenticada via ZapSign', desc: 'Recomendado para liberar antecipação no Asaas. Link enviado via WhatsApp.' },
+                    { id: 'none', icon: FileText, title: 'Não enviar agora', desc: 'O link poderá ser enviado depois na página Contratos.' },
+                  ] as const).map(opt => {
+                    const Icon = opt.icon;
+                    const selected = signatureSendMethod === opt.id;
+                    return (
+                      <div
+                        key={opt.id}
+                        onClick={() => setSignatureSendMethod(opt.id)}
+                        className={cn(
+                          "rounded-lg p-3 flex items-start gap-3 cursor-pointer transition-all border",
+                          selected ? "bg-success/10 border-success/40" : "bg-background border-border hover:bg-muted/50"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors shrink-0",
+                          selected ? "border-success bg-success" : "border-muted-foreground"
+                        )}>
+                          {selected && <Check className="w-3 h-3 text-success-foreground" />}
+                        </div>
+                        <Icon className={cn("w-4 h-4 mt-0.5 shrink-0", selected ? "text-success" : "text-muted-foreground")} />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground">{opt.title}</p>
+                          <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               {/* Send PIX Code Option - only show when entry boleto will be generated */}
