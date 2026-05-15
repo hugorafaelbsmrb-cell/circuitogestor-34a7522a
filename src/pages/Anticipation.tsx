@@ -233,9 +233,12 @@ export default function Anticipation() {
     },
     onError: (error: Error) => {
       setSimulationResult(null);
+      const isBoletoCarne = simulationType === 'installment' && /Cartão de Crédito/i.test(error.message);
       toast({
         title: "Antecipação não disponível",
-        description: error.message,
+        description: isBoletoCarne
+          ? "Carnês de boleto/PIX só podem ser antecipados parcela a parcela. Mude para a aba 'Cobranças Avulsas' e selecione o boleto desejado."
+          : error.message,
         variant: "destructive",
       });
     },
