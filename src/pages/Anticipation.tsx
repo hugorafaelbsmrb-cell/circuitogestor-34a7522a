@@ -99,7 +99,9 @@ export default function Anticipation() {
           value,
           due_date,
           guardian_id,
-          guardians (name)
+          contract_id,
+          guardians (name),
+          contracts (zapsign_signed_pdf_url)
         `)
         .in('status', ['PENDING', 'CONFIRMED'])
         .not('asaas_payment_id', 'is', null)
@@ -125,7 +127,9 @@ export default function Anticipation() {
           installment_count,
           first_due_date,
           guardian_id,
-          guardians (name)
+          contract_id,
+          guardians (name),
+          contracts (zapsign_signed_pdf_url)
         `)
         .eq('status', 'ACTIVE')
         .order('first_due_date', { ascending: true });
@@ -134,6 +138,17 @@ export default function Anticipation() {
       return data || [];
     },
   });
+
+  // Resolve signed contract PDF URL for the currently selected item
+  const selectedContractPdfUrl = useMemo<string | null>(() => {
+    if (!simulationId) return null;
+    if (simulationType === 'payment') {
+      const p = pendingPayments?.find(x => x.asaas_payment_id === simulationId);
+      return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+    }
+    const c = pendingCarnes?.find(x => x.asaas_installment_id === simulationId);
+    return (c?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+  }, [simulationId, simulationType, pendingPayments, pendingCarnes]);
 
   // Filter items based on search term
   const filteredPayments = useMemo(() => {
@@ -229,9 +244,10 @@ export default function Anticipation() {
   // Request anticipation mutation
   const requestMutation = useMutation({
     mutationFn: async () => {
-      const payload = simulationType === 'payment' 
+      const payload: Record<string, string> = simulationType === 'payment' 
         ? { payment: simulationId }
         : { installment: simulationId };
+      if (selectedContractPdfUrl) payload.contractPdfUrl = selectedContractPdfUrl;
       
       const { data, error } = await supabase.functions.invoke('asaas-payment', {
         body: { action: 'requestAnticipation', data: payload }
@@ -562,10 +578,12 @@ export default function Anticipation() {
                   </div>
                   
                   {simulationResult.isDocumentationRequired && (
-                    <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                      <p className="text-sm text-amber-700 dark:text-amber-400 flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4" />
-                        <strong>Documentação obrigatória:</strong> Esta antecipação requer envio de NF-e ou contrato de prestação de serviços.
+                    <div className={`mt-4 p-3 rounded-lg border ${selectedContractPdfUrl ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                      <p className={`text-sm flex items-center gap-2 ${selectedContractPdfUrl ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                        {selectedContractPdfUrl ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                        {selectedContractPdfUrl
+                          ? <><strong>Contrato assinado disponível:</strong> será enviado automaticamente junto com a solicitação.</>
+                          : <><strong>Documentação obrigatória:</strong> nenhum contrato assinado encontrado para esta cobrança. A solicitação pode ser negada.</>}
                       </p>
                     </div>
                   )}

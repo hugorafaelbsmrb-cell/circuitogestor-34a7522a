@@ -680,13 +680,52 @@ async function simulateAnticipation(config: AsaasConfig, data: { payment?: strin
   return result;
 }
 
-async function requestAnticipation(config: AsaasConfig, data: { payment?: string; installment?: string }) {
-  console.log("Solicitando antecipação:", data.payment ? `payment=${data.payment}` : `installment=${data.installment}`);
-  
+async function requestAnticipation(
+  config: AsaasConfig,
+  data: { payment?: string; installment?: string; contractPdfUrl?: string; documentType?: string }
+) {
+  console.log(
+    "Solicitando antecipação:",
+    data.payment ? `payment=${data.payment}` : `installment=${data.installment}`,
+    "com contrato:", !!data.contractPdfUrl
+  );
+
+  // If we have a signed contract PDF, send via multipart with documents[]
+  if (data.contractPdfUrl) {
+    console.log("Baixando PDF do contrato:", data.contractPdfUrl);
+    const pdfResp = await fetch(data.contractPdfUrl);
+    if (!pdfResp.ok) {
+      throw new Error(`Falha ao baixar PDF do contrato (status ${pdfResp.status})`);
+    }
+    const pdfBlob = await pdfResp.blob();
+    console.log("PDF baixado, tamanho:", pdfBlob.size);
+
+    const form = new FormData();
+    if (data.payment) form.append("payment", data.payment);
+    if (data.installment) form.append("installment", data.installment);
+    // Asaas accepts the document type field name as 'documentType' (CONTRACT/INVOICE/MEDIA)
+    form.append("documentType", data.documentType || "CONTRACT");
+    form.append("documentFile", pdfBlob, "contrato-assinado.pdf");
+
+    const response = await fetch(`${config.baseUrl}/anticipations`, {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "access_token": config.apiKey,
+        "user-agent": "Lovable/1.0",
+      },
+      body: form,
+    });
+
+    const result = await handleAsaasResponse(response, "requestAnticipation");
+    console.log("Antecipação solicitada (multipart):", result.id, "Status:", result.status);
+    return result;
+  }
+
   const body: Record<string, string> = {};
   if (data.payment) body.payment = data.payment;
   if (data.installment) body.installment = data.installment;
-  
+
   const response = await fetch(`${config.baseUrl}/anticipations`, {
     method: "POST",
     headers: getHeaders(config.apiKey),
