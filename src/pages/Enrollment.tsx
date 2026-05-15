@@ -2744,26 +2744,45 @@ Att,
                   </p>
                 </div>
               </div>
-              <div 
-                className={cn(
-                  "rounded-xl p-4 flex items-start gap-3 cursor-pointer transition-all",
-                  sendSignatureLinkWhatsApp ? "bg-success/10 border border-success/30" : "bg-muted/50 border border-transparent"
-                )}
-                onClick={() => setSendSignatureLinkWhatsApp(!sendSignatureLinkWhatsApp)}
-              >
-                <div className={cn(
-                  "w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors",
-                  sendSignatureLinkWhatsApp ? "border-success bg-success" : "border-muted-foreground"
-                )}>
-                  {sendSignatureLinkWhatsApp && <Check className="w-3 h-3 text-success-foreground" />}
+              <div className="rounded-xl p-4 bg-muted/30 border border-border space-y-3">
+                <div className="flex items-start gap-3">
+                  <FileSignature className="w-5 h-5 mt-0.5 text-foreground" />
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">Envio do contrato para assinatura</p>
+                    <p className="text-sm text-muted-foreground">Escolha como o responsável receberá o contrato.</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">Enviar link de assinatura via WhatsApp</p>
-                  <p className="text-sm text-muted-foreground">
-                    {sendSignatureLinkWhatsApp 
-                      ? "O responsável receberá o link para assinar o contrato digitalmente."
-                      : "O link de assinatura NÃO será enviado automaticamente."}
-                  </p>
+                <div className="grid gap-2">
+                  {([
+                    { id: 'internal', icon: MessageCircle, title: 'Assinatura interna via WhatsApp', desc: 'Link gerado pelo sistema. Assinatura simples (sem autenticação ZapSign).' },
+                    { id: 'zapsign', icon: FileSignature, title: 'Assinatura autenticada via ZapSign', desc: 'Recomendado para liberar antecipação no Asaas. Link enviado via WhatsApp.' },
+                    { id: 'none', icon: FileText, title: 'Não enviar agora', desc: 'O link poderá ser enviado depois na página Contratos.' },
+                  ] as const).map(opt => {
+                    const Icon = opt.icon;
+                    const selected = signatureSendMethod === opt.id;
+                    return (
+                      <div
+                        key={opt.id}
+                        onClick={() => setSignatureSendMethod(opt.id)}
+                        className={cn(
+                          "rounded-lg p-3 flex items-start gap-3 cursor-pointer transition-all border",
+                          selected ? "bg-success/10 border-success/40" : "bg-background border-border hover:bg-muted/50"
+                        )}
+                      >
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors shrink-0",
+                          selected ? "border-success bg-success" : "border-muted-foreground"
+                        )}>
+                          {selected && <Check className="w-3 h-3 text-success-foreground" />}
+                        </div>
+                        <Icon className={cn("w-4 h-4 mt-0.5 shrink-0", selected ? "text-success" : "text-muted-foreground")} />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground">{opt.title}</p>
+                          <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               {/* Send PIX Code Option - only show when entry boleto will be generated */}
