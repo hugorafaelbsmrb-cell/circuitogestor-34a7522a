@@ -157,28 +157,39 @@ export default function Anticipation() {
     return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
   };
 
-  // Filter items based on search term
+  // Filter items based on search term and "only with contract" flag
+  const hasSignedContract = (rec: { contracts?: unknown }) =>
+    !!(rec?.contracts as { zapsign_signed_pdf_url?: string | null } | null)?.zapsign_signed_pdf_url;
+
   const filteredPayments = useMemo(() => {
     if (!pendingPayments) return [];
-    if (!searchTerm) return pendingPayments;
-    const term = searchTerm.toLowerCase();
-    return pendingPayments.filter(p => 
-      p.description?.toLowerCase().includes(term) ||
-      (p.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
-      p.asaas_payment_id?.toLowerCase().includes(term)
-    );
-  }, [pendingPayments, searchTerm]);
+    let list = pendingPayments;
+    if (onlyWithContract) list = list.filter(hasSignedContract);
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(p =>
+        p.description?.toLowerCase().includes(term) ||
+        (p.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
+        p.asaas_payment_id?.toLowerCase().includes(term)
+      );
+    }
+    return list;
+  }, [pendingPayments, searchTerm, onlyWithContract]);
 
   const filteredCarnes = useMemo(() => {
     if (!pendingCarnes) return [];
-    if (!searchTerm) return pendingCarnes;
-    const term = searchTerm.toLowerCase();
-    return pendingCarnes.filter(c => 
-      c.description?.toLowerCase().includes(term) ||
-      (c.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
-      c.asaas_installment_id?.toLowerCase().includes(term)
-    );
-  }, [pendingCarnes, searchTerm]);
+    let list = pendingCarnes;
+    if (onlyWithContract) list = list.filter(hasSignedContract);
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(c =>
+        c.description?.toLowerCase().includes(term) ||
+        (c.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
+        c.asaas_installment_id?.toLowerCase().includes(term)
+      );
+    }
+    return list;
+  }, [pendingCarnes, searchTerm, onlyWithContract]);
 
   // Fetch anticipation limits
   const { data: limits, isLoading: limitsLoading } = useQuery({
