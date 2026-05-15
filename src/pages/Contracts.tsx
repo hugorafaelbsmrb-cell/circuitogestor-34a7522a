@@ -821,6 +821,8 @@ export default function Contracts() {
               const classGroup = getClassGroupById(enrollment.class_group_id);
               const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
               const hasCarne = enrollmentHasCarne(enrollment.id);
+              const contractForEnrollment = getContractForEnrollment(enrollment.id);
+              const isZapsignSigned = !!(contractForEnrollment as any)?.zapsign_signed_at || !!(contractForEnrollment as any)?.zapsign_signed_pdf_url;
               const isSigned = isContractSigned(enrollment.id);
               const signatureLink = getSignatureLink(enrollment.id);
 
@@ -840,7 +842,15 @@ export default function Contracts() {
                           <h3 className="font-semibold text-foreground">
                             Contrato - {student?.name}
                           </h3>
-                          {isSigned ? (
+                          {isZapsignSigned ? (
+                            <Badge
+                              className="bg-blue-500/10 text-blue-600 border-blue-500/30 cursor-pointer hover:bg-blue-500/20 transition-colors dark:text-blue-400"
+                              onClick={() => handleOpenSignedContractModal(enrollment)}
+                            >
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Assinado via ZapSign
+                            </Badge>
+                          ) : isSigned ? (
                             <Badge 
                               className="bg-success/10 text-success border-success/30 cursor-pointer hover:bg-success/20 transition-colors"
                               onClick={() => handleOpenSignedContractModal(enrollment)}
