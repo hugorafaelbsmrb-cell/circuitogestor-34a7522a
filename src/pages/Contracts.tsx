@@ -876,28 +876,28 @@ export default function Contracts() {
                               <p>Enviar link via WhatsApp (assinatura interna)</p>
                             </TooltipContent>
                           </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
-                                onClick={() => handleSendViaZapSign(enrollment)}
-                                disabled={isSendingZapSign || isSendingWhatsApp}
-                              >
-                                {isSendingZapSign ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <FileSignature className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Enviar via ZapSign (assinatura autenticada — libera antecipação Asaas)</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </>
-                      )}
+                         </>
+                       )}
+                       <Tooltip>
+                         <TooltipTrigger asChild>
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                             onClick={() => handleSendViaZapSign(enrollment)}
+                             disabled={isSendingZapSign || isSendingWhatsApp}
+                           >
+                             {isSendingZapSign ? (
+                               <Loader2 className="w-4 h-4 animate-spin" />
+                             ) : (
+                               <FileSignature className="w-4 h-4" />
+                             )}
+                           </Button>
+                         </TooltipTrigger>
+                         <TooltipContent>
+                           <p>{isSigned ? 'Reenviar via ZapSign (autenticação para Asaas)' : 'Enviar via ZapSign (assinatura autenticada — libera antecipação Asaas)'}</p>
+                         </TooltipContent>
+                       </Tooltip>
                       {!hasCarne && (
                         <Tooltip>
                           <TooltipTrigger asChild>
