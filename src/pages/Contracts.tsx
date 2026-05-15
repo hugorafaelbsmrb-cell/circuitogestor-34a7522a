@@ -842,7 +842,15 @@ export default function Contracts() {
                           <h3 className="font-semibold text-foreground">
                             Contrato - {student?.name}
                           </h3>
-                          {isSigned ? (
+                          {isZapsignSigned ? (
+                            <Badge
+                              className="bg-blue-500/10 text-blue-600 border-blue-500/30 cursor-pointer hover:bg-blue-500/20 transition-colors dark:text-blue-400"
+                              onClick={() => handleOpenSignedContractModal(enrollment)}
+                            >
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Assinado via ZapSign
+                            </Badge>
+                          ) : isSigned ? (
                             <Badge 
                               className="bg-success/10 text-success border-success/30 cursor-pointer hover:bg-success/20 transition-colors"
                               onClick={() => handleOpenSignedContractModal(enrollment)}
