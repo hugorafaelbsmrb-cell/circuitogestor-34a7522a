@@ -223,7 +223,7 @@ export default function Contracts() {
 
   // Send contract via ZapSign (assinatura eletrônica autenticada — libera antecipação no Asaas)
   const [isSendingZapSign, setIsSendingZapSign] = useState(false);
-  const handleSendViaZapSign = async (enrollment: typeof enrollments[0]) => {
+  const handleSendViaZapSign = async (enrollment: typeof enrollments[0], customTemplate?: string) => {
     const contract = getContractForEnrollment(enrollment.id);
     if (!contract) {
       toast({ title: 'Contrato não encontrado', variant: 'destructive' });
@@ -274,7 +274,7 @@ export default function Contracts() {
 
       // 3) Send sign URL via WhatsApp using existing template
       const guardianFirstName = guardian.name.split(' ')[0];
-      let message = signatureTemplate || `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
+      let message = customTemplate || signatureTemplate || `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
       message = message
         .replace('{nome}', guardianFirstName)
         .replace('{aluno}', student.name)
@@ -339,18 +339,23 @@ export default function Contracts() {
 
   const [isBulkSendingZapSign, setIsBulkSendingZapSign] = useState(false);
   const handleBulkSendViaZapSign = async () => {
-    const pending = enrollments.filter(e =>
-      e.contract_generated &&
-      e.status === 'active' &&
-      !isContractSigned(e.id)
-    );
+    // Apenas contratos ativos AINDA NÃO assinados via ZapSign
+    const pending = enrollments.filter(e => {
+      if (!e.contract_generated || e.status !== 'active') return false;
+      const c = getContractForEnrollment(e.id) as any;
+      if (!c) return false;
+      return !c.zapsign_signed_at && !c.zapsign_signed_pdf_url;
+    });
 
     if (pending.length === 0) {
-      toast({ title: 'Nenhum contrato pendente', description: 'Todos os contratos ativos já foram assinados.' });
+      toast({ title: 'Nenhum contrato pendente', description: 'Todos os contratos ativos já foram assinados via ZapSign.' });
       return;
     }
 
     if (!confirm(`Enviar ${pending.length} contrato(s) via ZapSign para assinatura dos pais?`)) return;
+
+    // Mensagem com justificativa institucional (sem citar antecipação)
+    const bulkTemplate = `Olá {nome}! 👋\n\nPor uma *atualização nas exigências de conformidade documental* da nossa instituição financeira parceira, precisamos que o contrato de matrícula de *{aluno}* no curso *{curso}* seja reassinado em uma plataforma com *autenticação eletrônica certificada*.\n\nEsse procedimento é puramente formal e *não altera nenhum termo, valor ou condição* já acordados.\n\n✍️ Acesse o link abaixo para concluir a assinatura (leva menos de 2 minutos):\n{link}\n\nO link é único e intransferível.\n\nAgradecemos a compreensão e a parceria! 🙂`;
 
     setIsBulkSendingZapSign(true);
     let sent = 0;
@@ -358,7 +363,7 @@ export default function Contracts() {
 
     for (const enrollment of pending) {
       try {
-        await handleSendViaZapSign(enrollment);
+        await handleSendViaZapSign(enrollment, bulkTemplate);
         sent++;
       } catch {
         failed++;
