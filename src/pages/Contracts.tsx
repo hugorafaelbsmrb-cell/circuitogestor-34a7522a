@@ -274,7 +274,7 @@ export default function Contracts() {
 
       // 3) Send sign URL via WhatsApp using existing template
       const guardianFirstName = guardian.name.split(' ')[0];
-      let message = customTemplate || signatureTemplate || `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
+      let message = customTemplate || `Olá {nome}! 👋\n\nPor uma *atualização nas exigências de conformidade documental* da nossa instituição financeira parceira, precisamos que o contrato de matrícula de *{aluno}* no curso *{curso}* seja assinado em uma plataforma com *autenticação eletrônica certificada*.\n\nEsse procedimento é puramente formal e *não altera nenhum termo, valor ou condição* já acordados.\n\n✍️ Acesse o link abaixo para concluir a assinatura (leva menos de 2 minutos):\n{link}\n\nO link é único e intransferível.\n\nAgradecemos a compreensão e a parceria! 🙂`;
       message = message
         .replace('{nome}', guardianFirstName)
         .replace('{aluno}', student.name)
