@@ -513,7 +513,24 @@ export default function Anticipation() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12"></TableHead>
+                          <TableHead className="w-12">
+                            <Checkbox
+                              checked={
+                                filteredPayments.length > 0 &&
+                                filteredPayments.every(p => selectedPaymentIds.includes(p.asaas_payment_id || ''))
+                              }
+                              onCheckedChange={(checked) => {
+                                const allIds = filteredPayments.map(p => p.asaas_payment_id || '').filter(Boolean);
+                                if (checked) {
+                                  setSelectedPaymentIds(prev => Array.from(new Set([...prev, ...allIds])));
+                                } else {
+                                  setSelectedPaymentIds(prev => prev.filter(id => !allIds.includes(id)));
+                                }
+                                setSimulationResult(null);
+                              }}
+                              aria-label="Selecionar todas"
+                            />
+                          </TableHead>
                           <TableHead>Responsável</TableHead>
                           <TableHead>Descrição</TableHead>
                           <TableHead>Vencimento</TableHead>
@@ -521,36 +538,47 @@ export default function Anticipation() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredPayments.map((payment) => (
-                          <TableRow 
-                            key={payment.id}
-                            className={`cursor-pointer transition-colors ${simulationId === payment.asaas_payment_id ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
-                            onClick={() => {
-                              setSimulationId(payment.asaas_payment_id || '');
-                              setSimulationResult(null);
-                            }}
-                          >
-                            <TableCell>
-                              <div className={`w-4 h-4 rounded-full border-2 ${simulationId === payment.asaas_payment_id ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                                {simulationId === payment.asaas_payment_id && (
-                                  <CheckCircle2 className="w-3 h-3 text-primary-foreground" />
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {(payment.guardians as { name: string } | null)?.name || '-'}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {payment.description || '-'}
-                            </TableCell>
-                            <TableCell>
-                              {format(new Date(payment.due_date), "dd/MM/yyyy", { locale: ptBR })}
-                            </TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {formatCurrency(payment.value)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {filteredPayments.map((payment) => {
+                          const pid = payment.asaas_payment_id || '';
+                          const isChecked = selectedPaymentIds.includes(pid);
+                          return (
+                            <TableRow 
+                              key={payment.id}
+                              className={`cursor-pointer transition-colors ${isChecked ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
+                              onClick={() => {
+                                setSelectedPaymentIds(prev =>
+                                  isChecked ? prev.filter(id => id !== pid) : [...prev, pid]
+                                );
+                                setSimulationResult(null);
+                              }}
+                            >
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => {
+                                    setSelectedPaymentIds(prev =>
+                                      checked ? [...prev, pid] : prev.filter(id => id !== pid)
+                                    );
+                                    setSimulationResult(null);
+                                  }}
+                                  aria-label="Selecionar cobrança"
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {(payment.guardians as { name: string } | null)?.name || '-'}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {payment.description || '-'}
+                              </TableCell>
+                              <TableCell>
+                                {format(new Date(payment.due_date), "dd/MM/yyyy", { locale: ptBR })}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold">
+                                {formatCurrency(payment.value)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   )
