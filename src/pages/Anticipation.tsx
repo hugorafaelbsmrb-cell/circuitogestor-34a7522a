@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -80,10 +81,12 @@ export default function Anticipation() {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [simulationId, setSimulationId] = useState('');
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [simulationType, setSimulationType] = useState<'payment' | 'installment'>('payment');
   const [simulationResult, setSimulationResult] = useState<SimulationResult | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; failures: string[] } | null>(null);
 
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
@@ -139,16 +142,17 @@ export default function Anticipation() {
     },
   });
 
-  // Resolve signed contract PDF URL for the currently selected item
+  // Resolve signed contract PDF URL for the currently selected installment (carnê)
   const selectedContractPdfUrl = useMemo<string | null>(() => {
-    if (!simulationId) return null;
-    if (simulationType === 'payment') {
-      const p = pendingPayments?.find(x => x.asaas_payment_id === simulationId);
-      return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
-    }
+    if (simulationType !== 'installment' || !simulationId) return null;
     const c = pendingCarnes?.find(x => x.asaas_installment_id === simulationId);
     return (c?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
-  }, [simulationId, simulationType, pendingPayments, pendingCarnes]);
+  }, [simulationId, simulationType, pendingCarnes]);
+
+  const getPaymentContractUrl = (paymentId: string): string | null => {
+    const p = pendingPayments?.find(x => x.asaas_payment_id === paymentId);
+    return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+  };
 
   // Filter items based on search term
   const filteredPayments = useMemo(() => {
@@ -200,35 +204,40 @@ export default function Anticipation() {
     },
   });
 
-  // Simulate anticipation mutation
+  // Effective IDs to operate on
+  const effectiveIds = simulationType === 'payment'
+    ? selectedPaymentIds
+    : (simulationId ? [simulationId] : []);
+
+  // Simulate anticipation mutation - aggregates over multiple payments when needed
   const simulateMutation = useMutation({
     mutationFn: async () => {
-      const payload = simulationType === 'payment' 
-        ? { payment: simulationId }
-        : { installment: simulationId };
-      
-      const { data, error } = await supabase.functions.invoke('asaas-payment', {
-        body: { action: 'simulateAnticipation', data: payload }
-      });
-      
-      if (error) {
-        // Try to parse the error message from the response
-        const errorMessage = error.message || 'Erro desconhecido';
-        throw new Error(errorMessage);
-      }
-      
-      // Check if the response contains an error from Asaas
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-      
-      return data;
+      if (effectiveIds.length === 0) throw new Error('Selecione ao menos um item');
+
+      const results = await Promise.all(effectiveIds.map(async (id) => {
+        const payload = simulationType === 'payment' ? { payment: id } : { installment: id };
+        const { data, error } = await supabase.functions.invoke('asaas-payment', {
+          body: { action: 'simulateAnticipation', data: payload }
+        });
+        if (error) throw new Error(error.message || 'Erro desconhecido');
+        if (data?.error) throw new Error(data.error);
+        return data as SimulationResult;
+      }));
+
+      // Aggregate
+      const aggregated: SimulationResult = {
+        anticipatedValue: results.reduce((s, r) => s + (r.anticipatedValue || 0), 0),
+        fee: results.reduce((s, r) => s + (r.fee || 0), 0),
+        totalValue: results.reduce((s, r) => s + (r.totalValue || 0), 0),
+        isDocumentationRequired: results.some(r => r.isDocumentationRequired),
+      };
+      return aggregated;
     },
     onSuccess: (data) => {
       setSimulationResult(data);
       toast({
         title: "Simulação realizada",
-        description: `Valor líquido: R$ ${data.anticipatedValue?.toFixed(2) || '0.00'}`,
+        description: `${effectiveIds.length} ${effectiveIds.length > 1 ? 'itens' : 'item'} • Líquido: R$ ${data.anticipatedValue?.toFixed(2) || '0.00'}`,
       });
     },
     onError: (error: Error) => {
@@ -244,41 +253,62 @@ export default function Anticipation() {
     },
   });
 
-  // Request anticipation mutation
+  // Request anticipation mutation - sequentially per id, with progress
   const requestMutation = useMutation({
     mutationFn: async () => {
-      const payload: Record<string, string> = simulationType === 'payment' 
-        ? { payment: simulationId }
-        : { installment: simulationId };
-      if (selectedContractPdfUrl) payload.contractPdfUrl = selectedContractPdfUrl;
-      
-      const { data, error } = await supabase.functions.invoke('asaas-payment', {
-        body: { action: 'requestAnticipation', data: payload }
-      });
-      
-      if (error) {
-        const errorMessage = error.message || 'Erro desconhecido';
-        throw new Error(errorMessage);
+      if (effectiveIds.length === 0) throw new Error('Nenhum item selecionado');
+      setBulkProgress({ current: 0, total: effectiveIds.length, failures: [] });
+      const failures: string[] = [];
+
+      for (let i = 0; i < effectiveIds.length; i++) {
+        const id = effectiveIds[i];
+        const payload: Record<string, string> = simulationType === 'payment'
+          ? { payment: id }
+          : { installment: id };
+
+        const pdf = simulationType === 'payment' ? getPaymentContractUrl(id) : selectedContractPdfUrl;
+        if (pdf) payload.contractPdfUrl = pdf;
+
+        try {
+          const { data, error } = await supabase.functions.invoke('asaas-payment', {
+            body: { action: 'requestAnticipation', data: payload }
+          });
+          if (error) throw new Error(error.message || 'Erro desconhecido');
+          if (data?.error) throw new Error(data.error);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          failures.push(`${id.substring(0, 8)}…: ${msg}`);
+        }
+        setBulkProgress({ current: i + 1, total: effectiveIds.length, failures: [...failures] });
       }
-      
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-      
-      return data;
+
+      return { total: effectiveIds.length, failures };
     },
-    onSuccess: () => {
-      toast({
-        title: "Antecipação solicitada",
-        description: "Sua solicitação foi enviada para análise.",
-      });
+    onSuccess: ({ total, failures }) => {
+      const ok = total - failures.length;
+      if (failures.length === 0) {
+        toast({
+          title: "Antecipação solicitada",
+          description: `${ok} ${ok > 1 ? 'solicitações enviadas' : 'solicitação enviada'} para análise.`,
+        });
+      } else {
+        toast({
+          title: `${ok}/${total} solicitações enviadas`,
+          description: failures.slice(0, 3).join(' • ') + (failures.length > 3 ? ` (+${failures.length - 3})` : ''),
+          variant: failures.length === total ? "destructive" : "default",
+        });
+      }
       setShowConfirmDialog(false);
       setSimulationResult(null);
       setSimulationId('');
+      setSelectedPaymentIds([]);
+      setBulkProgress(null);
       queryClient.invalidateQueries({ queryKey: ['anticipations'] });
       queryClient.invalidateQueries({ queryKey: ['anticipation-limits'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-payments-for-anticipation'] });
     },
     onError: (error: Error) => {
+      setBulkProgress(null);
       toast({
         title: "Erro na solicitação",
         description: error.message,
@@ -419,6 +449,7 @@ export default function Anticipation() {
                     onValueChange={(v) => {
                       setSimulationType(v as 'payment' | 'installment');
                       setSimulationId('');
+                      setSelectedPaymentIds([]);
                       setSimulationResult(null);
                     }}
                   >
@@ -482,7 +513,24 @@ export default function Anticipation() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12"></TableHead>
+                          <TableHead className="w-12">
+                            <Checkbox
+                              checked={
+                                filteredPayments.length > 0 &&
+                                filteredPayments.every(p => selectedPaymentIds.includes(p.asaas_payment_id || ''))
+                              }
+                              onCheckedChange={(checked) => {
+                                const allIds = filteredPayments.map(p => p.asaas_payment_id || '').filter(Boolean);
+                                if (checked) {
+                                  setSelectedPaymentIds(prev => Array.from(new Set([...prev, ...allIds])));
+                                } else {
+                                  setSelectedPaymentIds(prev => prev.filter(id => !allIds.includes(id)));
+                                }
+                                setSimulationResult(null);
+                              }}
+                              aria-label="Selecionar todas"
+                            />
+                          </TableHead>
                           <TableHead>Responsável</TableHead>
                           <TableHead>Descrição</TableHead>
                           <TableHead>Vencimento</TableHead>
@@ -490,36 +538,47 @@ export default function Anticipation() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredPayments.map((payment) => (
-                          <TableRow 
-                            key={payment.id}
-                            className={`cursor-pointer transition-colors ${simulationId === payment.asaas_payment_id ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
-                            onClick={() => {
-                              setSimulationId(payment.asaas_payment_id || '');
-                              setSimulationResult(null);
-                            }}
-                          >
-                            <TableCell>
-                              <div className={`w-4 h-4 rounded-full border-2 ${simulationId === payment.asaas_payment_id ? 'border-primary bg-primary' : 'border-muted-foreground'}`}>
-                                {simulationId === payment.asaas_payment_id && (
-                                  <CheckCircle2 className="w-3 h-3 text-primary-foreground" />
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {(payment.guardians as { name: string } | null)?.name || '-'}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {payment.description || '-'}
-                            </TableCell>
-                            <TableCell>
-                              {format(new Date(payment.due_date), "dd/MM/yyyy", { locale: ptBR })}
-                            </TableCell>
-                            <TableCell className="text-right font-semibold">
-                              {formatCurrency(payment.value)}
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {filteredPayments.map((payment) => {
+                          const pid = payment.asaas_payment_id || '';
+                          const isChecked = selectedPaymentIds.includes(pid);
+                          return (
+                            <TableRow 
+                              key={payment.id}
+                              className={`cursor-pointer transition-colors ${isChecked ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
+                              onClick={() => {
+                                setSelectedPaymentIds(prev =>
+                                  isChecked ? prev.filter(id => id !== pid) : [...prev, pid]
+                                );
+                                setSimulationResult(null);
+                              }}
+                            >
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => {
+                                    setSelectedPaymentIds(prev =>
+                                      checked ? [...prev, pid] : prev.filter(id => id !== pid)
+                                    );
+                                    setSimulationResult(null);
+                                  }}
+                                  aria-label="Selecionar cobrança"
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {(payment.guardians as { name: string } | null)?.name || '-'}
+                              </TableCell>
+                              <TableCell className="text-sm text-muted-foreground">
+                                {payment.description || '-'}
+                              </TableCell>
+                              <TableCell>
+                                {format(new Date(payment.due_date), "dd/MM/yyyy", { locale: ptBR })}
+                              </TableCell>
+                              <TableCell className="text-right font-semibold">
+                                {formatCurrency(payment.value)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   )
@@ -582,10 +641,15 @@ export default function Anticipation() {
               </div>
 
               {/* Simulate button */}
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-sm text-muted-foreground">
+                  {effectiveIds.length > 0
+                    ? `${effectiveIds.length} ${effectiveIds.length > 1 ? 'itens selecionados' : 'item selecionado'}`
+                    : 'Nenhum item selecionado'}
+                </p>
                 <Button
                   onClick={() => simulateMutation.mutate()}
-                  disabled={!simulationId || simulateMutation.isPending}
+                  disabled={effectiveIds.length === 0 || simulateMutation.isPending}
                   size="lg"
                 >
                   {simulateMutation.isPending ? (
@@ -627,16 +691,26 @@ export default function Anticipation() {
                     </div>
                   </div>
                   
-                  {simulationResult.isDocumentationRequired && (
-                    <div className={`mt-4 p-3 rounded-lg border ${selectedContractPdfUrl ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
-                      <p className={`text-sm flex items-center gap-2 ${selectedContractPdfUrl ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                        {selectedContractPdfUrl ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                        {selectedContractPdfUrl
-                          ? <><strong>Contrato assinado disponível:</strong> será enviado automaticamente junto com a solicitação.</>
-                          : <><strong>Documentação obrigatória:</strong> nenhum contrato assinado encontrado para esta cobrança. A solicitação pode ser negada.</>}
-                      </p>
-                    </div>
-                  )}
+                  {simulationResult.isDocumentationRequired && (() => {
+                    const hasContract = simulationType === 'payment'
+                      ? selectedPaymentIds.every(id => !!getPaymentContractUrl(id))
+                      : !!selectedContractPdfUrl;
+                    const partialContract = simulationType === 'payment'
+                      && !hasContract
+                      && selectedPaymentIds.some(id => !!getPaymentContractUrl(id));
+                    return (
+                      <div className={`mt-4 p-3 rounded-lg border ${hasContract ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                        <p className={`text-sm flex items-center gap-2 ${hasContract ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                          {hasContract ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                          {hasContract
+                            ? <><strong>Contratos assinados disponíveis:</strong> serão enviados automaticamente em cada solicitação.</>
+                            : partialContract
+                              ? <><strong>Contratos parciais:</strong> alguns itens não possuem contrato assinado. Estes podem ser negados.</>
+                              : <><strong>Documentação obrigatória:</strong> nenhum contrato assinado encontrado. As solicitações podem ser negadas.</>}
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </CardContent>
@@ -734,6 +808,10 @@ export default function Anticipation() {
           {simulationResult && (
             <div className="py-4 space-y-3">
               <div className="flex justify-between">
+                <span className="text-muted-foreground">Itens selecionados:</span>
+                <span className="font-semibold">{effectiveIds.length}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">Valor total:</span>
                 <span className="font-semibold">{formatCurrency(simulationResult.totalValue)}</span>
               </div>
@@ -745,11 +823,25 @@ export default function Anticipation() {
                 <span className="font-semibold">Valor a receber:</span>
                 <span className="font-bold text-green-600">{formatCurrency(simulationResult.anticipatedValue)}</span>
               </div>
+              {bulkProgress && (
+                <div className="pt-2 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Processando...</span>
+                    <span className="font-medium">{bulkProgress.current}/{bulkProgress.total}</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={requestMutation.isPending}>
               Cancelar
             </Button>
             <Button 
