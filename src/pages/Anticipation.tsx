@@ -456,6 +456,17 @@ export default function Anticipation() {
               </div>
 
               {/* Selectable list */}
+              {simulationType === 'installment' && (
+                <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>
+                    O Asaas só permite antecipar o carnê inteiro quando a forma de pagamento é <strong>Cartão de Crédito</strong>.
+                    Para carnês de boleto/PIX, vá em <strong>Cobranças Avulsas</strong> e antecipe parcela por parcela.
+                  </span>
+                </div>
+              )}
+
+              {/* Selectable list */}
               <div className="border rounded-lg max-h-64 overflow-y-auto">
                 {simulationType === 'payment' ? (
                   paymentsLoading ? (
