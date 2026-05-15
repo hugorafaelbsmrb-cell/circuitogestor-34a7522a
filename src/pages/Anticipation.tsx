@@ -233,9 +233,12 @@ export default function Anticipation() {
     },
     onError: (error: Error) => {
       setSimulationResult(null);
+      const isBoletoCarne = simulationType === 'installment' && /Cartão de Crédito/i.test(error.message);
       toast({
         title: "Antecipação não disponível",
-        description: error.message,
+        description: isBoletoCarne
+          ? "Carnês de boleto/PIX só podem ser antecipados parcela a parcela. Mude para a aba 'Cobranças Avulsas' e selecione o boleto desejado."
+          : error.message,
         variant: "destructive",
       });
     },
@@ -451,6 +454,17 @@ export default function Anticipation() {
                   </div>
                 </div>
               </div>
+
+              {/* Selectable list */}
+              {simulationType === 'installment' && (
+                <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>
+                    O Asaas só permite antecipar o carnê inteiro quando a forma de pagamento é <strong>Cartão de Crédito</strong>.
+                    Para carnês de boleto/PIX, vá em <strong>Cobranças Avulsas</strong> e antecipe parcela por parcela.
+                  </span>
+                </div>
+              )}
 
               {/* Selectable list */}
               <div className="border rounded-lg max-h-64 overflow-y-auto">
