@@ -337,6 +337,42 @@ export default function Contracts() {
     });
   };
 
+  const [isBulkSendingZapSign, setIsBulkSendingZapSign] = useState(false);
+  const handleBulkSendViaZapSign = async () => {
+    const pending = enrollments.filter(e =>
+      e.contract_generated &&
+      e.status === 'active' &&
+      !isContractSigned(e.id)
+    );
+
+    if (pending.length === 0) {
+      toast({ title: 'Nenhum contrato pendente', description: 'Todos os contratos ativos já foram assinados.' });
+      return;
+    }
+
+    if (!confirm(`Enviar ${pending.length} contrato(s) via ZapSign para assinatura dos pais?`)) return;
+
+    setIsBulkSendingZapSign(true);
+    let sent = 0;
+    let failed = 0;
+
+    for (const enrollment of pending) {
+      try {
+        await handleSendViaZapSign(enrollment);
+        sent++;
+      } catch {
+        failed++;
+      }
+      await new Promise(r => setTimeout(r, 3500));
+    }
+
+    setIsBulkSendingZapSign(false);
+    toast({
+      title: 'Envio em massa via ZapSign concluído',
+      description: `${sent} enviado(s)${failed > 0 ? `, ${failed} falharam` : ''}.`,
+    });
+  };
+
   // Open signature modal
   const handleOpenSignatureModal = (enrollment: typeof enrollments[0]) => {
     const contract = getContractForEnrollment(enrollment.id);
@@ -749,10 +785,18 @@ export default function Contracts() {
             variant="outline"
             className="gap-2"
             onClick={handleBulkSendUnsigned}
-            disabled={isBulkSending || isSendingWhatsApp}
+            disabled={isBulkSending || isSendingWhatsApp || isBulkSendingZapSign}
           >
             {isBulkSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Enviar pendentes em massa
+          </Button>
+          <Button
+            className="gap-2"
+            onClick={handleBulkSendViaZapSign}
+            disabled={isBulkSendingZapSign || isSendingZapSign || isBulkSending || isSendingWhatsApp}
+          >
+            {isBulkSendingZapSign ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Enviar via ZapSign (em massa)
           </Button>
           <Link to="/contrato-config">
             <Button variant="outline" className="gap-2">
