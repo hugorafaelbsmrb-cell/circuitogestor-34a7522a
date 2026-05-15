@@ -54,6 +54,7 @@ import { SystemDocumentation } from '@/components/settings/SystemDocumentation';
 import { CanteenMessageConfigCard } from '@/components/settings/CanteenMessageConfigCard';
 import { ReportNotificationConfigCard } from '@/components/settings/ReportNotificationConfigCard';
 import { DropboxConfigCard } from '@/components/settings/DropboxConfigCard';
+import { ZapSignConfigCard } from '@/components/settings/ZapSignConfigCard';
 import { EmailConfigCard } from '@/components/settings/EmailConfigCard';
 import { TeacherReportNotificationCard } from '@/components/settings/TeacherReportNotificationCard';
 import { cn } from '@/lib/utils';
