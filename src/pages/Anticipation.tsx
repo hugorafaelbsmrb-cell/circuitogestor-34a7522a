@@ -449,6 +449,7 @@ export default function Anticipation() {
                     onValueChange={(v) => {
                       setSimulationType(v as 'payment' | 'installment');
                       setSimulationId('');
+                      setSelectedPaymentIds([]);
                       setSimulationResult(null);
                     }}
                   >
