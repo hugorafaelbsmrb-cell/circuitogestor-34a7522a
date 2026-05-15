@@ -578,10 +578,12 @@ export default function Anticipation() {
                   </div>
                   
                   {simulationResult.isDocumentationRequired && (
-                    <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                      <p className="text-sm text-amber-700 dark:text-amber-400 flex items-center gap-2">
-                        <AlertCircle className="w-4 h-4" />
-                        <strong>Documentação obrigatória:</strong> Esta antecipação requer envio de NF-e ou contrato de prestação de serviços.
+                    <div className={`mt-4 p-3 rounded-lg border ${selectedContractPdfUrl ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                      <p className={`text-sm flex items-center gap-2 ${selectedContractPdfUrl ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                        {selectedContractPdfUrl ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                        {selectedContractPdfUrl
+                          ? <><strong>Contrato assinado disponível:</strong> será enviado automaticamente junto com a solicitação.</>
+                          : <><strong>Documentação obrigatória:</strong> nenhum contrato assinado encontrado para esta cobrança. A solicitação pode ser negada.</>}
                       </p>
                     </div>
                   )}
