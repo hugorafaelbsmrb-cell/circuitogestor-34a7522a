@@ -536,6 +536,30 @@ export default function Anticipation() {
                 </div>
               </div>
 
+              {/* Contract filter */}
+              <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="only-with-contract"
+                    checked={onlyWithContract}
+                    onCheckedChange={(checked) => {
+                      setOnlyWithContract(!!checked);
+                      setSelectedPaymentIds([]);
+                      setSimulationId('');
+                      setSimulationResult(null);
+                      setEligibleIds([]);
+                      setIneligible([]);
+                    }}
+                  />
+                  <Label htmlFor="only-with-contract" className="cursor-pointer text-sm font-normal">
+                    Mostrar apenas clientes com <strong>contrato assinado</strong> (recomendado)
+                  </Label>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {simulationType === 'payment' ? filteredPayments.length : filteredCarnes.length} {(simulationType === 'payment' ? filteredPayments.length : filteredCarnes.length) === 1 ? 'item' : 'itens'}
+                </Badge>
+              </div>
+
               {/* Selectable list */}
               {simulationType === 'installment' && (
                 <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-700 dark:text-amber-400 flex items-start gap-2">
