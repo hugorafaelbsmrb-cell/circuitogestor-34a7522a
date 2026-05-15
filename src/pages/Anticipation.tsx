@@ -142,16 +142,17 @@ export default function Anticipation() {
     },
   });
 
-  // Resolve signed contract PDF URL for the currently selected item
+  // Resolve signed contract PDF URL for the currently selected installment (carnê)
   const selectedContractPdfUrl = useMemo<string | null>(() => {
-    if (!simulationId) return null;
-    if (simulationType === 'payment') {
-      const p = pendingPayments?.find(x => x.asaas_payment_id === simulationId);
-      return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
-    }
+    if (simulationType !== 'installment' || !simulationId) return null;
     const c = pendingCarnes?.find(x => x.asaas_installment_id === simulationId);
     return (c?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
-  }, [simulationId, simulationType, pendingPayments, pendingCarnes]);
+  }, [simulationId, simulationType, pendingCarnes]);
+
+  const getPaymentContractUrl = (paymentId: string): string | null => {
+    const p = pendingPayments?.find(x => x.asaas_payment_id === paymentId);
+    return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+  };
 
   // Filter items based on search term
   const filteredPayments = useMemo(() => {
