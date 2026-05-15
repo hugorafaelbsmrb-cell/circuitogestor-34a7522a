@@ -211,39 +211,72 @@ export default function Anticipation() {
     ? selectedPaymentIds
     : (simulationId ? [simulationId] : []);
 
-  // Simulate anticipation mutation - aggregates over multiple payments when needed
+  // Helper: get a friendly label for a given id (responsável)
+  const getItemLabel = (id: string): string => {
+    if (simulationType === 'payment') {
+      const p = pendingPayments?.find(x => x.asaas_payment_id === id);
+      return (p?.guardians as { name: string } | null)?.name || id.substring(0, 12);
+    }
+    const c = pendingCarnes?.find(x => x.asaas_installment_id === id);
+    return (c?.guardians as { name: string } | null)?.name || id.substring(0, 12);
+  };
+
+  // Simulate anticipation mutation - tolerates per-item failures
   const simulateMutation = useMutation({
     mutationFn: async () => {
       if (effectiveIds.length === 0) throw new Error('Selecione ao menos um item');
 
-      const results = await Promise.all(effectiveIds.map(async (id) => {
+      const settled = await Promise.all(effectiveIds.map(async (id) => {
         const payload = simulationType === 'payment' ? { payment: id } : { installment: id };
-        const { data, error } = await supabase.functions.invoke('asaas-payment', {
-          body: { action: 'simulateAnticipation', data: payload }
-        });
-        if (error) throw new Error(error.message || 'Erro desconhecido');
-        if (data?.error) throw new Error(data.error);
-        return data as SimulationResult;
+        try {
+          const { data, error } = await supabase.functions.invoke('asaas-payment', {
+            body: { action: 'simulateAnticipation', data: payload }
+          });
+          if (error) throw new Error(error.message || 'Erro desconhecido');
+          if (data?.error) throw new Error(data.error);
+          return { id, ok: true as const, data: data as SimulationResult };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return { id, ok: false as const, reason: msg };
+        }
       }));
 
-      // Aggregate
+      const okList = settled.filter(s => s.ok) as { id: string; ok: true; data: SimulationResult }[];
+      const failList = settled.filter(s => !s.ok) as { id: string; ok: false; reason: string }[];
+
+      if (okList.length === 0) {
+        const first = failList[0]?.reason || 'Nenhum item elegível';
+        throw new Error(first);
+      }
+
       const aggregated: SimulationResult = {
-        anticipatedValue: results.reduce((s, r) => s + (r.anticipatedValue || 0), 0),
-        fee: results.reduce((s, r) => s + (r.fee || 0), 0),
-        totalValue: results.reduce((s, r) => s + (r.totalValue || 0), 0),
-        isDocumentationRequired: results.some(r => r.isDocumentationRequired),
+        anticipatedValue: okList.reduce((s, r) => s + (r.data.anticipatedValue || 0), 0),
+        fee: okList.reduce((s, r) => s + (r.data.fee || 0), 0),
+        totalValue: okList.reduce((s, r) => s + (r.data.totalValue || 0), 0),
+        isDocumentationRequired: okList.some(r => r.data.isDocumentationRequired),
       };
-      return aggregated;
+      return {
+        aggregated,
+        eligible: okList.map(r => r.id),
+        ineligible: failList.map(r => ({ id: r.id, reason: r.reason })),
+      };
     },
-    onSuccess: (data) => {
-      setSimulationResult(data);
+    onSuccess: ({ aggregated, eligible, ineligible: ineli }) => {
+      setSimulationResult(aggregated);
+      setEligibleIds(eligible);
+      setIneligible(ineli);
+      const skipped = ineli.length;
       toast({
-        title: "Simulação realizada",
-        description: `${effectiveIds.length} ${effectiveIds.length > 1 ? 'itens' : 'item'} • Líquido: R$ ${data.anticipatedValue?.toFixed(2) || '0.00'}`,
+        title: skipped > 0 ? `Simulação parcial (${eligible.length}/${eligible.length + skipped})` : "Simulação realizada",
+        description: skipped > 0
+          ? `${skipped} ${skipped > 1 ? 'itens não elegíveis foram ignorados' : 'item não elegível foi ignorado'}. Líquido: R$ ${aggregated.anticipatedValue?.toFixed(2)}`
+          : `Líquido: R$ ${aggregated.anticipatedValue?.toFixed(2) || '0.00'}`,
       });
     },
     onError: (error: Error) => {
       setSimulationResult(null);
+      setEligibleIds([]);
+      setIneligible([]);
       const isBoletoCarne = simulationType === 'installment' && /Cartão de Crédito/i.test(error.message);
       toast({
         title: "Antecipação não disponível",
@@ -255,15 +288,16 @@ export default function Anticipation() {
     },
   });
 
-  // Request anticipation mutation - sequentially per id, with progress
+  // Request anticipation mutation - sequentially per eligible id, with progress
   const requestMutation = useMutation({
     mutationFn: async () => {
-      if (effectiveIds.length === 0) throw new Error('Nenhum item selecionado');
-      setBulkProgress({ current: 0, total: effectiveIds.length, failures: [] });
+      const ids = eligibleIds.length > 0 ? eligibleIds : effectiveIds;
+      if (ids.length === 0) throw new Error('Nenhum item selecionado');
+      setBulkProgress({ current: 0, total: ids.length, failures: [] });
       const failures: string[] = [];
 
-      for (let i = 0; i < effectiveIds.length; i++) {
-        const id = effectiveIds[i];
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
         const payload: Record<string, string> = simulationType === 'payment'
           ? { payment: id }
           : { installment: id };
@@ -279,12 +313,12 @@ export default function Anticipation() {
           if (data?.error) throw new Error(data.error);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
-          failures.push(`${id.substring(0, 8)}…: ${msg}`);
+          failures.push(`${getItemLabel(id)}: ${msg}`);
         }
-        setBulkProgress({ current: i + 1, total: effectiveIds.length, failures: [...failures] });
+        setBulkProgress({ current: i + 1, total: ids.length, failures: [...failures] });
       }
 
-      return { total: effectiveIds.length, failures };
+      return { total: ids.length, failures };
     },
     onSuccess: ({ total, failures }) => {
       const ok = total - failures.length;
@@ -304,6 +338,8 @@ export default function Anticipation() {
       setSimulationResult(null);
       setSimulationId('');
       setSelectedPaymentIds([]);
+      setEligibleIds([]);
+      setIneligible([]);
       setBulkProgress(null);
       queryClient.invalidateQueries({ queryKey: ['anticipations'] });
       queryClient.invalidateQueries({ queryKey: ['anticipation-limits'] });
