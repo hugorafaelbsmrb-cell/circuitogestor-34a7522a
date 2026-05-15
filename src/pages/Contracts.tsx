@@ -223,7 +223,7 @@ export default function Contracts() {
 
   // Send contract via ZapSign (assinatura eletrônica autenticada — libera antecipação no Asaas)
   const [isSendingZapSign, setIsSendingZapSign] = useState(false);
-  const handleSendViaZapSign = async (enrollment: typeof enrollments[0]) => {
+  const handleSendViaZapSign = async (enrollment: typeof enrollments[0], customTemplate?: string) => {
     const contract = getContractForEnrollment(enrollment.id);
     if (!contract) {
       toast({ title: 'Contrato não encontrado', variant: 'destructive' });
