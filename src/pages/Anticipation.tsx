@@ -303,46 +303,76 @@ export default function Anticipation() {
         </Button>
       </div>
 
-      {/* Limits Card */}
-      <div className="grid gap-4 md:grid-cols-3">
+      {/* Limits Cards - Asaas anticipation limits per billing type */}
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Limite Disponível</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Boleto / PIX
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {limitsLoading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              <p className="text-2xl font-bold text-green-600">
-                {formatCurrency(limits?.creditLimit || 0)}
-              </p>
+              <>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(limits?.bankSlip?.available || 0)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Disponível de {formatCurrency(limits?.bankSlip?.total || 0)}
+                </p>
+                <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-green-600 transition-all"
+                    style={{
+                      width: `${
+                        limits?.bankSlip?.total
+                          ? Math.min(100, ((limits.bankSlip.available || 0) / limits.bankSlip.total) * 100)
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Taxa: <span className="font-medium text-foreground">5,79%</span></p>
+              </>
             )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Limite Utilizado</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <CreditCard className="w-4 h-4" />
+              Cartão de Crédito
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {limitsLoading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              <p className="text-2xl font-bold text-amber-600">
-                {formatCurrency(limits?.usedLimit || 0)}
-              </p>
+              <>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(limits?.creditCard?.available || 0)}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Disponível de {formatCurrency(limits?.creditCard?.total || 0)}
+                </p>
+                <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-green-600 transition-all"
+                    style={{
+                      width: `${
+                        limits?.creditCard?.total
+                          ? Math.min(100, ((limits.creditCard.available || 0) / limits.creditCard.total) * 100)
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">Taxa: <span className="font-medium text-foreground">1,25%</span></p>
+              </>
             )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Taxa Cartão / Boleto</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">
-              <span className="text-primary">1,25%</span>
-              <span className="text-muted-foreground mx-2">/</span>
-              <span className="text-primary">5,79%</span>
-            </p>
           </CardContent>
         </Card>
       </div>
