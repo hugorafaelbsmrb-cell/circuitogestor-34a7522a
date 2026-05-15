@@ -118,10 +118,25 @@ Deno.serve(async (req) => {
       body: JSON.stringify(zapPayload),
     });
 
-    const zapData = await zapResp.json();
+    const rawText = await zapResp.text();
+    let zapData: any;
+    try {
+      zapData = JSON.parse(rawText);
+    } catch {
+      zapData = { raw: rawText };
+    }
     if (!zapResp.ok) {
-      console.error('ZapSign error:', zapData);
-      return json({ error: 'Erro ZapSign', details: zapData }, 502);
+      console.error('ZapSign error:', zapResp.status, rawText);
+      const friendly = typeof zapData === 'object' && zapData?.raw
+        ? zapData.raw
+        : (zapData?.message || zapData?.detail || (Array.isArray(zapData) ? zapData.join(' | ') : JSON.stringify(zapData)));
+      // Return 200 so the supabase client surfaces the body to the frontend
+      return json({
+        ok: false,
+        error: `ZapSign (${zapResp.status}): ${String(friendly).slice(0, 500)}`,
+        status: zapResp.status,
+        details: zapData,
+      }, 200);
     }
 
     const docToken = zapData.token;
