@@ -273,6 +273,7 @@ export default function Anticipation() {
       setSimulationResult(null);
       setSimulationId('');
       queryClient.invalidateQueries({ queryKey: ['anticipations'] });
+      queryClient.invalidateQueries({ queryKey: ['anticipation-limits'] });
     },
     onError: (error: Error) => {
       toast({
