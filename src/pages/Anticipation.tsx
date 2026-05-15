@@ -89,6 +89,7 @@ export default function Anticipation() {
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; failures: string[] } | null>(null);
   const [eligibleIds, setEligibleIds] = useState<string[]>([]);
   const [ineligible, setIneligible] = useState<{ id: string; reason: string }[]>([]);
+  const [onlyWithContract, setOnlyWithContract] = useState(true);
 
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
@@ -156,28 +157,39 @@ export default function Anticipation() {
     return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
   };
 
-  // Filter items based on search term
+  // Filter items based on search term and "only with contract" flag
+  const hasSignedContract = (rec: { contracts?: unknown }) =>
+    !!(rec?.contracts as { zapsign_signed_pdf_url?: string | null } | null)?.zapsign_signed_pdf_url;
+
   const filteredPayments = useMemo(() => {
     if (!pendingPayments) return [];
-    if (!searchTerm) return pendingPayments;
-    const term = searchTerm.toLowerCase();
-    return pendingPayments.filter(p => 
-      p.description?.toLowerCase().includes(term) ||
-      (p.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
-      p.asaas_payment_id?.toLowerCase().includes(term)
-    );
-  }, [pendingPayments, searchTerm]);
+    let list = pendingPayments;
+    if (onlyWithContract) list = list.filter(hasSignedContract);
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(p =>
+        p.description?.toLowerCase().includes(term) ||
+        (p.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
+        p.asaas_payment_id?.toLowerCase().includes(term)
+      );
+    }
+    return list;
+  }, [pendingPayments, searchTerm, onlyWithContract]);
 
   const filteredCarnes = useMemo(() => {
     if (!pendingCarnes) return [];
-    if (!searchTerm) return pendingCarnes;
-    const term = searchTerm.toLowerCase();
-    return pendingCarnes.filter(c => 
-      c.description?.toLowerCase().includes(term) ||
-      (c.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
-      c.asaas_installment_id?.toLowerCase().includes(term)
-    );
-  }, [pendingCarnes, searchTerm]);
+    let list = pendingCarnes;
+    if (onlyWithContract) list = list.filter(hasSignedContract);
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      list = list.filter(c =>
+        c.description?.toLowerCase().includes(term) ||
+        (c.guardians as { name: string } | null)?.name?.toLowerCase().includes(term) ||
+        c.asaas_installment_id?.toLowerCase().includes(term)
+      );
+    }
+    return list;
+  }, [pendingCarnes, searchTerm, onlyWithContract]);
 
   // Fetch anticipation limits
   const { data: limits, isLoading: limitsLoading } = useQuery({
@@ -522,6 +534,30 @@ export default function Anticipation() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Contract filter */}
+              <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="only-with-contract"
+                    checked={onlyWithContract}
+                    onCheckedChange={(checked) => {
+                      setOnlyWithContract(!!checked);
+                      setSelectedPaymentIds([]);
+                      setSimulationId('');
+                      setSimulationResult(null);
+                      setEligibleIds([]);
+                      setIneligible([]);
+                    }}
+                  />
+                  <Label htmlFor="only-with-contract" className="cursor-pointer text-sm font-normal">
+                    Mostrar apenas clientes com <strong>contrato assinado</strong> (recomendado)
+                  </Label>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {simulationType === 'payment' ? filteredPayments.length : filteredCarnes.length} {(simulationType === 'payment' ? filteredPayments.length : filteredCarnes.length) === 1 ? 'item' : 'itens'}
+                </Badge>
               </div>
 
               {/* Selectable list */}
