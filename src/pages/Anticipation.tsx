@@ -691,16 +691,26 @@ export default function Anticipation() {
                     </div>
                   </div>
                   
-                  {simulationResult.isDocumentationRequired && (
-                    <div className={`mt-4 p-3 rounded-lg border ${selectedContractPdfUrl ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
-                      <p className={`text-sm flex items-center gap-2 ${selectedContractPdfUrl ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                        {selectedContractPdfUrl ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                        {selectedContractPdfUrl
-                          ? <><strong>Contrato assinado disponível:</strong> será enviado automaticamente junto com a solicitação.</>
-                          : <><strong>Documentação obrigatória:</strong> nenhum contrato assinado encontrado para esta cobrança. A solicitação pode ser negada.</>}
-                      </p>
-                    </div>
-                  )}
+                  {simulationResult.isDocumentationRequired && (() => {
+                    const hasContract = simulationType === 'payment'
+                      ? selectedPaymentIds.every(id => !!getPaymentContractUrl(id))
+                      : !!selectedContractPdfUrl;
+                    const partialContract = simulationType === 'payment'
+                      && !hasContract
+                      && selectedPaymentIds.some(id => !!getPaymentContractUrl(id));
+                    return (
+                      <div className={`mt-4 p-3 rounded-lg border ${hasContract ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
+                        <p className={`text-sm flex items-center gap-2 ${hasContract ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                          {hasContract ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                          {hasContract
+                            ? <><strong>Contratos assinados disponíveis:</strong> serão enviados automaticamente em cada solicitação.</>
+                            : partialContract
+                              ? <><strong>Contratos parciais:</strong> alguns itens não possuem contrato assinado. Estes podem ser negados.</>
+                              : <><strong>Documentação obrigatória:</strong> nenhum contrato assinado encontrado. As solicitações podem ser negadas.</>}
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </CardContent>
