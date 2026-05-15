@@ -751,6 +751,32 @@ export default function Anticipation() {
                 )}
               </div>
 
+              {/* Selected vs limit bar */}
+              {effectiveIds.length > 0 && (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Total selecionado
+                    </span>
+                    <span className={`font-semibold ${exceedsLimit ? 'text-destructive' : 'text-foreground'}`}>
+                      {formatCurrency(selectedTotal)}
+                      <span className="text-muted-foreground font-normal"> / {formatCurrency(limitAvailable)} disponível</span>
+                    </span>
+                  </div>
+                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${exceedsLimit ? 'bg-destructive' : limitUsedPct > 80 ? 'bg-orange-500' : 'bg-primary'}`}
+                      style={{ width: `${limitUsedPct}%` }}
+                    />
+                  </div>
+                  {exceedsLimit && (
+                    <p className="text-xs text-destructive">
+                      Valor selecionado excede o limite disponível para antecipação.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Simulate button */}
               <div className="flex items-center justify-between gap-4">
                 <p className="text-sm text-muted-foreground">
