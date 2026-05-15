@@ -100,6 +100,7 @@ export default function Contracts() {
     signatureImage: string | null;
     signedIp: string | null;
     signedUserAgent: string | null;
+    zapsignSignedPdfUrl: string | null;
   } | null>(null);
   interface ContractContentType {
     schoolName: string;
