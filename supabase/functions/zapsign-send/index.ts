@@ -112,19 +112,7 @@ Deno.serve(async (req) => {
       external_id: contractId,
     };
 
-    let { zapResp, rawText, zapData } = await createZapSignDocument(zapToken, zapPayload);
-
-    const shouldRetryInSandbox =
-      zapResp.status === 402 &&
-      /sandbox/i.test(rawText);
-
-    if (shouldRetryInSandbox) {
-      console.warn('ZapSign production request rejected without API plan; retrying in sandbox mode');
-      ({ zapResp, rawText, zapData } = await createZapSignDocument(zapToken, {
-        ...zapPayload,
-        sandbox: true,
-      }));
-    }
+    const { zapResp, rawText, zapData } = await createZapSignDocument(zapToken, zapPayload);
 
     if (!zapResp.ok) {
       console.error('ZapSign error:', zapResp.status, rawText);
