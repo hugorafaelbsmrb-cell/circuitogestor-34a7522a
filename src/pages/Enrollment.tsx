@@ -1461,7 +1461,8 @@ Att,
       }
 
       // 10. Send signature link via WhatsApp if enabled (with 10s delay after welcome message)
-      if (sendSignatureLinkWhatsApp && contract) {
+      if (signatureSendMethod !== 'none' && contract) {
+        const useZapSign = signatureSendMethod === 'zapsign';
         // Wait 10 seconds before sending the signature link to ensure it arrives after the welcome message
         setTimeout(async () => {
           try {
@@ -1472,20 +1473,58 @@ Att,
               .eq('key', 'whatsapp_template_contract_signature')
               .single();
 
-            // Get signature token from contract
-            const { data: contractData } = await supabase
-              .from('contracts')
-              .select('signature_token')
-              .eq('id', contract.id)
-              .single();
+            // Resolve signature link (ZapSign autenticado OU link interno)
+            let signatureLink: string | null = null;
 
-            if (contractData?.signature_token) {
-              const signatureLink = `${window.location.origin}/assinar/${contractData.signature_token}`;
+            if (useZapSign) {
+              try {
+                const preloadedImages = await preloadContractImages({
+                  schoolLogo: (contractContent as any).schoolLogo,
+                  schoolSignatureUrl: (contractContent as any).schoolSignatureUrl,
+                });
+                const pdfDoc = generateContractPDF({
+                  ...(contractContent as any),
+                  schoolLogo: preloadedImages.schoolLogo || undefined,
+                  schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
+                });
+                const dataUri = pdfDoc.output('datauristring');
+                const pdfBase64 = dataUri.split(',')[1];
+
+                const { data: zapResp, error: zapErr } = await supabase.functions.invoke('zapsign-send', {
+                  body: { contractId: contract.id, pdfBase64 },
+                });
+
+                if (zapErr || !zapResp?.signUrl) {
+                  throw new Error(zapResp?.error || zapErr?.message || 'Falha ao criar documento no ZapSign');
+                }
+                signatureLink = zapResp.signUrl;
+              } catch (zapError) {
+                console.error('ZapSign send failed, falling back to internal link:', zapError);
+                toast({
+                  title: 'ZapSign indisponível',
+                  description: 'Enviando link de assinatura interna como alternativa.',
+                  variant: 'destructive',
+                });
+              }
+            }
+
+            if (!signatureLink) {
+              // Fallback / internal flow: usa o token interno
+              const { data: contractData } = await supabase
+                .from('contracts')
+                .select('signature_token')
+                .eq('id', contract.id)
+                .single();
+              if (contractData?.signature_token) {
+                signatureLink = `${window.location.origin}/assinar/${contractData.signature_token}`;
+              }
+            }
+
+            if (signatureLink) {
               const guardianFirstName = guardian.name.split(' ')[0];
-              
-              let message = templateData?.value || 
+              let message = templateData?.value ||
                 `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
-              
+
               message = message
                 .replace('{nome}', guardianFirstName)
                 .replace('{aluno}', student.name)
@@ -1494,14 +1533,11 @@ Att,
                 .replace(/\\n/g, '\n');
 
               const signatureResponse = await supabase.functions.invoke('wapi-send-message', {
-                body: {
-                  phone: guardian.phone,
-                  message,
-                },
+                body: { phone: guardian.phone, message },
               });
 
               if (signatureResponse.data?.success) {
-                console.log('Signature link sent successfully via WhatsApp (after 10s delay)');
+                console.log(`Signature link sent successfully via WhatsApp (${useZapSign ? 'ZapSign' : 'internal'})`);
               } else if (signatureResponse.error) {
                 console.warn('Signature link send error:', signatureResponse.error);
               }
