@@ -220,7 +220,84 @@ export default function Contracts() {
     }
   };
 
-  // Bulk send signature links to all unsigned active enrollments
+  // Send contract via ZapSign (assinatura eletrônica autenticada — libera antecipação no Asaas)
+  const [isSendingZapSign, setIsSendingZapSign] = useState(false);
+  const handleSendViaZapSign = async (enrollment: typeof enrollments[0]) => {
+    const contract = getContractForEnrollment(enrollment.id);
+    if (!contract) {
+      toast({ title: 'Contrato não encontrado', variant: 'destructive' });
+      return;
+    }
+
+    const guardian = getGuardianById(enrollment.guardian_id);
+    const student = getStudentById(enrollment.student_id);
+    const classGroup = getClassGroupById(enrollment.class_group_id);
+    const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
+
+    if (!guardian || !student || !course) {
+      toast({ title: 'Dados incompletos', variant: 'destructive' });
+      return;
+    }
+
+    setIsSendingZapSign(true);
+    try {
+      // 1) Build PDF locally (reuse same pipeline as download)
+      const content = getContractContent(enrollment.id) as any;
+      if (!content) throw new Error('Conteúdo do contrato não encontrado');
+
+      const preloadedImages = await preloadContractImages({
+        schoolLogo: content.schoolLogo,
+        schoolSignatureUrl: content.schoolSignatureUrl,
+        signatureImage: content.signatureImage,
+      });
+
+      const doc = generateContractPDF({
+        ...content,
+        schoolLogo: preloadedImages.schoolLogo || undefined,
+        schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
+        signatureImage: preloadedImages.signatureImage,
+      });
+
+      // jsPDF datauristring → strip "data:application/pdf;base64,"
+      const dataUri = doc.output('datauristring');
+      const pdfBase64 = dataUri.split(',')[1];
+
+      // 2) Send to ZapSign via edge function
+      const { data: zapResp, error: zapErr } = await supabase.functions.invoke('zapsign-send', {
+        body: { contractId: contract.id, pdfBase64 },
+      });
+
+      if (zapErr || !zapResp?.signUrl) {
+        throw new Error(zapResp?.error || zapErr?.message || 'Falha ao criar documento no ZapSign');
+      }
+
+      // 3) Send sign URL via WhatsApp using existing template
+      const guardianFirstName = guardian.name.split(' ')[0];
+      let message = signatureTemplate || `Olá {nome}!\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital.\n\n✍️ Acesse o link abaixo para visualizar e assinar:\n{link}\n\nEste link é único e intransferível.\n\nQualquer dúvida, estamos à disposição! 🙂`;
+      message = message
+        .replace('{nome}', guardianFirstName)
+        .replace('{aluno}', student.name)
+        .replace('{curso}', course.name)
+        .replace('{link}', zapResp.signUrl)
+        .replace(/\\n/g, '\n');
+
+      await sendMessage({ phone: guardian.phone, message });
+
+      toast({
+        title: zapResp.alreadySent ? 'Link reenviado' : 'Enviado via ZapSign!',
+        description: `Link de assinatura autenticada enviado para ${guardian.name} via WhatsApp.`,
+      });
+    } catch (err) {
+      console.error('ZapSign send error:', err);
+      toast({
+        title: 'Erro ao enviar via ZapSign',
+        description: err instanceof Error ? err.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingZapSign(false);
+    }
+  };
   const [isBulkSending, setIsBulkSending] = useState(false);
   const handleBulkSendUnsigned = async () => {
     const pending = enrollments.filter(e => 
