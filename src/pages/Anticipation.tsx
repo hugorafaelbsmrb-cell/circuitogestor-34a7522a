@@ -87,6 +87,8 @@ export default function Anticipation() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; failures: string[] } | null>(null);
+  const [eligibleIds, setEligibleIds] = useState<string[]>([]);
+  const [ineligible, setIneligible] = useState<{ id: string; reason: string }[]>([]);
 
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
