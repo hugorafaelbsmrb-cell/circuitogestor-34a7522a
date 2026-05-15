@@ -164,15 +164,27 @@ export function SignedContractModal({
           </div>
 
           {contract.zapsignSignedPdfUrl && (
-            <a
-              href={contract.zapsignSignedPdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const { data, error } = await supabase.functions.invoke('zapsign-get-pdf', {
+                    body: { contractId: contract.id },
+                  });
+                  if (error || !data?.url) {
+                    toast({ title: 'Não foi possível abrir o PDF', description: data?.error || error?.message || 'Erro', variant: 'destructive' });
+                    return;
+                  }
+                  window.open(data.url, '_blank', 'noopener,noreferrer');
+                } catch (e) {
+                  toast({ title: 'Erro ao abrir PDF', description: e instanceof Error ? e.message : 'Erro', variant: 'destructive' });
+                }
+              }}
               className="flex items-center justify-center gap-2 w-full rounded-lg border border-success/40 bg-success/10 hover:bg-success/20 text-success font-medium text-sm py-2 transition"
             >
               <FileText className="w-4 h-4" />
               Ver PDF assinado e autenticado (ZapSign)
-            </a>
+            </button>
           )}
 
           {/* Legal Notice */}
