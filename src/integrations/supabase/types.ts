@@ -660,6 +660,13 @@ export type Database = {
           status: string
           student_id: string
           total_value: number
+          zapsign_document_id: string | null
+          zapsign_sent_at: string | null
+          zapsign_sign_url: string | null
+          zapsign_signed_at: string | null
+          zapsign_signed_pdf_url: string | null
+          zapsign_signer_token: string | null
+          zapsign_status: string | null
         }
         Insert: {
           contract_content: Json
@@ -678,6 +685,13 @@ export type Database = {
           status?: string
           student_id: string
           total_value: number
+          zapsign_document_id?: string | null
+          zapsign_sent_at?: string | null
+          zapsign_sign_url?: string | null
+          zapsign_signed_at?: string | null
+          zapsign_signed_pdf_url?: string | null
+          zapsign_signer_token?: string | null
+          zapsign_status?: string | null
         }
         Update: {
           contract_content?: Json
@@ -696,6 +710,13 @@ export type Database = {
           status?: string
           student_id?: string
           total_value?: number
+          zapsign_document_id?: string | null
+          zapsign_sent_at?: string | null
+          zapsign_sign_url?: string | null
+          zapsign_signed_at?: string | null
+          zapsign_signed_pdf_url?: string | null
+          zapsign_signer_token?: string | null
+          zapsign_status?: string | null
         }
         Relationships: [
           {
