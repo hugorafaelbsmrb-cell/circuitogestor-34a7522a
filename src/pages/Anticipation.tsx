@@ -223,6 +223,23 @@ export default function Anticipation() {
     ? selectedPaymentIds
     : (simulationId ? [simulationId] : []);
 
+  // Sum of selected items value (for limit comparison)
+  const selectedTotal = useMemo(() => {
+    if (simulationType === 'payment') {
+      return (pendingPayments || [])
+        .filter(p => selectedPaymentIds.includes(p.asaas_payment_id || ''))
+        .reduce((s, p) => s + Number(p.value || 0), 0);
+    }
+    const c = pendingCarnes?.find(x => x.asaas_installment_id === simulationId);
+    return Number(c?.total_value || 0);
+  }, [simulationType, selectedPaymentIds, simulationId, pendingPayments, pendingCarnes]);
+
+  // Relevant Asaas limit (boletos/pix => bankSlip)
+  const relevantLimit = limits?.bankSlip;
+  const limitAvailable = Number(relevantLimit?.available || 0);
+  const limitUsedPct = limitAvailable > 0 ? Math.min(100, (selectedTotal / limitAvailable) * 100) : 0;
+  const exceedsLimit = selectedTotal > limitAvailable && limitAvailable > 0;
+
   // Helper: get a friendly label for a given id (responsável)
   const getItemLabel = (id: string): string => {
     if (simulationType === 'payment') {
