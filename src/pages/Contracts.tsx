@@ -785,10 +785,18 @@ export default function Contracts() {
             variant="outline"
             className="gap-2"
             onClick={handleBulkSendUnsigned}
-            disabled={isBulkSending || isSendingWhatsApp}
+            disabled={isBulkSending || isSendingWhatsApp || isBulkSendingZapSign}
           >
             {isBulkSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Enviar pendentes em massa
+          </Button>
+          <Button
+            className="gap-2"
+            onClick={handleBulkSendViaZapSign}
+            disabled={isBulkSendingZapSign || isSendingZapSign || isBulkSending || isSendingWhatsApp}
+          >
+            {isBulkSendingZapSign ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Enviar via ZapSign (em massa)
           </Button>
           <Link to="/contrato-config">
             <Button variant="outline" className="gap-2">
