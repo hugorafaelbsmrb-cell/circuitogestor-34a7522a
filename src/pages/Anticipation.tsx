@@ -274,7 +274,7 @@ export default function Anticipation() {
       });
     },
     onError: (error: Error) => {
-      setSimulationResult(null);
+      setSimulationResult(null); setEligibleIds([]); setIneligible([]);
       setEligibleIds([]);
       setIneligible([]);
       const isBoletoCarne = simulationType === 'installment' && /Cartão de Crédito/i.test(error.message);
@@ -335,7 +335,7 @@ export default function Anticipation() {
         });
       }
       setShowConfirmDialog(false);
-      setSimulationResult(null);
+      setSimulationResult(null); setEligibleIds([]); setIneligible([]);
       setSimulationId('');
       setSelectedPaymentIds([]);
       setEligibleIds([]);
@@ -488,7 +488,7 @@ export default function Anticipation() {
                       setSimulationType(v as 'payment' | 'installment');
                       setSimulationId('');
                       setSelectedPaymentIds([]);
-                      setSimulationResult(null);
+                      setSimulationResult(null); setEligibleIds([]); setIneligible([]);
                     }}
                   >
                     <SelectTrigger>
@@ -564,7 +564,7 @@ export default function Anticipation() {
                                 } else {
                                   setSelectedPaymentIds(prev => prev.filter(id => !allIds.includes(id)));
                                 }
-                                setSimulationResult(null);
+                                setSimulationResult(null); setEligibleIds([]); setIneligible([]);
                               }}
                               aria-label="Selecionar todas"
                             />
@@ -587,7 +587,7 @@ export default function Anticipation() {
                                 setSelectedPaymentIds(prev =>
                                   isChecked ? prev.filter(id => id !== pid) : [...prev, pid]
                                 );
-                                setSimulationResult(null);
+                                setSimulationResult(null); setEligibleIds([]); setIneligible([]);
                               }}
                             >
                               <TableCell onClick={(e) => e.stopPropagation()}>
@@ -597,7 +597,7 @@ export default function Anticipation() {
                                     setSelectedPaymentIds(prev =>
                                       checked ? [...prev, pid] : prev.filter(id => id !== pid)
                                     );
-                                    setSimulationResult(null);
+                                    setSimulationResult(null); setEligibleIds([]); setIneligible([]);
                                   }}
                                   aria-label="Selecionar cobrança"
                                 />
@@ -648,7 +648,7 @@ export default function Anticipation() {
                             className={`cursor-pointer transition-colors ${simulationId === carne.asaas_installment_id ? 'bg-primary/10' : 'hover:bg-muted/50'}`}
                             onClick={() => {
                               setSimulationId(carne.asaas_installment_id || '');
-                              setSimulationResult(null);
+                              setSimulationResult(null); setEligibleIds([]); setIneligible([]);
                             }}
                           >
                             <TableCell>
