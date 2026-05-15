@@ -703,9 +703,8 @@ async function requestAnticipation(
     const form = new FormData();
     if (data.payment) form.append("payment", data.payment);
     if (data.installment) form.append("installment", data.installment);
-    // Asaas espera array de documentos: documents[0][type] e documents[0][file]
-    form.append("documents[0][type]", data.documentType || "CONTRACT");
-    form.append("documents[0][file]", pdfBlob, "contrato-assinado.pdf");
+    // Asaas espera o campo 'documents' (arquivo) - conforme docs oficiais
+    form.append("documents", pdfBlob, "contrato-assinado.pdf");
 
     const response = await fetch(`${config.baseUrl}/anticipations`, {
       method: "POST",
