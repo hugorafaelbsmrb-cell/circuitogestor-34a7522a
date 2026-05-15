@@ -272,7 +272,7 @@ export default function Anticipation() {
       }
 
       const aggregated: SimulationResult = {
-        anticipatedValue: okList.reduce((s, r) => s + (r.data.anticipatedValue || 0), 0),
+        anticipatedValue: okList.reduce((s, r) => s + (r.data.anticipatedValue ?? (r.data as any).netValue ?? 0), 0),
         fee: okList.reduce((s, r) => s + (r.data.fee || 0), 0),
         totalValue: okList.reduce((s, r) => s + (r.data.totalValue || 0), 0),
         isDocumentationRequired: okList.some(r => r.data.isDocumentationRequired),
