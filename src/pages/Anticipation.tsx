@@ -99,7 +99,9 @@ export default function Anticipation() {
           value,
           due_date,
           guardian_id,
-          guardians (name)
+          contract_id,
+          guardians (name),
+          contracts (zapsign_signed_pdf_url)
         `)
         .in('status', ['PENDING', 'CONFIRMED'])
         .not('asaas_payment_id', 'is', null)
@@ -125,7 +127,9 @@ export default function Anticipation() {
           installment_count,
           first_due_date,
           guardian_id,
-          guardians (name)
+          contract_id,
+          guardians (name),
+          contracts (zapsign_signed_pdf_url)
         `)
         .eq('status', 'ACTIVE')
         .order('first_due_date', { ascending: true });
@@ -134,6 +138,17 @@ export default function Anticipation() {
       return data || [];
     },
   });
+
+  // Resolve signed contract PDF URL for the currently selected item
+  const selectedContractPdfUrl = useMemo<string | null>(() => {
+    if (!simulationId) return null;
+    if (simulationType === 'payment') {
+      const p = pendingPayments?.find(x => x.asaas_payment_id === simulationId);
+      return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+    }
+    const c = pendingCarnes?.find(x => x.asaas_installment_id === simulationId);
+    return (c?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+  }, [simulationId, simulationType, pendingPayments, pendingCarnes]);
 
   // Filter items based on search term
   const filteredPayments = useMemo(() => {
