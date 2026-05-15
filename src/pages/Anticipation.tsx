@@ -204,35 +204,40 @@ export default function Anticipation() {
     },
   });
 
-  // Simulate anticipation mutation
+  // Effective IDs to operate on
+  const effectiveIds = simulationType === 'payment'
+    ? selectedPaymentIds
+    : (simulationId ? [simulationId] : []);
+
+  // Simulate anticipation mutation - aggregates over multiple payments when needed
   const simulateMutation = useMutation({
     mutationFn: async () => {
-      const payload = simulationType === 'payment' 
-        ? { payment: simulationId }
-        : { installment: simulationId };
-      
-      const { data, error } = await supabase.functions.invoke('asaas-payment', {
-        body: { action: 'simulateAnticipation', data: payload }
-      });
-      
-      if (error) {
-        // Try to parse the error message from the response
-        const errorMessage = error.message || 'Erro desconhecido';
-        throw new Error(errorMessage);
-      }
-      
-      // Check if the response contains an error from Asaas
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-      
-      return data;
+      if (effectiveIds.length === 0) throw new Error('Selecione ao menos um item');
+
+      const results = await Promise.all(effectiveIds.map(async (id) => {
+        const payload = simulationType === 'payment' ? { payment: id } : { installment: id };
+        const { data, error } = await supabase.functions.invoke('asaas-payment', {
+          body: { action: 'simulateAnticipation', data: payload }
+        });
+        if (error) throw new Error(error.message || 'Erro desconhecido');
+        if (data?.error) throw new Error(data.error);
+        return data as SimulationResult;
+      }));
+
+      // Aggregate
+      const aggregated: SimulationResult = {
+        anticipatedValue: results.reduce((s, r) => s + (r.anticipatedValue || 0), 0),
+        fee: results.reduce((s, r) => s + (r.fee || 0), 0),
+        totalValue: results.reduce((s, r) => s + (r.totalValue || 0), 0),
+        isDocumentationRequired: results.some(r => r.isDocumentationRequired),
+      };
+      return aggregated;
     },
     onSuccess: (data) => {
       setSimulationResult(data);
       toast({
         title: "Simulação realizada",
-        description: `Valor líquido: R$ ${data.anticipatedValue?.toFixed(2) || '0.00'}`,
+        description: `${effectiveIds.length} ${effectiveIds.length > 1 ? 'itens' : 'item'} • Líquido: R$ ${data.anticipatedValue?.toFixed(2) || '0.00'}`,
       });
     },
     onError: (error: Error) => {
@@ -248,41 +253,62 @@ export default function Anticipation() {
     },
   });
 
-  // Request anticipation mutation
+  // Request anticipation mutation - sequentially per id, with progress
   const requestMutation = useMutation({
     mutationFn: async () => {
-      const payload: Record<string, string> = simulationType === 'payment' 
-        ? { payment: simulationId }
-        : { installment: simulationId };
-      if (selectedContractPdfUrl) payload.contractPdfUrl = selectedContractPdfUrl;
-      
-      const { data, error } = await supabase.functions.invoke('asaas-payment', {
-        body: { action: 'requestAnticipation', data: payload }
-      });
-      
-      if (error) {
-        const errorMessage = error.message || 'Erro desconhecido';
-        throw new Error(errorMessage);
+      if (effectiveIds.length === 0) throw new Error('Nenhum item selecionado');
+      setBulkProgress({ current: 0, total: effectiveIds.length, failures: [] });
+      const failures: string[] = [];
+
+      for (let i = 0; i < effectiveIds.length; i++) {
+        const id = effectiveIds[i];
+        const payload: Record<string, string> = simulationType === 'payment'
+          ? { payment: id }
+          : { installment: id };
+
+        const pdf = simulationType === 'payment' ? getPaymentContractUrl(id) : selectedContractPdfUrl;
+        if (pdf) payload.contractPdfUrl = pdf;
+
+        try {
+          const { data, error } = await supabase.functions.invoke('asaas-payment', {
+            body: { action: 'requestAnticipation', data: payload }
+          });
+          if (error) throw new Error(error.message || 'Erro desconhecido');
+          if (data?.error) throw new Error(data.error);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          failures.push(`${id.substring(0, 8)}…: ${msg}`);
+        }
+        setBulkProgress({ current: i + 1, total: effectiveIds.length, failures: [...failures] });
       }
-      
-      if (data?.error) {
-        throw new Error(data.error);
-      }
-      
-      return data;
+
+      return { total: effectiveIds.length, failures };
     },
-    onSuccess: () => {
-      toast({
-        title: "Antecipação solicitada",
-        description: "Sua solicitação foi enviada para análise.",
-      });
+    onSuccess: ({ total, failures }) => {
+      const ok = total - failures.length;
+      if (failures.length === 0) {
+        toast({
+          title: "Antecipação solicitada",
+          description: `${ok} ${ok > 1 ? 'solicitações enviadas' : 'solicitação enviada'} para análise.`,
+        });
+      } else {
+        toast({
+          title: `${ok}/${total} solicitações enviadas`,
+          description: failures.slice(0, 3).join(' • ') + (failures.length > 3 ? ` (+${failures.length - 3})` : ''),
+          variant: failures.length === total ? "destructive" : "default",
+        });
+      }
       setShowConfirmDialog(false);
       setSimulationResult(null);
       setSimulationId('');
+      setSelectedPaymentIds([]);
+      setBulkProgress(null);
       queryClient.invalidateQueries({ queryKey: ['anticipations'] });
       queryClient.invalidateQueries({ queryKey: ['anticipation-limits'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-payments-for-anticipation'] });
     },
     onError: (error: Error) => {
+      setBulkProgress(null);
       toast({
         title: "Erro na solicitação",
         description: error.message,
