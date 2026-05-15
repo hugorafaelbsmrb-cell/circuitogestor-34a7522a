@@ -244,9 +244,10 @@ export default function Anticipation() {
   // Request anticipation mutation
   const requestMutation = useMutation({
     mutationFn: async () => {
-      const payload = simulationType === 'payment' 
+      const payload: Record<string, string> = simulationType === 'payment' 
         ? { payment: simulationId }
         : { installment: simulationId };
+      if (selectedContractPdfUrl) payload.contractPdfUrl = selectedContractPdfUrl;
       
       const { data, error } = await supabase.functions.invoke('asaas-payment', {
         body: { action: 'requestAnticipation', data: payload }
