@@ -163,6 +163,18 @@ export function SignedContractModal({
             )}
           </div>
 
+          {contract.zapsignSignedPdfUrl && (
+            <a
+              href={contract.zapsignSignedPdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full rounded-lg border border-success/40 bg-success/10 hover:bg-success/20 text-success font-medium text-sm py-2 transition"
+            >
+              <FileText className="w-4 h-4" />
+              Ver PDF assinado e autenticado (ZapSign)
+            </a>
+          )}
+
           {/* Legal Notice */}
           <p className="text-[10px] text-muted-foreground text-center">
             MP 2.200-2/2001 e Lei 14.063/2020
