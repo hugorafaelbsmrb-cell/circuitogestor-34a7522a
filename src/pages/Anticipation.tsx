@@ -808,6 +808,10 @@ export default function Anticipation() {
           {simulationResult && (
             <div className="py-4 space-y-3">
               <div className="flex justify-between">
+                <span className="text-muted-foreground">Itens selecionados:</span>
+                <span className="font-semibold">{effectiveIds.length}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">Valor total:</span>
                 <span className="font-semibold">{formatCurrency(simulationResult.totalValue)}</span>
               </div>
@@ -819,11 +823,25 @@ export default function Anticipation() {
                 <span className="font-semibold">Valor a receber:</span>
                 <span className="font-bold text-green-600">{formatCurrency(simulationResult.anticipatedValue)}</span>
               </div>
+              {bulkProgress && (
+                <div className="pt-2 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Processando...</span>
+                    <span className="font-medium">{bulkProgress.current}/{bulkProgress.total}</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)}>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={requestMutation.isPending}>
               Cancelar
             </Button>
             <Button 
