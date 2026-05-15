@@ -100,6 +100,7 @@ export default function Contracts() {
     signatureImage: string | null;
     signedIp: string | null;
     signedUserAgent: string | null;
+    zapsignSignedPdfUrl: string | null;
   } | null>(null);
   interface ContractContentType {
     schoolName: string;
@@ -393,6 +394,7 @@ export default function Contracts() {
       signatureImage: (contract as any).signature_image || null,
       signedIp: (contract as any).signed_ip || null,
       signedUserAgent: (contract as any).signed_user_agent || null,
+      zapsignSignedPdfUrl: (contract as any).zapsign_signed_pdf_url || null,
     });
     setShowSignedContractModal(true);
   };
