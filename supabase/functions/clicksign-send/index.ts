@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
     }
 
     const [{ data: guardian }, { data: student }, { data: course }] = await Promise.all([
-      admin.from('guardians').select('name, email, phone, cpf, birth_date').eq('id', contract.guardian_id).maybeSingle(),
+      admin.from('guardians').select('name, email, phone, cpf').eq('id', contract.guardian_id).maybeSingle(),
       admin.from('students').select('name').eq('id', contract.student_id).maybeSingle(),
       admin.from('courses').select('name').eq('id', contract.course_id).maybeSingle(),
     ]);
