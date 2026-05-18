@@ -1035,6 +1035,26 @@ export default function Contracts() {
                            <p>{isSigned ? 'Reenviar via ZapSign (autenticação para Asaas)' : 'Enviar via ZapSign (assinatura autenticada — libera antecipação Asaas)'}</p>
                          </TooltipContent>
                        </Tooltip>
+                       <Tooltip>
+                         <TooltipTrigger asChild>
+                           <Button
+                             variant="ghost"
+                             size="icon"
+                             className="h-8 w-8 text-emerald-600 hover:text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+                             onClick={() => handleSendViaClicksign(enrollment)}
+                             disabled={isSendingClicksign || isSendingZapSign || isSendingWhatsApp}
+                           >
+                             {isSendingClicksign ? (
+                               <Loader2 className="w-4 h-4 animate-spin" />
+                             ) : (
+                               <ShieldCheck className="w-4 h-4" />
+                             )}
+                           </Button>
+                         </TooltipTrigger>
+                         <TooltipContent>
+                           <p>{isClicksignSigned ? 'Reenviar via Clicksign (ICP-Brasil)' : 'Enviar via Clicksign (assinatura ICP-Brasil — validade de cartório)'}</p>
+                         </TooltipContent>
+                       </Tooltip>
                       {!hasCarne && (
                         <Tooltip>
                           <TooltipTrigger asChild>
