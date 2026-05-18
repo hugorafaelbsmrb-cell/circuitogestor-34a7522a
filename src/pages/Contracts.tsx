@@ -503,6 +503,7 @@ export default function Contracts() {
       signedIp: (contract as any).signed_ip || null,
       signedUserAgent: (contract as any).signed_user_agent || null,
       zapsignSignedPdfUrl: (contract as any).zapsign_signed_pdf_url || null,
+      clicksignSignedPdfUrl: (contract as any).clicksign_signed_pdf_url || null,
     });
     setShowSignedContractModal(true);
   };
