@@ -29,8 +29,19 @@ Deno.serve(async (req) => {
     if (authErr || !claimsData?.claims) return json({ error: 'Unauthorized' }, 401);
 
     const body = await req.json().catch(() => ({}));
-    const { contractId, pdfBase64 } = body as { contractId?: string; pdfBase64?: string };
-    if (!contractId || !pdfBase64) return json({ error: 'contractId e pdfBase64 são obrigatórios' }, 400);
+    const { contractId, pdfBase64: pdfBase64Input, priorSignedPdfUrl } = body as { contractId?: string; pdfBase64?: string; priorSignedPdfUrl?: string };
+    if (!contractId || (!pdfBase64Input && !priorSignedPdfUrl)) {
+      return json({ error: 'contractId e (pdfBase64 ou priorSignedPdfUrl) são obrigatórios' }, 400);
+    }
+    let pdfBase64 = pdfBase64Input;
+    if (!pdfBase64 && priorSignedPdfUrl) {
+      const r = await fetch(priorSignedPdfUrl);
+      if (!r.ok) return json({ error: `Falha ao baixar PDF assinado (${r.status})` }, 502);
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let bin = '';
+      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+      pdfBase64 = btoa(bin);
+    }
 
     const admin = createClient(
       Deno.env.get('SUPABASE_URL')!,
