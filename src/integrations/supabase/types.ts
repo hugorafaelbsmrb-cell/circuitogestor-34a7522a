@@ -644,6 +644,15 @@ export type Database = {
       }
       contracts: {
         Row: {
+          clicksign_document_id: string | null
+          clicksign_envelope_id: string | null
+          clicksign_request_signature_key: string | null
+          clicksign_sent_at: string | null
+          clicksign_sign_url: string | null
+          clicksign_signed_at: string | null
+          clicksign_signed_pdf_url: string | null
+          clicksign_signer_id: string | null
+          clicksign_status: string | null
           contract_content: Json
           course_id: string
           created_at: string
@@ -669,6 +678,15 @@ export type Database = {
           zapsign_status: string | null
         }
         Insert: {
+          clicksign_document_id?: string | null
+          clicksign_envelope_id?: string | null
+          clicksign_request_signature_key?: string | null
+          clicksign_sent_at?: string | null
+          clicksign_sign_url?: string | null
+          clicksign_signed_at?: string | null
+          clicksign_signed_pdf_url?: string | null
+          clicksign_signer_id?: string | null
+          clicksign_status?: string | null
           contract_content: Json
           course_id: string
           created_at?: string
@@ -694,6 +712,15 @@ export type Database = {
           zapsign_status?: string | null
         }
         Update: {
+          clicksign_document_id?: string | null
+          clicksign_envelope_id?: string | null
+          clicksign_request_signature_key?: string | null
+          clicksign_sent_at?: string | null
+          clicksign_sign_url?: string | null
+          clicksign_signed_at?: string | null
+          clicksign_signed_pdf_url?: string | null
+          clicksign_signer_id?: string | null
+          clicksign_status?: string | null
           contract_content?: Json
           course_id?: string
           created_at?: string
