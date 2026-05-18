@@ -910,7 +910,15 @@ export default function Contracts() {
                           <h3 className="font-semibold text-foreground">
                             Contrato - {student?.name}
                           </h3>
-                          {isZapsignSigned ? (
+                          {isClicksignSigned ? (
+                            <Badge
+                              className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 cursor-pointer hover:bg-emerald-500/20 transition-colors dark:text-emerald-400"
+                              onClick={() => handleOpenSignedContractModal(enrollment)}
+                            >
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Assinado via Clicksign (ICP)
+                            </Badge>
+                          ) : isZapsignSigned ? (
                             <Badge
                               className="bg-blue-500/10 text-blue-600 border-blue-500/30 cursor-pointer hover:bg-blue-500/20 transition-colors dark:text-blue-400"
                               onClick={() => handleOpenSignedContractModal(enrollment)}
