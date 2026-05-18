@@ -83,16 +83,12 @@ Deno.serve(async (req) => {
       return json({ error: 'E-mail do responsável é obrigatório para Clicksign' }, 400);
     }
 
-    // Normalize phone to Clicksign format: "(11) 99999-9999"
+    // Normalize phone to E.164 format: "+5511999999999" (Clicksign requires E.164)
     let phoneFormatted: string | undefined;
     const rawPhoneDigits = (guardian.phone || '').replace(/\D/g, '');
-    let localDigits = rawPhoneDigits.startsWith('55') ? rawPhoneDigits.slice(2) : rawPhoneDigits;
+    const localDigits = rawPhoneDigits.startsWith('55') ? rawPhoneDigits.slice(2) : rawPhoneDigits;
     if (localDigits.length === 10 || localDigits.length === 11) {
-      const ddd = localDigits.slice(0, 2);
-      const rest = localDigits.slice(2);
-      const part1 = rest.slice(0, rest.length - 4);
-      const part2 = rest.slice(-4);
-      phoneFormatted = `(${ddd}) ${part1}-${part2}`;
+      phoneFormatted = `+55${localDigits}`;
     }
 
     // Format CPF as 000.000.000-00 (Clicksign requires masked documentation)
