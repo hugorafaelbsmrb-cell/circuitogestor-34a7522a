@@ -125,7 +125,6 @@ Deno.serve(async (req) => {
         signature_reminder: 'none',
       },
     };
-    if (guardian.birth_date) signerAttrs.birthday = guardian.birth_date;
     if (phoneE164) signerAttrs.phone_number = phoneE164;
 
     const signerResp = await csFetch(`${apiBase}/envelopes/${envelopeId}/signers`, apiToken, {
