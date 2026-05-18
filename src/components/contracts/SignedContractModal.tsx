@@ -21,6 +21,7 @@ interface SignedContractData {
   signedIp: string | null;
   signedUserAgent: string | null;
   zapsignSignedPdfUrl?: string | null;
+  clicksignSignedPdfUrl?: string | null;
 }
 
 interface SignedContractModalProps {
@@ -184,6 +185,30 @@ export function SignedContractModal({
             >
               <FileText className="w-4 h-4" />
               Ver PDF assinado e autenticado (ZapSign)
+            </button>
+          )}
+
+          {contract.clicksignSignedPdfUrl && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const { data, error } = await supabase.functions.invoke('clicksign-get-pdf', {
+                    body: { contractId: contract.id },
+                  });
+                  if (error || !data?.url) {
+                    toast({ title: 'Não foi possível abrir o PDF', description: data?.error || error?.message || 'Erro', variant: 'destructive' });
+                    return;
+                  }
+                  window.open(data.url, '_blank', 'noopener,noreferrer');
+                } catch (e) {
+                  toast({ title: 'Erro ao abrir PDF', description: e instanceof Error ? e.message : 'Erro', variant: 'destructive' });
+                }
+              }}
+              className="flex items-center justify-center gap-2 w-full rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-medium text-sm py-2 transition"
+            >
+              <Shield className="w-4 h-4" />
+              Ver PDF assinado com ICP-Brasil (Clicksign)
             </button>
           )}
 

@@ -133,8 +133,8 @@ export default function Enrollment() {
   const [useProRata, setUseProRata] = useState(true);
   const [useEntryBoleto, setUseEntryBoleto] = useState(true); // Boleto de entrada com valor cheio
   const [generateCarneNow, setGenerateCarneNow] = useState(true); // Gerar carnê no ato da matrícula
-  // Método de envio do link de assinatura: 'none' (não enviar) | 'internal' (assinatura interna via WhatsApp) | 'zapsign' (ZapSign autenticado via WhatsApp)
-  const [signatureSendMethod, setSignatureSendMethod] = useState<'none' | 'internal' | 'zapsign'>('internal');
+  // Método de envio do link de assinatura: 'none' | 'internal' | 'zapsign' | 'clicksign'
+  const [signatureSendMethod, setSignatureSendMethod] = useState<'none' | 'internal' | 'zapsign' | 'clicksign'>('internal');
   const sendSignatureLinkWhatsApp = signatureSendMethod !== 'none';
   const [sendPixNow, setSendPixNow] = useState(true); // Enviar código PIX via WhatsApp
   const [pixSentForEntry, setPixSentForEntry] = useState(false); // Controle se PIX foi enviado
@@ -1463,6 +1463,7 @@ Att,
       // 10. Send signature link via WhatsApp if enabled (with 10s delay after welcome message)
       if (signatureSendMethod !== 'none' && contract) {
         const useZapSign = signatureSendMethod === 'zapsign';
+        const useClicksign = signatureSendMethod === 'clicksign';
         // Wait 10 seconds before sending the signature link to ensure it arrives after the welcome message
         setTimeout(async () => {
           try {
@@ -1473,10 +1474,10 @@ Att,
               .eq('key', 'whatsapp_template_contract_signature')
               .single();
 
-            // Resolve signature link (ZapSign autenticado OU link interno)
+            // Resolve signature link (ZapSign / Clicksign / interno)
             let signatureLink: string | null = null;
 
-            if (useZapSign) {
+            if (useZapSign || useClicksign) {
               try {
                 const preloadedImages = await preloadContractImages({
                   schoolLogo: (contractContent as any).schoolLogo,
@@ -1490,18 +1491,19 @@ Att,
                 const dataUri = pdfDoc.output('datauristring');
                 const pdfBase64 = dataUri.split(',')[1];
 
-                const { data: zapResp, error: zapErr } = await supabase.functions.invoke('zapsign-send', {
+                const fnName = useClicksign ? 'clicksign-send' : 'zapsign-send';
+                const { data: resp, error: respErr } = await supabase.functions.invoke(fnName, {
                   body: { contractId: contract.id, pdfBase64 },
                 });
 
-                if (zapErr || !zapResp?.signUrl) {
-                  throw new Error(zapResp?.error || zapErr?.message || 'Falha ao criar documento no ZapSign');
+                if (respErr || !resp?.signUrl) {
+                  throw new Error(resp?.error || respErr?.message || `Falha ao criar documento (${useClicksign ? 'Clicksign' : 'ZapSign'})`);
                 }
-                signatureLink = zapResp.signUrl;
-              } catch (zapError) {
-                console.error('ZapSign send failed, falling back to internal link:', zapError);
+                signatureLink = resp.signUrl;
+              } catch (extError) {
+                console.error('Falha no provedor de assinatura, usando link interno:', extError);
                 toast({
-                  title: 'ZapSign indisponível',
+                  title: `${useClicksign ? 'Clicksign' : 'ZapSign'} indisponível`,
                   description: 'Enviando link de assinatura interna como alternativa.',
                   variant: 'destructive',
                 });
@@ -1537,7 +1539,7 @@ Att,
               });
 
               if (signatureResponse.data?.success) {
-                console.log(`Signature link sent successfully via WhatsApp (${useZapSign ? 'ZapSign' : 'internal'})`);
+                console.log(`Signature link sent (${useClicksign ? 'Clicksign' : useZapSign ? 'ZapSign' : 'internal'})`);
               } else if (signatureResponse.error) {
                 console.warn('Signature link send error:', signatureResponse.error);
               }
@@ -2790,8 +2792,9 @@ Att,
                 </div>
                 <div className="grid gap-2">
                   {([
-                    { id: 'internal', icon: MessageCircle, title: 'Assinatura interna via WhatsApp', desc: 'Link gerado pelo sistema. Assinatura simples (sem autenticação ZapSign).' },
+                    { id: 'internal', icon: MessageCircle, title: 'Assinatura interna via WhatsApp', desc: 'Link gerado pelo sistema. Assinatura simples (sem certificação externa).' },
                     { id: 'zapsign', icon: FileSignature, title: 'Assinatura autenticada via ZapSign', desc: 'Recomendado para liberar antecipação no Asaas. Link enviado via WhatsApp.' },
+                    { id: 'clicksign', icon: FileSignature, title: 'Assinatura ICP-Brasil via Clicksign', desc: 'Validade equivalente a cartório. Cliente assina com certificado digital ICP.' },
                     { id: 'none', icon: FileText, title: 'Não enviar agora', desc: 'O link poderá ser enviado depois na página Contratos.' },
                   ] as const).map(opt => {
                     const Icon = opt.icon;

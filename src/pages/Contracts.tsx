@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Copy, MessageCircle, Send, FileSignature } from 'lucide-react';
+import { FileText, Download, Calendar, User, Settings, Eye, Loader2, CreditCard, Printer, PenLine, CheckCircle2, Copy, MessageCircle, Send, FileSignature, ShieldCheck } from 'lucide-react';
 import { useSchool } from '@/contexts/SchoolContext';
 import { useSystemBranding } from '@/hooks/useSystemBranding';
 import { useAsaasPayment } from '@/hooks/useAsaasPayment';
@@ -101,6 +101,7 @@ export default function Contracts() {
     signedIp: string | null;
     signedUserAgent: string | null;
     zapsignSignedPdfUrl: string | null;
+    clicksignSignedPdfUrl: string | null;
   } | null>(null);
   interface ContractContentType {
     schoolName: string;
@@ -299,6 +300,73 @@ export default function Contracts() {
       setIsSendingZapSign(false);
     }
   };
+
+  // Send contract via Clicksign (ICP-Brasil — validade equivalente a cartório)
+  const [isSendingClicksign, setIsSendingClicksign] = useState(false);
+  const handleSendViaClicksign = async (enrollment: typeof enrollments[0], customTemplate?: string) => {
+    const contract = getContractForEnrollment(enrollment.id);
+    if (!contract) {
+      toast({ title: 'Contrato não encontrado', variant: 'destructive' });
+      return;
+    }
+    const guardian = getGuardianById(enrollment.guardian_id);
+    const student = getStudentById(enrollment.student_id);
+    const classGroup = getClassGroupById(enrollment.class_group_id);
+    const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
+    if (!guardian || !student || !course) {
+      toast({ title: 'Dados incompletos', variant: 'destructive' });
+      return;
+    }
+    setIsSendingClicksign(true);
+    try {
+      const content = getContractContent(enrollment.id) as any;
+      if (!content) throw new Error('Conteúdo do contrato não encontrado');
+      const preloadedImages = await preloadContractImages({
+        schoolLogo: content.schoolLogo,
+        schoolSignatureUrl: content.schoolSignatureUrl,
+        signatureImage: content.signatureImage,
+      });
+      const doc = generateContractPDF({
+        ...content,
+        schoolLogo: preloadedImages.schoolLogo || undefined,
+        schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
+        signatureImage: preloadedImages.signatureImage,
+      });
+      const dataUri = doc.output('datauristring');
+      const pdfBase64 = dataUri.split(',')[1];
+
+      const { data: csResp, error: csErr } = await supabase.functions.invoke('clicksign-send', {
+        body: { contractId: contract.id, pdfBase64 },
+      });
+      if (csErr || !csResp?.signUrl) {
+        throw new Error(csResp?.error || csErr?.message || 'Falha ao criar envelope na Clicksign');
+      }
+
+      const guardianFirstName = guardian.name.split(' ')[0];
+      let message = customTemplate || `Olá {nome}! 👋\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital com *certificado ICP-Brasil* (validade equivalente a cartório).\n\n✍️ Acesse o link abaixo para concluir:\n{link}\n\nO link é único e intransferível.\n\nAgradecemos! 🙂`;
+      message = message
+        .replace('{nome}', guardianFirstName)
+        .replace('{aluno}', student.name)
+        .replace('{curso}', course.name)
+        .replace('{link}', csResp.signUrl)
+        .replace(/\\n/g, '\n');
+
+      await sendMessage({ phone: guardian.phone, message });
+      toast({
+        title: csResp.alreadySent ? 'Link reenviado' : 'Enviado via Clicksign!',
+        description: `Link de assinatura ICP-Brasil enviado para ${guardian.name} via WhatsApp.`,
+      });
+    } catch (err) {
+      console.error('Clicksign send error:', err);
+      toast({
+        title: 'Erro ao enviar via Clicksign',
+        description: err instanceof Error ? err.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingClicksign(false);
+    }
+  };
   const [isBulkSending, setIsBulkSending] = useState(false);
   const handleBulkSendUnsigned = async () => {
     const pending = enrollments.filter(e => 
@@ -436,6 +504,7 @@ export default function Contracts() {
       signedIp: (contract as any).signed_ip || null,
       signedUserAgent: (contract as any).signed_user_agent || null,
       zapsignSignedPdfUrl: (contract as any).zapsign_signed_pdf_url || null,
+      clicksignSignedPdfUrl: (contract as any).clicksign_signed_pdf_url || null,
     });
     setShowSignedContractModal(true);
   };
@@ -823,6 +892,7 @@ export default function Contracts() {
               const hasCarne = enrollmentHasCarne(enrollment.id);
               const contractForEnrollment = getContractForEnrollment(enrollment.id);
               const isZapsignSigned = !!(contractForEnrollment as any)?.zapsign_signed_at || !!(contractForEnrollment as any)?.zapsign_signed_pdf_url;
+              const isClicksignSigned = !!(contractForEnrollment as any)?.clicksign_signed_at || !!(contractForEnrollment as any)?.clicksign_signed_pdf_url;
               const isSigned = isContractSigned(enrollment.id);
               const signatureLink = getSignatureLink(enrollment.id);
 
@@ -842,7 +912,15 @@ export default function Contracts() {
                           <h3 className="font-semibold text-foreground">
                             Contrato - {student?.name}
                           </h3>
-                          {isZapsignSigned ? (
+                          {isClicksignSigned ? (
+                            <Badge
+                              className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 cursor-pointer hover:bg-emerald-500/20 transition-colors dark:text-emerald-400"
+                              onClick={() => handleOpenSignedContractModal(enrollment)}
+                            >
+                              <CheckCircle2 className="w-3 h-3 mr-1" />
+                              Assinado via Clicksign (ICP)
+                            </Badge>
+                          ) : isZapsignSigned ? (
                             <Badge
                               className="bg-blue-500/10 text-blue-600 border-blue-500/30 cursor-pointer hover:bg-blue-500/20 transition-colors dark:text-blue-400"
                               onClick={() => handleOpenSignedContractModal(enrollment)}
@@ -957,6 +1035,26 @@ export default function Contracts() {
                          </TooltipTrigger>
                          <TooltipContent>
                            <p>{isSigned ? 'Reenviar via ZapSign (autenticação para Asaas)' : 'Enviar via ZapSign (assinatura autenticada — libera antecipação Asaas)'}</p>
+                         </TooltipContent>
+                       </Tooltip>
+                       <Tooltip>
+                         <TooltipTrigger asChild>
+                           <Button
+                             variant="ghost"
+                             size="icon"
+                             className="h-8 w-8 text-emerald-600 hover:text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+                             onClick={() => handleSendViaClicksign(enrollment)}
+                             disabled={isSendingClicksign || isSendingZapSign || isSendingWhatsApp}
+                           >
+                             {isSendingClicksign ? (
+                               <Loader2 className="w-4 h-4 animate-spin" />
+                             ) : (
+                               <ShieldCheck className="w-4 h-4" />
+                             )}
+                           </Button>
+                         </TooltipTrigger>
+                         <TooltipContent>
+                           <p>{isClicksignSigned ? 'Reenviar via Clicksign (ICP-Brasil)' : 'Enviar via Clicksign (assinatura ICP-Brasil — validade de cartório)'}</p>
                          </TooltipContent>
                        </Tooltip>
                       {!hasCarne && (
