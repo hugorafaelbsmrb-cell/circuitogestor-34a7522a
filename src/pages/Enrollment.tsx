@@ -1539,7 +1539,7 @@ Att,
               });
 
               if (signatureResponse.data?.success) {
-                console.log(`Signature link sent successfully via WhatsApp (${useZapSign ? 'ZapSign' : 'internal'})`);
+                console.log(`Signature link sent (${useClicksign ? 'Clicksign' : useZapSign ? 'ZapSign' : 'internal'})`);
               } else if (signatureResponse.error) {
                 console.warn('Signature link send error:', signatureResponse.error);
               }
