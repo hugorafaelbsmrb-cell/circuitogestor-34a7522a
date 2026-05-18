@@ -83,9 +83,20 @@ Deno.serve(async (req) => {
       return json({ error: 'E-mail do responsável é obrigatório para Clicksign' }, 400);
     }
 
-    // Normalize phone to E.164 (+55...)
-    const phoneDigits = (guardian.phone || '').replace(/\D/g, '');
-    const phoneE164 = phoneDigits ? `+${phoneDigits.startsWith('55') ? phoneDigits : `55${phoneDigits}`}` : undefined;
+    // Normalize phone to Clicksign format: "(11) 99999-9999"
+    let phoneFormatted: string | undefined;
+    const rawPhoneDigits = (guardian.phone || '').replace(/\D/g, '');
+    let localDigits = rawPhoneDigits.startsWith('55') ? rawPhoneDigits.slice(2) : rawPhoneDigits;
+    if (localDigits.length === 10 || localDigits.length === 11) {
+      const ddd = localDigits.slice(0, 2);
+      const rest = localDigits.slice(2);
+      const part1 = rest.slice(0, rest.length - 4);
+      const part2 = rest.slice(-4);
+      phoneFormatted = `(${ddd}) ${part1}-${part2}`;
+    }
+
+    // Format CPF as 000.000.000-00 (Clicksign requires masked documentation)
+    const cpfFormatted = `${cpfDigits.slice(0,3)}.${cpfDigits.slice(3,6)}.${cpfDigits.slice(6,9)}-${cpfDigits.slice(9,11)}`;
 
     const envelopeName = `Contrato - ${student.name} - ${course.name}`.slice(0, 250);
 
