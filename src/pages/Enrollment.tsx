@@ -133,8 +133,8 @@ export default function Enrollment() {
   const [useProRata, setUseProRata] = useState(true);
   const [useEntryBoleto, setUseEntryBoleto] = useState(true); // Boleto de entrada com valor cheio
   const [generateCarneNow, setGenerateCarneNow] = useState(true); // Gerar carnê no ato da matrícula
-  // Método de envio do link de assinatura: 'none' (não enviar) | 'internal' (assinatura interna via WhatsApp) | 'zapsign' (ZapSign autenticado via WhatsApp)
-  const [signatureSendMethod, setSignatureSendMethod] = useState<'none' | 'internal' | 'zapsign'>('internal');
+  // Método de envio do link de assinatura: 'none' | 'internal' | 'zapsign' | 'clicksign'
+  const [signatureSendMethod, setSignatureSendMethod] = useState<'none' | 'internal' | 'zapsign' | 'clicksign'>('internal');
   const sendSignatureLinkWhatsApp = signatureSendMethod !== 'none';
   const [sendPixNow, setSendPixNow] = useState(true); // Enviar código PIX via WhatsApp
   const [pixSentForEntry, setPixSentForEntry] = useState(false); // Controle se PIX foi enviado
