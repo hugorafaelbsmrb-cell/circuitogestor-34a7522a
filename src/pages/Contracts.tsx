@@ -319,21 +319,47 @@ export default function Contracts() {
     }
     setIsSendingClicksign(true);
     try {
-      const content = getContractContent(enrollment.id) as any;
-      if (!content) throw new Error('Conteúdo do contrato não encontrado');
-      const preloadedImages = await preloadContractImages({
-        schoolLogo: content.schoolLogo,
-        schoolSignatureUrl: content.schoolSignatureUrl,
-        signatureImage: content.signatureImage,
-      });
-      const doc = generateContractPDF({
-        ...content,
-        schoolLogo: preloadedImages.schoolLogo || undefined,
-        schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
-        signatureImage: preloadedImages.signatureImage,
-      });
-      const dataUri = doc.output('datauristring');
-      const pdfBase64 = dataUri.split(',')[1];
+      let pdfBase64: string;
+
+      // Se o contrato já foi assinado via ZapSign ou Clicksign, reaproveita o PDF
+      // assinado (com carimbo/certificado anterior) e adiciona a camada ICP por cima.
+      const zapSignedUrl = (contract as any).zapsign_signed_pdf_url as string | undefined;
+      const clicksignSignedUrl = (contract as any).clicksign_signed_pdf_url as string | undefined;
+      const priorSignedUrl = clicksignSignedUrl || zapSignedUrl;
+
+      if (priorSignedUrl) {
+        // Baixa o PDF já assinado e converte para base64
+        const resp = await fetch(priorSignedUrl);
+        if (!resp.ok) throw new Error('Falha ao baixar PDF assinado anteriormente');
+        const blob = await resp.blob();
+        pdfBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = () => reject(new Error('Falha ao ler PDF'));
+          reader.readAsDataURL(blob);
+        });
+      } else {
+        // Contrato novo ou assinado localmente → regera o PDF (a assinatura local
+        // já está embutida no contractContent.signatureImage)
+        const content = getContractContent(enrollment.id) as any;
+        if (!content) throw new Error('Conteúdo do contrato não encontrado');
+        const preloadedImages = await preloadContractImages({
+          schoolLogo: content.schoolLogo,
+          schoolSignatureUrl: content.schoolSignatureUrl,
+          signatureImage: content.signatureImage,
+        });
+        const doc = generateContractPDF({
+          ...content,
+          schoolLogo: preloadedImages.schoolLogo || undefined,
+          schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
+          signatureImage: preloadedImages.signatureImage,
+        });
+        const dataUri = doc.output('datauristring');
+        pdfBase64 = dataUri.split(',')[1];
+      }
 
       const { data: csResp, error: csErr } = await supabase.functions.invoke('clicksign-send', {
         body: { contractId: contract.id, pdfBase64 },
