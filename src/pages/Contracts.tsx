@@ -319,28 +319,17 @@ export default function Contracts() {
     }
     setIsSendingClicksign(true);
     try {
-      let pdfBase64: string;
-
       // Se o contrato já foi assinado via ZapSign ou Clicksign, reaproveita o PDF
-      // assinado (com carimbo/certificado anterior) e adiciona a camada ICP por cima.
+      // assinado anterior (download feito server-side para evitar CSP do S3).
       const zapSignedUrl = (contract as any).zapsign_signed_pdf_url as string | undefined;
       const clicksignSignedUrl = (contract as any).clicksign_signed_pdf_url as string | undefined;
       const priorSignedUrl = clicksignSignedUrl || zapSignedUrl;
 
+      let pdfBase64: string | undefined;
+      let priorSignedPdfUrl: string | undefined;
+
       if (priorSignedUrl) {
-        // Baixa o PDF já assinado e converte para base64
-        const resp = await fetch(priorSignedUrl);
-        if (!resp.ok) throw new Error('Falha ao baixar PDF assinado anteriormente');
-        const blob = await resp.blob();
-        pdfBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]);
-          };
-          reader.onerror = () => reject(new Error('Falha ao ler PDF'));
-          reader.readAsDataURL(blob);
-        });
+        priorSignedPdfUrl = priorSignedUrl;
       } else {
         // Contrato novo ou assinado localmente → regera o PDF (a assinatura local
         // já está embutida no contractContent.signatureImage)
@@ -362,7 +351,7 @@ export default function Contracts() {
       }
 
       const { data: csResp, error: csErr } = await supabase.functions.invoke('clicksign-send', {
-        body: { contractId: contract.id, pdfBase64 },
+        body: { contractId: contract.id, pdfBase64, priorSignedPdfUrl },
       });
       if (csErr || !csResp?.signUrl) {
         throw new Error(csResp?.error || csErr?.message || 'Falha ao criar envelope na Clicksign');
