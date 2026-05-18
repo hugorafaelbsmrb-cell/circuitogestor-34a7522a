@@ -1463,6 +1463,7 @@ Att,
       // 10. Send signature link via WhatsApp if enabled (with 10s delay after welcome message)
       if (signatureSendMethod !== 'none' && contract) {
         const useZapSign = signatureSendMethod === 'zapsign';
+        const useClicksign = signatureSendMethod === 'clicksign';
         // Wait 10 seconds before sending the signature link to ensure it arrives after the welcome message
         setTimeout(async () => {
           try {
@@ -1473,10 +1474,10 @@ Att,
               .eq('key', 'whatsapp_template_contract_signature')
               .single();
 
-            // Resolve signature link (ZapSign autenticado OU link interno)
+            // Resolve signature link (ZapSign / Clicksign / interno)
             let signatureLink: string | null = null;
 
-            if (useZapSign) {
+            if (useZapSign || useClicksign) {
               try {
                 const preloadedImages = await preloadContractImages({
                   schoolLogo: (contractContent as any).schoolLogo,
@@ -1490,18 +1491,19 @@ Att,
                 const dataUri = pdfDoc.output('datauristring');
                 const pdfBase64 = dataUri.split(',')[1];
 
-                const { data: zapResp, error: zapErr } = await supabase.functions.invoke('zapsign-send', {
+                const fnName = useClicksign ? 'clicksign-send' : 'zapsign-send';
+                const { data: resp, error: respErr } = await supabase.functions.invoke(fnName, {
                   body: { contractId: contract.id, pdfBase64 },
                 });
 
-                if (zapErr || !zapResp?.signUrl) {
-                  throw new Error(zapResp?.error || zapErr?.message || 'Falha ao criar documento no ZapSign');
+                if (respErr || !resp?.signUrl) {
+                  throw new Error(resp?.error || respErr?.message || `Falha ao criar documento (${useClicksign ? 'Clicksign' : 'ZapSign'})`);
                 }
-                signatureLink = zapResp.signUrl;
-              } catch (zapError) {
-                console.error('ZapSign send failed, falling back to internal link:', zapError);
+                signatureLink = resp.signUrl;
+              } catch (extError) {
+                console.error('Falha no provedor de assinatura, usando link interno:', extError);
                 toast({
-                  title: 'ZapSign indisponível',
+                  title: `${useClicksign ? 'Clicksign' : 'ZapSign'} indisponível`,
                   description: 'Enviando link de assinatura interna como alternativa.',
                   variant: 'destructive',
                 });
