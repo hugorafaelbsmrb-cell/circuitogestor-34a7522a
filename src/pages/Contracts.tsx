@@ -890,6 +890,7 @@ export default function Contracts() {
               const hasCarne = enrollmentHasCarne(enrollment.id);
               const contractForEnrollment = getContractForEnrollment(enrollment.id);
               const isZapsignSigned = !!(contractForEnrollment as any)?.zapsign_signed_at || !!(contractForEnrollment as any)?.zapsign_signed_pdf_url;
+              const isClicksignSigned = !!(contractForEnrollment as any)?.clicksign_signed_at || !!(contractForEnrollment as any)?.clicksign_signed_pdf_url;
               const isSigned = isContractSigned(enrollment.id);
               const signatureLink = getSignatureLink(enrollment.id);
 
