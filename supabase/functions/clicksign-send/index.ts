@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
         signature_reminder: 'none',
       },
     };
-    if (phoneE164) signerAttrs.phone_number = phoneE164;
+    if (phoneFormatted) signerAttrs.phone_number = phoneFormatted;
 
     const signerResp = await csFetch(`${apiBase}/envelopes/${envelopeId}/signers`, apiToken, {
       data: { type: 'signers', attributes: signerAttrs },
