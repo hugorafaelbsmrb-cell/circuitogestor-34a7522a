@@ -319,39 +319,36 @@ export default function Contracts() {
     }
     setIsSendingClicksign(true);
     try {
-      // Se o contrato já foi assinado via ZapSign ou Clicksign, reaproveita o PDF
-      // assinado anterior (download feito server-side para evitar CSP do S3).
-      const zapSignedUrl = (contract as any).zapsign_signed_pdf_url as string | undefined;
-      const clicksignSignedUrl = (contract as any).clicksign_signed_pdf_url as string | undefined;
-      const priorSignedUrl = clicksignSignedUrl || zapSignedUrl;
+      // Contratos legados devem ser recoletados via Clicksign, então sempre
+      // regeneramos um PDF limpo sem reaproveitar PDFs já assinados anteriormente.
+      const content = getContractContent(enrollment.id) as any;
+      if (!content) throw new Error('Conteúdo do contrato não encontrado');
 
-      let pdfBase64: string | undefined;
-      let priorSignedPdfUrl: string | undefined;
+      const clicksignContent = {
+        ...content,
+        signatureImage: null,
+        signedAt: null,
+        signatureHash: null,
+      };
 
-      if (priorSignedUrl) {
-        priorSignedPdfUrl = priorSignedUrl;
-      } else {
-        // Contrato novo ou assinado localmente → regera o PDF (a assinatura local
-        // já está embutida no contractContent.signatureImage)
-        const content = getContractContent(enrollment.id) as any;
-        if (!content) throw new Error('Conteúdo do contrato não encontrado');
-        const preloadedImages = await preloadContractImages({
-          schoolLogo: content.schoolLogo,
-          schoolSignatureUrl: content.schoolSignatureUrl,
-          signatureImage: content.signatureImage,
-        });
-        const doc = generateContractPDF({
-          ...content,
-          schoolLogo: preloadedImages.schoolLogo || undefined,
-          schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
-          signatureImage: preloadedImages.signatureImage,
-        });
-        const dataUri = doc.output('datauristring');
-        pdfBase64 = dataUri.split(',')[1];
-      }
+      const preloadedImages = await preloadContractImages({
+        schoolLogo: clicksignContent.schoolLogo,
+        schoolSignatureUrl: clicksignContent.schoolSignatureUrl,
+        signatureImage: null,
+      });
+
+      const doc = generateContractPDF({
+        ...clicksignContent,
+        schoolLogo: preloadedImages.schoolLogo || undefined,
+        schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
+        signatureImage: null,
+      });
+
+      const dataUri = doc.output('datauristring');
+      const pdfBase64 = dataUri.split(',')[1];
 
       const { data: csResp, error: csErr } = await supabase.functions.invoke('clicksign-send', {
-        body: { contractId: contract.id, pdfBase64, priorSignedPdfUrl },
+        body: { contractId: contract.id, pdfBase64 },
       });
       if (csErr || !csResp?.signUrl) {
         throw new Error(csResp?.error || csErr?.message || 'Falha ao criar envelope na Clicksign');
