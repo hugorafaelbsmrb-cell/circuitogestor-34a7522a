@@ -101,6 +101,7 @@ export default function Contracts() {
     signedIp: string | null;
     signedUserAgent: string | null;
     zapsignSignedPdfUrl: string | null;
+    clicksignSignedPdfUrl: string | null;
   } | null>(null);
   interface ContractContentType {
     schoolName: string;
