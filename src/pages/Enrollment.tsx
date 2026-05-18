@@ -2792,8 +2792,9 @@ Att,
                 </div>
                 <div className="grid gap-2">
                   {([
-                    { id: 'internal', icon: MessageCircle, title: 'Assinatura interna via WhatsApp', desc: 'Link gerado pelo sistema. Assinatura simples (sem autenticação ZapSign).' },
+                    { id: 'internal', icon: MessageCircle, title: 'Assinatura interna via WhatsApp', desc: 'Link gerado pelo sistema. Assinatura simples (sem certificação externa).' },
                     { id: 'zapsign', icon: FileSignature, title: 'Assinatura autenticada via ZapSign', desc: 'Recomendado para liberar antecipação no Asaas. Link enviado via WhatsApp.' },
+                    { id: 'clicksign', icon: FileSignature, title: 'Assinatura ICP-Brasil via Clicksign', desc: 'Validade equivalente a cartório. Cliente assina com certificado digital ICP.' },
                     { id: 'none', icon: FileText, title: 'Não enviar agora', desc: 'O link poderá ser enviado depois na página Contratos.' },
                   ] as const).map(opt => {
                     const Icon = opt.icon;
