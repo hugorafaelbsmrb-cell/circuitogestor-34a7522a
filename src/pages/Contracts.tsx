@@ -299,6 +299,73 @@ export default function Contracts() {
       setIsSendingZapSign(false);
     }
   };
+
+  // Send contract via Clicksign (ICP-Brasil — validade equivalente a cartório)
+  const [isSendingClicksign, setIsSendingClicksign] = useState(false);
+  const handleSendViaClicksign = async (enrollment: typeof enrollments[0], customTemplate?: string) => {
+    const contract = getContractForEnrollment(enrollment.id);
+    if (!contract) {
+      toast({ title: 'Contrato não encontrado', variant: 'destructive' });
+      return;
+    }
+    const guardian = getGuardianById(enrollment.guardian_id);
+    const student = getStudentById(enrollment.student_id);
+    const classGroup = getClassGroupById(enrollment.class_group_id);
+    const course = classGroup ? getCourseById(classGroup.course_id) : undefined;
+    if (!guardian || !student || !course) {
+      toast({ title: 'Dados incompletos', variant: 'destructive' });
+      return;
+    }
+    setIsSendingClicksign(true);
+    try {
+      const content = getContractContent(enrollment.id) as any;
+      if (!content) throw new Error('Conteúdo do contrato não encontrado');
+      const preloadedImages = await preloadContractImages({
+        schoolLogo: content.schoolLogo,
+        schoolSignatureUrl: content.schoolSignatureUrl,
+        signatureImage: content.signatureImage,
+      });
+      const doc = generateContractPDF({
+        ...content,
+        schoolLogo: preloadedImages.schoolLogo || undefined,
+        schoolSignatureUrl: preloadedImages.schoolSignatureUrl,
+        signatureImage: preloadedImages.signatureImage,
+      });
+      const dataUri = doc.output('datauristring');
+      const pdfBase64 = dataUri.split(',')[1];
+
+      const { data: csResp, error: csErr } = await supabase.functions.invoke('clicksign-send', {
+        body: { contractId: contract.id, pdfBase64 },
+      });
+      if (csErr || !csResp?.signUrl) {
+        throw new Error(csResp?.error || csErr?.message || 'Falha ao criar envelope na Clicksign');
+      }
+
+      const guardianFirstName = guardian.name.split(' ')[0];
+      let message = customTemplate || `Olá {nome}! 👋\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital com *certificado ICP-Brasil* (validade equivalente a cartório).\n\n✍️ Acesse o link abaixo para concluir:\n{link}\n\nO link é único e intransferível.\n\nAgradecemos! 🙂`;
+      message = message
+        .replace('{nome}', guardianFirstName)
+        .replace('{aluno}', student.name)
+        .replace('{curso}', course.name)
+        .replace('{link}', csResp.signUrl)
+        .replace(/\\n/g, '\n');
+
+      await sendMessage({ phone: guardian.phone, message });
+      toast({
+        title: csResp.alreadySent ? 'Link reenviado' : 'Enviado via Clicksign!',
+        description: `Link de assinatura ICP-Brasil enviado para ${guardian.name} via WhatsApp.`,
+      });
+    } catch (err) {
+      console.error('Clicksign send error:', err);
+      toast({
+        title: 'Erro ao enviar via Clicksign',
+        description: err instanceof Error ? err.message : 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingClicksign(false);
+    }
+  };
   const [isBulkSending, setIsBulkSending] = useState(false);
   const handleBulkSendUnsigned = async () => {
     const pending = enrollments.filter(e => 
