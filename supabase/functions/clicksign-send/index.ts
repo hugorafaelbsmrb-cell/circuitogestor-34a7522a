@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
       name: guardian.name,
       email: guardian.email,
       has_documentation: true,
-      documentation: cpfDigits,
+      documentation: cpfFormatted,
       refusable: true,
       communicate_events: {
         document_signed: 'none',
