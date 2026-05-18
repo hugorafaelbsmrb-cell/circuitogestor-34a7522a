@@ -21,6 +21,7 @@ interface SignedContractData {
   signedIp: string | null;
   signedUserAgent: string | null;
   zapsignSignedPdfUrl?: string | null;
+  clicksignSignedPdfUrl?: string | null;
 }
 
 interface SignedContractModalProps {
