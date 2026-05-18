@@ -35,12 +35,19 @@ Deno.serve(async (req) => {
     }
     let pdfBase64 = pdfBase64Input;
     if (!pdfBase64 && priorSignedPdfUrl) {
+      console.log('Downloading prior signed PDF from:', priorSignedPdfUrl.slice(0, 120));
       const r = await fetch(priorSignedPdfUrl);
       if (!r.ok) return json({ error: `Falha ao baixar PDF assinado (${r.status})` }, 502);
       const buf = new Uint8Array(await r.arrayBuffer());
-      let bin = '';
-      for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-      pdfBase64 = btoa(bin);
+      console.log('Prior PDF size (bytes):', buf.length);
+      // Chunked base64 encoding to avoid OOM on large PDFs
+      const CHUNK = 0x8000;
+      const parts: string[] = [];
+      for (let i = 0; i < buf.length; i += CHUNK) {
+        parts.push(String.fromCharCode.apply(null, buf.subarray(i, i + CHUNK) as unknown as number[]));
+      }
+      pdfBase64 = btoa(parts.join(''));
+      console.log('Encoded base64 length:', pdfBase64.length);
     }
 
     const admin = createClient(
