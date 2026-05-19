@@ -124,8 +124,12 @@ Deno.serve(async (req) => {
     const documentId = docResp.data?.data?.id;
 
     // 3) Add signer (with ICP-Brasil prerequisites: full name, CPF, birthday)
-    // communicate_events só aceita 'email' ou 'whatsapp'. Usamos 'email' para registro,
-    // mas o envio do link ao responsável é feito pela nossa W-API (igual ao fluxo ZapSign).
+    // Quando o responsável tem telefone, pedimos que a Clicksign entregue o
+    // link de assinatura diretamente via WhatsApp (signature_request:'whatsapp').
+    // É a única forma na API v3 de obter um link público de assinatura — o
+    // signatário recebe a mensagem do número oficial da Clicksign.
+    // Sem telefone, caímos no padrão email.
+    const deliveryChannel: 'whatsapp' | 'email' = phoneFormatted ? 'whatsapp' : 'email';
     const signerAttrs: Record<string, unknown> = {
       name: guardian.name,
       email: guardian.email,
@@ -133,8 +137,9 @@ Deno.serve(async (req) => {
       documentation: cpfFormatted,
       refusable: true,
       communicate_events: {
-        document_signed: 'email',
-        signature_request: 'email',
+        // signature_reminder só aceita 'email' ou 'none'
+        document_signed: deliveryChannel,
+        signature_request: deliveryChannel,
         signature_reminder: 'email',
       },
     };
@@ -209,10 +214,16 @@ Deno.serve(async (req) => {
       envelopeId,
       signerId,
       signerEmail: guardian.email,
-      // signUrl é null por design na API v3 — o link vai por email Clicksign.
+      signerPhone: phoneFormatted ?? null,
+      deliveryChannel,
+      // signUrl é null por design na API v3 — o link é entregue pela Clicksign
+      // (WhatsApp quando há telefone, email caso contrário).
       signUrl: null,
-      emailSent: notifResp.ok,
-      message: 'Envelope ativado. A Clicksign enviará o link de assinatura ICP-Brasil por e-mail.',
+      emailSent: notifResp.ok && deliveryChannel === 'email',
+      whatsappSent: notifResp.ok && deliveryChannel === 'whatsapp',
+      message: deliveryChannel === 'whatsapp'
+        ? 'Envelope ativado. A Clicksign enviou o link de assinatura ICP-Brasil por WhatsApp.'
+        : 'Envelope ativado. A Clicksign enviou o link de assinatura ICP-Brasil por e-mail.',
     });
   } catch (err) {
     console.error('clicksign-send error:', err);
