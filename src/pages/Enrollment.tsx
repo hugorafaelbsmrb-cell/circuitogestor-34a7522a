@@ -1496,15 +1496,26 @@ Att,
                   body: { contractId: contract.id, pdfBase64 },
                 });
 
-                if (respErr || !resp?.signUrl) {
-                  throw new Error(resp?.error || respErr?.message || `Falha ao criar documento (${useClicksign ? 'Clicksign' : 'ZapSign'})`);
+                if (useClicksign) {
+                  // Clicksign v3 não devolve URL de assinatura — o link vai por e-mail.
+                  // Não usamos o fluxo interno como fallback nesse caso.
+                  if (respErr || !resp?.ok) {
+                    throw new Error(resp?.error || respErr?.message || 'Falha ao criar envelope na Clicksign');
+                  }
+                  signatureLink = null;
+                } else {
+                  if (respErr || !resp?.signUrl) {
+                    throw new Error(resp?.error || respErr?.message || 'Falha ao criar documento (ZapSign)');
+                  }
+                  signatureLink = resp.signUrl;
                 }
-                signatureLink = resp.signUrl;
               } catch (extError) {
                 console.error('Falha no provedor de assinatura, usando link interno:', extError);
                 toast({
                   title: `${useClicksign ? 'Clicksign' : 'ZapSign'} indisponível`,
-                  description: 'Enviando link de assinatura interna como alternativa.',
+                  description: useClicksign
+                    ? 'Não foi possível criar o envelope ICP-Brasil. Enviando link interno como alternativa.'
+                    : 'Enviando link de assinatura interna como alternativa.',
                   variant: 'destructive',
                 });
               }
