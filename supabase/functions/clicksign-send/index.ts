@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
     const reqs = [
       {
         type: 'requirements',
-        attributes: { action: 'agree' },
+        attributes: { action: 'agree', role: 'sign' },
         relationships: {
           document: { data: { type: 'documents', id: documentId } },
           signer: { data: { type: 'signers', id: signerId } },
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
       },
       {
         type: 'requirements',
-        attributes: { action: 'provide_evidence', auth: 'icp_brasil' },
+        attributes: { action: 'provide_evidence', auth: 'icp_brasil', role: 'sign' },
         relationships: {
           document: { data: { type: 'documents', id: documentId } },
           signer: { data: { type: 'signers', id: signerId } },
