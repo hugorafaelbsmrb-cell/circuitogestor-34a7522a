@@ -205,19 +205,38 @@ Deno.serve(async (req) => {
 });
 
 async function csFetch(url: string, token: string, body: unknown, method = 'POST') {
-  const resp = await fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/vnd.api+json',
-      Accept: 'application/vnd.api+json',
-      Authorization: token,
-    },
-    body: JSON.stringify(body),
-  });
-  const text = await resp.text();
+  // Retry com backoff exponencial para 429 (rate limit) e 5xx transitórios
+  const maxAttempts = 5;
+  let lastResp: Response | null = null;
+  let lastText = '';
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const resp = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/vnd.api+json',
+        Accept: 'application/vnd.api+json',
+        Authorization: token,
+      },
+      body: JSON.stringify(body),
+    });
+    lastResp = resp;
+    lastText = await resp.text();
+
+    if (resp.status !== 429 && resp.status < 500) break;
+    if (attempt === maxAttempts) break;
+
+    // Respeita Retry-After se enviado; caso contrário backoff exponencial 1s,2s,4s,8s
+    const retryAfter = parseFloat(resp.headers.get('retry-after') || '');
+    const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(retryAfter * 1000, 15000)
+      : Math.min(1000 * 2 ** (attempt - 1), 8000);
+    console.warn(`Clicksign ${resp.status} em ${url} — tentativa ${attempt}/${maxAttempts}, aguardando ${waitMs}ms`);
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+
   let data: any;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-  return { ok: resp.ok, status: resp.status, data };
+  try { data = JSON.parse(lastText); } catch { data = { raw: lastText }; }
+  return { ok: lastResp!.ok, status: lastResp!.status, data };
 }
 
 function csError(stage: string, r: { status: number; data: any }) {
