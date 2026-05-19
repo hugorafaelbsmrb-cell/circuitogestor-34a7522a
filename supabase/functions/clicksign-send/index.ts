@@ -53,9 +53,6 @@ Deno.serve(async (req) => {
     const apiBase = environment === 'production'
       ? 'https://app.clicksign.com/api/v3'
       : 'https://sandbox.clicksign.com/api/v3';
-    const signBase = environment === 'production'
-      ? 'https://app.clicksign.com/sign'
-      : 'https://sandbox.clicksign.com/sign';
 
     const { data: contract, error: contractErr } = await admin
       .from('contracts')
@@ -64,8 +61,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (contractErr || !contract) return json({ error: 'Contrato não encontrado' }, 404);
 
-    if (contract.clicksign_envelope_id && contract.clicksign_sign_url) {
-      return json({ signUrl: contract.clicksign_sign_url, alreadySent: true });
+    if (contract.clicksign_envelope_id) {
+      return json({ ok: true, alreadySent: true, signUrl: null, envelopeId: contract.clicksign_envelope_id, message: 'Envelope já criado na Clicksign.' });
     }
 
     const [{ data: guardian }, { data: student }, { data: course }] = await Promise.all([
@@ -180,8 +177,18 @@ Deno.serve(async (req) => {
     }, 'PATCH');
     if (!actResp.ok) return csError('ativar envelope', actResp);
 
-    const signUrl = requestSignatureKey ? `${signBase}/${requestSignatureKey}` : null;
-    if (!signUrl) return json({ error: 'Clicksign não retornou request_signature_key', details: signerResp.data }, 502);
+    // 6) Trigger Clicksign notification (Clicksign envia email com o link
+    //    de assinatura ICP-Brasil — na API v3 não é exposta uma URL pública
+    //    de assinatura; o link é entregue exclusivamente pelos canais
+    //    configurados em communicate_events do signer).
+    const notifResp = await csFetch(
+      `${apiBase}/envelopes/${envelopeId}/notifications`,
+      apiToken,
+      { data: { type: 'notifications', attributes: {} } },
+    );
+    if (!notifResp.ok) {
+      console.warn('Clicksign notification falhou (envelope já ativo):', notifResp.status, JSON.stringify(notifResp.data).slice(0, 300));
+    }
 
     const { error: updErr } = await admin
       .from('contracts')
@@ -189,15 +196,24 @@ Deno.serve(async (req) => {
         clicksign_envelope_id: envelopeId,
         clicksign_document_id: documentId,
         clicksign_signer_id: signerId,
-        clicksign_request_signature_key: requestSignatureKey,
-        clicksign_sign_url: signUrl,
+        clicksign_request_signature_key: requestSignatureKey ?? null,
+        clicksign_sign_url: null,
         clicksign_status: 'running',
         clicksign_sent_at: new Date().toISOString(),
       })
       .eq('id', contractId);
     if (updErr) return json({ error: 'Erro ao salvar referências da Clicksign' }, 500);
 
-    return json({ signUrl, envelopeId, signerId });
+    return json({
+      ok: true,
+      envelopeId,
+      signerId,
+      signerEmail: guardian.email,
+      // signUrl é null por design na API v3 — o link vai por email Clicksign.
+      signUrl: null,
+      emailSent: notifResp.ok,
+      message: 'Envelope ativado. A Clicksign enviará o link de assinatura ICP-Brasil por e-mail.',
+    });
   } catch (err) {
     console.error('clicksign-send error:', err);
     return json({ error: err instanceof Error ? err.message : 'Erro interno' }, 500);

@@ -350,23 +350,27 @@ export default function Contracts() {
       const { data: csResp, error: csErr } = await supabase.functions.invoke('clicksign-send', {
         body: { contractId: contract.id, pdfBase64 },
       });
-      if (csErr || !csResp?.signUrl) {
+      if (csErr || !csResp?.ok) {
         throw new Error(csResp?.error || csErr?.message || 'Falha ao criar envelope na Clicksign');
       }
 
+      // Na API v3 da Clicksign não há URL pública de assinatura — o link é
+      // entregue exclusivamente pelo e-mail enviado pela Clicksign. Avisamos
+      // o responsável via WhatsApp para que ele verifique a caixa de entrada.
       const guardianFirstName = guardian.name.split(' ')[0];
-      let message = customTemplate || `Olá {nome}! 👋\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital com *certificado ICP-Brasil* (validade equivalente a cartório).\n\n✍️ Acesse o link abaixo para concluir:\n{link}\n\nO link é único e intransferível.\n\nAgradecemos! 🙂`;
+      let message = customTemplate || `Olá {nome}! 👋\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital com *certificado ICP-Brasil* (validade equivalente a cartório).\n\n📧 Enviamos o link de assinatura para o seu e-mail: *{email}*.\nPor favor, verifique também a caixa de spam.\n\nO link é único e intransferível.\n\nAgradecemos! 🙂`;
       message = message
         .replace('{nome}', guardianFirstName)
         .replace('{aluno}', student.name)
         .replace('{curso}', course.name)
-        .replace('{link}', csResp.signUrl)
+        .replace('{email}', csResp.signerEmail || guardian.email || '')
+        .replace('{link}', '')
         .replace(/\\n/g, '\n');
 
       await sendMessage({ phone: guardian.phone, message });
       toast({
-        title: csResp.alreadySent ? 'Link reenviado' : 'Enviado via Clicksign!',
-        description: `Link de assinatura ICP-Brasil enviado para ${guardian.name} via WhatsApp.`,
+        title: csResp.alreadySent ? 'Envelope já existente' : 'Enviado via Clicksign!',
+        description: `Clicksign enviou o link ICP-Brasil para o e-mail de ${guardian.name}. Avisamos no WhatsApp.`,
       });
     } catch (err) {
       console.error('Clicksign send error:', err);
