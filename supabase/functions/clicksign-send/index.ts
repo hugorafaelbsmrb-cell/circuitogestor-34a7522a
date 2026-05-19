@@ -214,10 +214,16 @@ Deno.serve(async (req) => {
       envelopeId,
       signerId,
       signerEmail: guardian.email,
-      // signUrl é null por design na API v3 — o link vai por email Clicksign.
+      signerPhone: phoneFormatted ?? null,
+      deliveryChannel,
+      // signUrl é null por design na API v3 — o link é entregue pela Clicksign
+      // (WhatsApp quando há telefone, email caso contrário).
       signUrl: null,
-      emailSent: notifResp.ok,
-      message: 'Envelope ativado. A Clicksign enviará o link de assinatura ICP-Brasil por e-mail.',
+      emailSent: notifResp.ok && deliveryChannel === 'email',
+      whatsappSent: notifResp.ok && deliveryChannel === 'whatsapp',
+      message: deliveryChannel === 'whatsapp'
+        ? 'Envelope ativado. A Clicksign enviou o link de assinatura ICP-Brasil por WhatsApp.'
+        : 'Envelope ativado. A Clicksign enviou o link de assinatura ICP-Brasil por e-mail.',
     });
   } catch (err) {
     console.error('clicksign-send error:', err);
