@@ -1521,8 +1521,9 @@ Att,
               }
             }
 
-            if (!signatureLink) {
-              // Fallback / internal flow: usa o token interno
+            if (!signatureLink && !useClicksign) {
+              // Fallback / internal flow: usa o token interno (não aplicável ao
+              // Clicksign, cujo link é entregue por e-mail pela própria Clicksign).
               const { data: contractData } = await supabase
                 .from('contracts')
                 .select('signature_token')
