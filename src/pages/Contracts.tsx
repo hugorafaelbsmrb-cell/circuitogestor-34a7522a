@@ -354,11 +354,16 @@ export default function Contracts() {
         throw new Error(csResp?.error || csErr?.message || 'Falha ao criar envelope na Clicksign');
       }
 
-      // Na API v3 da Clicksign não há URL pública de assinatura — o link é
-      // entregue exclusivamente pelo e-mail enviado pela Clicksign. Avisamos
-      // o responsável via WhatsApp para que ele verifique a caixa de entrada.
+      // Clicksign API v3 não expõe URL pública de assinatura. O link é
+      // entregue pela própria Clicksign pelo canal escolhido em
+      // communicate_events.signature_request — quando o responsável tem
+      // telefone usamos WhatsApp (signature_request:'whatsapp'); senão, email.
       const guardianFirstName = guardian.name.split(' ')[0];
-      let message = customTemplate || `Olá {nome}! 👋\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital com *certificado ICP-Brasil* (validade equivalente a cartório).\n\n📧 Enviamos o link de assinatura para o seu e-mail: *{email}*.\nPor favor, verifique também a caixa de spam.\n\nO link é único e intransferível.\n\nAgradecemos! 🙂`;
+      const viaWhats = csResp.deliveryChannel === 'whatsapp';
+      const defaultMsg = viaWhats
+        ? `Olá {nome}! 👋\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital com *certificado ICP-Brasil* (validade equivalente a cartório).\n\n📲 A *Clicksign* acabou de enviar o link de assinatura para o seu WhatsApp. O remetente aparece como *Clicksign*.\n\nO link é único e intransferível.\n\nAgradecemos! 🙂`
+        : `Olá {nome}! 👋\n\nO contrato de matrícula de *{aluno}* no curso *{curso}* está pronto para assinatura digital com *certificado ICP-Brasil* (validade equivalente a cartório).\n\n📧 Enviamos o link de assinatura para o seu e-mail: *{email}*.\nPor favor, verifique também a caixa de spam.\n\nO link é único e intransferível.\n\nAgradecemos! 🙂`;
+      let message = customTemplate || defaultMsg;
       message = message
         .replace('{nome}', guardianFirstName)
         .replace('{aluno}', student.name)
@@ -370,7 +375,9 @@ export default function Contracts() {
       await sendMessage({ phone: guardian.phone, message });
       toast({
         title: csResp.alreadySent ? 'Envelope já existente' : 'Enviado via Clicksign!',
-        description: `Clicksign enviou o link ICP-Brasil para o e-mail de ${guardian.name}. Avisamos no WhatsApp.`,
+        description: viaWhats
+          ? `Clicksign enviou o link ICP-Brasil por WhatsApp para ${guardian.name}.`
+          : `Clicksign enviou o link ICP-Brasil para o e-mail de ${guardian.name}. Avisamos no WhatsApp.`,
       });
     } catch (err) {
       console.error('Clicksign send error:', err);
