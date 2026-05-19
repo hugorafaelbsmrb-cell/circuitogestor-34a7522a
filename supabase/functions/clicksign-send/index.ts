@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
       },
       {
         type: 'requirements',
-        attributes: { action: 'provide_evidence', auth: 'icp_brasil', role: 'sign' },
+        attributes: { action: 'provide_evidence', auth: 'icp_brasil' },
         relationships: {
           document: { data: { type: 'documents', id: documentId } },
           signer: { data: { type: 'signers', id: signerId } },
