@@ -124,8 +124,12 @@ Deno.serve(async (req) => {
     const documentId = docResp.data?.data?.id;
 
     // 3) Add signer (with ICP-Brasil prerequisites: full name, CPF, birthday)
-    // communicate_events só aceita 'email' ou 'whatsapp'. Usamos 'email' para registro,
-    // mas o envio do link ao responsável é feito pela nossa W-API (igual ao fluxo ZapSign).
+    // Quando o responsável tem telefone, pedimos que a Clicksign entregue o
+    // link de assinatura diretamente via WhatsApp (signature_request:'whatsapp').
+    // É a única forma na API v3 de obter um link público de assinatura — o
+    // signatário recebe a mensagem do número oficial da Clicksign.
+    // Sem telefone, caímos no padrão email.
+    const deliveryChannel: 'whatsapp' | 'email' = phoneFormatted ? 'whatsapp' : 'email';
     const signerAttrs: Record<string, unknown> = {
       name: guardian.name,
       email: guardian.email,
@@ -133,8 +137,9 @@ Deno.serve(async (req) => {
       documentation: cpfFormatted,
       refusable: true,
       communicate_events: {
-        document_signed: 'email',
-        signature_request: 'email',
+        // signature_reminder só aceita 'email' ou 'none'
+        document_signed: deliveryChannel,
+        signature_request: deliveryChannel,
         signature_reminder: 'email',
       },
     };
