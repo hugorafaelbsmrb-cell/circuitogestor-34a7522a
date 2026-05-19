@@ -61,8 +61,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (contractErr || !contract) return json({ error: 'Contrato não encontrado' }, 404);
 
-    if (contract.clicksign_envelope_id && contract.clicksign_sign_url) {
-      return json({ signUrl: contract.clicksign_sign_url, alreadySent: true });
+    if (contract.clicksign_envelope_id) {
+      return json({ ok: true, alreadySent: true, signUrl: null, envelopeId: contract.clicksign_envelope_id, message: 'Envelope já criado na Clicksign.' });
     }
 
     const [{ data: guardian }, { data: student }, { data: course }] = await Promise.all([
