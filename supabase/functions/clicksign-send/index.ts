@@ -53,9 +53,6 @@ Deno.serve(async (req) => {
     const apiBase = environment === 'production'
       ? 'https://app.clicksign.com/api/v3'
       : 'https://sandbox.clicksign.com/api/v3';
-    const signBase = environment === 'production'
-      ? 'https://app.clicksign.com/sign'
-      : 'https://sandbox.clicksign.com/sign';
 
     const { data: contract, error: contractErr } = await admin
       .from('contracts')
