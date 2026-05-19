@@ -127,6 +127,8 @@ Deno.serve(async (req) => {
     const documentId = docResp.data?.data?.id;
 
     // 3) Add signer (with ICP-Brasil prerequisites: full name, CPF, birthday)
+    // communicate_events só aceita 'email' ou 'whatsapp'. Usamos 'email' para registro,
+    // mas o envio do link ao responsável é feito pela nossa W-API (igual ao fluxo ZapSign).
     const signerAttrs: Record<string, unknown> = {
       name: guardian.name,
       email: guardian.email,
@@ -134,9 +136,9 @@ Deno.serve(async (req) => {
       documentation: cpfFormatted,
       refusable: true,
       communicate_events: {
-        document_signed: 'none',
-        signature_request: 'none',
-        signature_reminder: 'none',
+        document_signed: 'email',
+        signature_request: 'email',
+        signature_reminder: 'email',
       },
     };
     if (phoneFormatted) signerAttrs.phone_number = phoneFormatted;
