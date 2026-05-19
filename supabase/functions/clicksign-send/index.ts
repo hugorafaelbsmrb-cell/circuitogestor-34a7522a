@@ -205,8 +205,8 @@ Deno.serve(async (req) => {
 });
 
 async function csFetch(url: string, token: string, body: unknown, method = 'POST') {
-  // Retry com backoff exponencial para 429 (rate limit) e 5xx transitórios
-  const maxAttempts = 5;
+  // Retry agressivo para 429 (rate limit Clicksign) e 5xx
+  const maxAttempts = 8;
   let lastResp: Response | null = null;
   let lastText = '';
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -225,11 +225,12 @@ async function csFetch(url: string, token: string, body: unknown, method = 'POST
     if (resp.status !== 429 && resp.status < 500) break;
     if (attempt === maxAttempts) break;
 
-    // Respeita Retry-After se enviado; caso contrário backoff exponencial 1s,2s,4s,8s
     const retryAfter = parseFloat(resp.headers.get('retry-after') || '');
+    // Backoff: 2s, 4s, 8s, 15s, 25s, 30s, 30s
+    const backoff = [2000, 4000, 8000, 15000, 25000, 30000, 30000][attempt - 1] ?? 30000;
     const waitMs = Number.isFinite(retryAfter) && retryAfter > 0
-      ? Math.min(retryAfter * 1000, 15000)
-      : Math.min(1000 * 2 ** (attempt - 1), 8000);
+      ? Math.min(retryAfter * 1000, 30000)
+      : backoff;
     console.warn(`Clicksign ${resp.status} em ${url} — tentativa ${attempt}/${maxAttempts}, aguardando ${waitMs}ms`);
     await new Promise((r) => setTimeout(r, waitMs));
   }
