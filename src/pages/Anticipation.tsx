@@ -561,8 +561,8 @@ export default function Anticipation() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Type selector and search */}
-              <div className="grid gap-4 md:grid-cols-3">
+              {/* Type selector, due date, month filters and search */}
+              <div className="grid gap-4 md:grid-cols-4">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
                   <Select 
@@ -616,6 +616,39 @@ export default function Anticipation() {
                       <SelectItem value="30">Próximos 30 dias</SelectItem>
                       <SelectItem value="60">Próximos 60 dias</SelectItem>
                       <SelectItem value="90">Próximos 90 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Mês de vencimento</Label>
+                  <Select
+                    value={monthFilter}
+                    onValueChange={(v) => {
+                      setMonthFilter(v);
+                      setSelectedPaymentIds([]);
+                      setSimulationId('');
+                      setSimulationResult(null);
+                      setEligibleIds([]);
+                      setIneligible([]);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os meses</SelectItem>
+                      <SelectItem value="0">Janeiro</SelectItem>
+                      <SelectItem value="1">Fevereiro</SelectItem>
+                      <SelectItem value="2">Março</SelectItem>
+                      <SelectItem value="3">Abril</SelectItem>
+                      <SelectItem value="4">Maio</SelectItem>
+                      <SelectItem value="5">Junho</SelectItem>
+                      <SelectItem value="6">Julho</SelectItem>
+                      <SelectItem value="7">Agosto</SelectItem>
+                      <SelectItem value="8">Setembro</SelectItem>
+                      <SelectItem value="9">Outubro</SelectItem>
+                      <SelectItem value="10">Novembro</SelectItem>
+                      <SelectItem value="11">Dezembro</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
