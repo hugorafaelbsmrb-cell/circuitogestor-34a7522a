@@ -551,7 +551,7 @@ export default function Anticipation() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Type selector and search */}
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
                   <Select 
