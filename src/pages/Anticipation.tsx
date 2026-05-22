@@ -91,6 +91,7 @@ export default function Anticipation() {
   const [ineligible, setIneligible] = useState<{ id: string; reason: string }[]>([]);
   const [onlyWithContract, setOnlyWithContract] = useState(true);
   const [dueDateFilter, setDueDateFilter] = useState<string>('all');
+  const [monthFilter, setMonthFilter] = useState<string>('all');
 
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
