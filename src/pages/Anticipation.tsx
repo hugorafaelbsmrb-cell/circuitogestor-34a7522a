@@ -183,11 +183,20 @@ export default function Anticipation() {
     return due <= max;
   };
 
+  const isWithinMonthFilter = (dateStr: string | null | undefined): boolean => {
+    if (!dateStr || monthFilter === 'all') return true;
+    const monthIndex = parseInt(monthFilter, 10);
+    if (Number.isNaN(monthIndex)) return true;
+    const due = new Date(`${dateStr}T00:00:00`);
+    return due.getMonth() === monthIndex;
+  };
+
   const filteredPayments = useMemo(() => {
     if (!pendingPayments) return [];
     let list = pendingPayments;
     if (onlyWithContract) list = list.filter(hasSignedContract);
     list = list.filter(p => isWithinDueWindow(p.due_date));
+    list = list.filter(p => isWithinMonthFilter(p.due_date));
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(p =>
@@ -197,13 +206,14 @@ export default function Anticipation() {
       );
     }
     return list;
-  }, [pendingPayments, searchTerm, onlyWithContract, dueDateFilter]);
+  }, [pendingPayments, searchTerm, onlyWithContract, dueDateFilter, monthFilter]);
 
   const filteredCarnes = useMemo(() => {
     if (!pendingCarnes) return [];
     let list = pendingCarnes;
     if (onlyWithContract) list = list.filter(hasSignedContract);
     list = list.filter(c => isWithinDueWindow(c.first_due_date));
+    list = list.filter(c => isWithinMonthFilter(c.first_due_date));
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(c =>
@@ -213,7 +223,7 @@ export default function Anticipation() {
       );
     }
     return list;
-  }, [pendingCarnes, searchTerm, onlyWithContract, dueDateFilter]);
+  }, [pendingCarnes, searchTerm, onlyWithContract, dueDateFilter, monthFilter]);
 
   // Fetch anticipation limits
   const { data: limits, isLoading: limitsLoading } = useQuery({
