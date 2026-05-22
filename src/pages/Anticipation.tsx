@@ -91,6 +91,7 @@ export default function Anticipation() {
   const [ineligible, setIneligible] = useState<{ id: string; reason: string }[]>([]);
   const [onlyWithContract, setOnlyWithContract] = useState(true);
   const [dueDateFilter, setDueDateFilter] = useState<string>('all');
+  const [monthFilter, setMonthFilter] = useState<string>('all');
 
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
@@ -182,11 +183,20 @@ export default function Anticipation() {
     return due <= max;
   };
 
+  const isWithinMonthFilter = (dateStr: string | null | undefined): boolean => {
+    if (!dateStr || monthFilter === 'all') return true;
+    const monthIndex = parseInt(monthFilter, 10);
+    if (Number.isNaN(monthIndex)) return true;
+    const due = new Date(`${dateStr}T00:00:00`);
+    return due.getMonth() === monthIndex;
+  };
+
   const filteredPayments = useMemo(() => {
     if (!pendingPayments) return [];
     let list = pendingPayments;
     if (onlyWithContract) list = list.filter(hasSignedContract);
     list = list.filter(p => isWithinDueWindow(p.due_date));
+    list = list.filter(p => isWithinMonthFilter(p.due_date));
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(p =>
@@ -196,13 +206,14 @@ export default function Anticipation() {
       );
     }
     return list;
-  }, [pendingPayments, searchTerm, onlyWithContract, dueDateFilter]);
+  }, [pendingPayments, searchTerm, onlyWithContract, dueDateFilter, monthFilter]);
 
   const filteredCarnes = useMemo(() => {
     if (!pendingCarnes) return [];
     let list = pendingCarnes;
     if (onlyWithContract) list = list.filter(hasSignedContract);
     list = list.filter(c => isWithinDueWindow(c.first_due_date));
+    list = list.filter(c => isWithinMonthFilter(c.first_due_date));
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(c =>
@@ -212,7 +223,7 @@ export default function Anticipation() {
       );
     }
     return list;
-  }, [pendingCarnes, searchTerm, onlyWithContract, dueDateFilter]);
+  }, [pendingCarnes, searchTerm, onlyWithContract, dueDateFilter, monthFilter]);
 
   // Fetch anticipation limits
   const { data: limits, isLoading: limitsLoading } = useQuery({
@@ -550,8 +561,8 @@ export default function Anticipation() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Type selector and search */}
-              <div className="grid gap-4 md:grid-cols-3">
+              {/* Type selector, due date, month filters and search */}
+              <div className="grid gap-4 md:grid-cols-4">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
                   <Select 
@@ -605,6 +616,39 @@ export default function Anticipation() {
                       <SelectItem value="30">Próximos 30 dias</SelectItem>
                       <SelectItem value="60">Próximos 60 dias</SelectItem>
                       <SelectItem value="90">Próximos 90 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Mês de vencimento</Label>
+                  <Select
+                    value={monthFilter}
+                    onValueChange={(v) => {
+                      setMonthFilter(v);
+                      setSelectedPaymentIds([]);
+                      setSimulationId('');
+                      setSimulationResult(null);
+                      setEligibleIds([]);
+                      setIneligible([]);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os meses</SelectItem>
+                      <SelectItem value="0">Janeiro</SelectItem>
+                      <SelectItem value="1">Fevereiro</SelectItem>
+                      <SelectItem value="2">Março</SelectItem>
+                      <SelectItem value="3">Abril</SelectItem>
+                      <SelectItem value="4">Maio</SelectItem>
+                      <SelectItem value="5">Junho</SelectItem>
+                      <SelectItem value="6">Julho</SelectItem>
+                      <SelectItem value="7">Agosto</SelectItem>
+                      <SelectItem value="8">Setembro</SelectItem>
+                      <SelectItem value="9">Outubro</SelectItem>
+                      <SelectItem value="10">Novembro</SelectItem>
+                      <SelectItem value="11">Dezembro</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
