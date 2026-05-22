@@ -162,10 +162,31 @@ export default function Anticipation() {
   const hasSignedContract = (rec: { contracts?: unknown }) =>
     !!(rec?.contracts as { zapsign_signed_pdf_url?: string | null } | null)?.zapsign_signed_pdf_url;
 
+  // Asaas only allows anticipating payments with due date in the future.
+  // The dueDateFilter lets the operator narrow by upcoming window (in days).
+  const getMaxDueDate = (days: string): Date | null => {
+    if (days === 'all') return null;
+    const n = parseInt(days, 10);
+    if (Number.isNaN(n)) return null;
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    d.setDate(d.getDate() + n);
+    return d;
+  };
+
+  const isWithinDueWindow = (dateStr: string | null | undefined): boolean => {
+    if (!dateStr) return false;
+    const max = getMaxDueDate(dueDateFilter);
+    if (!max) return true;
+    const due = new Date(`${dateStr}T00:00:00`);
+    return due <= max;
+  };
+
   const filteredPayments = useMemo(() => {
     if (!pendingPayments) return [];
     let list = pendingPayments;
     if (onlyWithContract) list = list.filter(hasSignedContract);
+    list = list.filter(p => isWithinDueWindow(p.due_date));
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(p =>
@@ -175,12 +196,13 @@ export default function Anticipation() {
       );
     }
     return list;
-  }, [pendingPayments, searchTerm, onlyWithContract]);
+  }, [pendingPayments, searchTerm, onlyWithContract, dueDateFilter]);
 
   const filteredCarnes = useMemo(() => {
     if (!pendingCarnes) return [];
     let list = pendingCarnes;
     if (onlyWithContract) list = list.filter(hasSignedContract);
+    list = list.filter(c => isWithinDueWindow(c.first_due_date));
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(c =>
@@ -190,7 +212,7 @@ export default function Anticipation() {
       );
     }
     return list;
-  }, [pendingCarnes, searchTerm, onlyWithContract]);
+  }, [pendingCarnes, searchTerm, onlyWithContract, dueDateFilter]);
 
   // Fetch anticipation limits
   const { data: limits, isLoading: limitsLoading } = useQuery({
