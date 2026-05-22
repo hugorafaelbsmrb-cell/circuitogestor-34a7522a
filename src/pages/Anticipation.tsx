@@ -583,6 +583,32 @@ export default function Anticipation() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Vencimento até</Label>
+                  <Select
+                    value={dueDateFilter}
+                    onValueChange={(v) => {
+                      setDueDateFilter(v);
+                      setSelectedPaymentIds([]);
+                      setSimulationId('');
+                      setSimulationResult(null);
+                      setEligibleIds([]);
+                      setIneligible([]);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os vencimentos futuros</SelectItem>
+                      <SelectItem value="7">Próximos 7 dias</SelectItem>
+                      <SelectItem value="15">Próximos 15 dias</SelectItem>
+                      <SelectItem value="30">Próximos 30 dias</SelectItem>
+                      <SelectItem value="60">Próximos 60 dias</SelectItem>
+                      <SelectItem value="90">Próximos 90 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label>Buscar</Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -594,6 +620,16 @@ export default function Anticipation() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Info chip explaining anticipable rules */}
+              <div className="rounded-lg bg-blue-500/10 border border-blue-500/30 p-3 text-xs text-blue-700 dark:text-blue-400 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  Mostrando apenas cobranças <strong>antecipáveis</strong>: status pendente, vencimento futuro
+                  {onlyWithContract && <> e <strong>contrato assinado anexado</strong></>}.
+                  O Asaas valida limites e elegibilidade final na simulação.
+                </span>
               </div>
 
               {/* Contract filter */}
