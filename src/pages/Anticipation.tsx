@@ -90,6 +90,7 @@ export default function Anticipation() {
   const [eligibleIds, setEligibleIds] = useState<string[]>([]);
   const [ineligible, setIneligible] = useState<{ id: string; reason: string }[]>([]);
   const [onlyWithContract, setOnlyWithContract] = useState(true);
+  const [dueDateFilter, setDueDateFilter] = useState<string>('all');
 
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
