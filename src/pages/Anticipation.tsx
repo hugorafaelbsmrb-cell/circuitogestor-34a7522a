@@ -90,6 +90,7 @@ export default function Anticipation() {
   const [eligibleIds, setEligibleIds] = useState<string[]>([]);
   const [ineligible, setIneligible] = useState<{ id: string; reason: string }[]>([]);
   const [onlyWithContract, setOnlyWithContract] = useState(true);
+  const [dueDateFilter, setDueDateFilter] = useState<string>('all');
 
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
@@ -161,10 +162,31 @@ export default function Anticipation() {
   const hasSignedContract = (rec: { contracts?: unknown }) =>
     !!(rec?.contracts as { zapsign_signed_pdf_url?: string | null } | null)?.zapsign_signed_pdf_url;
 
+  // Asaas only allows anticipating payments with due date in the future.
+  // The dueDateFilter lets the operator narrow by upcoming window (in days).
+  const getMaxDueDate = (days: string): Date | null => {
+    if (days === 'all') return null;
+    const n = parseInt(days, 10);
+    if (Number.isNaN(n)) return null;
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    d.setDate(d.getDate() + n);
+    return d;
+  };
+
+  const isWithinDueWindow = (dateStr: string | null | undefined): boolean => {
+    if (!dateStr) return false;
+    const max = getMaxDueDate(dueDateFilter);
+    if (!max) return true;
+    const due = new Date(`${dateStr}T00:00:00`);
+    return due <= max;
+  };
+
   const filteredPayments = useMemo(() => {
     if (!pendingPayments) return [];
     let list = pendingPayments;
     if (onlyWithContract) list = list.filter(hasSignedContract);
+    list = list.filter(p => isWithinDueWindow(p.due_date));
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(p =>
@@ -174,12 +196,13 @@ export default function Anticipation() {
       );
     }
     return list;
-  }, [pendingPayments, searchTerm, onlyWithContract]);
+  }, [pendingPayments, searchTerm, onlyWithContract, dueDateFilter]);
 
   const filteredCarnes = useMemo(() => {
     if (!pendingCarnes) return [];
     let list = pendingCarnes;
     if (onlyWithContract) list = list.filter(hasSignedContract);
+    list = list.filter(c => isWithinDueWindow(c.first_due_date));
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       list = list.filter(c =>
@@ -189,7 +212,7 @@ export default function Anticipation() {
       );
     }
     return list;
-  }, [pendingCarnes, searchTerm, onlyWithContract]);
+  }, [pendingCarnes, searchTerm, onlyWithContract, dueDateFilter]);
 
   // Fetch anticipation limits
   const { data: limits, isLoading: limitsLoading } = useQuery({
@@ -528,7 +551,7 @@ export default function Anticipation() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Type selector and search */}
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
                   <Select 
@@ -560,6 +583,32 @@ export default function Anticipation() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Vencimento até</Label>
+                  <Select
+                    value={dueDateFilter}
+                    onValueChange={(v) => {
+                      setDueDateFilter(v);
+                      setSelectedPaymentIds([]);
+                      setSimulationId('');
+                      setSimulationResult(null);
+                      setEligibleIds([]);
+                      setIneligible([]);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os vencimentos futuros</SelectItem>
+                      <SelectItem value="7">Próximos 7 dias</SelectItem>
+                      <SelectItem value="15">Próximos 15 dias</SelectItem>
+                      <SelectItem value="30">Próximos 30 dias</SelectItem>
+                      <SelectItem value="60">Próximos 60 dias</SelectItem>
+                      <SelectItem value="90">Próximos 90 dias</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label>Buscar</Label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -571,6 +620,16 @@ export default function Anticipation() {
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Info chip explaining anticipable rules */}
+              <div className="rounded-lg bg-blue-500/10 border border-blue-500/30 p-3 text-xs text-blue-700 dark:text-blue-400 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  Mostrando apenas cobranças <strong>antecipáveis</strong>: status pendente, vencimento futuro
+                  {onlyWithContract && <> e <strong>contrato assinado anexado</strong></>}.
+                  O Asaas valida limites e elegibilidade final na simulação.
+                </span>
               </div>
 
               {/* Contract filter */}
