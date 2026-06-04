@@ -28,7 +28,7 @@ export default function VacationCampAdmin() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("vacation_camps").select("*").order("created_at", { ascending: false });
+    const { data } = await (supabase as any).from("vacation_camps").select("*").order("created_at", { ascending: false });
     setCamps((data || []) as any);
     setLoading(false);
   };
@@ -39,7 +39,7 @@ export default function VacationCampAdmin() {
     const slug = (newCamp.slug || slugify(newCamp.name)).trim();
     if (!slug) return toast.error("Slug inválido");
     setCreating(true);
-    const { error } = await supabase.from("vacation_camps").insert({
+    const { error } = await (supabase as any).from("vacation_camps").insert({
       name: newCamp.name, slug, status: "draft",
       hero_title: newCamp.name,
       cta_text: "Garantir vaga",
@@ -54,7 +54,7 @@ export default function VacationCampAdmin() {
 
   const togglePublish = async (camp: Camp) => {
     const next = camp.status === "published" ? "draft" : "published";
-    const { error } = await supabase.from("vacation_camps").update({ status: next }).eq("id", camp.id);
+    const { error } = await (supabase as any).from("vacation_camps").update({ status: next }).eq("id", camp.id);
     if (error) return toast.error(error.message);
     toast.success(next === "published" ? "Publicada" : "Despublicada");
     load();
@@ -62,7 +62,7 @@ export default function VacationCampAdmin() {
 
   const remove = async (camp: Camp) => {
     if (!confirm(`Excluir "${camp.name}"? Isso removerá pacotes, programação e inscritos.`)) return;
-    const { error } = await supabase.from("vacation_camps").delete().eq("id", camp.id);
+    const { error } = await (supabase as any).from("vacation_camps").delete().eq("id", camp.id);
     if (error) return toast.error(error.message);
     toast.success("Excluída");
     load();
