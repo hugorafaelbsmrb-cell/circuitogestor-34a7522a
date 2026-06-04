@@ -154,11 +154,67 @@ async function sendPaymentConfirmationWhatsApp(
   }
 }
 
+async function processCampEnrollment(supabase: any, payment: AsaasWebhookPayment, status: string) {
+  const enrollmentId = payment.externalReference?.replace(/^camp_/, "");
+  if (!enrollmentId) return;
+
+  const isPaid = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(status);
+  const newStatus = isPaid ? "confirmed" : status === "OVERDUE" ? "overdue" : "pending";
+
+  const { data: enrollment } = await supabase
+    .from("vacation_camp_enrollments")
+    .select("id, package_id, payment_status")
+    .eq("id", enrollmentId)
+    .maybeSingle();
+
+  if (!enrollment) {
+    console.warn(`Camp enrollment ${enrollmentId} not found for payment ${payment.id}`);
+    return;
+  }
+
+  const wasConfirmed = enrollment.payment_status === "confirmed";
+
+  await supabase
+    .from("vacation_camp_enrollments")
+    .update({
+      payment_status: newStatus,
+      asaas_payment_id: payment.id,
+      asaas_invoice_url: payment.invoiceUrl,
+      asaas_bank_slip_url: payment.bankSlipUrl,
+      confirmed_at: isPaid && !wasConfirmed ? new Date().toISOString() : undefined,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", enrollmentId);
+
+  // Increment sold_count on first confirmation
+  if (isPaid && !wasConfirmed && enrollment.package_id) {
+    const { data: pkg } = await supabase
+      .from("vacation_camp_packages")
+      .select("sold_count")
+      .eq("id", enrollment.package_id)
+      .maybeSingle();
+    if (pkg) {
+      await supabase
+        .from("vacation_camp_packages")
+        .update({ sold_count: (pkg.sold_count || 0) + 1 })
+        .eq("id", enrollment.package_id);
+    }
+  }
+
+  console.log(`✅ Camp enrollment ${enrollmentId} -> ${newStatus}`);
+}
+
 async function processPaymentEvent(supabaseUrl: string, supabaseKey: string, event: string, payment: AsaasWebhookPayment) {
   console.log(`Processing payment event: ${event} for payment ${payment.id}`);
   
   const supabase = createClient(supabaseUrl, supabaseKey);
   const status = mapPaymentStatus(payment.status);
+
+  // Camp enrollment handling (externalReference starts with camp_)
+  if (payment.externalReference?.startsWith("camp_")) {
+    await processCampEnrollment(supabase, payment, status);
+    return;
+  }
   
   // Update payment by Asaas ID
   const { data: existingPayment } = await supabase
