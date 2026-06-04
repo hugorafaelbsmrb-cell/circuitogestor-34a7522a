@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Copy, ExternalLink, Loader2, PalmtreeIcon, Settings2, Trash2 } from "lucide-react";
+import { Plus, Copy, ExternalLink, Loader2, Palmtree, Settings2, Trash2 } from "lucide-react";
 
 interface Camp {
   id: string; name: string; slug: string; status: string;
@@ -79,7 +79,7 @@ export default function VacationCampAdmin() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <PalmtreeIcon className="w-6 h-6 text-primary" />
+            <Palmtree className="w-6 h-6 text-primary" />
             Colônia de Férias
           </h1>
           <p className="text-sm text-muted-foreground">Crie e gerencie edições da colônia</p>
