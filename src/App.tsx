@@ -51,6 +51,9 @@ import EmailClient from "./pages/EmailClient";
 import IoTAutomation from "./pages/IoTAutomation";
 import Anticipation from "./pages/Anticipation";
 import Receipts from "./pages/Receipts";
+import VacationCampLanding from "./pages/VacationCampLanding";
+import VacationCampAdmin from "./pages/VacationCampAdmin";
+import VacationCampEditor from "./pages/VacationCampEditor";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -84,6 +87,7 @@ const App = () => (
             <Routes>
               {/* Public routes - no authentication required */}
               <Route path="/assinar/:token" element={<ContractSign />} />
+              <Route path="/colonia/:slug" element={<VacationCampLanding />} />
               <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
               <Route path="/campanha" element={<CampaignLanding />} />
               <Route path="/campanha/:slug" element={<CourseLanding />} />
@@ -134,6 +138,8 @@ const App = () => (
                       <Route path="/automacao" element={<IoTAutomation />} />
                        <Route path="/antecipacao" element={<Anticipation />} />
                        <Route path="/recibos-ir" element={<Receipts />} />
+                       <Route path="/colonia-admin" element={<VacationCampAdmin />} />
+                       <Route path="/colonia-admin/:id" element={<VacationCampEditor />} />
                       <Route path="/configuracoes" element={<Settings />} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
