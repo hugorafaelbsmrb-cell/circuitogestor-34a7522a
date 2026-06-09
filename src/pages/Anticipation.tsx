@@ -452,15 +452,40 @@ export default function Anticipation() {
           <h1 className="text-2xl font-bold">Antecipação de Recebíveis</h1>
           <p className="text-muted-foreground">Antecipe o recebimento de suas cobranças</p>
         </div>
-        <Button variant="outline" onClick={() => {
-          refetch();
-          queryClient.invalidateQueries({ queryKey: ['anticipation-limits'] });
-          queryClient.invalidateQueries({ queryKey: ['pending-payments-for-anticipation'] });
-          queryClient.invalidateQueries({ queryKey: ['pending-carnes-for-anticipation'] });
-        }}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Atualizar
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              toast({ title: 'Sincronizando parcelas do Asaas...', description: 'Pode levar alguns segundos.' });
+              const { data, error } = await supabase.functions.invoke('asaas-sync-carne-installments', { body: {} });
+              if (error) {
+                toast({ title: 'Erro ao sincronizar', description: error.message, variant: 'destructive' });
+                return;
+              }
+              toast({
+                title: 'Parcelas sincronizadas',
+                description: `Carnês: ${data?.carnes_processed ?? 0} • Inseridas: ${data?.total_inserted ?? 0} • Atualizadas: ${data?.total_updated ?? 0}`,
+              });
+              refetch();
+              queryClient.invalidateQueries({ queryKey: ['anticipation-limits'] });
+              queryClient.invalidateQueries({ queryKey: ['pending-payments-for-anticipation'] });
+              queryClient.invalidateQueries({ queryKey: ['pending-carnes-for-anticipation'] });
+            }}
+          >
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Sincronizar parcelas Asaas
+          </Button>
+          <Button variant="outline" onClick={() => {
+            refetch();
+            queryClient.invalidateQueries({ queryKey: ['anticipation-limits'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-payments-for-anticipation'] });
+            queryClient.invalidateQueries({ queryKey: ['pending-carnes-for-anticipation'] });
+          }}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Atualizar
+          </Button>
+        </div>
+
       </div>
 
       {/* Limits Cards - Asaas anticipation limits per billing type */}
