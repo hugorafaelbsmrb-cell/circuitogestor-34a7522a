@@ -895,6 +895,27 @@ export default function Contracts() {
             {isBulkSendingZapSign ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             Enviar via ZapSign (em massa)
           </Button>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={async () => {
+              if (!confirm('Sincronizar status de assinatura com ZapSign para todos os contratos pendentes?')) return;
+              try {
+                const { data, error } = await supabase.functions.invoke('zapsign-sync-all');
+                if (error) throw error;
+                toast({
+                  title: 'Sincronização concluída',
+                  description: `Verificados: ${data?.checked ?? 0} • Atualizados como assinados: ${data?.signedUpdated ?? 0}`,
+                });
+                window.location.reload();
+              } catch (e: any) {
+                toast({ title: 'Erro ao sincronizar', description: e?.message || 'Falha', variant: 'destructive' });
+              }
+            }}
+          >
+            <Loader2 className="w-4 h-4" />
+            Sincronizar ZapSign
+          </Button>
           <Link to="/contrato-config">
             <Button variant="outline" className="gap-2">
               <Settings className="w-4 h-4" />
