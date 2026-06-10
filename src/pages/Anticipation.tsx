@@ -1012,11 +1012,11 @@ export default function Anticipation() {
                   
                   {simulationResult.isDocumentationRequired && (() => {
                     const hasContract = simulationType === 'payment'
-                      ? selectedPaymentIds.every(id => !!getPaymentContractUrl(id))
-                      : !!selectedContractPdfUrl;
+                      ? selectedPaymentIds.every(id => !!getStoredContractPdfUrl(getPaymentContract(id)))
+                      : !!getStoredContractPdfUrl(selectedContract);
                     const partialContract = simulationType === 'payment'
                       && !hasContract
-                      && selectedPaymentIds.some(id => !!getPaymentContractUrl(id));
+                      && selectedPaymentIds.some(id => !!getStoredContractPdfUrl(getPaymentContract(id)));
                     return (
                       <div className={`mt-4 p-3 rounded-lg border ${hasContract ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
                         <p className={`text-sm flex items-center gap-2 ${hasContract ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
