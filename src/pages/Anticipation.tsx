@@ -66,6 +66,16 @@ interface SimulationResult {
   isDocumentationRequired: boolean;
 }
 
+interface SignedContractRef {
+  id: string;
+  zapsign_document_id: string | null;
+  zapsign_signed_at: string | null;
+  zapsign_signed_pdf_url: string | null;
+  clicksign_envelope_id: string | null;
+  clicksign_signed_at: string | null;
+  clicksign_signed_pdf_url: string | null;
+}
+
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof CheckCircle2 }> = {
   PENDING: { label: 'Pendente', variant: 'secondary', icon: Clock },
   SCHEDULED: { label: 'Agendada', variant: 'default', icon: Calendar },
@@ -109,7 +119,15 @@ export default function Anticipation() {
           guardian_id,
           contract_id,
           guardians (name),
-          contracts (zapsign_signed_pdf_url)
+          contracts (
+            id,
+            zapsign_document_id,
+            zapsign_signed_at,
+            zapsign_signed_pdf_url,
+            clicksign_envelope_id,
+            clicksign_signed_at,
+            clicksign_signed_pdf_url
+          )
         `)
         .in('status', ['PENDING', 'CONFIRMED'])
         .not('asaas_payment_id', 'is', null)
@@ -137,7 +155,15 @@ export default function Anticipation() {
           guardian_id,
           contract_id,
           guardians (name),
-          contracts (zapsign_signed_pdf_url)
+          contracts (
+            id,
+            zapsign_document_id,
+            zapsign_signed_at,
+            zapsign_signed_pdf_url,
+            clicksign_envelope_id,
+            clicksign_signed_at,
+            clicksign_signed_pdf_url
+          )
         `)
         .eq('status', 'ACTIVE')
         .order('first_due_date', { ascending: true });
@@ -148,20 +174,27 @@ export default function Anticipation() {
   });
 
   // Resolve signed contract PDF URL for the currently selected installment (carnê)
-  const selectedContractPdfUrl = useMemo<string | null>(() => {
+  const selectedContract = useMemo<SignedContractRef | null>(() => {
     if (simulationType !== 'installment' || !simulationId) return null;
     const c = pendingCarnes?.find(x => x.asaas_installment_id === simulationId);
-    return (c?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+    return (c?.contracts as SignedContractRef | null) || null;
   }, [simulationId, simulationType, pendingCarnes]);
 
-  const getPaymentContractUrl = (paymentId: string): string | null => {
+  const getPaymentContract = (paymentId: string): SignedContractRef | null => {
     const p = pendingPayments?.find(x => x.asaas_payment_id === paymentId);
-    return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+    return (p?.contracts as SignedContractRef | null) || null;
+  };
+
+  const getStoredContractPdfUrl = (contract: SignedContractRef | null): string | null => {
+    if (!contract) return null;
+    return contract.zapsign_signed_pdf_url || contract.clicksign_signed_pdf_url || null;
   };
 
   // Filter items based on search term and "only with contract" flag
   const hasSignedContract = (rec: { contracts?: unknown }) =>
-    !!(rec?.contracts as { zapsign_signed_pdf_url?: string | null } | null)?.zapsign_signed_pdf_url;
+    !!getStoredContractPdfUrl((rec?.contracts as SignedContractRef | null) || null)
+    || !!(rec?.contracts as SignedContractRef | null)?.zapsign_signed_at
+    || !!(rec?.contracts as SignedContractRef | null)?.clicksign_signed_at;
 
   // Asaas only allows anticipating payments with due date in the future.
   // The dueDateFilter lets the operator narrow by upcoming window (in days).
