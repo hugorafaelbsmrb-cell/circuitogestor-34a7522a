@@ -66,6 +66,16 @@ interface SimulationResult {
   isDocumentationRequired: boolean;
 }
 
+interface SignedContractRef {
+  id: string;
+  zapsign_document_id: string | null;
+  zapsign_signed_at: string | null;
+  zapsign_signed_pdf_url: string | null;
+  clicksign_envelope_id: string | null;
+  clicksign_signed_at: string | null;
+  clicksign_signed_pdf_url: string | null;
+}
+
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof CheckCircle2 }> = {
   PENDING: { label: 'Pendente', variant: 'secondary', icon: Clock },
   SCHEDULED: { label: 'Agendada', variant: 'default', icon: Calendar },
@@ -93,6 +103,26 @@ export default function Anticipation() {
   const [dueDateFilter, setDueDateFilter] = useState<string>('all');
   const [monthFilter, setMonthFilter] = useState<string>('all');
 
+  const resolveFreshContractPdfUrl = async (contract: SignedContractRef | null): Promise<string | null> => {
+    if (!contract?.id) return null;
+
+    if (contract.zapsign_document_id && (contract.zapsign_signed_at || contract.zapsign_signed_pdf_url)) {
+      const { data, error } = await supabase.functions.invoke('zapsign-get-pdf', {
+        body: { contractId: contract.id },
+      });
+      if (!error && data?.url) return data.url;
+    }
+
+    if (contract.clicksign_envelope_id && (contract.clicksign_signed_at || contract.clicksign_signed_pdf_url)) {
+      const { data, error } = await supabase.functions.invoke('clicksign-get-pdf', {
+        body: { contractId: contract.id },
+      });
+      if (!error && data?.url) return data.url;
+    }
+
+    return getStoredContractPdfUrl(contract);
+  };
+
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
     queryKey: ['pending-payments-for-anticipation'],
@@ -109,7 +139,15 @@ export default function Anticipation() {
           guardian_id,
           contract_id,
           guardians (name),
-          contracts (zapsign_signed_pdf_url)
+          contracts (
+            id,
+            zapsign_document_id,
+            zapsign_signed_at,
+            zapsign_signed_pdf_url,
+            clicksign_envelope_id,
+            clicksign_signed_at,
+            clicksign_signed_pdf_url
+          )
         `)
         .in('status', ['PENDING', 'CONFIRMED'])
         .not('asaas_payment_id', 'is', null)
@@ -137,7 +175,15 @@ export default function Anticipation() {
           guardian_id,
           contract_id,
           guardians (name),
-          contracts (zapsign_signed_pdf_url)
+          contracts (
+            id,
+            zapsign_document_id,
+            zapsign_signed_at,
+            zapsign_signed_pdf_url,
+            clicksign_envelope_id,
+            clicksign_signed_at,
+            clicksign_signed_pdf_url
+          )
         `)
         .eq('status', 'ACTIVE')
         .order('first_due_date', { ascending: true });
@@ -148,20 +194,27 @@ export default function Anticipation() {
   });
 
   // Resolve signed contract PDF URL for the currently selected installment (carnê)
-  const selectedContractPdfUrl = useMemo<string | null>(() => {
+  const selectedContract = useMemo<SignedContractRef | null>(() => {
     if (simulationType !== 'installment' || !simulationId) return null;
     const c = pendingCarnes?.find(x => x.asaas_installment_id === simulationId);
-    return (c?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+    return (c?.contracts as SignedContractRef | null) || null;
   }, [simulationId, simulationType, pendingCarnes]);
 
-  const getPaymentContractUrl = (paymentId: string): string | null => {
+  const getPaymentContract = (paymentId: string): SignedContractRef | null => {
     const p = pendingPayments?.find(x => x.asaas_payment_id === paymentId);
-    return (p?.contracts as { zapsign_signed_pdf_url: string | null } | null)?.zapsign_signed_pdf_url || null;
+    return (p?.contracts as SignedContractRef | null) || null;
+  };
+
+  const getStoredContractPdfUrl = (contract: SignedContractRef | null): string | null => {
+    if (!contract) return null;
+    return contract.zapsign_signed_pdf_url || contract.clicksign_signed_pdf_url || null;
   };
 
   // Filter items based on search term and "only with contract" flag
   const hasSignedContract = (rec: { contracts?: unknown }) =>
-    !!(rec?.contracts as { zapsign_signed_pdf_url?: string | null } | null)?.zapsign_signed_pdf_url;
+    !!getStoredContractPdfUrl((rec?.contracts as SignedContractRef | null) || null)
+    || !!(rec?.contracts as SignedContractRef | null)?.zapsign_signed_at
+    || !!(rec?.contracts as SignedContractRef | null)?.clicksign_signed_at;
 
   // Asaas only allows anticipating payments with due date in the future.
   // The dueDateFilter lets the operator narrow by upcoming window (in days).
@@ -375,7 +428,8 @@ export default function Anticipation() {
           ? { payment: id }
           : { installment: id };
 
-        const pdf = simulationType === 'payment' ? getPaymentContractUrl(id) : selectedContractPdfUrl;
+        const contract = simulationType === 'payment' ? getPaymentContract(id) : selectedContract;
+        const pdf = await resolveFreshContractPdfUrl(contract);
         if (pdf) payload.contractPdfUrl = pdf;
 
         try {
@@ -958,11 +1012,11 @@ export default function Anticipation() {
                   
                   {simulationResult.isDocumentationRequired && (() => {
                     const hasContract = simulationType === 'payment'
-                      ? selectedPaymentIds.every(id => !!getPaymentContractUrl(id))
-                      : !!selectedContractPdfUrl;
+                      ? selectedPaymentIds.every(id => !!getStoredContractPdfUrl(getPaymentContract(id)))
+                      : !!getStoredContractPdfUrl(selectedContract);
                     const partialContract = simulationType === 'payment'
                       && !hasContract
-                      && selectedPaymentIds.some(id => !!getPaymentContractUrl(id));
+                      && selectedPaymentIds.some(id => !!getStoredContractPdfUrl(getPaymentContract(id)));
                     return (
                       <div className={`mt-4 p-3 rounded-lg border ${hasContract ? 'bg-green-500/10 border-green-500/30' : 'bg-amber-500/10 border-amber-500/30'}`}>
                         <p className={`text-sm flex items-center gap-2 ${hasContract ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
