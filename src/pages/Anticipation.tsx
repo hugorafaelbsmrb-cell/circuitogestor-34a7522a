@@ -103,6 +103,26 @@ export default function Anticipation() {
   const [dueDateFilter, setDueDateFilter] = useState<string>('all');
   const [monthFilter, setMonthFilter] = useState<string>('all');
 
+  const resolveFreshContractPdfUrl = async (contract: SignedContractRef | null): Promise<string | null> => {
+    if (!contract?.id) return null;
+
+    if (contract.zapsign_document_id && (contract.zapsign_signed_at || contract.zapsign_signed_pdf_url)) {
+      const { data, error } = await supabase.functions.invoke('zapsign-get-pdf', {
+        body: { contractId: contract.id },
+      });
+      if (!error && data?.url) return data.url;
+    }
+
+    if (contract.clicksign_envelope_id && (contract.clicksign_signed_at || contract.clicksign_signed_pdf_url)) {
+      const { data, error } = await supabase.functions.invoke('clicksign-get-pdf', {
+        body: { contractId: contract.id },
+      });
+      if (!error && data?.url) return data.url;
+    }
+
+    return getStoredContractPdfUrl(contract);
+  };
+
   // Fetch pending payments from local database
   const { data: pendingPayments, isLoading: paymentsLoading } = useQuery({
     queryKey: ['pending-payments-for-anticipation'],
@@ -408,7 +428,8 @@ export default function Anticipation() {
           ? { payment: id }
           : { installment: id };
 
-        const pdf = simulationType === 'payment' ? getPaymentContractUrl(id) : selectedContractPdfUrl;
+        const contract = simulationType === 'payment' ? getPaymentContract(id) : selectedContract;
+        const pdf = await resolveFreshContractPdfUrl(contract);
         if (pdf) payload.contractPdfUrl = pdf;
 
         try {
