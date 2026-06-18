@@ -2504,6 +2504,7 @@ export type Database = {
           description: string | null
           due_days: number
           id: string
+          includes: Json | null
           max_installments: number
           max_slots: number | null
           name: string
@@ -2521,6 +2522,7 @@ export type Database = {
           description?: string | null
           due_days?: number
           id?: string
+          includes?: Json | null
           max_installments?: number
           max_slots?: number | null
           name: string
@@ -2538,6 +2540,7 @@ export type Database = {
           description?: string | null
           due_days?: number
           id?: string
+          includes?: Json | null
           max_installments?: number
           max_slots?: number | null
           name?: string
