@@ -15,8 +15,6 @@ import { toast } from "sonner";
 import { Loader2, Plus, Trash2, ArrowLeft, Upload, X, Search, Download, MessageCircle, CheckCircle } from "lucide-react";
 import { formatCPF, formatPhone, normalizePhoneToWAPI } from "@/utils/validators";
 
-const sb: any = supabase;
-
 const ICON_OPTIONS = [
   "Sparkles","Sun","Palette","Music","Gamepad2","BookOpen","Smile","Trophy",
   "Pizza","Camera","Heart","Star","Rocket","Zap","Leaf","Droplets","Wand2","CalendarDays",
@@ -29,7 +27,7 @@ export default function VacationCampEditor() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await sb.from("vacation_camps").select("*").eq("id", id).single();
+    const { data } = await supabase.from("vacation_camps").select("*").eq("id", id).single();
     setCamp(data);
     setLoading(false);
   };
@@ -86,7 +84,7 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await sb.from("vacation_camps").update({
+    const { error } = await supabase.from("vacation_camps").update({
       ...f,
       age_min: f.age_min ? parseInt(String(f.age_min)) : null,
       age_max: f.age_max ? parseInt(String(f.age_max)) : null,
@@ -156,9 +154,9 @@ function HeroTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
   const upload = async (file: File, target: "hero" | "gallery") => {
     setUploading(true);
     const path = `${camp.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-    const { error } = await sb.storage.from("camp-images").upload(path, file);
+    const { error } = await supabase.storage.from("camp-images").upload(path, file);
     if (error) { setUploading(false); return toast.error(error.message); }
-    const { data } = sb.storage.from("camp-images").getPublicUrl(path);
+    const { data } = supabase.storage.from("camp-images").getPublicUrl(path);
     const url = data.publicUrl;
     if (target === "hero") setHero({ ...hero, hero_image_url: url });
     else setGallery([...gallery, url]);
@@ -168,7 +166,7 @@ function HeroTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await sb.from("vacation_camps").update({ ...hero, gallery }).eq("id", camp.id);
+    const { error } = await supabase.from("vacation_camps").update({ ...hero, gallery }).eq("id", camp.id);
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Salvo");
@@ -222,7 +220,7 @@ function ScheduleTab({ campId }: { campId: string }) {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await sb.from("vacation_camp_schedule").select("*").eq("camp_id", campId).order("sort_order");
+    const { data } = await supabase.from("vacation_camp_schedule").select("*").eq("camp_id", campId).order("sort_order");
     setItems(data || []);
     setLoading(false);
   };
@@ -238,15 +236,15 @@ function ScheduleTab({ campId }: { campId: string }) {
     const payload = { ...editing, camp_id: campId };
     delete payload.id;
     const { error } = editing.id
-      ? await sb.from("vacation_camp_schedule").update(payload).eq("id", editing.id)
-      : await sb.from("vacation_camp_schedule").insert(payload);
+      ? await supabase.from("vacation_camp_schedule").update(payload).eq("id", editing.id)
+      : await supabase.from("vacation_camp_schedule").insert(payload);
     if (error) return toast.error(error.message);
     toast.success("Salvo");
     setOpen(false); load();
   };
   const remove = async (id: string) => {
     if (!confirm("Excluir item?")) return;
-    await sb.from("vacation_camp_schedule").delete().eq("id", id);
+    await supabase.from("vacation_camp_schedule").delete().eq("id", id);
     load();
   };
 
@@ -311,7 +309,7 @@ function PackagesTab({ campId }: { campId: string }) {
   const [editing, setEditing] = useState<any>(null);
 
   const load = async () => {
-    const { data } = await sb.from("vacation_camp_packages").select("*").eq("camp_id", campId).order("sort_order");
+    const { data } = await supabase.from("vacation_camp_packages").select("*").eq("camp_id", campId).order("sort_order");
     setItems(data || []);
   };
   useEffect(() => { load(); }, [campId]);
@@ -334,15 +332,15 @@ function PackagesTab({ campId }: { campId: string }) {
     const payload = { ...editing, camp_id: campId };
     delete payload.id; delete payload.sold_count; delete payload.created_at; delete payload.updated_at;
     const { error } = editing.id
-      ? await sb.from("vacation_camp_packages").update(payload).eq("id", editing.id)
-      : await sb.from("vacation_camp_packages").insert(payload);
+      ? await supabase.from("vacation_camp_packages").update(payload).eq("id", editing.id)
+      : await supabase.from("vacation_camp_packages").insert(payload);
     if (error) return toast.error(error.message);
     toast.success("Salvo");
     setOpen(false); load();
   };
   const remove = async (id: string) => {
     if (!confirm("Excluir pacote?")) return;
-    await sb.from("vacation_camp_packages").delete().eq("id", id);
+    await supabase.from("vacation_camp_packages").delete().eq("id", id);
     load();
   };
 
@@ -429,7 +427,7 @@ function TextsTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await sb.from("vacation_camps").update({ highlights, faq, terms_text: terms }).eq("id", camp.id);
+    const { error } = await supabase.from("vacation_camps").update({ highlights, faq, terms_text: terms }).eq("id", camp.id);
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Salvo");
@@ -497,8 +495,8 @@ function EnrollmentsTab({ campId }: { campId: string }) {
   const load = async () => {
     setLoading(true);
     const [{ data: e }, { data: p }] = await Promise.all([
-      sb.from("vacation_camp_enrollments").select("*").eq("camp_id", campId).order("created_at", { ascending: false }),
-      sb.from("vacation_camp_packages").select("id, name, price").eq("camp_id", campId).order("sort_order"),
+      supabase.from("vacation_camp_enrollments").select("*").eq("camp_id", campId).order("created_at", { ascending: false }),
+      supabase.from("vacation_camp_packages").select("id, name, price").eq("camp_id", campId).order("sort_order"),
     ]);
     setRows(e || []); setPkgs(p || []); setLoading(false);
   };
@@ -518,13 +516,13 @@ function EnrollmentsTab({ campId }: { campId: string }) {
 
   const markPaid = async (r: any) => {
     if (!confirm(`Marcar inscrição de ${r.child_name} como paga manualmente?`)) return;
-    await sb.from("vacation_camp_enrollments").update({
+    await supabase.from("vacation_camp_enrollments").update({
       payment_status: "confirmed", confirmed_at: new Date().toISOString(),
     }).eq("id", r.id);
     if (r.package_id) {
       const pkg = pkgs.find((p) => p.id === r.package_id);
       if (pkg) {
-        await sb.from("vacation_camp_packages").update({
+        await supabase.from("vacation_camp_packages").update({
           sold_count: rows.filter((x) => x.package_id === r.package_id && (x.payment_status === "confirmed" || x.id === r.id)).length,
         }).eq("id", r.package_id);
       }
@@ -535,13 +533,13 @@ function EnrollmentsTab({ campId }: { campId: string }) {
 
   const cancel = async (r: any) => {
     if (!confirm(`Cancelar inscrição de ${r.child_name}?`)) return;
-    await sb.from("vacation_camp_enrollments").update({ payment_status: "cancelled" }).eq("id", r.id);
+    await supabase.from("vacation_camp_enrollments").update({ payment_status: "cancelled" }).eq("id", r.id);
     load();
   };
 
   const remove = async (r: any) => {
     if (!confirm(`Excluir inscrição de ${r.child_name}?`)) return;
-    await sb.from("vacation_camp_enrollments").delete().eq("id", r.id);
+    await supabase.from("vacation_camp_enrollments").delete().eq("id", r.id);
     load();
   };
 
@@ -659,7 +657,7 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
     if (!q || q.length < 2) { setResults([]); return; }
     const t = setTimeout(async () => {
       setSearching(true);
-      const { data } = await sb.from("students").select("id, name, birth_date, guardian_id, guardians(name, phone, email, cpf)")
+      const { data } = await supabase.from("students").select("id, name, birth_date, guardian_id, guardians(name, phone, email, cpf)")
         .ilike("name", `%${q}%`).limit(10);
       setResults(data || []); setSearching(false);
     }, 300);
@@ -674,7 +672,7 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
     const ageYears = selected.birth_date
       ? Math.floor((Date.now() - new Date(selected.birth_date).getTime()) / (365.25 * 24 * 3600 * 1000))
       : null;
-    const { error } = await sb.from("vacation_camp_enrollments").insert({
+    const { error } = await supabase.from("vacation_camp_enrollments").insert({
       camp_id: campId, package_id: pkgId,
       guardian_name: g?.name || "",
       guardian_phone: g?.phone || "",

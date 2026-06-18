@@ -58,12 +58,12 @@ export default function VacationCampLanding() {
     if (!slug) return;
     (async () => {
       setLoading(true);
-      const { data: c } = await (supabase as any).from("vacation_camps").select("*").eq("slug", slug).maybeSingle();
+      const { data: c } = await supabase.from("vacation_camps").select("*").eq("slug", slug).maybeSingle();
       if (!c) { setLoading(false); return; }
       setCamp(c as any);
       const [{ data: pk }, { data: sc }] = await Promise.all([
-        (supabase as any).from("vacation_camp_packages").select("*").eq("camp_id", c.id).eq("active", true).order("sort_order"),
-        (supabase as any).from("vacation_camp_schedule").select("*").eq("camp_id", c.id).order("sort_order"),
+        supabase.from("vacation_camp_packages").select("*").eq("camp_id", c.id).eq("active", true).order("sort_order"),
+        supabase.from("vacation_camp_schedule").select("*").eq("camp_id", c.id).order("sort_order"),
       ]);
       setPackages((pk || []) as any);
       setSchedule((sc || []) as any);
