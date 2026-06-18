@@ -151,6 +151,69 @@ Deno.serve(async (req) => {
 
     console.log('Pre-enrollment created:', lead.id);
 
+    // === Send WhatsApp welcome message ===
+    try {
+      // Fetch W-API config + school name
+      const { data: wapiSettings } = await supabase
+        .from('app_settings')
+        .select('key, value')
+        .in('key', ['W_API_TOKEN', 'W_API_SESSION', 'W_API_URL', 'system_name']);
+
+      const wapiConfig: Record<string, string> = {};
+      wapiSettings?.forEach(s => { if (s.value) wapiConfig[s.key] = s.value; });
+
+      if (wapiConfig.W_API_TOKEN && wapiConfig.W_API_SESSION) {
+        const baseUrl = (wapiConfig.W_API_URL || 'https://api.w-api.app').replace(/\/+$/, '');
+        const instanceId = wapiConfig.W_API_SESSION;
+        const apiToken = wapiConfig.W_API_TOKEN;
+
+        const studentName = data.student_name.split(' ')[0]; // primeiro nome
+        const schoolName = wapiConfig.system_name || 'nossa escola';
+
+        const welcomeMessage = [
+          `🎉 *Parabéns, ${data.guardian_name.split(' ')[0]}!*`,
+          '',
+          `A pré-matrícula do(a) *${studentName}* foi recebida com sucesso!`,
+          '',
+          `Serão dias inesquecíveis para o(a) ${studentName} aqui no ${schoolName}. Nossa equipe está preparando tudo com muito carinho!`,
+          '',
+          `📋 Em breve entraremos em contato para finalizar a matrícula.`,
+          '',
+          `Qualquer dúvida, é só responder por aqui. 💙`,
+        ].join('\n');
+
+        const endpoint = `${baseUrl}/v1/message/send-text?instanceId=${encodeURIComponent(instanceId)}`;
+
+        const wapiResponse = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiToken}`,
+          },
+          body: JSON.stringify({
+            phone: normalizedPhone,
+            message: welcomeMessage,
+          }),
+        });
+
+        const wapiText = await wapiResponse.text();
+        console.log('WhatsApp welcome sent:', wapiResponse.status, wapiText.slice(0, 200));
+
+        // Save outgoing message to whatsapp_messages
+        await supabase.from('whatsapp_messages').insert({
+          phone: normalizedPhone,
+          message: welcomeMessage,
+          direction: 'outgoing',
+          status: wapiResponse.ok ? 'sent' : 'failed',
+        });
+      } else {
+        console.log('W-API not configured, skipping WhatsApp welcome message');
+      }
+    } catch (wapiError) {
+      // Don't fail the enrollment if WhatsApp fails
+      console.error('Error sending WhatsApp welcome:', wapiError);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
