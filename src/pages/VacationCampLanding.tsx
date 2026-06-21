@@ -163,7 +163,38 @@ export default function VacationCampLanding() {
   const campLogo = "/images/colonia/logo-transparent.png";
 
   return (
-    <div className="min-h-screen bg-background text-foreground" style={{ ["--camp" as any]: theme }}>
+    <div className="min-h-screen bg-background text-foreground relative overflow-hidden" style={{ ["--camp" as any]: theme }}>
+      {/* BOLAS DE FUTEBOL DECORATIVAS */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        {[
+          { top: "5%", left: "2%", size: 120, opacity: 0.04, rotate: 15 },
+          { top: "15%", right: "3%", size: 90, opacity: 0.05, rotate: -20 },
+          { top: "35%", left: "8%", size: 80, opacity: 0.04, rotate: 45 },
+          { top: "50%", right: "5%", size: 140, opacity: 0.03, rotate: -10 },
+          { top: "65%", left: "3%", size: 100, opacity: 0.05, rotate: 30 },
+          { top: "78%", right: "8%", size: 70, opacity: 0.04, rotate: -35 },
+          { top: "88%", left: "12%", size: 110, opacity: 0.03, rotate: 60 },
+          { top: "10%", left: "45%", size: 60, opacity: 0.04, rotate: -15 },
+          { top: "70%", left: "55%", size: 85, opacity: 0.04, rotate: 25 },
+          { top: "40%", right: "30%", size: 75, opacity: 0.03, rotate: -40 },
+        ].map((b, i) => (
+          <svg
+            key={i}
+            viewBox="0 0 24 24"
+            className="absolute"
+            style={{
+              top: b.top, left: b.left, right: b.right,
+              width: b.size, height: b.size,
+              opacity: b.opacity,
+              transform: `rotate(${b.rotate}deg)`,
+            }}
+          >
+            <circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-foreground" />
+            <path d="M12 1v22M1 12h22M4.5 4.5l15 15M19.5 4.5l-15 15" fill="none" stroke="currentColor" strokeWidth="1" className="text-foreground" />
+          </svg>
+        ))}
+      </div>
+
       {/* HERO */}
       <header className="relative overflow-hidden min-h-[100vh] md:min-h-[90vh] flex flex-col">
         {/* PHOTO GRID BACKGROUND */}
