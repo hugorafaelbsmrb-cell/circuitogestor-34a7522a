@@ -121,60 +121,155 @@ export default function VacationCampLanding() {
     setCheckoutOpen(true);
   };
 
+  const heroPhotos = [
+    "/images/colonia/foto1.jpg",
+    "/images/colonia/foto2.jpg",
+    "/images/colonia/foto3.jpg",
+    "/images/colonia/foto4.jpg",
+  ];
+  const campLogo = "/images/colonia/logo.png";
+
   return (
     <div className="min-h-screen bg-background text-foreground" style={{ ["--camp" as any]: theme }}>
       {/* HERO */}
-      <header className="relative overflow-hidden">
+      <header className="relative overflow-hidden min-h-[100vh] md:min-h-[90vh] flex flex-col">
+        {/* PHOTO GRID BACKGROUND */}
+        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 gap-1 opacity-40 md:opacity-50">
+          {heroPhotos.map((src, i) => (
+            <div key={i} className="relative overflow-hidden">
+              <img
+                src={src}
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ animation: `heroZoom 25s ease-in-out ${i * 3}s infinite alternate` }}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* GRADIENT OVERLAYS */}
         <div
-          className="absolute inset-0 opacity-90"
+          className="absolute inset-0"
           style={{
-            background: `linear-gradient(135deg, ${theme}, ${theme}cc 60%, hsl(var(--background)))`,
+            background: `
+              linear-gradient(180deg,
+                rgba(0,0,0,0.75) 0%,
+                rgba(0,0,0,0.35) 25%,
+                rgba(0,0,0,0.25) 50%,
+                ${theme}bb 80%,
+                ${theme} 100%
+              )
+            `,
           }}
         />
-        {camp.hero_image_url && (
-          <img
-            src={camp.hero_image_url}
-            alt={camp.name}
-            className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50"
-          />
-        )}
-        <div className="relative container max-w-6xl mx-auto px-6 py-20 md:py-32">
-          <Badge className="mb-4 bg-white/20 text-white border-white/30 backdrop-blur">
-            <Sparkles className="w-3 h-3 mr-1" /> Colônia de Férias
-          </Badge>
-          <h1 className="text-4xl md:text-6xl font-bold text-white drop-shadow mb-4 max-w-3xl">
+        <div
+          className="absolute inset-0 mix-blend-multiply opacity-30"
+          style={{
+            background: `radial-gradient(ellipse at 30% 20%, ${theme}, transparent 70%)`,
+          }}
+        />
+
+        {/* NAV BAR */}
+        <nav className="relative z-10 flex items-center justify-between px-6 py-4 md:px-10">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-white font-semibold text-sm tracking-wide hidden sm:inline">
+              Colônia de Férias
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="border-white/30 text-white bg-white/10 backdrop-blur-md hover:bg-white/20 text-xs font-semibold"
+            onClick={() => document.getElementById("pacotes")?.scrollIntoView({ behavior: "smooth" })}
+          >
+            Inscreva-se
+          </Button>
+        </nav>
+
+        {/* HERO CONTENT */}
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6 py-10 md:py-16">
+          {/* LOGO */}
+          <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-1000">
+            <img
+              src={campLogo}
+              alt={camp.name}
+              className="w-52 md:w-72 lg:w-80 drop-shadow-2xl"
+              style={{ filter: "drop-shadow(0 8px 32px rgba(0,0,0,0.4))" }}
+            />
+          </div>
+
+          {/* TITLE */}
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-white drop-shadow-lg mb-3 max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-200">
             {camp.hero_title || camp.name}
           </h1>
           {camp.hero_subtitle && (
-            <p className="text-lg md:text-2xl text-white/90 max-w-2xl mb-8">{camp.hero_subtitle}</p>
+            <p className="text-base md:text-xl text-white/90 max-w-2xl mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+              {camp.hero_subtitle}
+            </p>
           )}
-          <div className="flex flex-wrap gap-3 text-white/90 text-sm mb-8">
+
+          {/* INFO BADGES */}
+          <div className="flex flex-wrap justify-center gap-2.5 text-white/90 text-sm mb-10 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-500">
             {(camp.start_date || camp.end_date) && (
-              <span className="inline-flex items-center gap-2 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full">
+              <span className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
                 <CalendarDays className="w-4 h-4" />
                 {fmtDate(camp.start_date)} {camp.end_date ? `a ${fmtDate(camp.end_date)}` : ""}
               </span>
             )}
             {camp.location && (
-              <span className="inline-flex items-center gap-2 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full">
+              <span className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
                 <MapPin className="w-4 h-4" /> {camp.location}
               </span>
             )}
             {(camp.age_min || camp.age_max) && (
-              <span className="inline-flex items-center gap-2 bg-white/10 backdrop-blur px-3 py-1.5 rounded-full">
+              <span className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
                 <Users className="w-4 h-4" /> {camp.age_min ?? "?"} a {camp.age_max ?? "?"} anos
               </span>
             )}
           </div>
-          <Button
-            size="lg"
-            className="text-base font-semibold shadow-lg"
-            style={{ background: "white", color: theme }}
-            onClick={() => document.getElementById("pacotes")?.scrollIntoView({ behavior: "smooth" })}
-          >
-            {camp.cta_text || "Garantir vaga"}
-          </Button>
+
+          {/* CTA */}
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-700">
+            <Button
+              size="lg"
+              className="text-base font-bold shadow-2xl hover:shadow-white/20 hover:scale-105 transition-all duration-300"
+              style={{ background: "white", color: theme }}
+              onClick={() => document.getElementById("pacotes")?.scrollIntoView({ behavior: "smooth" })}
+            >
+              {camp.cta_text || "Garantir vaga"}
+            </Button>
+          </div>
         </div>
+
+        {/* BOTTOM PHOTO STRIP (decorative) */}
+        <div className="relative z-10 hidden md:grid grid-cols-4 gap-0">
+          {heroPhotos.map((src, i) => (
+            <div key={i} className="h-20 overflow-hidden relative group">
+              <img
+                src={src}
+                alt=""
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+              />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `linear-gradient(to bottom, transparent 0%, ${theme}99 100%)`,
+                }}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* HERO ZOOM ANIMATION */}
+        <style>{`
+          @keyframes heroZoom {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.08); }
+          }
+        `}</style>
       </header>
 
       {/* HIGHLIGHTS */}
@@ -343,12 +438,12 @@ export default function VacationCampLanding() {
       )}
 
       {/* GALERIA */}
-      {gallery.length > 0 && (
+      {(gallery.length > 0 || heroPhotos.length > 0) && (
         <section className="container max-w-6xl mx-auto px-6 py-14">
           <h2 className="text-2xl md:text-3xl font-bold text-center mb-8">Olha como é</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {gallery.map((url, i) => (
-              <div key={i} className="aspect-square rounded-xl overflow-hidden group">
+            {(gallery.length > 0 ? gallery : heroPhotos).map((url: string, i: number) => (
+              <div key={i} className="aspect-square rounded-xl overflow-hidden group shadow-md">
                 <img src={url} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
               </div>
             ))}
