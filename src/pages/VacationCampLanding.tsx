@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,7 @@ import { toast } from "sonner";
 import {
   Loader2, CalendarDays, MapPin, Users, Sparkles, Check, Copy,
   Sun, Palette, Music, Gamepad2, BookOpen, Smile, Trophy, Pizza,
-  Camera, Heart, Star, Rocket, Zap, Leaf, Droplets, Wand2,
-} from "lucide-react";
+  Camera, Heart, Star, Rocket, Zap, Leaf, Droplets, Wand2,`n  Clock, Timer, PartyPopper,`n} from "lucide-react";
 import { formatCPF, formatPhone, isValidCPF } from "@/utils/validators";
 
 const ICON_MAP: Record<string, any> = {
@@ -127,7 +126,7 @@ export default function VacationCampLanding() {
     "/images/colonia/foto3.jpg",
     "/images/colonia/foto4.jpg",
   ];
-  const campLogo = "/images/colonia/logo.png";
+  const campLogo = "/images/colonia/logo-transparent.png";
 
   return (
     <div className="min-h-screen bg-background text-foreground" style={{ ["--camp" as any]: theme }}>
