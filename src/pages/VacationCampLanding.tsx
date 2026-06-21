@@ -80,6 +80,22 @@ export default function VacationCampLanding() {
     return map;
   }, [schedule]);
 
+  // Divide programação em Semana 1 (sort_order <= 5) e Semana 2 (sort_order > 5)
+  const week1Schedule = useMemo(() => schedule.filter(s => s.sort_order <= 5), [schedule]);
+  const week2Schedule = useMemo(() => schedule.filter(s => s.sort_order > 5), [schedule]);
+
+  const scheduleByDayW1 = useMemo(() => {
+    const map: Record<string, ScheduleItem[]> = {};
+    week1Schedule.forEach((s) => { map[s.day_label] = map[s.day_label] || []; map[s.day_label].push(s); });
+    return map;
+  }, [week1Schedule]);
+
+  const scheduleByDayW2 = useMemo(() => {
+    const map: Record<string, ScheduleItem[]> = {};
+    week2Schedule.forEach((s) => { map[s.day_label] = map[s.day_label] || []; map[s.day_label].push(s); });
+    return map;
+  }, [week2Schedule]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -198,46 +214,131 @@ export default function VacationCampLanding() {
             <Badge variant="outline" className="mb-2">Programação</Badge>
             <h2 className="text-3xl md:text-4xl font-bold">Tem diversão o dia todo</h2>
           </div>
-          <div className="space-y-8">
-            {Object.entries(scheduleByDay).map(([day, items]) => (
-              <div key={day} className="relative">
+
+          {/* ===== SEMANA 1 ===== */}
+          {week1Schedule.length > 0 && (
+            <div className="mb-12">
+              <div className="flex items-center gap-3 mb-6">
                 <div
-                  className="inline-block px-4 py-1 rounded-full text-sm font-semibold mb-4"
-                  style={{ background: `${theme}22`, color: theme }}
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md"
+                  style={{ background: `linear-gradient(135deg, ${theme}, ${theme}cc)` }}
                 >
-                  {day}
+                  1
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {items.map((it) => {
-                    const Icon = ICON_MAP[it.icon || "Sparkles"] || Sparkles;
-                    return (
-                      <Card key={it.id} className="p-4 flex gap-3 hover:shadow-md transition-all">
-                        <div
-                          className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center"
-                          style={{ background: `${theme}1a`, color: theme }}
-                        >
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-baseline gap-2">
-                            {it.time_label && (
-                              <span className="text-xs font-mono font-semibold" style={{ color: theme }}>
-                                {it.time_label}
-                              </span>
-                            )}
-                            <span className="font-semibold text-sm">{it.title}</span>
-                          </div>
-                          {it.description && (
-                            <p className="text-xs text-muted-foreground mt-0.5">{it.description}</p>
-                          )}
-                        </div>
-                      </Card>
-                    );
-                  })}
+                <div>
+                  <h3 className="text-xl md:text-2xl font-bold">Semana 1</h3>
+                  <p className="text-sm text-muted-foreground">06 a 10 de Julho · Tarde</p>
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="space-y-6">
+                {Object.entries(scheduleByDayW1).map(([day, items]) => (
+                  <div key={day} className="relative">
+                    <div
+                      className="inline-block px-4 py-1 rounded-full text-sm font-semibold mb-3"
+                      style={{ background: `${theme}22`, color: theme }}
+                    >
+                      {day}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {items.map((it) => {
+                        const Icon = ICON_MAP[it.icon || "Sparkles"] || Sparkles;
+                        return (
+                          <Card key={it.id} className="p-4 flex gap-3 hover:shadow-md transition-all">
+                            <div
+                              className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center"
+                              style={{ background: `${theme}1a`, color: theme }}
+                            >
+                              <Icon className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-baseline gap-2">
+                                {it.time_label && (
+                                  <span className="text-xs font-mono font-semibold" style={{ color: theme }}>
+                                    {it.time_label}
+                                  </span>
+                                )}
+                                <span className="font-semibold text-sm">{it.title}</span>
+                              </div>
+                              {it.description && (
+                                <p className="text-xs text-muted-foreground mt-0.5">{it.description}</p>
+                              )}
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Divider */}
+          {week1Schedule.length > 0 && week2Schedule.length > 0 && (
+            <div className="flex items-center justify-center gap-4 my-10">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Fim de Semana</span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+          )}
+
+          {/* ===== SEMANA 2 ===== */}
+          {week2Schedule.length > 0 && (
+            <div>
+              <div className="flex items-center gap-3 mb-6">
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md"
+                  style={{ background: `linear-gradient(135deg, ${theme}, ${theme}cc)` }}
+                >
+                  2
+                </div>
+                <div>
+                  <h3 className="text-xl md:text-2xl font-bold">Semana 2</h3>
+                  <p className="text-sm text-muted-foreground">13 a 17 de Julho · Tarde</p>
+                </div>
+              </div>
+              <div className="space-y-6">
+                {Object.entries(scheduleByDayW2).map(([day, items]) => (
+                  <div key={day} className="relative">
+                    <div
+                      className="inline-block px-4 py-1 rounded-full text-sm font-semibold mb-3"
+                      style={{ background: `${theme}22`, color: theme }}
+                    >
+                      {day}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {items.map((it) => {
+                        const Icon = ICON_MAP[it.icon || "Sparkles"] || Sparkles;
+                        return (
+                          <Card key={it.id} className="p-4 flex gap-3 hover:shadow-md transition-all">
+                            <div
+                              className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center"
+                              style={{ background: `${theme}1a`, color: theme }}
+                            >
+                              <Icon className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-baseline gap-2">
+                                {it.time_label && (
+                                  <span className="text-xs font-mono font-semibold" style={{ color: theme }}>
+                                    {it.time_label}
+                                  </span>
+                                )}
+                                <span className="font-semibold text-sm">{it.title}</span>
+                              </div>
+                              {it.description && (
+                                <p className="text-xs text-muted-foreground mt-0.5">{it.description}</p>
+                              )}
+                            </div>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
