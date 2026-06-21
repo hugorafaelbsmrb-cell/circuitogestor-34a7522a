@@ -343,13 +343,14 @@ export default function VacationCampLanding() {
             <Card
               className="p-6 md:p-8 shadow-2xl border-0 overflow-hidden relative"
               style={{
-                background: `linear-gradient(135deg, ${theme}ee, ${theme}dd 60%, ${theme})`,
+                background: `linear-gradient(135deg, #F7DC6F, #F1C40F 40%, #F39C12)`,
+                color: '#1a1a2e',
               }}
             >
               <div className="absolute top-0 right-0 opacity-10">
                 <Timer className="w-32 h-32 -translate-y-8 translate-x-8" />
               </div>
-              <h3 className="text-white/80 text-sm font-semibold uppercase tracking-widest mb-4 text-center">
+              <h3 className="text-foreground/80 text-sm font-semibold uppercase tracking-widest mb-4 text-center">
                 Contagem Regressiva
               </h3>
               <div className="grid grid-cols-4 gap-3 md:gap-5 text-center">
@@ -360,14 +361,14 @@ export default function VacationCampLanding() {
                   { v: countdown.seconds, l: "Segundos" },
                 ].map(({ v, l }) => (
                   <div key={l}>
-                    <div className="text-3xl md:text-5xl font-black text-white tabular-nums drop-shadow-md">
+                    <div className="text-3xl md:text-5xl font-black text-foreground tabular-nums drop-shadow-md">
                       {String(v).padStart(2, "0")}
                     </div>
-                    <div className="text-white/70 text-xs md:text-sm font-medium mt-1">{l}</div>
+                    <div className="text-muted-foreground text-xs md:text-sm font-medium mt-1">{l}</div>
                   </div>
                 ))}
               </div>
-              <p className="text-white/60 text-xs text-center mt-4">
+              <p className="text-muted-foreground/80 text-xs text-center mt-4">
                 para o início da melhor colônia de férias do universo! 🚀
               </p>
             </Card>
