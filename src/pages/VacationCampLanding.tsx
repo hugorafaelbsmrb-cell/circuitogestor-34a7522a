@@ -230,7 +230,7 @@ export default function VacationCampLanding() {
                   <p className="text-sm text-muted-foreground">06 a 10 de Julho · Tarde</p>
                 </div>
               </div>
-              <div className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
                 {Object.entries(scheduleByDayW1).map(([day, items]) => (
                   <div key={day} className="relative">
                     <div
@@ -297,7 +297,7 @@ export default function VacationCampLanding() {
                   <p className="text-sm text-muted-foreground">13 a 17 de Julho · Tarde</p>
                 </div>
               </div>
-              <div className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
                 {Object.entries(scheduleByDayW2).map(([day, items]) => (
                   <div key={day} className="relative">
                     <div
