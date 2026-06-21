@@ -20,31 +20,31 @@ BEGIN
 
   INSERT INTO public.vacation_camp_schedule (camp_id, day_label, time_label, title, description, icon, sort_order) VALUES
   (
-    v_camp_id, 'Segunda-feira 06/07', 'Dia inteiro',
+    v_camp_id, 'Segunda-feira 06/07', '14:00 às 17:00',
     'Abertura – Festa Pool Party 🎉',
     'Futebol de sabão • Gincanas com balão de água • Banho de mangueira • Algodão doce',
     'PartyPopper', 1
   ),
   (
-    v_camp_id, 'Terça-feira 07/07', 'Dia inteiro',
+    v_camp_id, 'Terça-feira 07/07', '14:00 às 17:00',
     'Oficina Científica 🔬',
     'Experiências e dinâmicas divertidas que despertam a curiosidade científica',
     'Flask', 2
   ),
   (
-    v_camp_id, 'Quarta-feira 08/07', 'Dia inteiro',
+    v_camp_id, 'Quarta-feira 08/07', '14:00 às 17:00',
     'Oficina de Slime 🧪',
     'Jogos em grupo • Dinâmicas criativas • Muita diversão com slime',
     'Sparkles', 3
   ),
   (
-    v_camp_id, 'Quinta-feira 09/07', 'Dia inteiro',
+    v_camp_id, 'Quinta-feira 09/07', '14:00 às 17:00',
     'Meu Time do ❤️',
     'Queimada • Bandeirinha • Vôlei • Futebol – um dia inteiro de esportes!',
     'Trophy', 4
   ),
   (
-    v_camp_id, 'Sexta-feira 10/07', 'Dia inteiro',
+    v_camp_id, 'Sexta-feira 10/07', '8:00 às 11:30',
     'Passeio Cultural 🌳',
     'Passeio ao Parque Municipal João Anselmo (usar calça comprida e tênis) • Piquenique coletivo',
     'Tree', 5
@@ -54,31 +54,31 @@ BEGIN
 
   INSERT INTO public.vacation_camp_schedule (camp_id, day_label, time_label, title, description, icon, sort_order) VALUES
   (
-    v_camp_id, 'Segunda-feira 13/07', 'Dia inteiro',
+    v_camp_id, 'Segunda-feira 13/07', '14:00 às 17:00',
     'Passa ou Repassa (Torta na Cara) 🥧',
     'Jogos e competições em grupo • Banho de mangueira',
     'Gamepad2', 6
   ),
   (
-    v_camp_id, 'Terça-feira 14/07', 'Dia inteiro',
+    v_camp_id, 'Terça-feira 14/07', '14:00 às 17:00',
     'Oficina de Massinha & Slime 🎨',
     'Dinâmicas criativas • Jogos em grupo • Slime e massinha',
     'Palette', 7
   ),
   (
-    v_camp_id, 'Quarta-feira 15/07', 'Dia inteiro',
+    v_camp_id, 'Quarta-feira 15/07', '14:00 às 17:00',
     'Oficina Científica & Origami 🧪📄',
     'Experiências científicas • Dobraduras criativas • Caça ao tesouro',
     'Search', 8
   ),
   (
-    v_camp_id, 'Quinta-feira 16/07', 'Dia inteiro',
+    v_camp_id, 'Quinta-feira 16/07', '14:00 às 17:00',
     'Cine Pipoca 🍿',
     'Passeio ao Cinema do Shopping Verdes Mares',
     'Film', 9
   ),
   (
-    v_camp_id, 'Sexta-feira 17/07', 'Dia inteiro',
+    v_camp_id, 'Sexta-feira 17/07', '14:00 às 17:00',
     'Encerramento 🎊',
     'Futebol de Sabão • Competição de futebol e vôlei • Banho de mangueira • Banho de piscina (pequenos) • Piquenique coletivo • Algodão doce',
     'PartyPopper', 10
