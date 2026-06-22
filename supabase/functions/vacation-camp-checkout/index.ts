@@ -220,12 +220,36 @@ serve(async (req) => {
       "createPayment"
     );
 
+    // If this was an installment (credit card parcelado), the response is an
+    // installment object without invoiceUrl. Fetch the first child payment.
+    let firstPaymentId: string = paymentResp.id;
+    let invoiceUrl: string | null = paymentResp.invoiceUrl || null;
+    let bankSlipUrl: string | null = paymentResp.bankSlipUrl || null;
+
+    if (!invoiceUrl && paymentResp.id) {
+      try {
+        const children = await asaasFetch(
+          `${cfg.baseUrl}/payments?installment=${paymentResp.id}&limit=1`,
+          { method: "GET", headers: headers(cfg.apiKey) },
+          "getInstallmentPayments"
+        );
+        const first = children?.data?.[0];
+        if (first) {
+          firstPaymentId = first.id;
+          invoiceUrl = first.invoiceUrl || null;
+          bankSlipUrl = first.bankSlipUrl || null;
+        }
+      } catch (e) {
+        console.warn("getInstallmentPayments failed:", e);
+      }
+    }
+
     let pixPayload: string | null = null;
     let pixEncodedImage: string | null = null;
     if (billingType === "PIX") {
       try {
         const pix = await asaasFetch(
-          `${cfg.baseUrl}/payments/${paymentResp.id}/pixQrCode`,
+          `${cfg.baseUrl}/payments/${firstPaymentId}/pixQrCode`,
           { method: "GET", headers: headers(cfg.apiKey) },
           "getPix"
         );
@@ -241,9 +265,9 @@ serve(async (req) => {
       .from("vacation_camp_enrollments")
       .update({
         asaas_customer_id: customer.id,
-        asaas_payment_id: paymentResp.id,
-        asaas_invoice_url: paymentResp.invoiceUrl,
-        asaas_bank_slip_url: paymentResp.bankSlipUrl,
+        asaas_payment_id: firstPaymentId,
+        asaas_invoice_url: invoiceUrl,
+        asaas_bank_slip_url: bankSlipUrl,
         asaas_pix_payload: pixPayload,
       })
       .eq("id", enrollment.id);
