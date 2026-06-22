@@ -192,6 +192,8 @@ serve(async (req) => {
     const description = `Colônia ${camp.name} - ${pkg.name} - ${child_name}`;
     const externalReference = `camp_${enrollment.id}`;
 
+    const maxInst = Math.max(1, Number(pkg.max_installments) || 1);
+
     const paymentPayload: Record<string, unknown> = {
       customer: customer.id,
       billingType,
@@ -205,6 +207,11 @@ serve(async (req) => {
       paymentPayload.totalValue = Number(pkg.price);
     } else {
       paymentPayload.value = Number(pkg.price);
+    }
+
+    // Allow the customer to pick installments on the hosted invoice page (credit card tab)
+    if (maxInst > 1) {
+      paymentPayload.maxInstallmentCount = maxInst;
     }
 
     const paymentResp = await asaasFetch(
