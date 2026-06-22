@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, ArrowLeft, Upload, X, Search, Download, MessageCircle, CheckCircle } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowLeft, Upload, X, Search, Download, MessageCircle, CheckCircle, Send, Copy } from "lucide-react";
 import { formatCPF, formatPhone, normalizePhoneToWAPI } from "@/utils/validators";
 
 const sb: any = supabase;
@@ -575,6 +575,24 @@ function EnrollmentsTab({ campId }: { campId: string }) {
     load();
   };
 
+  const sendPaymentLink = async (r: any) => {
+    if (!r.guardian_phone) return toast.error("Responsável sem telefone cadastrado");
+    const t = toast.loading("Enviando link de pagamento...");
+    const { data, error } = await sb.functions.invoke("vacation-camp-notify", {
+      body: { event: "payment_link", enrollment_id: r.id },
+    });
+    toast.dismiss(t);
+    if (error || data?.error) return toast.error(error?.message || data?.error || "Falha ao enviar");
+    if (data?.sent === false) return toast.error("WhatsApp não configurado");
+    toast.success("Link enviado por WhatsApp");
+  };
+
+  const copyPaymentLink = (r: any) => {
+    const link = `${window.location.origin}/colonia-pagamento/${r.id}`;
+    navigator.clipboard.writeText(link);
+    toast.success("Link copiado");
+  };
+
   const exportCsv = () => {
     const header = "Criança;Idade;Responsável;Telefone;CPF;Email;Pacote;Valor;Status;Origem;Criado em\n";
     const lines = filtered.map((r) =>
@@ -647,6 +665,12 @@ function EnrollmentsTab({ campId }: { campId: string }) {
                     </td>
                     <td className="p-2"><Badge variant="outline">{r.source}</Badge></td>
                     <td className="p-2 text-right whitespace-nowrap">
+                      {r.payment_status !== "confirmed" && r.payment_status !== "cancelled" && (
+                        <>
+                          <Button size="icon" variant="ghost" title="Enviar link de pagamento por WhatsApp" onClick={() => sendPaymentLink(r)}><Send className="w-4 h-4 text-primary" /></Button>
+                          <Button size="icon" variant="ghost" title="Copiar link de pagamento" onClick={() => copyPaymentLink(r)}><Copy className="w-4 h-4" /></Button>
+                        </>
+                      )}
                       {r.payment_status !== "confirmed" && (
                         <Button size="icon" variant="ghost" title="Marcar pago" onClick={() => markPaid(r)}><CheckCircle className="w-4 h-4 text-green-600" /></Button>
                       )}
@@ -715,7 +739,7 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
     const ageYears = selected.birth_date
       ? Math.floor((Date.now() - new Date(selected.birth_date).getTime()) / (365.25 * 24 * 3600 * 1000))
       : null;
-    const { error } = await sb.from("vacation_camp_enrollments").insert({
+    const { data: inserted, error } = await sb.from("vacation_camp_enrollments").insert({
       camp_id: campId, package_id: pkgId,
       guardian_name: g?.name || "",
       guardian_phone: g?.phone || "",
@@ -728,10 +752,28 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
       linked_student_id: selected.id,
       payment_status: createCharge ? "pending" : "exempt",
       amount: parsedAmount,
-    });
+    }).select().single();
+    if (error) { setSaving(false); return toast.error(error.message); }
+
+    if (createCharge && inserted?.id) {
+      if (!g?.phone) {
+        toast.warning("Aluno adicionado, mas o responsável não tem telefone — link não enviado");
+      } else {
+        const { data: notifyData, error: notifyErr } = await sb.functions.invoke("vacation-camp-notify", {
+          body: { event: "payment_link", enrollment_id: inserted.id },
+        });
+        if (notifyErr || notifyData?.error) {
+          toast.warning("Aluno adicionado, mas falha ao enviar link: " + (notifyErr?.message || notifyData?.error));
+        } else if (notifyData?.sent === false) {
+          toast.warning("Aluno adicionado. WhatsApp não está configurado — copie o link manualmente.");
+        } else {
+          toast.success("Aluno adicionado e link de pagamento enviado por WhatsApp");
+        }
+      }
+    } else {
+      toast.success("Aluno adicionado à colônia");
+    }
     setSaving(false);
-    if (error) return toast.error(error.message);
-    toast.success("Aluno adicionado à colônia");
     onOpenChange(false); setSelected(null); setQ(""); setPkgId(""); setCreateCharge(false); setCustomAmount("");
     onAdded();
   };
@@ -788,7 +830,7 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
           </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={createCharge} onChange={(e) => setCreateCharge(e.target.checked)} />
-            Gerar cobrança no Asaas (caso desmarcado, fica como isento)
+            Enviar link de pagamento ao responsável (PIX ou cartão). Se desmarcado, fica como isento.
           </label>
           <Button onClick={add} disabled={saving || !selected || !pkgId} className="w-full">
             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Adicionar

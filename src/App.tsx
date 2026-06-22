@@ -54,6 +54,7 @@ import Receipts from "./pages/Receipts";
 import VacationCampLanding from "./pages/VacationCampLanding";
 import VacationCampAdmin from "./pages/VacationCampAdmin";
 import VacationCampEditor from "./pages/VacationCampEditor";
+import VacationCampPayment from "./pages/VacationCampPayment";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -88,6 +89,7 @@ const App = () => (
               {/* Public routes - no authentication required */}
               <Route path="/assinar/:token" element={<ContractSign />} />
               <Route path="/colonia/:slug" element={<VacationCampLanding />} />
+              <Route path="/colonia-pagamento/:id" element={<VacationCampPayment />} />
               <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
               <Route path="/campanha" element={<CampaignLanding />} />
               <Route path="/campanha/:slug" element={<CourseLanding />} />

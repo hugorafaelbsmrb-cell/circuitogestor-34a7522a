@@ -210,6 +210,33 @@ serve(async (req) => {
       });
     }
 
+    if (event === "payment_link") {
+      const origin = (req.headers.get("origin") || "").replace(/\/$/, "");
+      const baseUrl = origin || "https://circuitogestor.lovable.app";
+      const link = `${baseUrl}/colonia-pagamento/${enrollment.id}`;
+      const message = [
+        `Olá, ${firstName}! 👋`,
+        ``,
+        `A inscrição de *${childFirst}* na *${campName}* (pacote *${pkgName}*) está reservada.`,
+        ``,
+        `💰 Valor: *${value}*`,
+        ``,
+        `Acesse o link abaixo para concluir o pagamento — você pode escolher entre *PIX* ou *Cartão de crédito* (parcelado):`,
+        `🔗 ${link}`,
+        ``,
+        `Qualquer dúvida, é só responder por aqui. 💚`,
+        ``,
+        `_${schoolName}_`,
+      ].join("\n");
+
+      const ok = await sendWhatsAppText(wapi, phone, message);
+      await logMessage(supabase, phone, message, ok ? "sent" : "error", "vacation_camp_payment_link");
+
+      return new Response(JSON.stringify({ success: true, sent: ok, link }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: `Evento desconhecido: ${event}` }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
