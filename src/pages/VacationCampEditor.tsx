@@ -575,6 +575,24 @@ function EnrollmentsTab({ campId }: { campId: string }) {
     load();
   };
 
+  const sendPaymentLink = async (r: any) => {
+    if (!r.guardian_phone) return toast.error("Responsável sem telefone cadastrado");
+    const t = toast.loading("Enviando link de pagamento...");
+    const { data, error } = await sb.functions.invoke("vacation-camp-notify", {
+      body: { event: "payment_link", enrollment_id: r.id },
+    });
+    toast.dismiss(t);
+    if (error || data?.error) return toast.error(error?.message || data?.error || "Falha ao enviar");
+    if (data?.sent === false) return toast.error("WhatsApp não configurado");
+    toast.success("Link enviado por WhatsApp");
+  };
+
+  const copyPaymentLink = (r: any) => {
+    const link = `${window.location.origin}/colonia-pagamento/${r.id}`;
+    navigator.clipboard.writeText(link);
+    toast.success("Link copiado");
+  };
+
   const exportCsv = () => {
     const header = "Criança;Idade;Responsável;Telefone;CPF;Email;Pacote;Valor;Status;Origem;Criado em\n";
     const lines = filtered.map((r) =>
