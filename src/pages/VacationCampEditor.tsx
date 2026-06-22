@@ -322,9 +322,11 @@ function PackagesTab({ campId }: { campId: string }) {
       payment_methods: ["PIX", "BOLETO"], max_installments: 1, due_days: 3,
       includes: [], sort_order: items.length,
       students_only: false, price_negotiable: false,
+      card_interest_free_installments: 1, card_interest_percent: 0,
     });
     setOpen(true);
   };
+
 
   const togglePm = (m: string) => {
     const pm = editing.payment_methods || [];
@@ -402,8 +404,22 @@ function PackagesTab({ campId }: { campId: string }) {
                 </div>
               </div>
               {(editing.payment_methods || []).includes("CREDIT_CARD") && (
-                <div><Label>Máx. parcelas</Label><Input type="number" value={editing.max_installments} onChange={(e) => setEditing({ ...editing, max_installments: parseInt(e.target.value) || 1 })} /></div>
+                <div className="space-y-3 rounded border p-3 bg-muted/30">
+                  <div><Label>Máx. parcelas</Label><Input type="number" min={1} value={editing.max_installments} onChange={(e) => setEditing({ ...editing, max_installments: parseInt(e.target.value) || 1 })} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Parcelas sem juros</Label>
+                      <Input type="number" min={1} value={editing.card_interest_free_installments ?? 1} onChange={(e) => setEditing({ ...editing, card_interest_free_installments: parseInt(e.target.value) || 1 })} />
+                    </div>
+                    <div>
+                      <Label>Juros ao mês (%)</Label>
+                      <Input type="number" step="0.01" min={0} value={editing.card_interest_percent ?? 0} onChange={(e) => setEditing({ ...editing, card_interest_percent: parseFloat(e.target.value) || 0 })} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Ex.: 2 parcelas sem juros e 2,99% a.m. Acima do limite sem juros aplica-se a Tabela Price (juros compostos).</p>
+                </div>
               )}
+
               <div>
                 <Label>Itens incluídos (um por linha)</Label>
                 <Textarea rows={4} value={(editing.includes || []).join("\n")} onChange={(e) => setEditing({ ...editing, includes: e.target.value.split("\n").filter(Boolean) })} />

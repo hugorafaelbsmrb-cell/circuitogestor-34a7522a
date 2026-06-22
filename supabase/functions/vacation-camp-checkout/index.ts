@@ -193,6 +193,18 @@ serve(async (req) => {
     const externalReference = `camp_${enrollment.id}`;
 
     const maxInst = Math.max(1, Number(pkg.max_installments) || 1);
+    const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
+    const monthlyPct = Number(pkg.card_interest_percent) || 0;
+    const requestedInst = Math.min(maxInst, Math.max(1, Number(installments) || 1));
+
+    // Tabela Price (compound interest) — applies only above the interest-free range
+    function calcTotal(price: number, n: number) {
+      if (n <= freeInst || monthlyPct <= 0) return price;
+      const i = monthlyPct / 100;
+      const factor = Math.pow(1 + i, n);
+      const pmt = (price * i * factor) / (factor - 1);
+      return Math.round(pmt * n * 100) / 100;
+    }
 
     const paymentPayload: Record<string, unknown> = {
       customer: customer.id,
@@ -203,12 +215,15 @@ serve(async (req) => {
       value: Number(pkg.price),
     };
 
-    // For credit card, expose the installment options on the hosted invoice page.
-    // The merchant's Asaas account rules decide which installments are "sem juros"
-    // and which carry juros do emissor (e.g. 1–2x sem juros, 3x+ com juros).
-    if (billingType === "CREDIT_CARD" && maxInst > 1) {
-      paymentPayload.maxInstallmentCount = maxInst;
+    // Credit card with installments: send precomputed installmentCount + totalValue
+    // so fees configured by the admin (not Asaas) are honored.
+    if (billingType === "CREDIT_CARD" && requestedInst > 1) {
+      const totalValue = calcTotal(Number(pkg.price), requestedInst);
+      delete paymentPayload.value;
+      paymentPayload.installmentCount = requestedInst;
+      paymentPayload.totalValue = totalValue;
     }
+
 
     const paymentResp = await asaasFetch(
       `${cfg.baseUrl}/payments`,
