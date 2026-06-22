@@ -2500,6 +2500,8 @@ export type Database = {
         Row: {
           active: boolean
           camp_id: string
+          card_interest_free_installments: number
+          card_interest_percent: number
           created_at: string
           description: string | null
           due_days: number
@@ -2520,6 +2522,8 @@ export type Database = {
         Insert: {
           active?: boolean
           camp_id: string
+          card_interest_free_installments?: number
+          card_interest_percent?: number
           created_at?: string
           description?: string | null
           due_days?: number
@@ -2540,6 +2544,8 @@ export type Database = {
         Update: {
           active?: boolean
           camp_id?: string
+          card_interest_free_installments?: number
+          card_interest_percent?: number
           created_at?: string
           description?: string | null
           due_days?: number
