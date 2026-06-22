@@ -506,34 +506,53 @@ function CheckoutDialog({
                 </SelectContent>
               </Select>
             </div>
-            {form.payment_method === "CREDIT_CARD" && pkg.max_installments > 1 && (
-              <div>
-                <Label>Parcelas</Label>
-                <Select value={String(form.installments)} onValueChange={(v) => setForm({ ...form, installments: parseInt(v) })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: pkg.max_installments }).map((_, i) => (
-                      <SelectItem key={i + 1} value={String(i + 1)}>
-                        {i + 1}x de {fmtBRL(Number(pkg.price) / (i + 1))}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {form.payment_method === "CREDIT_CARD" && pkg.max_installments > 1 && (() => {
+              const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
+              const monthlyPct = Number(pkg.card_interest_percent) || 0;
+              return (
+                <div>
+                  <Label>Parcelas</Label>
+                  <Select value={String(form.installments)} onValueChange={(v) => setForm({ ...form, installments: parseInt(v) })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: pkg.max_installments }).map((_, i) => {
+                        const n = i + 1;
+                        const { perInstallment, total } = calcInstallment(Number(pkg.price), n, freeInst, monthlyPct);
+                        const hasInterest = n > freeInst && monthlyPct > 0;
+                        return (
+                          <SelectItem key={n} value={String(n)}>
+                            {n}x de {fmtBRL(perInstallment)} {hasInterest ? `(total ${fmtBRL(total)} c/ juros)` : "sem juros"}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })()}
             <div>
               <Label>Observações</Label>
               <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
             <div className="flex items-center justify-between pt-2 border-t">
               <div className="text-sm">
-                Total: <strong style={{ color: theme }}>{fmtBRL(Number(pkg.price))}</strong>
+                {(() => {
+                  const isCC = form.payment_method === "CREDIT_CARD";
+                  const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
+                  const monthlyPct = Number(pkg.card_interest_percent) || 0;
+                  const n = isCC ? Math.max(1, form.installments) : 1;
+                  const { total } = isCC
+                    ? calcInstallment(Number(pkg.price), n, freeInst, monthlyPct)
+                    : { total: Number(pkg.price) };
+                  return <>Total: <strong style={{ color: theme }}>{fmtBRL(total)}</strong></>;
+                })()}
               </div>
               <Button onClick={submit} disabled={loading} style={{ background: theme }} className="text-white">
                 {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 Finalizar inscrição
               </Button>
             </div>
+
           </div>
         )}
 
