@@ -830,7 +830,7 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
           </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={createCharge} onChange={(e) => setCreateCharge(e.target.checked)} />
-            Gerar cobrança no Asaas (caso desmarcado, fica como isento)
+            Enviar link de pagamento ao responsável (PIX ou cartão). Se desmarcado, fica como isento.
           </label>
           <Button onClick={add} disabled={saving || !selected || !pkgId} className="w-full">
             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Adicionar
