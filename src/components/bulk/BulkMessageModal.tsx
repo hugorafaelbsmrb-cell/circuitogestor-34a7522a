@@ -98,6 +98,10 @@ export function BulkMessageModal({
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [isWapiConfigured, setIsWapiConfigured] = useState(false);
   const [sendMode, setSendMode] = useState<'wapi' | 'web'>('wapi');
+  const [imageUrl, setImageUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -105,8 +109,41 @@ export function BulkMessageModal({
       checkWapiConfig();
       setSendResults([]);
       setSendProgress(0);
+      setImageUrl('');
+      setLinkUrl('');
     }
   }, [open]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Arquivo inválido', description: 'Selecione uma imagem.', variant: 'destructive' });
+      return;
+    }
+    setIsUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `bulk/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('campaign-images').upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from('campaign-images').getPublicUrl(path);
+      setImageUrl(data.publicUrl);
+      toast({ title: 'Imagem carregada', description: 'Pronta para envio.' });
+    } catch (err) {
+      toast({
+        title: 'Erro no upload',
+        description: err instanceof Error ? err.message : 'Não foi possível enviar a imagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const checkWapiConfig = async () => {
     const config = await checkConfig();
