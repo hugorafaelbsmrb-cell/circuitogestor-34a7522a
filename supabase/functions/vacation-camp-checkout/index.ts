@@ -240,6 +240,21 @@ serve(async (req) => {
       })
       .eq("id", enrollment.id);
 
+    // Fire-and-forget WhatsApp welcome with payment info
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/vacation-camp-notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SERVICE_ROLE}`,
+          apikey: SERVICE_ROLE,
+        },
+        body: JSON.stringify({ event: "enrollment_created", enrollment_id: enrollment.id }),
+      });
+    } catch (notifyErr) {
+      console.warn("notify enrollment_created failed:", notifyErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
