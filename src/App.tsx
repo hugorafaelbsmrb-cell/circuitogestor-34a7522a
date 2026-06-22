@@ -54,6 +54,7 @@ import Receipts from "./pages/Receipts";
 import VacationCampLanding from "./pages/VacationCampLanding";
 import VacationCampAdmin from "./pages/VacationCampAdmin";
 import VacationCampEditor from "./pages/VacationCampEditor";
+import VacationCampPayment from "./pages/VacationCampPayment";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
