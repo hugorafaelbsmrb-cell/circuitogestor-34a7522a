@@ -411,7 +411,9 @@ export default function BulkMessages() {
         .replace(/{cursos}/g, recipient.courseNames.join(', ') || '');
 
       if (linkUrl.trim()) {
-        personalizedMessage = `${personalizedMessage}\n\n${linkUrl.trim()}`;
+        const cleanLink = linkUrl.trim();
+        // Format link on its own line with a pointer emoji so it looks like a tap target
+        personalizedMessage = `${personalizedMessage}\n\n👉 ${cleanLink}`;
       }
 
       const success = await sendMessage(
@@ -956,9 +958,31 @@ export default function BulkMessages() {
                     disabled={sendStatus === 'sending'}
                   />
                   <p className="text-xs text-muted-foreground">
-                    O link será adicionado ao final da mensagem para gerar preview no WhatsApp.
+                    O link será enviado em uma linha separada com 👉 para parecer um botão no WhatsApp.
                   </p>
                 </div>
+
+                {/* Message preview */}
+                {(message.trim() || linkUrl.trim() || imageUrl) && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Pré-visualização no WhatsApp</Label>
+                    <div className="p-3 rounded-lg bg-secondary/40 border border-border/60 space-y-2">
+                      {imageUrl && (
+                        <img src={imageUrl} alt="Preview da imagem" className="max-h-32 rounded-md border" />
+                      )}
+                      <p className="text-sm whitespace-pre-wrap">
+                        {message
+                          .replace(/{nome_responsavel}/g, 'Maria')
+                          .replace(/{nome}/g, 'Maria')
+                          .replace(/{nome_aluno}/g, 'João Silva')
+                          .replace(/{nomes_alunos}/g, 'João Silva, Ana Silva')
+                          .replace(/{curso}/g, 'Soroban')
+                          .replace(/{cursos}/g, 'Soroban, Robótica')}
+                        {linkUrl.trim() && `\n\n👉 ${linkUrl.trim()}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Action buttons */}
                 <div className="flex gap-2 flex-wrap">
