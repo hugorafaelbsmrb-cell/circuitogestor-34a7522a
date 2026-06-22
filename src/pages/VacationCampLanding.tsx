@@ -267,19 +267,40 @@ export default function VacationCampLanding() {
             const left = p.max_slots ? Math.max(0, p.max_slots - p.sold_count) : null;
             const soldOut = left === 0;
             const includes = (p.includes as string[]) || [];
+            const hasStudentsOnly = packages.some((x) => x.students_only);
+            const isExclusive = !!p.students_only;
+            const isNegotiable = !!p.price_negotiable;
+            const waNumber = camp.whatsapp_number?.replace(/\D/g, "") || "";
+            const waMsg = encodeURIComponent(
+              `Olá! Tenho interesse no pacote "${p.name}" da ${camp.name} e gostaria de mais informações.`
+            );
             return (
-              <Card key={p.id} className="p-6 flex flex-col relative overflow-hidden">
+              <Card key={p.id} className={`p-6 flex flex-col relative overflow-hidden ${isExclusive ? "ring-2" : ""}`} style={isExclusive ? { boxShadow: `0 0 0 2px ${theme}` } : undefined}>
                 <div
                   className="absolute top-0 left-0 right-0 h-1"
                   style={{ background: theme }}
                 />
+                {isExclusive && (
+                  <Badge className="self-start mb-2 text-white" style={{ background: theme }}>Exclusivo para alunos</Badge>
+                )}
                 <h3 className="text-xl font-bold">{p.name}</h3>
                 {p.description && <p className="text-sm text-muted-foreground mt-1">{p.description}</p>}
                 <div className="mt-4">
-                  {p.original_price && p.original_price > p.price && (
-                    <div className="text-sm text-muted-foreground line-through">{fmtBRL(Number(p.original_price))}</div>
+                  {isNegotiable ? (
+                    <div className="text-xl font-bold" style={{ color: theme }}>
+                      Valor a negociar com a secretaria
+                    </div>
+                  ) : (
+                    <>
+                      {p.original_price && p.original_price > p.price && (
+                        <div className="text-sm text-muted-foreground line-through">{fmtBRL(Number(p.original_price))}</div>
+                      )}
+                      <div className="text-3xl font-bold" style={{ color: theme }}>{fmtBRL(Number(p.price))}</div>
+                      {hasStudentsOnly && !isExclusive && (
+                        <div className="text-[11px] text-muted-foreground mt-1">Valores para público externo</div>
+                      )}
+                    </>
                   )}
-                  <div className="text-3xl font-bold" style={{ color: theme }}>{fmtBRL(Number(p.price))}</div>
                 </div>
                 {includes.length > 0 && (
                   <ul className="mt-4 space-y-2 flex-1">
@@ -296,14 +317,33 @@ export default function VacationCampLanding() {
                     {soldOut ? "Esgotado" : `${left} vagas restantes`}
                   </div>
                 )}
-                <Button
-                  className="mt-5 w-full text-white"
-                  style={{ background: theme }}
-                  disabled={soldOut}
-                  onClick={() => openCheckout(p)}
-                >
-                  {soldOut ? "Esgotado" : "Quero esse"}
-                </Button>
+                {isExclusive || isNegotiable ? (
+                  waNumber ? (
+                    <a
+                      href={`https://wa.me/${waNumber}?text=${waMsg}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-5 w-full"
+                    >
+                      <Button className="w-full text-white" style={{ background: theme }}>
+                        Falar com a secretaria
+                      </Button>
+                    </a>
+                  ) : (
+                    <Button className="mt-5 w-full text-white" style={{ background: theme }} disabled>
+                      Falar com a secretaria
+                    </Button>
+                  )
+                ) : (
+                  <Button
+                    className="mt-5 w-full text-white"
+                    style={{ background: theme }}
+                    disabled={soldOut}
+                    onClick={() => openCheckout(p)}
+                  >
+                    {soldOut ? "Esgotado" : "Quero esse"}
+                  </Button>
+                )}
               </Card>
             );
           })}
