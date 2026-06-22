@@ -286,14 +286,17 @@ export function BulkMessageModal({
 
     // Open WhatsApp Web for each recipient
     recipients.forEach((recipient, index) => {
-      const personalizedMessage = message
+      let personalizedMessage = message
         .replace(/{nome_responsavel}/g, recipient.name)
         .replace(/{nome_aluno}/g, recipient.name);
-      
+
+      if (imageUrl) personalizedMessage = `${personalizedMessage}\n\n${imageUrl}`;
+      if (linkUrl.trim()) personalizedMessage = `${personalizedMessage}\n\n${linkUrl.trim()}`;
+
       const cleanPhone = recipient.phone.replace(/\D/g, '');
       const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
       const encodedMessage = encodeURIComponent(personalizedMessage);
-      
+
       setTimeout(() => {
         window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, '_blank');
       }, index * 500); // Delay between opening tabs
