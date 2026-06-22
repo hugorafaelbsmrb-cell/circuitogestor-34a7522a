@@ -412,6 +412,76 @@ export function BulkMessageModal({
             </p>
           </div>
 
+          {/* Image (optional) */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <ImageIcon className="w-4 h-4" />
+              Imagem (opcional)
+            </Label>
+            {imageUrl ? (
+              <div className="relative inline-block">
+                <img src={imageUrl} alt="Preview" className="max-h-40 rounded-md border" />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  className="absolute -top-2 -right-2 h-6 w-6"
+                  onClick={() => setImageUrl('')}
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  placeholder="Cole a URL de uma imagem..."
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingImage}
+                  className="gap-2 shrink-0"
+                >
+                  {isUploadingImage ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  Upload
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              A imagem será enviada com a mensagem como legenda.
+            </p>
+          </div>
+
+          {/* Link (optional) */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Link2 className="w-4 h-4" />
+              Link (opcional)
+            </Label>
+            <Input
+              placeholder="https://... (ex: link da página da Colônia)"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              O link será adicionado ao final da mensagem para gerar preview no WhatsApp.
+            </p>
+          </div>
+
           {/* Progress and results */}
           {(isSending || sendResults.length > 0) && (
             <div className="space-y-3">
