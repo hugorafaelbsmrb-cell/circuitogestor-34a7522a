@@ -185,6 +185,22 @@ export default function Settings() {
         if (error && !error.message.includes('duplicate key')) throw error;
       }
 
+      // Auto-create missing Asaas credentials when user fills them
+      const autoCreateKeys: Array<{ key: string; description: string; is_secret: boolean }> = [
+        { key: 'ASAAS_API_KEY', description: 'Chave de API do Asaas', is_secret: true },
+        { key: 'ASAAS_ENVIRONMENT', description: 'Ambiente Asaas (sandbox ou production)', is_secret: false },
+      ];
+      for (const item of autoCreateKeys) {
+        const exists = settings.some(s => s.key === item.key);
+        const value = editedSettings[item.key];
+        if (!exists && value) {
+          const { error } = await supabase
+            .from('app_settings')
+            .insert({ key: item.key, value, description: item.description, is_secret: item.is_secret });
+          if (error && !error.message.includes('duplicate key')) throw error;
+        }
+      }
+
       toast({
         title: 'Configurações salvas',
         description: 'As configurações foram atualizadas com sucesso.',
