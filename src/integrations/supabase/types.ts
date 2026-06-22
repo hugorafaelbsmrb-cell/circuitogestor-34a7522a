@@ -2393,6 +2393,308 @@ export type Database = {
         }
         Relationships: []
       }
+      vacation_camp_enrollments: {
+        Row: {
+          amount: number | null
+          asaas_customer_id: string | null
+          asaas_invoice_url: string | null
+          asaas_payment_id: string | null
+          asaas_pix_payload: string | null
+          camp_id: string
+          child_age: number | null
+          child_birthdate: string | null
+          child_name: string
+          confirmed_at: string | null
+          created_at: string
+          guardian_cpf: string | null
+          guardian_email: string | null
+          guardian_name: string
+          guardian_phone: string
+          id: string
+          installments: number | null
+          linked_student_id: string | null
+          notes: string | null
+          package_id: string | null
+          payment_method: string | null
+          payment_status: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number | null
+          asaas_customer_id?: string | null
+          asaas_invoice_url?: string | null
+          asaas_payment_id?: string | null
+          asaas_pix_payload?: string | null
+          camp_id: string
+          child_age?: number | null
+          child_birthdate?: string | null
+          child_name: string
+          confirmed_at?: string | null
+          created_at?: string
+          guardian_cpf?: string | null
+          guardian_email?: string | null
+          guardian_name: string
+          guardian_phone: string
+          id?: string
+          installments?: number | null
+          linked_student_id?: string | null
+          notes?: string | null
+          package_id?: string | null
+          payment_method?: string | null
+          payment_status?: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number | null
+          asaas_customer_id?: string | null
+          asaas_invoice_url?: string | null
+          asaas_payment_id?: string | null
+          asaas_pix_payload?: string | null
+          camp_id?: string
+          child_age?: number | null
+          child_birthdate?: string | null
+          child_name?: string
+          confirmed_at?: string | null
+          created_at?: string
+          guardian_cpf?: string | null
+          guardian_email?: string | null
+          guardian_name?: string
+          guardian_phone?: string
+          id?: string
+          installments?: number | null
+          linked_student_id?: string | null
+          notes?: string | null
+          package_id?: string | null
+          payment_method?: string | null
+          payment_status?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vacation_camp_enrollments_camp_id_fkey"
+            columns: ["camp_id"]
+            isOneToOne: false
+            referencedRelation: "vacation_camps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vacation_camp_enrollments_linked_student_id_fkey"
+            columns: ["linked_student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vacation_camp_enrollments_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "vacation_camp_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vacation_camp_packages: {
+        Row: {
+          active: boolean
+          camp_id: string
+          card_interest_free_installments: number
+          card_interest_percent: number
+          created_at: string
+          description: string | null
+          due_days: number
+          id: string
+          includes: Json | null
+          max_installments: number
+          max_slots: number | null
+          name: string
+          original_price: number | null
+          payment_methods: Json
+          price: number
+          price_negotiable: boolean
+          sold_count: number
+          sort_order: number
+          students_only: boolean
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          camp_id: string
+          card_interest_free_installments?: number
+          card_interest_percent?: number
+          created_at?: string
+          description?: string | null
+          due_days?: number
+          id?: string
+          includes?: Json | null
+          max_installments?: number
+          max_slots?: number | null
+          name: string
+          original_price?: number | null
+          payment_methods?: Json
+          price?: number
+          price_negotiable?: boolean
+          sold_count?: number
+          sort_order?: number
+          students_only?: boolean
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          camp_id?: string
+          card_interest_free_installments?: number
+          card_interest_percent?: number
+          created_at?: string
+          description?: string | null
+          due_days?: number
+          id?: string
+          includes?: Json | null
+          max_installments?: number
+          max_slots?: number | null
+          name?: string
+          original_price?: number | null
+          payment_methods?: Json
+          price?: number
+          price_negotiable?: boolean
+          sold_count?: number
+          sort_order?: number
+          students_only?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vacation_camp_packages_camp_id_fkey"
+            columns: ["camp_id"]
+            isOneToOne: false
+            referencedRelation: "vacation_camps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vacation_camp_schedule: {
+        Row: {
+          camp_id: string
+          created_at: string
+          day_label: string
+          description: string | null
+          icon: string | null
+          id: string
+          sort_order: number
+          time_label: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          camp_id: string
+          created_at?: string
+          day_label: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          sort_order?: number
+          time_label?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          camp_id?: string
+          created_at?: string
+          day_label?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          sort_order?: number
+          time_label?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vacation_camp_schedule_camp_id_fkey"
+            columns: ["camp_id"]
+            isOneToOne: false
+            referencedRelation: "vacation_camps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vacation_camps: {
+        Row: {
+          age_max: number | null
+          age_min: number | null
+          created_at: string
+          cta_text: string | null
+          description: string | null
+          end_date: string | null
+          faq: Json
+          gallery: Json
+          hero_image_url: string | null
+          hero_subtitle: string | null
+          hero_title: string | null
+          highlights: Json
+          id: string
+          location: string | null
+          name: string
+          slug: string
+          start_date: string | null
+          status: string
+          terms_text: string | null
+          theme_color: string | null
+          updated_at: string
+          whatsapp_number: string | null
+        }
+        Insert: {
+          age_max?: number | null
+          age_min?: number | null
+          created_at?: string
+          cta_text?: string | null
+          description?: string | null
+          end_date?: string | null
+          faq?: Json
+          gallery?: Json
+          hero_image_url?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
+          highlights?: Json
+          id?: string
+          location?: string | null
+          name: string
+          slug: string
+          start_date?: string | null
+          status?: string
+          terms_text?: string | null
+          theme_color?: string | null
+          updated_at?: string
+          whatsapp_number?: string | null
+        }
+        Update: {
+          age_max?: number | null
+          age_min?: number | null
+          created_at?: string
+          cta_text?: string | null
+          description?: string | null
+          end_date?: string | null
+          faq?: Json
+          gallery?: Json
+          hero_image_url?: string | null
+          hero_subtitle?: string | null
+          hero_title?: string | null
+          highlights?: Json
+          id?: string
+          location?: string | null
+          name?: string
+          slug?: string
+          start_date?: string | null
+          status?: string
+          terms_text?: string | null
+          theme_color?: string | null
+          updated_at?: string
+          whatsapp_number?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_messages: {
         Row: {
           created_at: string

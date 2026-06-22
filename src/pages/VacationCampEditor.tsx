@@ -12,8 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, ArrowLeft, Upload, X, Search, Download, MessageCircle, CheckCircle } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowLeft, Upload, X, Search, Download, MessageCircle, CheckCircle, Send, Copy } from "lucide-react";
 import { formatCPF, formatPhone, normalizePhoneToWAPI } from "@/utils/validators";
+
+const sb: any = supabase;
 
 const ICON_OPTIONS = [
   "Sparkles","Sun","Palette","Music","Gamepad2","BookOpen","Smile","Trophy",
@@ -27,7 +29,7 @@ export default function VacationCampEditor() {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("vacation_camps").select("*").eq("id", id).single();
+    const { data } = await sb.from("vacation_camps").select("*").eq("id", id).single();
     setCamp(data);
     setLoading(false);
   };
@@ -84,7 +86,7 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await supabase.from("vacation_camps").update({
+    const { error } = await sb.from("vacation_camps").update({
       ...f,
       age_min: f.age_min ? parseInt(String(f.age_min)) : null,
       age_max: f.age_max ? parseInt(String(f.age_max)) : null,
@@ -154,9 +156,9 @@ function HeroTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
   const upload = async (file: File, target: "hero" | "gallery") => {
     setUploading(true);
     const path = `${camp.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
-    const { error } = await supabase.storage.from("camp-images").upload(path, file);
+    const { error } = await sb.storage.from("camp-images").upload(path, file);
     if (error) { setUploading(false); return toast.error(error.message); }
-    const { data } = supabase.storage.from("camp-images").getPublicUrl(path);
+    const { data } = sb.storage.from("camp-images").getPublicUrl(path);
     const url = data.publicUrl;
     if (target === "hero") setHero({ ...hero, hero_image_url: url });
     else setGallery([...gallery, url]);
@@ -166,7 +168,7 @@ function HeroTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await supabase.from("vacation_camps").update({ ...hero, gallery }).eq("id", camp.id);
+    const { error } = await sb.from("vacation_camps").update({ ...hero, gallery }).eq("id", camp.id);
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Salvo");
@@ -220,7 +222,7 @@ function ScheduleTab({ campId }: { campId: string }) {
 
   const load = async () => {
     setLoading(true);
-    const { data } = await supabase.from("vacation_camp_schedule").select("*").eq("camp_id", campId).order("sort_order");
+    const { data } = await sb.from("vacation_camp_schedule").select("*").eq("camp_id", campId).order("sort_order");
     setItems(data || []);
     setLoading(false);
   };
@@ -236,15 +238,15 @@ function ScheduleTab({ campId }: { campId: string }) {
     const payload = { ...editing, camp_id: campId };
     delete payload.id;
     const { error } = editing.id
-      ? await supabase.from("vacation_camp_schedule").update(payload).eq("id", editing.id)
-      : await supabase.from("vacation_camp_schedule").insert(payload);
+      ? await sb.from("vacation_camp_schedule").update(payload).eq("id", editing.id)
+      : await sb.from("vacation_camp_schedule").insert(payload);
     if (error) return toast.error(error.message);
     toast.success("Salvo");
     setOpen(false); load();
   };
   const remove = async (id: string) => {
     if (!confirm("Excluir item?")) return;
-    await supabase.from("vacation_camp_schedule").delete().eq("id", id);
+    await sb.from("vacation_camp_schedule").delete().eq("id", id);
     load();
   };
 
@@ -309,7 +311,7 @@ function PackagesTab({ campId }: { campId: string }) {
   const [editing, setEditing] = useState<any>(null);
 
   const load = async () => {
-    const { data } = await supabase.from("vacation_camp_packages").select("*").eq("camp_id", campId).order("sort_order");
+    const { data } = await sb.from("vacation_camp_packages").select("*").eq("camp_id", campId).order("sort_order");
     setItems(data || []);
   };
   useEffect(() => { load(); }, [campId]);
@@ -319,9 +321,12 @@ function PackagesTab({ campId }: { campId: string }) {
       name: "", description: "", price: 0, original_price: null, max_slots: null, active: true,
       payment_methods: ["PIX", "BOLETO"], max_installments: 1, due_days: 3,
       includes: [], sort_order: items.length,
+      students_only: false, price_negotiable: false,
+      card_interest_free_installments: 1, card_interest_percent: 0,
     });
     setOpen(true);
   };
+
 
   const togglePm = (m: string) => {
     const pm = editing.payment_methods || [];
@@ -332,15 +337,15 @@ function PackagesTab({ campId }: { campId: string }) {
     const payload = { ...editing, camp_id: campId };
     delete payload.id; delete payload.sold_count; delete payload.created_at; delete payload.updated_at;
     const { error } = editing.id
-      ? await supabase.from("vacation_camp_packages").update(payload).eq("id", editing.id)
-      : await supabase.from("vacation_camp_packages").insert(payload);
+      ? await sb.from("vacation_camp_packages").update(payload).eq("id", editing.id)
+      : await sb.from("vacation_camp_packages").insert(payload);
     if (error) return toast.error(error.message);
     toast.success("Salvo");
     setOpen(false); load();
   };
   const remove = async (id: string) => {
     if (!confirm("Excluir pacote?")) return;
-    await supabase.from("vacation_camp_packages").delete().eq("id", id);
+    await sb.from("vacation_camp_packages").delete().eq("id", id);
     load();
   };
 
@@ -399,11 +404,38 @@ function PackagesTab({ campId }: { campId: string }) {
                 </div>
               </div>
               {(editing.payment_methods || []).includes("CREDIT_CARD") && (
-                <div><Label>Máx. parcelas</Label><Input type="number" value={editing.max_installments} onChange={(e) => setEditing({ ...editing, max_installments: parseInt(e.target.value) || 1 })} /></div>
+                <div className="space-y-3 rounded border p-3 bg-muted/30">
+                  <div><Label>Máx. parcelas</Label><Input type="number" min={1} value={editing.max_installments} onChange={(e) => setEditing({ ...editing, max_installments: parseInt(e.target.value) || 1 })} /></div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label>Parcelas sem juros</Label>
+                      <Input type="number" min={1} value={editing.card_interest_free_installments ?? 1} onChange={(e) => setEditing({ ...editing, card_interest_free_installments: parseInt(e.target.value) || 1 })} />
+                    </div>
+                    <div>
+                      <Label>Juros ao mês (%)</Label>
+                      <Input type="number" step="0.01" min={0} value={editing.card_interest_percent ?? 0} onChange={(e) => setEditing({ ...editing, card_interest_percent: parseFloat(e.target.value) || 0 })} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Ex.: 2 parcelas sem juros e 2,99% a.m. Acima do limite sem juros aplica-se a Tabela Price (juros compostos).</p>
+                </div>
               )}
+
               <div>
                 <Label>Itens incluídos (um por linha)</Label>
                 <Textarea rows={4} value={(editing.includes || []).join("\n")} onChange={(e) => setEditing({ ...editing, includes: e.target.value.split("\n").filter(Boolean) })} />
+              </div>
+              <div className="space-y-2 rounded border p-3 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Switch checked={!!editing.students_only} onCheckedChange={(v) => setEditing({ ...editing, students_only: v })} />
+                  <Label className="cursor-pointer">Exclusivo para alunos da escola</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={!!editing.price_negotiable} onCheckedChange={(v) => setEditing({ ...editing, price_negotiable: v })} />
+                  <Label className="cursor-pointer">Preço a negociar com a secretaria</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pacotes exclusivos ou com preço negociável não aparecem para checkout — o botão leva direto ao WhatsApp da escola.
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Switch checked={editing.active} onCheckedChange={(v) => setEditing({ ...editing, active: v })} />
@@ -427,7 +459,7 @@ function TextsTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
 
   const save = async () => {
     setSaving(true);
-    const { error } = await supabase.from("vacation_camps").update({ highlights, faq, terms_text: terms }).eq("id", camp.id);
+    const { error } = await sb.from("vacation_camps").update({ highlights, faq, terms_text: terms }).eq("id", camp.id);
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Salvo");
@@ -495,8 +527,8 @@ function EnrollmentsTab({ campId }: { campId: string }) {
   const load = async () => {
     setLoading(true);
     const [{ data: e }, { data: p }] = await Promise.all([
-      supabase.from("vacation_camp_enrollments").select("*").eq("camp_id", campId).order("created_at", { ascending: false }),
-      supabase.from("vacation_camp_packages").select("id, name, price").eq("camp_id", campId).order("sort_order"),
+      sb.from("vacation_camp_enrollments").select("*").eq("camp_id", campId).order("created_at", { ascending: false }),
+      sb.from("vacation_camp_packages").select("id, name, price").eq("camp_id", campId).order("sort_order"),
     ]);
     setRows(e || []); setPkgs(p || []); setLoading(false);
   };
@@ -516,13 +548,13 @@ function EnrollmentsTab({ campId }: { campId: string }) {
 
   const markPaid = async (r: any) => {
     if (!confirm(`Marcar inscrição de ${r.child_name} como paga manualmente?`)) return;
-    await supabase.from("vacation_camp_enrollments").update({
+    await sb.from("vacation_camp_enrollments").update({
       payment_status: "confirmed", confirmed_at: new Date().toISOString(),
     }).eq("id", r.id);
     if (r.package_id) {
       const pkg = pkgs.find((p) => p.id === r.package_id);
       if (pkg) {
-        await supabase.from("vacation_camp_packages").update({
+        await sb.from("vacation_camp_packages").update({
           sold_count: rows.filter((x) => x.package_id === r.package_id && (x.payment_status === "confirmed" || x.id === r.id)).length,
         }).eq("id", r.package_id);
       }
@@ -533,14 +565,32 @@ function EnrollmentsTab({ campId }: { campId: string }) {
 
   const cancel = async (r: any) => {
     if (!confirm(`Cancelar inscrição de ${r.child_name}?`)) return;
-    await supabase.from("vacation_camp_enrollments").update({ payment_status: "cancelled" }).eq("id", r.id);
+    await sb.from("vacation_camp_enrollments").update({ payment_status: "cancelled" }).eq("id", r.id);
     load();
   };
 
   const remove = async (r: any) => {
     if (!confirm(`Excluir inscrição de ${r.child_name}?`)) return;
-    await supabase.from("vacation_camp_enrollments").delete().eq("id", r.id);
+    await sb.from("vacation_camp_enrollments").delete().eq("id", r.id);
     load();
+  };
+
+  const sendPaymentLink = async (r: any) => {
+    if (!r.guardian_phone) return toast.error("Responsável sem telefone cadastrado");
+    const t = toast.loading("Enviando link de pagamento...");
+    const { data, error } = await sb.functions.invoke("vacation-camp-notify", {
+      body: { event: "payment_link", enrollment_id: r.id },
+    });
+    toast.dismiss(t);
+    if (error || data?.error) return toast.error(error?.message || data?.error || "Falha ao enviar");
+    if (data?.sent === false) return toast.error("WhatsApp não configurado");
+    toast.success("Link enviado por WhatsApp");
+  };
+
+  const copyPaymentLink = (r: any) => {
+    const link = `${window.location.origin}/colonia-pagamento/${r.id}`;
+    navigator.clipboard.writeText(link);
+    toast.success("Link copiado");
   };
 
   const exportCsv = () => {
@@ -615,6 +665,12 @@ function EnrollmentsTab({ campId }: { campId: string }) {
                     </td>
                     <td className="p-2"><Badge variant="outline">{r.source}</Badge></td>
                     <td className="p-2 text-right whitespace-nowrap">
+                      {r.payment_status !== "confirmed" && r.payment_status !== "cancelled" && (
+                        <>
+                          <Button size="icon" variant="ghost" title="Enviar link de pagamento por WhatsApp" onClick={() => sendPaymentLink(r)}><Send className="w-4 h-4 text-primary" /></Button>
+                          <Button size="icon" variant="ghost" title="Copiar link de pagamento" onClick={() => copyPaymentLink(r)}><Copy className="w-4 h-4" /></Button>
+                        </>
+                      )}
                       {r.payment_status !== "confirmed" && (
                         <Button size="icon" variant="ghost" title="Marcar pago" onClick={() => markPaid(r)}><CheckCircle className="w-4 h-4 text-green-600" /></Button>
                       )}
@@ -651,28 +707,39 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
   const [selected, setSelected] = useState<any>(null);
   const [pkgId, setPkgId] = useState<string>("");
   const [createCharge, setCreateCharge] = useState(false);
+  const [customAmount, setCustomAmount] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!q || q.length < 2) { setResults([]); return; }
     const t = setTimeout(async () => {
       setSearching(true);
-      const { data } = await supabase.from("students").select("id, name, birth_date, guardian_id, guardians(name, phone, email, cpf)")
+      const { data } = await sb.from("students").select("id, name, birth_date, guardian_id, guardians(name, phone, email, cpf)")
         .ilike("name", `%${q}%`).limit(10);
       setResults(data || []); setSearching(false);
     }, 300);
     return () => clearTimeout(t);
   }, [q]);
 
+  // Pre-fill custom amount when package changes
+  useEffect(() => {
+    const pkg = pkgs.find((p: any) => p.id === pkgId);
+    if (pkg) setCustomAmount(String(Number(pkg.price).toFixed(2)));
+    else setCustomAmount("");
+  }, [pkgId, pkgs]);
+
   const add = async () => {
     if (!selected || !pkgId) return toast.error("Selecione aluno e pacote");
-    const pkg = pkgs.find((p: any) => p.id === pkgId);
     const g = selected.guardians;
+    const parsedAmount = customAmount.trim() === "" ? null : parseFloat(customAmount.replace(",", "."));
+    if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+      return toast.error("Valor inválido");
+    }
     setSaving(true);
     const ageYears = selected.birth_date
       ? Math.floor((Date.now() - new Date(selected.birth_date).getTime()) / (365.25 * 24 * 3600 * 1000))
       : null;
-    const { error } = await supabase.from("vacation_camp_enrollments").insert({
+    const { data: inserted, error } = await sb.from("vacation_camp_enrollments").insert({
       camp_id: campId, package_id: pkgId,
       guardian_name: g?.name || "",
       guardian_phone: g?.phone || "",
@@ -684,12 +751,30 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
       source: "admin",
       linked_student_id: selected.id,
       payment_status: createCharge ? "pending" : "exempt",
-      amount: pkg ? Number(pkg.price) : null,
-    });
+      amount: parsedAmount,
+    }).select().single();
+    if (error) { setSaving(false); return toast.error(error.message); }
+
+    if (createCharge && inserted?.id) {
+      if (!g?.phone) {
+        toast.warning("Aluno adicionado, mas o responsável não tem telefone — link não enviado");
+      } else {
+        const { data: notifyData, error: notifyErr } = await sb.functions.invoke("vacation-camp-notify", {
+          body: { event: "payment_link", enrollment_id: inserted.id },
+        });
+        if (notifyErr || notifyData?.error) {
+          toast.warning("Aluno adicionado, mas falha ao enviar link: " + (notifyErr?.message || notifyData?.error));
+        } else if (notifyData?.sent === false) {
+          toast.warning("Aluno adicionado. WhatsApp não está configurado — copie o link manualmente.");
+        } else {
+          toast.success("Aluno adicionado e link de pagamento enviado por WhatsApp");
+        }
+      }
+    } else {
+      toast.success("Aluno adicionado à colônia");
+    }
     setSaving(false);
-    if (error) return toast.error(error.message);
-    toast.success("Aluno adicionado à colônia");
-    onOpenChange(false); setSelected(null); setQ(""); setPkgId(""); setCreateCharge(false);
+    onOpenChange(false); setSelected(null); setQ(""); setPkgId(""); setCreateCharge(false); setCustomAmount("");
     onAdded();
   };
 
@@ -729,9 +814,23 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
               <SelectContent>{pkgs.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name} — R$ {Number(p.price).toFixed(2)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <div>
+            <Label>Valor a cobrar (R$)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              placeholder="Negociado direto com os pais"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Sobrescreve o preço do pacote. Deixe em branco para isento.
+            </p>
+          </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={createCharge} onChange={(e) => setCreateCharge(e.target.checked)} />
-            Gerar cobrança no Asaas (caso desmarcado, fica como isento)
+            Enviar link de pagamento ao responsável (PIX ou cartão). Se desmarcado, fica como isento.
           </label>
           <Button onClick={add} disabled={saving || !selected || !pkgId} className="w-full">
             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Adicionar

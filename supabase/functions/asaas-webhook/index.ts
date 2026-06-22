@@ -201,6 +201,23 @@ async function processCampEnrollment(supabase: any, payment: AsaasWebhookPayment
     }
   }
 
+  // Notify guardian via WhatsApp on first confirmation
+  if (isPaid && !wasConfirmed) {
+    try {
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/vacation-camp-notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+        },
+        body: JSON.stringify({ event: "payment_confirmed", enrollment_id: enrollmentId }),
+      });
+    } catch (notifyErr) {
+      console.warn("notify payment_confirmed failed:", notifyErr);
+    }
+  }
+
   console.log(`✅ Camp enrollment ${enrollmentId} -> ${newStatus}`);
 }
 

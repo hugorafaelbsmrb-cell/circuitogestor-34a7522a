@@ -192,19 +192,38 @@ serve(async (req) => {
     const description = `Colônia ${camp.name} - ${pkg.name} - ${child_name}`;
     const externalReference = `camp_${enrollment.id}`;
 
+    const maxInst = Math.max(1, Number(pkg.max_installments) || 1);
+    const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
+    const monthlyPct = Number(pkg.card_interest_percent) || 0;
+    const requestedInst = Math.min(maxInst, Math.max(1, Number(installments) || 1));
+
+    // Tabela Price (compound interest) — applies only above the interest-free range
+    function calcTotal(price: number, n: number) {
+      if (n <= freeInst || monthlyPct <= 0) return price;
+      const i = monthlyPct / 100;
+      const factor = Math.pow(1 + i, n);
+      const pmt = (price * i * factor) / (factor - 1);
+      return Math.round(pmt * n * 100) / 100;
+    }
+
     const paymentPayload: Record<string, unknown> = {
       customer: customer.id,
       billingType,
-      value: Number(pkg.price),
       dueDate,
       description,
       externalReference,
+      value: Number(pkg.price),
     };
 
-    if (billingType === "CREDIT_CARD" && installments && installments > 1) {
-      paymentPayload.installmentCount = installments;
-      paymentPayload.installmentValue = Math.round((Number(pkg.price) / installments) * 100) / 100;
+    // Credit card with installments: send precomputed installmentCount + totalValue
+    // so fees configured by the admin (not Asaas) are honored.
+    if (billingType === "CREDIT_CARD" && requestedInst > 1) {
+      const totalValue = calcTotal(Number(pkg.price), requestedInst);
+      delete paymentPayload.value;
+      paymentPayload.installmentCount = requestedInst;
+      paymentPayload.totalValue = totalValue;
     }
+
 
     const paymentResp = await asaasFetch(
       `${cfg.baseUrl}/payments`,
@@ -212,12 +231,36 @@ serve(async (req) => {
       "createPayment"
     );
 
+    // If this was an installment (credit card parcelado), the response is an
+    // installment object without invoiceUrl. Fetch the first child payment.
+    let firstPaymentId: string = paymentResp.id;
+    let invoiceUrl: string | null = paymentResp.invoiceUrl || null;
+    let bankSlipUrl: string | null = paymentResp.bankSlipUrl || null;
+
+    if (!invoiceUrl && paymentResp.id) {
+      try {
+        const children = await asaasFetch(
+          `${cfg.baseUrl}/payments?installment=${paymentResp.id}&limit=1`,
+          { method: "GET", headers: headers(cfg.apiKey) },
+          "getInstallmentPayments"
+        );
+        const first = children?.data?.[0];
+        if (first) {
+          firstPaymentId = first.id;
+          invoiceUrl = first.invoiceUrl || null;
+          bankSlipUrl = first.bankSlipUrl || null;
+        }
+      } catch (e) {
+        console.warn("getInstallmentPayments failed:", e);
+      }
+    }
+
     let pixPayload: string | null = null;
     let pixEncodedImage: string | null = null;
     if (billingType === "PIX") {
       try {
         const pix = await asaasFetch(
-          `${cfg.baseUrl}/payments/${paymentResp.id}/pixQrCode`,
+          `${cfg.baseUrl}/payments/${firstPaymentId}/pixQrCode`,
           { method: "GET", headers: headers(cfg.apiKey) },
           "getPix"
         );
@@ -233,24 +276,39 @@ serve(async (req) => {
       .from("vacation_camp_enrollments")
       .update({
         asaas_customer_id: customer.id,
-        asaas_payment_id: paymentResp.id,
-        asaas_invoice_url: paymentResp.invoiceUrl,
-        asaas_bank_slip_url: paymentResp.bankSlipUrl,
+        asaas_payment_id: firstPaymentId,
+        asaas_invoice_url: invoiceUrl,
+        asaas_bank_slip_url: bankSlipUrl,
         asaas_pix_payload: pixPayload,
       })
       .eq("id", enrollment.id);
+
+    // Fire-and-forget WhatsApp welcome with payment info
+    try {
+      await fetch(`${SUPABASE_URL}/functions/v1/vacation-camp-notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SERVICE_ROLE}`,
+          apikey: SERVICE_ROLE,
+        },
+        body: JSON.stringify({ event: "enrollment_created", enrollment_id: enrollment.id }),
+      });
+    } catch (notifyErr) {
+      console.warn("notify enrollment_created failed:", notifyErr);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         enrollment_id: enrollment.id,
         payment: {
-          id: paymentResp.id,
+          id: firstPaymentId,
           billingType,
           value: Number(pkg.price),
           dueDate,
-          invoiceUrl: paymentResp.invoiceUrl,
-          bankSlipUrl: paymentResp.bankSlipUrl,
+          invoiceUrl,
+          bankSlipUrl,
           pixPayload,
           pixEncodedImage,
         },

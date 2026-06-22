@@ -36,7 +36,21 @@ interface Pkg {
   id: string; name: string; description: string | null; price: number; original_price: number | null;
   max_slots: number | null; sold_count: number; active: boolean;
   payment_methods: string[]; max_installments: number; due_days: number; includes: any;
+  students_only?: boolean; price_negotiable?: boolean;
+  card_interest_free_installments?: number; card_interest_percent?: number;
 }
+
+/** Computes installment value using Tabela Price compound interest. */
+function calcInstallment(price: number, n: number, freeInst: number, monthlyPct: number) {
+  if (n <= Math.max(1, freeInst) || monthlyPct <= 0) {
+    return { perInstallment: price / n, total: price };
+  }
+  const i = monthlyPct / 100;
+  const factor = Math.pow(1 + i, n);
+  const pmt = (price * i * factor) / (factor - 1);
+  return { perInstallment: pmt, total: pmt * n };
+}
+
 interface ScheduleItem {
   id: string; day_label: string; time_label: string | null; title: string;
   description: string | null; icon: string | null; sort_order: number;
@@ -604,19 +618,40 @@ export default function VacationCampLanding() {
             const left = p.max_slots ? Math.max(0, p.max_slots - p.sold_count) : null;
             const soldOut = left === 0;
             const includes = (p.includes as string[]) || [];
+            const hasStudentsOnly = packages.some((x) => x.students_only);
+            const isExclusive = !!p.students_only;
+            const isNegotiable = !!p.price_negotiable;
+            const waNumber = camp.whatsapp_number?.replace(/\D/g, "") || "";
+            const waMsg = encodeURIComponent(
+              `Olá! Tenho interesse no pacote "${p.name}" da ${camp.name} e gostaria de mais informações.`
+            );
             return (
-              <Card key={p.id} className="p-6 flex flex-col relative overflow-hidden">
+              <Card key={p.id} className={`p-6 flex flex-col relative overflow-hidden ${isExclusive ? "ring-2" : ""}`} style={isExclusive ? { boxShadow: `0 0 0 2px ${theme}` } : undefined}>
                 <div
                   className="absolute top-0 left-0 right-0 h-1"
                   style={{ background: theme }}
                 />
+                {isExclusive && (
+                  <Badge className="self-start mb-2 text-white" style={{ background: theme }}>Exclusivo para alunos</Badge>
+                )}
                 <h3 className="text-xl font-bold">{p.name}</h3>
                 {p.description && <p className="text-sm text-muted-foreground mt-1">{p.description}</p>}
                 <div className="mt-4">
-                  {p.original_price && p.original_price > p.price && (
-                    <div className="text-sm text-muted-foreground line-through">{fmtBRL(Number(p.original_price))}</div>
+                  {isNegotiable ? (
+                    <div className="text-xl font-bold" style={{ color: theme }}>
+                      Valor a negociar com a secretaria
+                    </div>
+                  ) : (
+                    <>
+                      {p.original_price && p.original_price > p.price && (
+                        <div className="text-sm text-muted-foreground line-through">{fmtBRL(Number(p.original_price))}</div>
+                      )}
+                      <div className="text-3xl font-bold" style={{ color: theme }}>{fmtBRL(Number(p.price))}</div>
+                      {hasStudentsOnly && !isExclusive && (
+                        <div className="text-[11px] text-muted-foreground mt-1">Valores para público externo</div>
+                      )}
+                    </>
                   )}
-                  <div className="text-3xl font-bold" style={{ color: theme }}>{fmtBRL(Number(p.price))}</div>
                 </div>
                 {includes.length > 0 && (
                   <ul className="mt-4 space-y-2 flex-1">
@@ -633,14 +668,33 @@ export default function VacationCampLanding() {
                     {soldOut ? "Esgotado" : `${left} vagas restantes`}
                   </div>
                 )}
-                <Button
-                  className="mt-5 w-full text-white"
-                  style={{ background: theme }}
-                  disabled={soldOut}
-                  onClick={() => openCheckout(p)}
-                >
-                  {soldOut ? "Esgotado" : "Quero esse"}
-                </Button>
+                {isExclusive || isNegotiable ? (
+                  waNumber ? (
+                    <a
+                      href={`https://wa.me/${waNumber}?text=${waMsg}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-5 w-full"
+                    >
+                      <Button className="w-full text-white" style={{ background: theme }}>
+                        Falar com a secretaria
+                      </Button>
+                    </a>
+                  ) : (
+                    <Button className="mt-5 w-full text-white" style={{ background: theme }} disabled>
+                      Falar com a secretaria
+                    </Button>
+                  )
+                ) : (
+                  <Button
+                    className="mt-5 w-full text-white"
+                    style={{ background: theme }}
+                    disabled={soldOut}
+                    onClick={() => openCheckout(p)}
+                  >
+                    {soldOut ? "Esgotado" : "Quero esse"}
+                  </Button>
+                )}
               </Card>
             );
           })}
@@ -806,34 +860,53 @@ function CheckoutDialog({
                 </SelectContent>
               </Select>
             </div>
-            {form.payment_method === "CREDIT_CARD" && pkg.max_installments > 1 && (
-              <div>
-                <Label>Parcelas</Label>
-                <Select value={String(form.installments)} onValueChange={(v) => setForm({ ...form, installments: parseInt(v) })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: pkg.max_installments }).map((_, i) => (
-                      <SelectItem key={i + 1} value={String(i + 1)}>
-                        {i + 1}x de {fmtBRL(Number(pkg.price) / (i + 1))}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            {form.payment_method === "CREDIT_CARD" && pkg.max_installments > 1 && (() => {
+              const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
+              const monthlyPct = Number(pkg.card_interest_percent) || 0;
+              return (
+                <div>
+                  <Label>Parcelas</Label>
+                  <Select value={String(form.installments)} onValueChange={(v) => setForm({ ...form, installments: parseInt(v) })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: pkg.max_installments }).map((_, i) => {
+                        const n = i + 1;
+                        const { perInstallment, total } = calcInstallment(Number(pkg.price), n, freeInst, monthlyPct);
+                        const hasInterest = n > freeInst && monthlyPct > 0;
+                        return (
+                          <SelectItem key={n} value={String(n)}>
+                            {n}x de {fmtBRL(perInstallment)} {hasInterest ? `(total ${fmtBRL(total)} c/ juros)` : "sem juros"}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })()}
             <div>
               <Label>Observações</Label>
               <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
             </div>
             <div className="flex items-center justify-between pt-2 border-t">
               <div className="text-sm">
-                Total: <strong style={{ color: theme }}>{fmtBRL(Number(pkg.price))}</strong>
+                {(() => {
+                  const isCC = form.payment_method === "CREDIT_CARD";
+                  const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
+                  const monthlyPct = Number(pkg.card_interest_percent) || 0;
+                  const n = isCC ? Math.max(1, form.installments) : 1;
+                  const { total } = isCC
+                    ? calcInstallment(Number(pkg.price), n, freeInst, monthlyPct)
+                    : { total: Number(pkg.price) };
+                  return <>Total: <strong style={{ color: theme }}>{fmtBRL(total)}</strong></>;
+                })()}
               </div>
               <Button onClick={submit} disabled={loading} style={{ background: theme }} className="text-white">
                 {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 Finalizar inscrição
               </Button>
             </div>
+
           </div>
         )}
 

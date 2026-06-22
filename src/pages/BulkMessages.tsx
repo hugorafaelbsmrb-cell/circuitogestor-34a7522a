@@ -6,6 +6,7 @@ import {
   MessageSquare,
   CheckCircle2,
   XCircle,
+  X,
   AlertCircle,
   GraduationCap,
   Save,
@@ -16,7 +17,10 @@ import {
   Loader2,
   Sparkles,
   Wand2,
-  Zap
+  Zap,
+  Image as ImageIcon,
+  Link2,
+  Upload
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,11 +96,15 @@ export default function BulkMessages() {
   const { getGenerateFunctionName } = useAIProvider();
 
   const [message, setMessage] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
   const [sendStatus, setSendStatus] = useState<SendStatus>('idle');
   const [sendProgress, setSendProgress] = useState(0);
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Templates state
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -301,10 +309,42 @@ export default function BulkMessages() {
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Arquivo inválido', description: 'Selecione uma imagem.', variant: 'destructive' });
+      return;
+    }
+    setIsUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `bulk/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('campaign-images').upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from('campaign-images').getPublicUrl(path);
+      setImageUrl(data.publicUrl);
+      toast({ title: 'Imagem carregada', description: 'Pronta para envio.' });
+    } catch (err) {
+      toast({
+        title: 'Erro no upload',
+        description: err instanceof Error ? err.message : 'Não foi possível enviar a imagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const logMessage = async (
     phone: string,
     guardianId: string,
     status: 'success' | 'error',
+    preview: string,
     errorMessage?: string
   ) => {
     try {
@@ -312,7 +352,7 @@ export default function BulkMessages() {
         phone,
         guardian_id: guardianId,
         template_category: 'bulk_manual',
-        message_preview: message.substring(0, 100),
+        message_preview: preview.substring(0, 100),
         automation_key: 'bulk_messages_page',
         status,
         error_message: errorMessage,
@@ -323,10 +363,10 @@ export default function BulkMessages() {
   };
 
   const handleSend = async () => {
-    if (!message.trim()) {
+    if (!message.trim() && !imageUrl && !linkUrl.trim()) {
       toast({
         title: 'Mensagem vazia',
-        description: 'Digite uma mensagem para enviar.',
+        description: 'Digite uma mensagem, anexe uma imagem ou adicione um link para enviar.',
         variant: 'destructive',
       });
       return;
@@ -362,18 +402,33 @@ export default function BulkMessages() {
       const recipient = recipientsToSend[i];
       
       // Personalize message
-      const personalizedMessage = message
+      let personalizedMessage = message
         .replace(/{nome_responsavel}/g, recipient.name)
         .replace(/{nome}/g, recipient.name)
         .replace(/{nome_aluno}/g, recipient.studentNames[0] || '')
         .replace(/{nomes_alunos}/g, recipient.studentNames.join(', ') || '')
         .replace(/{curso}/g, recipient.courseNames[0] || '')
-        .replace(/{cursos}/g, recipient.courseNames.join(', ') || '');
+        .replace(/{cursos}/g, recipient.courseNames.join(', ') || '')
+        .replace(/{link}/g, linkUrl.trim());
 
-      const success = await sendMessage({
-        phone: recipient.phone,
-        message: personalizedMessage,
-      });
+      // Only append the link automatically if the user didn't place it via {link}
+      if (linkUrl.trim() && !message.includes('{link}')) {
+        const cleanLink = linkUrl.trim();
+        // Format link on its own line with a pointer emoji so it looks like a tap target
+        personalizedMessage = `${personalizedMessage}\n\n👉 ${cleanLink}`;
+      }
+
+      const success = await sendMessage(
+        imageUrl
+          ? {
+              phone: recipient.phone,
+              message: personalizedMessage,
+              mediaUrl: imageUrl,
+              mediaType: 'image',
+              caption: personalizedMessage,
+            }
+          : { phone: recipient.phone, message: personalizedMessage }
+      );
 
       const result: SendResult = {
         recipientId: recipient.id,
@@ -384,10 +439,12 @@ export default function BulkMessages() {
       results.push(result);
       setSendResults([...results]);
       
+      const preview = (imageUrl ? '[IMG] ' : '') + personalizedMessage;
       await logMessage(
         recipient.phone,
         recipient.id,
         success ? 'success' : 'error',
+        preview,
         success ? undefined : 'Falha no envio'
       );
 
@@ -417,6 +474,8 @@ export default function BulkMessages() {
     setSendResults([]);
     setSelectedRecipients(new Set());
     setMessage('');
+    setImageUrl('');
+    setLinkUrl('');
   };
 
   // Template functions
@@ -760,6 +819,7 @@ export default function BulkMessages() {
                       { variable: '{nomes_alunos}', label: 'Nomes Alunos', description: 'Todos os alunos do responsável' },
                       { variable: '{curso}', label: 'Curso', description: 'Nome do curso principal' },
                       { variable: '{cursos}', label: 'Cursos', description: 'Todos os cursos matriculados' },
+                      { variable: '{link}', label: 'Link', description: 'URL inserida no campo Link' },
                     ].map((item) => (
                       <Button
                         key={item.variable}
@@ -831,6 +891,110 @@ export default function BulkMessages() {
                   </p>
                 </div>
 
+                {/* Image (optional) */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4" />
+                    Imagem (opcional)
+                  </Label>
+                  {imageUrl ? (
+                    <div className="relative inline-block">
+                      <img src={imageUrl} alt="Preview" className="max-h-40 rounded-md border" />
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="destructive"
+                        className="absolute -top-2 -right-2 h-6 w-6"
+                        onClick={() => setImageUrl('')}
+                        disabled={sendStatus === 'sending'}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Input
+                        placeholder="Cole a URL de uma imagem..."
+                        value={imageUrl}
+                        onChange={(e) => setImageUrl(e.target.value)}
+                        disabled={sendStatus === 'sending'}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingImage || sendStatus === 'sending'}
+                        className="gap-2 shrink-0"
+                      >
+                        {isUploadingImage ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                        Upload
+                      </Button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                        disabled={sendStatus === 'sending'}
+                      />
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    A imagem será enviada com a mensagem como legenda.
+                  </p>
+                </div>
+
+                {/* Link (optional) */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Link2 className="w-4 h-4" />
+                    Link (opcional)
+                  </Label>
+                  <Input
+                    placeholder="https://... (ex: link da página da Colônia)"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    disabled={sendStatus === 'sending'}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use <code className="bg-secondary px-1 rounded">{'{link}'}</code> no texto para posicionar o link onde quiser. Se não usar, ele será enviado automaticamente no final com 👉.
+                  </p>
+                </div>
+
+                {/* Message preview */}
+                {(message.trim() || linkUrl.trim() || imageUrl) && (
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Pré-visualização no WhatsApp</Label>
+                    <div className="p-3 rounded-lg bg-secondary/40 border border-border/60 space-y-2">
+                      {imageUrl && (
+                        <img src={imageUrl} alt="Preview da imagem" className="max-h-32 rounded-md border" />
+                      )}
+                      <p className="text-sm whitespace-pre-wrap">
+                        {(message.includes('{link}') && linkUrl.trim())
+                          ? message
+                              .replace(/{nome_responsavel}/g, 'Maria')
+                              .replace(/{nome}/g, 'Maria')
+                              .replace(/{nome_aluno}/g, 'João Silva')
+                              .replace(/{nomes_alunos}/g, 'João Silva, Ana Silva')
+                              .replace(/{curso}/g, 'Soroban')
+                              .replace(/{cursos}/g, 'Soroban, Robótica')
+                              .replace(/{link}/g, linkUrl.trim())
+                          : `${message
+                              .replace(/{nome_responsavel}/g, 'Maria')
+                              .replace(/{nome}/g, 'Maria')
+                              .replace(/{nome_aluno}/g, 'João Silva')
+                              .replace(/{nomes_alunos}/g, 'João Silva, Ana Silva')
+                              .replace(/{curso}/g, 'Soroban')
+                              .replace(/{cursos}/g, 'Soroban, Robótica')}${linkUrl.trim() ? `\n\n👉 ${linkUrl.trim()}` : ''}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Action buttons */}
                 <div className="flex gap-2 flex-wrap">
                   <Button
@@ -896,7 +1060,7 @@ export default function BulkMessages() {
                 {sendStatus === 'idle' && (
                   <Button
                     onClick={handleSend}
-                    disabled={selectedRecipients.size === 0 || !message.trim()}
+                    disabled={selectedRecipients.size === 0 || !(message.trim() || imageUrl || linkUrl.trim())}
                     className="w-full gap-2"
                   >
                     <Send className="w-4 h-4" />

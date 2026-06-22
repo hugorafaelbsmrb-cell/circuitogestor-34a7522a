@@ -1,0 +1,1 @@
+ALTER TABLE public.vacation_camp_packages ADD COLUMN IF NOT EXISTS includes JSONB DEFAULT '[]'::jsonb;
