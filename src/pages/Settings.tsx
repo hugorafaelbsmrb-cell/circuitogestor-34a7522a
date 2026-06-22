@@ -953,8 +953,93 @@ export default function Settings() {
         );
 
       case 'financial':
+        const asaasApiKeySetting = settings.find(s => s.key === 'ASAAS_API_KEY');
+        const asaasApiKeyValue = editedSettings['ASAAS_API_KEY'] || '';
+        const asaasEnvValue = editedSettings['ASAAS_ENVIRONMENT'] || 'sandbox';
+        const isApiKeyConfigured = !!asaasApiKeyValue;
         return (
           <div className="space-y-6">
+            {/* Asaas Credentials Card */}
+            <Card className="border-border/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="w-5 h-5" />
+                  Credenciais Asaas
+                </CardTitle>
+                <CardDescription>
+                  Configure a chave de API e o ambiente para integração com o Asaas
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="font-medium flex items-center gap-2">
+                    Chave de API (Access Token)
+                    {isApiKeyConfigured ? (
+                      <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Configurado
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        Não configurado
+                      </Badge>
+                    )}
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type={showSecrets['ASAAS_API_KEY'] ? 'text' : 'password'}
+                      value={asaasApiKeyValue}
+                      onChange={(e) => setEditedSettings(prev => ({ ...prev, 'ASAAS_API_KEY': e.target.value }))}
+                      placeholder="$aact_prod_... ou $aact_..."
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => toggleShowSecret('ASAAS_API_KEY')}
+                    >
+                      {showSecrets['ASAAS_API_KEY'] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Obtenha em: Painel Asaas → Integrações → API
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="font-medium">Ambiente</Label>
+                  <Select
+                    value={asaasEnvValue}
+                    onValueChange={(v) => setEditedSettings(prev => ({ ...prev, 'ASAAS_ENVIRONMENT': v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sandbox">Sandbox (teste)</SelectItem>
+                      <SelectItem value="production">Produção</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Use <strong>sandbox</strong> para testes e <strong>production</strong> para cobranças reais
+                  </p>
+                </div>
+
+                <div className="flex justify-end pt-4 border-t border-border">
+                  <Button onClick={handleSave} disabled={isSaving} className="min-w-[140px]">
+                    {isSaving ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</>
+                    ) : (
+                      <><Save className="w-4 h-4 mr-2" />Salvar Credenciais</>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+
             {/* Discount Card */}
             <Card className="border-border/50">
               <CardHeader>
