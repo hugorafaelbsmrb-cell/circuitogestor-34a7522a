@@ -3,6 +3,9 @@ project_id = "akxpcfqcasuabxbwyrew"
 [functions.vacation-camp-checkout]
 verify_jwt = false
 
+[functions.vacation-camp-pay-existing]
+verify_jwt = false
+
 [functions.asaas-webhook]
 verify_jwt = false
 
