@@ -6,6 +6,7 @@ import {
   MessageSquare,
   CheckCircle2,
   XCircle,
+  X,
   AlertCircle,
   GraduationCap,
   Save,
@@ -16,7 +17,10 @@ import {
   Loader2,
   Sparkles,
   Wand2,
-  Zap
+  Zap,
+  Image as ImageIcon,
+  Link2,
+  Upload
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
