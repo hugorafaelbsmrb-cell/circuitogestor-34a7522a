@@ -35,6 +35,7 @@ interface Pkg {
   id: string; name: string; description: string | null; price: number; original_price: number | null;
   max_slots: number | null; sold_count: number; active: boolean;
   payment_methods: string[]; max_installments: number; due_days: number; includes: any;
+  students_only?: boolean; price_negotiable?: boolean;
 }
 interface ScheduleItem {
   id: string; day_label: string; time_label: string | null; title: string;
