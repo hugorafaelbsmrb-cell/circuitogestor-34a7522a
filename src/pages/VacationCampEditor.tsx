@@ -321,6 +321,7 @@ function PackagesTab({ campId }: { campId: string }) {
       name: "", description: "", price: 0, original_price: null, max_slots: null, active: true,
       payment_methods: ["PIX", "BOLETO"], max_installments: 1, due_days: 3,
       includes: [], sort_order: items.length,
+      students_only: false, price_negotiable: false,
     });
     setOpen(true);
   };
