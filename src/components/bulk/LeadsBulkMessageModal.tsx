@@ -512,23 +512,34 @@ export function LeadsBulkMessageModal({
           ? courses.find(c => c.id === recipient.interested_course_id)?.name || ''
           : '';
         
-        const personalizedMessage = message
+        let personalizedMessage = message
           .replace(/{nome_responsavel}/g, recipient.name.split(' ')[0])
           .replace(/{nome_aluno}/g, recipient.student_name || recipient.name)
           .replace(/{nome_curso}/g, courseName);
-        
-        const success = await sendMessage({
-          phone: recipient.phone,
-          message: personalizedMessage,
-        });
-        
+
+        if (linkUrl.trim()) {
+          personalizedMessage = `${personalizedMessage}\n\n${linkUrl.trim()}`;
+        }
+
+        const success = await sendMessage(
+          imageUrl
+            ? {
+                phone: recipient.phone,
+                message: personalizedMessage,
+                mediaUrl: imageUrl,
+                mediaType: 'image',
+                caption: personalizedMessage,
+              }
+            : { phone: recipient.phone, message: personalizedMessage }
+        );
+
         results.push({ id: recipient.id, name: recipient.name, success });
-        
+
         await supabase.from('message_logs').insert({
           lead_id: recipient.id,
           phone: recipient.phone,
           template_category: selectedTemplate?.category || 'general',
-          message_preview: personalizedMessage.substring(0, 100),
+          message_preview: (imageUrl ? '[IMG] ' : '') + personalizedMessage.substring(0, 100),
           automation_key: 'bulk_leads',
           status: success ? 'sent' : 'error',
           error_message: success ? null : 'Falha no envio',
