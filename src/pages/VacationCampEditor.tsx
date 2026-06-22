@@ -322,9 +322,11 @@ function PackagesTab({ campId }: { campId: string }) {
       payment_methods: ["PIX", "BOLETO"], max_installments: 1, due_days: 3,
       includes: [], sort_order: items.length,
       students_only: false, price_negotiable: false,
+      card_interest_free_installments: 1, card_interest_percent: 0,
     });
     setOpen(true);
   };
+
 
   const togglePm = (m: string) => {
     const pm = editing.payment_methods || [];
