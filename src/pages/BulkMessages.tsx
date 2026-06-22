@@ -408,9 +408,11 @@ export default function BulkMessages() {
         .replace(/{nome_aluno}/g, recipient.studentNames[0] || '')
         .replace(/{nomes_alunos}/g, recipient.studentNames.join(', ') || '')
         .replace(/{curso}/g, recipient.courseNames[0] || '')
-        .replace(/{cursos}/g, recipient.courseNames.join(', ') || '');
+        .replace(/{cursos}/g, recipient.courseNames.join(', ') || '')
+        .replace(/{link}/g, linkUrl.trim());
 
-      if (linkUrl.trim()) {
+      // Only append the link automatically if the user didn't place it via {link}
+      if (linkUrl.trim() && !message.includes('{link}')) {
         const cleanLink = linkUrl.trim();
         // Format link on its own line with a pointer emoji so it looks like a tap target
         personalizedMessage = `${personalizedMessage}\n\n👉 ${cleanLink}`;
