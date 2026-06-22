@@ -321,6 +321,7 @@ function PackagesTab({ campId }: { campId: string }) {
       name: "", description: "", price: 0, original_price: null, max_slots: null, active: true,
       payment_methods: ["PIX", "BOLETO"], max_installments: 1, due_days: 3,
       includes: [], sort_order: items.length,
+      students_only: false, price_negotiable: false,
     });
     setOpen(true);
   };
@@ -406,6 +407,19 @@ function PackagesTab({ campId }: { campId: string }) {
               <div>
                 <Label>Itens incluídos (um por linha)</Label>
                 <Textarea rows={4} value={(editing.includes || []).join("\n")} onChange={(e) => setEditing({ ...editing, includes: e.target.value.split("\n").filter(Boolean) })} />
+              </div>
+              <div className="space-y-2 rounded border p-3 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Switch checked={!!editing.students_only} onCheckedChange={(v) => setEditing({ ...editing, students_only: v })} />
+                  <Label className="cursor-pointer">Exclusivo para alunos da escola</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={!!editing.price_negotiable} onCheckedChange={(v) => setEditing({ ...editing, price_negotiable: v })} />
+                  <Label className="cursor-pointer">Preço a negociar com a secretaria</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pacotes exclusivos ou com preço negociável não aparecem para checkout — o botão leva direto ao WhatsApp da escola.
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <Switch checked={editing.active} onCheckedChange={(v) => setEditing({ ...editing, active: v })} />
@@ -653,6 +667,7 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
   const [selected, setSelected] = useState<any>(null);
   const [pkgId, setPkgId] = useState<string>("");
   const [createCharge, setCreateCharge] = useState(false);
+  const [customAmount, setCustomAmount] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -666,10 +681,20 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
     return () => clearTimeout(t);
   }, [q]);
 
+  // Pre-fill custom amount when package changes
+  useEffect(() => {
+    const pkg = pkgs.find((p: any) => p.id === pkgId);
+    if (pkg) setCustomAmount(String(Number(pkg.price).toFixed(2)));
+    else setCustomAmount("");
+  }, [pkgId, pkgs]);
+
   const add = async () => {
     if (!selected || !pkgId) return toast.error("Selecione aluno e pacote");
-    const pkg = pkgs.find((p: any) => p.id === pkgId);
     const g = selected.guardians;
+    const parsedAmount = customAmount.trim() === "" ? null : parseFloat(customAmount.replace(",", "."));
+    if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+      return toast.error("Valor inválido");
+    }
     setSaving(true);
     const ageYears = selected.birth_date
       ? Math.floor((Date.now() - new Date(selected.birth_date).getTime()) / (365.25 * 24 * 3600 * 1000))
@@ -686,12 +711,12 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
       source: "admin",
       linked_student_id: selected.id,
       payment_status: createCharge ? "pending" : "exempt",
-      amount: pkg ? Number(pkg.price) : null,
+      amount: parsedAmount,
     });
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Aluno adicionado à colônia");
-    onOpenChange(false); setSelected(null); setQ(""); setPkgId(""); setCreateCharge(false);
+    onOpenChange(false); setSelected(null); setQ(""); setPkgId(""); setCreateCharge(false); setCustomAmount("");
     onAdded();
   };
 
@@ -730,6 +755,20 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
               <SelectTrigger><SelectValue placeholder="Escolha o pacote" /></SelectTrigger>
               <SelectContent>{pkgs.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name} — R$ {Number(p.price).toFixed(2)}</SelectItem>)}</SelectContent>
             </Select>
+          </div>
+          <div>
+            <Label>Valor a cobrar (R$)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              placeholder="Negociado direto com os pais"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Sobrescreve o preço do pacote. Deixe em branco para isento.
+            </p>
           </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={createCharge} onChange={(e) => setCreateCharge(e.target.checked)} />
