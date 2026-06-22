@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, 
   Send, 
@@ -6,11 +6,16 @@ import {
   CheckCircle,
   XCircle,
   Users,
-  AlertCircle
+  AlertCircle,
+  Image as ImageIcon,
+  Link2,
+  Upload,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
