@@ -195,7 +195,6 @@ serve(async (req) => {
     const paymentPayload: Record<string, unknown> = {
       customer: customer.id,
       billingType,
-      value: Number(pkg.price),
       dueDate,
       description,
       externalReference,
@@ -203,7 +202,9 @@ serve(async (req) => {
 
     if (billingType === "CREDIT_CARD" && installments && installments > 1) {
       paymentPayload.installmentCount = installments;
-      paymentPayload.installmentValue = Math.round((Number(pkg.price) / installments) * 100) / 100;
+      paymentPayload.totalValue = Number(pkg.price);
+    } else {
+      paymentPayload.value = Number(pkg.price);
     }
 
     const paymentResp = await asaasFetch(
