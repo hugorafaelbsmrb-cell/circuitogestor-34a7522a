@@ -89,6 +89,7 @@ const App = () => (
               {/* Public routes - no authentication required */}
               <Route path="/assinar/:token" element={<ContractSign />} />
               <Route path="/colonia/:slug" element={<VacationCampLanding />} />
+              <Route path="/colonia-pagamento/:id" element={<VacationCampPayment />} />
               <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
               <Route path="/campanha" element={<CampaignLanding />} />
               <Route path="/campanha/:slug" element={<CourseLanding />} />
