@@ -596,11 +596,14 @@ export function LeadsBulkMessageModal({
         ? courses.find(c => c.id === recipient.interested_course_id)?.name || ''
         : '';
       
-      const personalizedMessage = message
+      let personalizedMessage = message
         .replace(/{nome_responsavel}/g, recipient.name.split(' ')[0])
         .replace(/{nome_aluno}/g, recipient.student_name || recipient.name)
         .replace(/{nome_curso}/g, courseName);
-      
+
+      if (imageUrl) personalizedMessage = `${personalizedMessage}\n\n${imageUrl}`;
+      if (linkUrl.trim()) personalizedMessage = `${personalizedMessage}\n\n${linkUrl.trim()}`;
+
       const cleanPhone = recipient.phone.replace(/\D/g, '');
       const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
       const encodedMessage = encodeURIComponent(personalizedMessage);
