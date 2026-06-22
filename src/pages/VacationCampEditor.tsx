@@ -756,6 +756,20 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
               <SelectContent>{pkgs.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name} — R$ {Number(p.price).toFixed(2)}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+          <div>
+            <Label>Valor a cobrar (R$)</Label>
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              value={customAmount}
+              onChange={(e) => setCustomAmount(e.target.value)}
+              placeholder="Negociado direto com os pais"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Sobrescreve o preço do pacote. Deixe em branco para isento.
+            </p>
+          </div>
           <label className="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={createCharge} onChange={(e) => setCreateCharge(e.target.checked)} />
             Gerar cobrança no Asaas (caso desmarcado, fica como isento)
