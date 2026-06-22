@@ -1025,7 +1025,7 @@ export default function BulkMessages() {
                 {sendStatus === 'idle' && (
                   <Button
                     onClick={handleSend}
-                    disabled={selectedRecipients.size === 0 || !message.trim()}
+                    disabled={selectedRecipients.size === 0 || !(message.trim() || imageUrl || linkUrl.trim())}
                     className="w-full gap-2"
                   >
                     <Send className="w-4 h-4" />
