@@ -2511,8 +2511,10 @@ export type Database = {
           original_price: number | null
           payment_methods: Json
           price: number
+          price_negotiable: boolean
           sold_count: number
           sort_order: number
+          students_only: boolean
           updated_at: string
         }
         Insert: {
@@ -2529,8 +2531,10 @@ export type Database = {
           original_price?: number | null
           payment_methods?: Json
           price?: number
+          price_negotiable?: boolean
           sold_count?: number
           sort_order?: number
+          students_only?: boolean
           updated_at?: string
         }
         Update: {
@@ -2547,8 +2551,10 @@ export type Database = {
           original_price?: number | null
           payment_methods?: Json
           price?: number
+          price_negotiable?: boolean
           sold_count?: number
           sort_order?: number
+          students_only?: boolean
           updated_at?: string
         }
         Relationships: [
