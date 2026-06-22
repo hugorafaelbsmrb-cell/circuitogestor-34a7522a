@@ -667,6 +667,7 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
   const [selected, setSelected] = useState<any>(null);
   const [pkgId, setPkgId] = useState<string>("");
   const [createCharge, setCreateCharge] = useState(false);
+  const [customAmount, setCustomAmount] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -680,10 +681,20 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
     return () => clearTimeout(t);
   }, [q]);
 
+  // Pre-fill custom amount when package changes
+  useEffect(() => {
+    const pkg = pkgs.find((p: any) => p.id === pkgId);
+    if (pkg) setCustomAmount(String(Number(pkg.price).toFixed(2)));
+    else setCustomAmount("");
+  }, [pkgId, pkgs]);
+
   const add = async () => {
     if (!selected || !pkgId) return toast.error("Selecione aluno e pacote");
-    const pkg = pkgs.find((p: any) => p.id === pkgId);
     const g = selected.guardians;
+    const parsedAmount = customAmount.trim() === "" ? null : parseFloat(customAmount.replace(",", "."));
+    if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
+      return toast.error("Valor inválido");
+    }
     setSaving(true);
     const ageYears = selected.birth_date
       ? Math.floor((Date.now() - new Date(selected.birth_date).getTime()) / (365.25 * 24 * 3600 * 1000))
@@ -700,12 +711,12 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
       source: "admin",
       linked_student_id: selected.id,
       payment_status: createCharge ? "pending" : "exempt",
-      amount: pkg ? Number(pkg.price) : null,
+      amount: parsedAmount,
     });
     setSaving(false);
     if (error) return toast.error(error.message);
     toast.success("Aluno adicionado à colônia");
-    onOpenChange(false); setSelected(null); setQ(""); setPkgId(""); setCreateCharge(false);
+    onOpenChange(false); setSelected(null); setQ(""); setPkgId(""); setCreateCharge(false); setCustomAmount("");
     onAdded();
   };
 
