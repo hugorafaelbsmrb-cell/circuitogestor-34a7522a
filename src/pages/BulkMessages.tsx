@@ -309,10 +309,42 @@ export default function BulkMessages() {
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Arquivo inválido', description: 'Selecione uma imagem.', variant: 'destructive' });
+      return;
+    }
+    setIsUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `bulk/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('campaign-images').upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from('campaign-images').getPublicUrl(path);
+      setImageUrl(data.publicUrl);
+      toast({ title: 'Imagem carregada', description: 'Pronta para envio.' });
+    } catch (err) {
+      toast({
+        title: 'Erro no upload',
+        description: err instanceof Error ? err.message : 'Não foi possível enviar a imagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const logMessage = async (
     phone: string,
     guardianId: string,
     status: 'success' | 'error',
+    preview: string,
     errorMessage?: string
   ) => {
     try {
@@ -320,7 +352,7 @@ export default function BulkMessages() {
         phone,
         guardian_id: guardianId,
         template_category: 'bulk_manual',
-        message_preview: message.substring(0, 100),
+        message_preview: preview.substring(0, 100),
         automation_key: 'bulk_messages_page',
         status,
         error_message: errorMessage,
@@ -370,7 +402,7 @@ export default function BulkMessages() {
       const recipient = recipientsToSend[i];
       
       // Personalize message
-      const personalizedMessage = message
+      let personalizedMessage = message
         .replace(/{nome_responsavel}/g, recipient.name)
         .replace(/{nome}/g, recipient.name)
         .replace(/{nome_aluno}/g, recipient.studentNames[0] || '')
@@ -378,10 +410,21 @@ export default function BulkMessages() {
         .replace(/{curso}/g, recipient.courseNames[0] || '')
         .replace(/{cursos}/g, recipient.courseNames.join(', ') || '');
 
-      const success = await sendMessage({
-        phone: recipient.phone,
-        message: personalizedMessage,
-      });
+      if (linkUrl.trim()) {
+        personalizedMessage = `${personalizedMessage}\n\n${linkUrl.trim()}`;
+      }
+
+      const success = await sendMessage(
+        imageUrl
+          ? {
+              phone: recipient.phone,
+              message: personalizedMessage,
+              mediaUrl: imageUrl,
+              mediaType: 'image',
+              caption: personalizedMessage,
+            }
+          : { phone: recipient.phone, message: personalizedMessage }
+      );
 
       const result: SendResult = {
         recipientId: recipient.id,
@@ -392,10 +435,12 @@ export default function BulkMessages() {
       results.push(result);
       setSendResults([...results]);
       
+      const preview = (imageUrl ? '[IMG] ' : '') + personalizedMessage;
       await logMessage(
         recipient.phone,
         recipient.id,
         success ? 'success' : 'error',
+        preview,
         success ? undefined : 'Falha no envio'
       );
 
@@ -425,6 +470,8 @@ export default function BulkMessages() {
     setSendResults([]);
     setSelectedRecipients(new Set());
     setMessage('');
+    setImageUrl('');
+    setLinkUrl('');
   };
 
   // Template functions
