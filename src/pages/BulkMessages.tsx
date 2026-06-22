@@ -819,6 +819,7 @@ export default function BulkMessages() {
                       { variable: '{nomes_alunos}', label: 'Nomes Alunos', description: 'Todos os alunos do responsável' },
                       { variable: '{curso}', label: 'Curso', description: 'Nome do curso principal' },
                       { variable: '{cursos}', label: 'Cursos', description: 'Todos os cursos matriculados' },
+                      { variable: '{link}', label: 'Link', description: 'URL inserida no campo Link' },
                     ].map((item) => (
                       <Button
                         key={item.variable}
@@ -960,7 +961,7 @@ export default function BulkMessages() {
                     disabled={sendStatus === 'sending'}
                   />
                   <p className="text-xs text-muted-foreground">
-                    O link será enviado em uma linha separada com 👉 para parecer um botão no WhatsApp.
+                    Use <code className="bg-secondary px-1 rounded">{'{link}'}</code> no texto para posicionar o link onde quiser. Se não usar, ele será enviado automaticamente no final com 👉.
                   </p>
                 </div>
 
@@ -973,14 +974,22 @@ export default function BulkMessages() {
                         <img src={imageUrl} alt="Preview da imagem" className="max-h-32 rounded-md border" />
                       )}
                       <p className="text-sm whitespace-pre-wrap">
-                        {message
-                          .replace(/{nome_responsavel}/g, 'Maria')
-                          .replace(/{nome}/g, 'Maria')
-                          .replace(/{nome_aluno}/g, 'João Silva')
-                          .replace(/{nomes_alunos}/g, 'João Silva, Ana Silva')
-                          .replace(/{curso}/g, 'Soroban')
-                          .replace(/{cursos}/g, 'Soroban, Robótica')}
-                        {linkUrl.trim() && `\n\n👉 ${linkUrl.trim()}`}
+                        {(message.includes('{link}') && linkUrl.trim())
+                          ? message
+                              .replace(/{nome_responsavel}/g, 'Maria')
+                              .replace(/{nome}/g, 'Maria')
+                              .replace(/{nome_aluno}/g, 'João Silva')
+                              .replace(/{nomes_alunos}/g, 'João Silva, Ana Silva')
+                              .replace(/{curso}/g, 'Soroban')
+                              .replace(/{cursos}/g, 'Soroban, Robótica')
+                              .replace(/{link}/g, linkUrl.trim())
+                          : `${message
+                              .replace(/{nome_responsavel}/g, 'Maria')
+                              .replace(/{nome}/g, 'Maria')
+                              .replace(/{nome_aluno}/g, 'João Silva')
+                              .replace(/{nomes_alunos}/g, 'João Silva, Ana Silva')
+                              .replace(/{curso}/g, 'Soroban')
+                              .replace(/{cursos}/g, 'Soroban, Robótica')}${linkUrl.trim() ? `\n\n👉 ${linkUrl.trim()}` : ''}`}
                       </p>
                     </div>
                   </div>
