@@ -36,7 +36,20 @@ interface Pkg {
   max_slots: number | null; sold_count: number; active: boolean;
   payment_methods: string[]; max_installments: number; due_days: number; includes: any;
   students_only?: boolean; price_negotiable?: boolean;
+  card_interest_free_installments?: number; card_interest_percent?: number;
 }
+
+/** Computes installment value using Tabela Price compound interest. */
+function calcInstallment(price: number, n: number, freeInst: number, monthlyPct: number) {
+  if (n <= Math.max(1, freeInst) || monthlyPct <= 0) {
+    return { perInstallment: price / n, total: price };
+  }
+  const i = monthlyPct / 100;
+  const factor = Math.pow(1 + i, n);
+  const pmt = (price * i * factor) / (factor - 1);
+  return { perInstallment: pmt, total: pmt * n };
+}
+
 interface ScheduleItem {
   id: string; day_label: string; time_label: string | null; title: string;
   description: string | null; icon: string | null; sort_order: number;
