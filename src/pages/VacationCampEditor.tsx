@@ -665,6 +665,12 @@ function EnrollmentsTab({ campId }: { campId: string }) {
                     </td>
                     <td className="p-2"><Badge variant="outline">{r.source}</Badge></td>
                     <td className="p-2 text-right whitespace-nowrap">
+                      {r.payment_status !== "confirmed" && r.payment_status !== "cancelled" && (
+                        <>
+                          <Button size="icon" variant="ghost" title="Enviar link de pagamento por WhatsApp" onClick={() => sendPaymentLink(r)}><Send className="w-4 h-4 text-primary" /></Button>
+                          <Button size="icon" variant="ghost" title="Copiar link de pagamento" onClick={() => copyPaymentLink(r)}><Copy className="w-4 h-4" /></Button>
+                        </>
+                      )}
                       {r.payment_status !== "confirmed" && (
                         <Button size="icon" variant="ghost" title="Marcar pago" onClick={() => markPaid(r)}><CheckCircle className="w-4 h-4 text-green-600" /></Button>
                       )}
