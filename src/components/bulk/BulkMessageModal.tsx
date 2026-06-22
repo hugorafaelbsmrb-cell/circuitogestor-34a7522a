@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, 
   Send, 
@@ -6,11 +6,16 @@ import {
   CheckCircle,
   XCircle,
   Users,
-  AlertCircle
+  AlertCircle,
+  Image as ImageIcon,
+  Link2,
+  Upload,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
@@ -93,6 +98,10 @@ export function BulkMessageModal({
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
   const [isWapiConfigured, setIsWapiConfigured] = useState(false);
   const [sendMode, setSendMode] = useState<'wapi' | 'web'>('wapi');
+  const [imageUrl, setImageUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -100,8 +109,41 @@ export function BulkMessageModal({
       checkWapiConfig();
       setSendResults([]);
       setSendProgress(0);
+      setImageUrl('');
+      setLinkUrl('');
     }
   }, [open]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Arquivo inválido', description: 'Selecione uma imagem.', variant: 'destructive' });
+      return;
+    }
+    setIsUploadingImage(true);
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `bulk/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('campaign-images').upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from('campaign-images').getPublicUrl(path);
+      setImageUrl(data.publicUrl);
+      toast({ title: 'Imagem carregada', description: 'Pronta para envio.' });
+    } catch (err) {
+      toast({
+        title: 'Erro no upload',
+        description: err instanceof Error ? err.message : 'Não foi possível enviar a imagem.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const checkWapiConfig = async () => {
     const config = await checkConfig();
@@ -171,23 +213,34 @@ export function BulkMessageModal({
       
       try {
         // Replace variables in message
-        const personalizedMessage = message
+        let personalizedMessage = message
           .replace(/{nome_responsavel}/g, recipient.name)
           .replace(/{nome_aluno}/g, recipient.name);
-        
-        const success = await sendMessage({
-          phone: recipient.phone,
-          message: personalizedMessage,
-        });
-        
+
+        if (linkUrl.trim()) {
+          personalizedMessage = `${personalizedMessage}\n\n${linkUrl.trim()}`;
+        }
+
+        const success = await sendMessage(
+          imageUrl
+            ? {
+                phone: recipient.phone,
+                message: personalizedMessage,
+                mediaUrl: imageUrl,
+                mediaType: 'image',
+                caption: personalizedMessage,
+              }
+            : { phone: recipient.phone, message: personalizedMessage }
+        );
+
         results.push({ id: recipient.id, name: recipient.name, success });
-        
+
         // Log the message
         await supabase.from('message_logs').insert({
           [recipient.type === 'guardian' ? 'guardian_id' : 'lead_id']: recipient.id,
           phone: recipient.phone,
           template_category: selectedTemplate?.category || 'general',
-          message_preview: personalizedMessage.substring(0, 100),
+          message_preview: (imageUrl ? '[IMG] ' : '') + personalizedMessage.substring(0, 100),
           automation_key: 'bulk',
           status: success ? 'sent' : 'error',
           error_message: success ? null : 'Falha no envio',
@@ -233,14 +286,17 @@ export function BulkMessageModal({
 
     // Open WhatsApp Web for each recipient
     recipients.forEach((recipient, index) => {
-      const personalizedMessage = message
+      let personalizedMessage = message
         .replace(/{nome_responsavel}/g, recipient.name)
         .replace(/{nome_aluno}/g, recipient.name);
-      
+
+      if (imageUrl) personalizedMessage = `${personalizedMessage}\n\n${imageUrl}`;
+      if (linkUrl.trim()) personalizedMessage = `${personalizedMessage}\n\n${linkUrl.trim()}`;
+
       const cleanPhone = recipient.phone.replace(/\D/g, '');
       const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
       const encodedMessage = encodeURIComponent(personalizedMessage);
-      
+
       setTimeout(() => {
         window.open(`https://wa.me/${formattedPhone}?text=${encodedMessage}`, '_blank');
       }, index * 500); // Delay between opening tabs
@@ -353,6 +409,76 @@ export function BulkMessageModal({
             />
             <p className="text-xs text-muted-foreground">
               Variáveis disponíveis: {'{nome_responsavel}'}, {'{nome_aluno}'}
+            </p>
+          </div>
+
+          {/* Image (optional) */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <ImageIcon className="w-4 h-4" />
+              Imagem (opcional)
+            </Label>
+            {imageUrl ? (
+              <div className="relative inline-block">
+                <img src={imageUrl} alt="Preview" className="max-h-40 rounded-md border" />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  className="absolute -top-2 -right-2 h-6 w-6"
+                  onClick={() => setImageUrl('')}
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Input
+                  placeholder="Cole a URL de uma imagem..."
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingImage}
+                  className="gap-2 shrink-0"
+                >
+                  {isUploadingImage ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  Upload
+                </Button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              A imagem será enviada com a mensagem como legenda.
+            </p>
+          </div>
+
+          {/* Link (optional) */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Link2 className="w-4 h-4" />
+              Link (opcional)
+            </Label>
+            <Input
+              placeholder="https://... (ex: link da página da Colônia)"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              O link será adicionado ao final da mensagem para gerar preview no WhatsApp.
             </p>
           </div>
 
