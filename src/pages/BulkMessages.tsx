@@ -96,11 +96,15 @@ export default function BulkMessages() {
   const { getGenerateFunctionName } = useAIProvider();
 
   const [message, setMessage] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set());
   const [sendStatus, setSendStatus] = useState<SendStatus>('idle');
   const [sendProgress, setSendProgress] = useState(0);
   const [sendResults, setSendResults] = useState<SendResult[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Templates state
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
