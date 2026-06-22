@@ -408,6 +408,19 @@ function PackagesTab({ campId }: { campId: string }) {
                 <Label>Itens incluídos (um por linha)</Label>
                 <Textarea rows={4} value={(editing.includes || []).join("\n")} onChange={(e) => setEditing({ ...editing, includes: e.target.value.split("\n").filter(Boolean) })} />
               </div>
+              <div className="space-y-2 rounded border p-3 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Switch checked={!!editing.students_only} onCheckedChange={(v) => setEditing({ ...editing, students_only: v })} />
+                  <Label className="cursor-pointer">Exclusivo para alunos da escola</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={!!editing.price_negotiable} onCheckedChange={(v) => setEditing({ ...editing, price_negotiable: v })} />
+                  <Label className="cursor-pointer">Preço a negociar com a secretaria</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pacotes exclusivos ou com preço negociável não aparecem para checkout — o botão leva direto ao WhatsApp da escola.
+                </p>
+              </div>
               <div className="flex items-center gap-2">
                 <Switch checked={editing.active} onCheckedChange={(v) => setEditing({ ...editing, active: v })} />
                 <Label>Ativo</Label>
