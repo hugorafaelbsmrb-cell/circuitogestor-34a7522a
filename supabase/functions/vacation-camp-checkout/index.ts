@@ -200,17 +200,13 @@ serve(async (req) => {
       dueDate,
       description,
       externalReference,
+      value: Number(pkg.price),
     };
 
-    if (billingType === "CREDIT_CARD" && installments && installments > 1) {
-      paymentPayload.installmentCount = installments;
-      paymentPayload.totalValue = Number(pkg.price);
-    } else {
-      paymentPayload.value = Number(pkg.price);
-    }
-
-    // Allow the customer to pick installments on the hosted invoice page (credit card tab)
-    if (maxInst > 1) {
+    // For credit card, expose the installment options on the hosted invoice page.
+    // The merchant's Asaas account rules decide which installments are "sem juros"
+    // and which carry juros do emissor (e.g. 1–2x sem juros, 3x+ com juros).
+    if (billingType === "CREDIT_CARD" && maxInst > 1) {
       paymentPayload.maxInstallmentCount = maxInst;
     }
 
