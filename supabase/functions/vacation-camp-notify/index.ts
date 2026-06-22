@@ -144,8 +144,15 @@ serve(async (req) => {
         lines.push("", "📲 Segue o código PIX *Copia e Cola* logo abaixo:");
       } else if (method === "BOLETO" && enrollment.asaas_bank_slip_url) {
         lines.push("", `🧾 Boleto: ${enrollment.asaas_bank_slip_url}`);
-      } else if (enrollment.asaas_invoice_url) {
-        lines.push("", `🔗 Link de pagamento: ${enrollment.asaas_invoice_url}`);
+      } else if (method === "CREDIT_CARD" && enrollment.asaas_invoice_url) {
+        lines.push("", `💳 Pagar com cartão: ${enrollment.asaas_invoice_url}`);
+      }
+
+      if (enrollment.asaas_invoice_url) {
+        lines.push(
+          "",
+          `🔗 Link de pagamento (salve para retomar a qualquer momento): ${enrollment.asaas_invoice_url}`
+        );
       }
 
       lines.push(
