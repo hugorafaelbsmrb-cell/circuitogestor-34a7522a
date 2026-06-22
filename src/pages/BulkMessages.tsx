@@ -363,10 +363,10 @@ export default function BulkMessages() {
   };
 
   const handleSend = async () => {
-    if (!message.trim()) {
+    if (!message.trim() && !imageUrl && !linkUrl.trim()) {
       toast({
         title: 'Mensagem vazia',
-        description: 'Digite uma mensagem para enviar.',
+        description: 'Digite uma mensagem, anexe uma imagem ou adicione um link para enviar.',
         variant: 'destructive',
       });
       return;
