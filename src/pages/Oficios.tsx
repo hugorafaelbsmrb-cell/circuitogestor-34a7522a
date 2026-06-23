@@ -536,7 +536,47 @@ export default function Oficios() {
                     placeholder="Ex: Diretor(a) Pedagógico(a)"
                   />
                 </div>
+                </div>
+
+                <Separator />
+
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <FileSignature className="w-4 h-4 text-primary" />
+                        Assinatura digital salva
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Usa a assinatura cadastrada em Configuração de Contrato (diretoria).
+                      </p>
+                    </div>
+                    {signatureDataUrl ? (
+                      <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={useSavedSignature}
+                          onChange={(e) => setUseSavedSignature(e.target.checked)}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        Usar no PDF
+                      </label>
+                    ) : (
+                      <Badge variant="outline">Não cadastrada</Badge>
+                    )}
+                  </div>
+                  {signatureDataUrl && (
+                    <div className="bg-white rounded border p-3 flex items-center justify-center">
+                      <img
+                        src={signatureDataUrl}
+                        alt="Assinatura"
+                        className="max-h-20 object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
               </TabsContent>
+
             </Tabs>
           </CardContent>
         </Card>
