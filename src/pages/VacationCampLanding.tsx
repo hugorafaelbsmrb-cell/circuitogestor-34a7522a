@@ -164,6 +164,14 @@ export default function VacationCampLanding() {
   const faq = (camp.faq as any[]) || [];
 
   const openCheckout = (pkg: Pkg) => {
+    // Facebook Pixel — InitiateCheckout
+    if (typeof (window as any).fbq === 'function') {
+      (window as any).fbq('track', 'InitiateCheckout', {
+        content_name: pkg.name,
+        value: pkg.price,
+        currency: 'BRL',
+      });
+    }
     setSelectedPkg(pkg);
     setCheckoutOpen(true);
   };
@@ -797,6 +805,14 @@ function CheckoutDialog({
       if (data?.error) throw new Error(data.error);
       setResult(data);
       setStep("payment");
+      // Facebook Pixel — Lead (pré-inscrição concluída)
+      if (typeof (window as any).fbq === 'function') {
+        (window as any).fbq('track', 'Lead', {
+          content_name: pkg.name,
+          value: pkg.price,
+          currency: 'BRL',
+        });
+      }
     } catch (e: any) {
       toast.error(e?.message || "Erro ao processar inscrição");
     } finally {
