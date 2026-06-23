@@ -106,7 +106,10 @@ export default function Oficios() {
 
   const [saved, setSaved] = useState<SavedOficio[]>(loadSaved);
   const [institution, setInstitution] = useState<InstitutionInfo>(loadInstitution);
-  const [contractConfig, setContractConfig] = useState<{ school_name?: string; school_cnpj?: string; school_address?: string } | null>(null);
+  const [contractConfig, setContractConfig] = useState<{ school_name?: string; school_cnpj?: string; school_address?: string; representative_signature_url?: string | null } | null>(null);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [useSavedSignature, setUseSavedSignature] = useState(true);
+
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
