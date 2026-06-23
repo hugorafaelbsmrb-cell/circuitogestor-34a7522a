@@ -142,10 +142,23 @@ export function generateOficioPDF(data: OficioPdfData): jsPDF {
   }
 
   const sigCenter = pageW / 2;
+
+  // Saved signature image (e.g., director's signature from contract_config)
+  if (data.signatureImage) {
+    try {
+      const sigW = 60;
+      const sigH = 22;
+      doc.addImage(data.signatureImage, "PNG", sigCenter - sigW / 2, y - sigH, sigW, sigH);
+    } catch (e) {
+      console.warn("signature image failed", e);
+    }
+  }
+
   doc.setDrawColor(TEXT[0], TEXT[1], TEXT[2]);
   doc.setLineWidth(0.3);
   doc.line(sigCenter - 40, y, sigCenter + 40, y);
   y += 5;
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.text(data.signerName, sigCenter, y, { align: "center" });
