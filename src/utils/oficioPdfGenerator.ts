@@ -19,9 +19,9 @@ export interface OficioPdfData {
   signerRole: string;
 }
 
-const PRIMARY = [31, 41, 99] as const; // deep blue
-const TEXT = [33, 37, 41] as const;
-const MUTED = [110, 118, 129] as const;
+const PRIMARY = [234, 88, 12] as const; // orange-600
+const TEXT = [38, 38, 38] as const; // neutral-800
+const MUTED = [115, 115, 115] as const; // neutral-500
 
 export function generateOficioPDF(data: OficioPdfData): jsPDF {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
