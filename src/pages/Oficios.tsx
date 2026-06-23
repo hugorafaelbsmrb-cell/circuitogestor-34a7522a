@@ -127,18 +127,31 @@ export default function Oficios() {
     (async () => {
       const { data } = await supabase.from("contract_config").select("*").maybeSingle();
       if (data) {
-        setContractConfig(data);
+        setContractConfig(data as any);
         setInstitution((prev) => {
           const merged = {
             ...prev,
             name: prev.name || data.school_name || branding.name || "",
             cnpj: prev.cnpj || data.school_cnpj || "",
             address: prev.address || data.school_address || "",
-            defaultSignerName: prev.defaultSignerName || data.representative_name || "",
+            defaultSignerName: prev.defaultSignerName || (data as any).representative_name || "",
           };
           persistInstitution(merged);
           return merged;
         });
+
+        const sigUrl = (data as any).representative_signature_url as string | null;
+        if (sigUrl) {
+          try {
+            const resp = await fetch(sigUrl);
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => setSignatureDataUrl(reader.result as string);
+            reader.readAsDataURL(blob);
+          } catch (e) {
+            console.warn("Falha ao carregar assinatura salva", e);
+          }
+        }
       } else if (branding.name && !institution.name) {
         setInstitution((prev) => {
           const merged = { ...prev, name: branding.name };
@@ -149,6 +162,7 @@ export default function Oficios() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branding.name]);
+
 
   function createEmpty(list: SavedOficio[]): SavedOficio {
     return {
