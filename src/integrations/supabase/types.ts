@@ -2396,6 +2396,7 @@ export type Database = {
       vacation_camp_enrollments: {
         Row: {
           amount: number | null
+          asaas_bank_slip_url: string | null
           asaas_customer_id: string | null
           asaas_invoice_url: string | null
           asaas_payment_id: string | null
@@ -2422,6 +2423,7 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          asaas_bank_slip_url?: string | null
           asaas_customer_id?: string | null
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
@@ -2448,6 +2450,7 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          asaas_bank_slip_url?: string | null
           asaas_customer_id?: string | null
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
