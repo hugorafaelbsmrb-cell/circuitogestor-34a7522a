@@ -536,7 +536,7 @@ export default function Oficios() {
                     placeholder="Ex: Diretor(a) Pedagógico(a)"
                   />
                 </div>
-                </div>
+
 
                 <Separator />
 
