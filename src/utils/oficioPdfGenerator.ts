@@ -17,7 +17,9 @@ export interface OficioPdfData {
   date: string; // ISO
   signerName: string;
   signerRole: string;
+  signatureImage?: string | null; // data URL or public URL of the saved signature
 }
+
 
 const PRIMARY = [234, 88, 12] as const; // orange-600
 const TEXT = [38, 38, 38] as const; // neutral-800
@@ -118,10 +120,12 @@ export function generateOficioPDF(data: OficioPdfData): jsPDF {
   const paragraphs = data.body.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   const lineHeight = 6;
 
+  const sigBlockHeight = data.signatureImage ? 70 : 50;
+
   for (const para of paragraphs) {
     const lines = doc.splitTextToSize(para, contentW);
     for (const line of lines) {
-      if (y > pageH - 50) {
+      if (y > pageH - sigBlockHeight) {
         doc.addPage();
         y = margin;
       }
@@ -132,18 +136,32 @@ export function generateOficioPDF(data: OficioPdfData): jsPDF {
   }
 
   // ===== SIGNATURE =====
-  if (y > pageH - 45) {
+  if (y > pageH - sigBlockHeight) {
     doc.addPage();
     y = margin + 10;
   } else {
-    y = Math.max(y + 20, pageH - 50);
+    y = Math.max(y + 20, pageH - sigBlockHeight + 20);
   }
 
+
   const sigCenter = pageW / 2;
+
+  // Saved signature image (e.g., director's signature from contract_config)
+  if (data.signatureImage) {
+    try {
+      const sigW = 60;
+      const sigH = 22;
+      doc.addImage(data.signatureImage, "PNG", sigCenter - sigW / 2, y - sigH, sigW, sigH);
+    } catch (e) {
+      console.warn("signature image failed", e);
+    }
+  }
+
   doc.setDrawColor(TEXT[0], TEXT[1], TEXT[2]);
   doc.setLineWidth(0.3);
   doc.line(sigCenter - 40, y, sigCenter + 40, y);
   y += 5;
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.text(data.signerName, sigCenter, y, { align: "center" });

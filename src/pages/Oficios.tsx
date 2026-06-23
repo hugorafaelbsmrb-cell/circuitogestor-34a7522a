@@ -106,7 +106,10 @@ export default function Oficios() {
 
   const [saved, setSaved] = useState<SavedOficio[]>(loadSaved);
   const [institution, setInstitution] = useState<InstitutionInfo>(loadInstitution);
-  const [contractConfig, setContractConfig] = useState<{ school_name?: string; school_cnpj?: string; school_address?: string } | null>(null);
+  const [contractConfig, setContractConfig] = useState<{ school_name?: string; school_cnpj?: string; school_address?: string; representative_signature_url?: string | null } | null>(null);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [useSavedSignature, setUseSavedSignature] = useState(true);
+
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -124,18 +127,31 @@ export default function Oficios() {
     (async () => {
       const { data } = await supabase.from("contract_config").select("*").maybeSingle();
       if (data) {
-        setContractConfig(data);
+        setContractConfig(data as any);
         setInstitution((prev) => {
           const merged = {
             ...prev,
             name: prev.name || data.school_name || branding.name || "",
             cnpj: prev.cnpj || data.school_cnpj || "",
             address: prev.address || data.school_address || "",
-            defaultSignerName: prev.defaultSignerName || data.representative_name || "",
+            defaultSignerName: prev.defaultSignerName || (data as any).representative_name || "",
           };
           persistInstitution(merged);
           return merged;
         });
+
+        const sigUrl = (data as any).representative_signature_url as string | null;
+        if (sigUrl) {
+          try {
+            const resp = await fetch(sigUrl);
+            const blob = await resp.blob();
+            const reader = new FileReader();
+            reader.onloadend = () => setSignatureDataUrl(reader.result as string);
+            reader.readAsDataURL(blob);
+          } catch (e) {
+            console.warn("Falha ao carregar assinatura salva", e);
+          }
+        }
       } else if (branding.name && !institution.name) {
         setInstitution((prev) => {
           const merged = { ...prev, name: branding.name };
@@ -146,6 +162,7 @@ export default function Oficios() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branding.name]);
+
 
   function createEmpty(list: SavedOficio[]): SavedOficio {
     return {
@@ -246,7 +263,9 @@ export default function Oficios() {
         date: form.date,
         signerName: form.signerName || institution.defaultSignerName || "—",
         signerRole: form.signerRole || institution.defaultSignerRole || "—",
+        signatureImage: useSavedSignature ? signatureDataUrl : null,
       });
+
       doc.save(`oficio-${form.number.replace("/", "-")}.pdf`);
       toast({ title: "PDF gerado com sucesso" });
     } catch (e) {
@@ -517,7 +536,47 @@ export default function Oficios() {
                     placeholder="Ex: Diretor(a) Pedagógico(a)"
                   />
                 </div>
+
+
+                <Separator />
+
+                <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium flex items-center gap-2">
+                        <FileSignature className="w-4 h-4 text-primary" />
+                        Assinatura digital salva
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Usa a assinatura cadastrada em Configuração de Contrato (diretoria).
+                      </p>
+                    </div>
+                    {signatureDataUrl ? (
+                      <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={useSavedSignature}
+                          onChange={(e) => setUseSavedSignature(e.target.checked)}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        Usar no PDF
+                      </label>
+                    ) : (
+                      <Badge variant="outline">Não cadastrada</Badge>
+                    )}
+                  </div>
+                  {signatureDataUrl && (
+                    <div className="bg-white rounded border p-3 flex items-center justify-center">
+                      <img
+                        src={signatureDataUrl}
+                        alt="Assinatura"
+                        className="max-h-20 object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
               </TabsContent>
+
             </Tabs>
           </CardContent>
         </Card>
