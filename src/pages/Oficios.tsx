@@ -263,7 +263,9 @@ export default function Oficios() {
         date: form.date,
         signerName: form.signerName || institution.defaultSignerName || "—",
         signerRole: form.signerRole || institution.defaultSignerRole || "—",
+        signatureImage: useSavedSignature ? signatureDataUrl : null,
       });
+
       doc.save(`oficio-${form.number.replace("/", "-")}.pdf`);
       toast({ title: "PDF gerado com sucesso" });
     } catch (e) {
