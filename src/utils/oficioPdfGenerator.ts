@@ -17,7 +17,9 @@ export interface OficioPdfData {
   date: string; // ISO
   signerName: string;
   signerRole: string;
+  signatureImage?: string | null; // data URL or public URL of the saved signature
 }
+
 
 const PRIMARY = [234, 88, 12] as const; // orange-600
 const TEXT = [38, 38, 38] as const; // neutral-800
