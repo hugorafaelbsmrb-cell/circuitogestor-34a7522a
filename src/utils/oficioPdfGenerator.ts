@@ -120,10 +120,12 @@ export function generateOficioPDF(data: OficioPdfData): jsPDF {
   const paragraphs = data.body.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
   const lineHeight = 6;
 
+  const sigBlockHeight = data.signatureImage ? 70 : 50;
+
   for (const para of paragraphs) {
     const lines = doc.splitTextToSize(para, contentW);
     for (const line of lines) {
-      if (y > pageH - 50) {
+      if (y > pageH - sigBlockHeight) {
         doc.addPage();
         y = margin;
       }
@@ -134,12 +136,13 @@ export function generateOficioPDF(data: OficioPdfData): jsPDF {
   }
 
   // ===== SIGNATURE =====
-  if (y > pageH - 45) {
+  if (y > pageH - sigBlockHeight) {
     doc.addPage();
     y = margin + 10;
   } else {
-    y = Math.max(y + 20, pageH - 50);
+    y = Math.max(y + 20, pageH - sigBlockHeight + 20);
   }
+
 
   const sigCenter = pageW / 2;
 
