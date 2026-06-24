@@ -83,6 +83,7 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
     location: camp.location || "", age_min: camp.age_min || "", age_max: camp.age_max || "",
     theme_color: camp.theme_color || "#f97316", cta_text: camp.cta_text || "Garantir vaga",
     whatsapp_number: camp.whatsapp_number || "",
+    meta_pixel_id: camp.meta_pixel_id || "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -127,6 +128,15 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
         </div>
         <div><Label>Texto do CTA</Label><Input value={f.cta_text} onChange={(e) => setF({ ...f, cta_text: e.target.value })} /></div>
         <div><Label>WhatsApp (rodapé)</Label><Input value={f.whatsapp_number} onChange={(e) => setF({ ...f, whatsapp_number: e.target.value })} placeholder="5511999999999" /></div>
+      </div>
+      <div>
+        <Label>Meta Pixel ID</Label>
+        <Input
+          value={f.meta_pixel_id}
+          onChange={(e) => setF({ ...f, meta_pixel_id: e.target.value })}
+          placeholder="Ex: 1234567890123456"
+        />
+        <p className="text-xs text-muted-foreground mt-1">ID do Pixel do Facebook/Meta para rastreamento da landing page.</p>
       </div>
       <div>
         <Label>Status</Label>
