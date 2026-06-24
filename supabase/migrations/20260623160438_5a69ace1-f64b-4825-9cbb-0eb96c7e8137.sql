@@ -1,0 +1,1 @@
+ALTER TABLE public.vacation_camp_enrollments ADD COLUMN IF NOT EXISTS asaas_bank_slip_url text;
