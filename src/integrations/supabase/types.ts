@@ -2699,6 +2699,7 @@ export type Database = {
           highlights: Json
           id: string
           location: string | null
+          meta_pixel_id: string | null
           name: string
           slug: string
           start_date: string | null
@@ -2723,6 +2724,7 @@ export type Database = {
           highlights?: Json
           id?: string
           location?: string | null
+          meta_pixel_id?: string | null
           name: string
           slug: string
           start_date?: string | null
@@ -2747,6 +2749,7 @@ export type Database = {
           highlights?: Json
           id?: string
           location?: string | null
+          meta_pixel_id?: string | null
           name?: string
           slug?: string
           start_date?: string | null
