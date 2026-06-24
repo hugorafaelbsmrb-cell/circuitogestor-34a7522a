@@ -782,7 +782,7 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
       child_age: childAge,
       source: "admin",
       linked_student_id: linkedStudentId,
-      payment_status: isExternal ? "confirmed" : (createCharge ? "pending" : "exempt"),
+      payment_status: isExternal ? (createCharge ? "pending" : "confirmed") : (createCharge ? "pending" : "exempt"),
       amount_override: parsedAmount,
       payment_notes: isExternal ? "Pagamento externo combinado · " + (extNotes || "") : null,
       notes: isExternal ? extNotes || null : null,
@@ -791,24 +791,22 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
     const { data: inserted, error } = await sb.from("vacation_camp_enrollments").insert(enrollmentData).select().single();
     if (error) { setSaving(false); return toast.error(error.message); }
 
-    if (!isExternal && createCharge && inserted?.id) {
-      const g = selected.guardians;
-      if (!g?.phone) {
-        toast.warning("Aluno adicionado, mas o responsável não tem telefone — link não enviado");
+    // Envia link de pagamento se createCharge estiver marcado (interno OU externo)
+    if (createCharge && inserted?.id && guardianPhone) {
+      const { data: notifyData, error: notifyErr } = await sb.functions.invoke("vacation-camp-notify", {
+        body: { event: "payment_link", enrollment_id: inserted.id },
+      });
+      if (notifyErr || notifyData?.error) {
+        toast.warning("Aluno adicionado, mas falha ao enviar link");
+      } else if (notifyData?.sent === false) {
+        toast.warning("Aluno adicionado. WhatsApp não configurado.");
       } else {
-        const { data: notifyData, error: notifyErr } = await sb.functions.invoke("vacation-camp-notify", {
-          body: { event: "payment_link", enrollment_id: inserted.id },
-        });
-        if (notifyErr || notifyData?.error) {
-          toast.warning("Aluno adicionado, mas falha ao enviar link");
-        } else if (notifyData?.sent === false) {
-          toast.warning("Aluno adicionado. WhatsApp não configurado.");
-        } else {
-          toast.success("Aluno adicionado e link de pagamento enviado por WhatsApp");
-        }
+        toast.success("Aluno adicionado e link de pagamento enviado por WhatsApp");
       }
-    } else {
-      toast.success(isExternal ? "Aluno externo adicionado!" : "Aluno adicionado à colônia");
+    } else if (isExternal && !createCharge) {
+      toast.success("Aluno externo adicionado (pagamento já confirmado)!");
+    } else if (!isExternal && !createCharge) {
+      toast.success("Aluno adicionado à colônia");
     }
     setSaving(false);
     resetForm();
@@ -914,12 +912,13 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
               {isExternal ? "Preencha o valor acordado ou deixe em branco para isento." : "Sobrescreve o preço do pacote. Deixe em branco para isento."}
             </p>
           </div>
-          {!isExternal && (
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={createCharge} onChange={(e) => setCreateCharge(e.target.checked)} />
-              Enviar link de pagamento ao responsável (PIX ou cartão). Se desmarcado, fica como isento.
-            </label>
-          )}
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={createCharge} onChange={(e) => setCreateCharge(e.target.checked)} />
+            {isExternal
+              ? "Gerar cobrança e enviar link de pagamento por WhatsApp"
+              : "Enviar link de pagamento ao responsável (PIX ou cartão). Se desmarcado, fica como isento."
+            }
+          </label>
           <Button onClick={add} disabled={saving || (!isExternal && !selected) || (!isExternal && !pkgId)} className="w-full">
             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Adicionar
           </Button>
