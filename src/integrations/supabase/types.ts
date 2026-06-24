@@ -2393,9 +2393,61 @@ export type Database = {
         }
         Relationships: []
       }
+      vacation_camp_attendance: {
+        Row: {
+          camp_id: string
+          check_in_time: string | null
+          created_at: string
+          day_date: string
+          enrollment_id: string
+          id: string
+          notes: string | null
+          present: boolean
+          updated_at: string
+        }
+        Insert: {
+          camp_id: string
+          check_in_time?: string | null
+          created_at?: string
+          day_date: string
+          enrollment_id: string
+          id?: string
+          notes?: string | null
+          present?: boolean
+          updated_at?: string
+        }
+        Update: {
+          camp_id?: string
+          check_in_time?: string | null
+          created_at?: string
+          day_date?: string
+          enrollment_id?: string
+          id?: string
+          notes?: string | null
+          present?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vacation_camp_attendance_camp_id_fkey"
+            columns: ["camp_id"]
+            isOneToOne: false
+            referencedRelation: "vacation_camps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vacation_camp_attendance_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "vacation_camp_enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vacation_camp_enrollments: {
         Row: {
           amount: number | null
+          amount_override: number | null
           asaas_bank_slip_url: string | null
           asaas_customer_id: string | null
           asaas_invoice_url: string | null
@@ -2417,12 +2469,15 @@ export type Database = {
           notes: string | null
           package_id: string | null
           payment_method: string | null
+          payment_notes: string | null
           payment_status: string
+          scheduled_days: Json | null
           source: string
           updated_at: string
         }
         Insert: {
           amount?: number | null
+          amount_override?: number | null
           asaas_bank_slip_url?: string | null
           asaas_customer_id?: string | null
           asaas_invoice_url?: string | null
@@ -2444,12 +2499,15 @@ export type Database = {
           notes?: string | null
           package_id?: string | null
           payment_method?: string | null
+          payment_notes?: string | null
           payment_status?: string
+          scheduled_days?: Json | null
           source?: string
           updated_at?: string
         }
         Update: {
           amount?: number | null
+          amount_override?: number | null
           asaas_bank_slip_url?: string | null
           asaas_customer_id?: string | null
           asaas_invoice_url?: string | null
@@ -2471,7 +2529,9 @@ export type Database = {
           notes?: string | null
           package_id?: string | null
           payment_method?: string | null
+          payment_notes?: string | null
           payment_status?: string
+          scheduled_days?: Json | null
           source?: string
           updated_at?: string
         }
