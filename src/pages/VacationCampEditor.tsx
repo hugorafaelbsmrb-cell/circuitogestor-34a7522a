@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, ArrowLeft, Upload, X, Search, Download, MessageCircle, CheckCircle, Send, Copy } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowLeft, Upload, X, Search, Download, MessageCircle, CheckCircle, Send, Copy, ClipboardCheck } from "lucide-react";
 import { formatCPF, formatPhone, normalizePhoneToWAPI } from "@/utils/validators";
 
 const sb: any = supabase;
@@ -53,13 +53,14 @@ export default function VacationCampEditor() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid grid-cols-6 w-full">
+        <TabsList className="grid grid-cols-7 w-full">
           <TabsTrigger value="general">Geral</TabsTrigger>
           <TabsTrigger value="hero">Hero & Imagens</TabsTrigger>
           <TabsTrigger value="schedule">Programação</TabsTrigger>
           <TabsTrigger value="packages">Pacotes</TabsTrigger>
           <TabsTrigger value="texts">Textos</TabsTrigger>
           <TabsTrigger value="enrollments">Inscritos</TabsTrigger>
+          <TabsTrigger value="attendance">Presença</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general"><GeneralTab camp={camp} onSaved={load} /></TabsContent>
@@ -68,6 +69,7 @@ export default function VacationCampEditor() {
         <TabsContent value="packages"><PackagesTab campId={camp.id} /></TabsContent>
         <TabsContent value="texts"><TextsTab camp={camp} onSaved={load} /></TabsContent>
         <TabsContent value="enrollments"><EnrollmentsTab campId={camp.id} /></TabsContent>
+        <TabsContent value="attendance"><AttendanceTab campId={camp.id} /></TabsContent>
       </Tabs>
     </div>
   );
@@ -709,6 +711,14 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
   const [createCharge, setCreateCharge] = useState(false);
   const [customAmount, setCustomAmount] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [isExternal, setIsExternal] = useState(false);
+  // Campos para aluno externo
+  const [extGuardianName, setExtGuardianName] = useState("");
+  const [extGuardianPhone, setExtGuardianPhone] = useState("");
+  const [extGuardianCPF, setExtGuardianCPF] = useState("");
+  const [extChildName, setExtChildName] = useState("");
+  const [extChildAge, setExtChildAge] = useState("");
+  const [extNotes, setExtNotes] = useState("");
 
   useEffect(() => {
     if (!q || q.length < 2) { setResults([]); return; }
@@ -729,33 +739,60 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
   }, [pkgId, pkgs]);
 
   const add = async () => {
-    if (!selected || !pkgId) return toast.error("Selecione aluno e pacote");
-    const g = selected.guardians;
     const parsedAmount = customAmount.trim() === "" ? null : parseFloat(customAmount.replace(",", "."));
     if (parsedAmount !== null && (isNaN(parsedAmount) || parsedAmount < 0)) {
       return toast.error("Valor inválido");
     }
+
+    let guardianName: string, guardianPhone: string, guardianCPF: string | null, 
+        childName: string, childAge: number | null, linkedStudentId: string | null;
+
+    if (isExternal) {
+      // Validação de campos obrigatórios para externo
+      if (!extGuardianName.trim() || !extGuardianPhone.trim() || !extChildName.trim()) {
+        return toast.error("Preencha nome do responsável, telefone e nome da criança");
+      }
+      guardianName = extGuardianName.trim();
+      guardianPhone = extGuardianPhone.trim();
+      guardianCPF = extGuardianCPF.trim() || null;
+      childName = extChildName.trim();
+      childAge = extChildAge.trim() ? parseInt(extChildAge) : null;
+      linkedStudentId = null;
+    } else {
+      if (!selected || !pkgId) return toast.error("Selecione aluno e pacote");
+      const g = selected.guardians;
+      guardianName = g?.name || "";
+      guardianPhone = g?.phone || "";
+      guardianCPF = g?.cpf || null;
+      childName = selected.name;
+      childAge = selected.birth_date
+        ? Math.floor((Date.now() - new Date(selected.birth_date).getTime()) / (365.25 * 24 * 3600 * 1000))
+        : null;
+      linkedStudentId = selected.id;
+    }
+
     setSaving(true);
-    const ageYears = selected.birth_date
-      ? Math.floor((Date.now() - new Date(selected.birth_date).getTime()) / (365.25 * 24 * 3600 * 1000))
-      : null;
-    const { data: inserted, error } = await sb.from("vacation_camp_enrollments").insert({
-      camp_id: campId, package_id: pkgId,
-      guardian_name: g?.name || "",
-      guardian_phone: g?.phone || "",
-      guardian_email: g?.email || null,
-      guardian_cpf: g?.cpf || null,
-      child_name: selected.name,
-      child_age: ageYears,
-      child_birthdate: selected.birth_date || null,
+    const enrollmentData: any = {
+      camp_id: campId,
+      package_id: pkgId || null,
+      guardian_name: guardianName,
+      guardian_phone: guardianPhone,
+      guardian_cpf: guardianCPF,
+      child_name: childName,
+      child_age: childAge,
       source: "admin",
-      linked_student_id: selected.id,
-      payment_status: createCharge ? "pending" : "exempt",
-      amount: parsedAmount,
-    }).select().single();
+      linked_student_id: linkedStudentId,
+      payment_status: isExternal ? "confirmed" : (createCharge ? "pending" : "exempt"),
+      amount_override: parsedAmount,
+      payment_notes: isExternal ? "Pagamento externo combinado · " + (extNotes || "") : null,
+      notes: isExternal ? extNotes || null : null,
+    };
+
+    const { data: inserted, error } = await sb.from("vacation_camp_enrollments").insert(enrollmentData).select().single();
     if (error) { setSaving(false); return toast.error(error.message); }
 
-    if (createCharge && inserted?.id) {
+    if (!isExternal && createCharge && inserted?.id) {
+      const g = selected.guardians;
       if (!g?.phone) {
         toast.warning("Aluno adicionado, mas o responsável não tem telefone — link não enviado");
       } else {
@@ -763,49 +800,98 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
           body: { event: "payment_link", enrollment_id: inserted.id },
         });
         if (notifyErr || notifyData?.error) {
-          toast.warning("Aluno adicionado, mas falha ao enviar link: " + (notifyErr?.message || notifyData?.error));
+          toast.warning("Aluno adicionado, mas falha ao enviar link");
         } else if (notifyData?.sent === false) {
-          toast.warning("Aluno adicionado. WhatsApp não está configurado — copie o link manualmente.");
+          toast.warning("Aluno adicionado. WhatsApp não configurado.");
         } else {
           toast.success("Aluno adicionado e link de pagamento enviado por WhatsApp");
         }
       }
     } else {
-      toast.success("Aluno adicionado à colônia");
+      toast.success(isExternal ? "Aluno externo adicionado!" : "Aluno adicionado à colônia");
     }
     setSaving(false);
-    onOpenChange(false); setSelected(null); setQ(""); setPkgId(""); setCreateCharge(false); setCustomAmount("");
+    resetForm();
     onAdded();
+  };
+
+  const resetForm = () => {
+    onOpenChange(false); setSelected(null); setQ(""); setPkgId("");
+    setCreateCharge(false); setCustomAmount(""); setIsExternal(false);
+    setExtGuardianName(""); setExtGuardianPhone(""); setExtGuardianCPF("");
+    setExtChildName(""); setExtChildAge(""); setExtNotes("");
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Adicionar aluno nosso</DialogTitle></DialogHeader>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{isExternal ? "Adicionar aluno externo" : "Adicionar aluno nosso"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div>
-            <Label>Buscar aluno</Label>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-2 top-2.5 text-muted-foreground" />
-              <Input className="pl-8" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nome..." />
-            </div>
-            {searching && <p className="text-xs text-muted-foreground mt-1">Buscando...</p>}
-            {results.length > 0 && !selected && (
-              <div className="border rounded mt-1 max-h-48 overflow-y-auto">
-                {results.map((s) => (
-                  <button key={s.id} onClick={() => { setSelected(s); setQ(s.name); setResults([]); }}
-                    className="block w-full text-left px-3 py-2 hover:bg-muted text-sm">
-                    {s.name} <span className="text-muted-foreground text-xs">— {s.guardians?.name}</span>
-                  </button>
-                ))}
+          {/* Toggle externo */}
+          <label className="flex items-center gap-2 text-sm cursor-pointer bg-muted/50 p-3 rounded-lg">
+            <input type="checkbox" checked={isExternal} onChange={(e) => { setIsExternal(e.target.checked); setSelected(null); setQ(""); setResults([]); }} />
+            <span className="font-medium">Aluno externo</span>
+            <span className="text-xs text-muted-foreground">— pais que não estão no sistema, preços negociados</span>
+          </label>
+
+          {isExternal ? (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>Nome do responsável *</Label>
+                  <Input value={extGuardianName} onChange={(e) => setExtGuardianName(e.target.value)} placeholder="Nome completo" />
+                </div>
+                <div>
+                  <Label>Telefone *</Label>
+                  <Input value={extGuardianPhone} onChange={(e) => setExtGuardianPhone(e.target.value)} placeholder="(00) 00000-0000" />
+                </div>
               </div>
-            )}
-          </div>
-          {selected && (
-            <Card className="p-3 bg-muted/50">
-              <div className="text-sm font-medium">{selected.name}</div>
-              <div className="text-xs text-muted-foreground">Resp.: {selected.guardians?.name} · {selected.guardians?.phone}</div>
-            </Card>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>CPF (opcional)</Label>
+                  <Input value={extGuardianCPF} onChange={(e) => setExtGuardianCPF(e.target.value)} placeholder="000.000.000-00" />
+                </div>
+                <div>
+                  <Label>Nome da criança *</Label>
+                  <Input value={extChildName} onChange={(e) => setExtChildName(e.target.value)} placeholder="Nome" />
+                </div>
+              </div>
+              <div>
+                <Label>Idade</Label>
+                <Input type="number" value={extChildAge} onChange={(e) => setExtChildAge(e.target.value)} placeholder="Idade" />
+              </div>
+              <div>
+                <Label>Observações</Label>
+                <Textarea rows={2} value={extNotes} onChange={(e) => setExtNotes(e.target.value)} placeholder="Negociação, valores combinados..." />
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <Label>Buscar aluno</Label>
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-2 top-2.5 text-muted-foreground" />
+                  <Input className="pl-8" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nome..." />
+                </div>
+                {searching && <p className="text-xs text-muted-foreground mt-1">Buscando...</p>}
+                {results.length > 0 && !selected && (
+                  <div className="border rounded mt-1 max-h-48 overflow-y-auto">
+                    {results.map((s) => (
+                      <button key={s.id} onClick={() => { setSelected(s); setQ(s.name); setResults([]); }}
+                        className="block w-full text-left px-3 py-2 hover:bg-muted text-sm">
+                        {s.name} <span className="text-muted-foreground text-xs">— {s.guardians?.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {selected && (
+                <Card className="p-3 bg-muted/50">
+                  <div className="text-sm font-medium">{selected.name}</div>
+                  <div className="text-xs text-muted-foreground">Resp.: {selected.guardians?.name} · {selected.guardians?.phone}</div>
+                </Card>
+              )}
+            </>
           )}
           <div>
             <Label>Pacote</Label>
@@ -822,21 +908,238 @@ function AddOurStudentDialog({ open, onOpenChange, campId, pkgs, onAdded }: any)
               min="0"
               value={customAmount}
               onChange={(e) => setCustomAmount(e.target.value)}
-              placeholder="Negociado direto com os pais"
+              placeholder={isExternal ? "Valor negociado com os pais" : "Sobrescreve o preço do pacote"}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              Sobrescreve o preço do pacote. Deixe em branco para isento.
+              {isExternal ? "Preencha o valor acordado ou deixe em branco para isento." : "Sobrescreve o preço do pacote. Deixe em branco para isento."}
             </p>
           </div>
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={createCharge} onChange={(e) => setCreateCharge(e.target.checked)} />
-            Enviar link de pagamento ao responsável (PIX ou cartão). Se desmarcado, fica como isento.
-          </label>
-          <Button onClick={add} disabled={saving || !selected || !pkgId} className="w-full">
+          {!isExternal && (
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={createCharge} onChange={(e) => setCreateCharge(e.target.checked)} />
+              Enviar link de pagamento ao responsável (PIX ou cartão). Se desmarcado, fica como isento.
+            </label>
+          )}
+          <Button onClick={add} disabled={saving || (!isExternal && !selected) || (!isExternal && !pkgId)} className="w-full">
             {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}Adicionar
           </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+// ========== PRESENÇA ==========
+function AttendanceTab({ campId }: { campId: string }) {
+  const [enrollments, setEnrollments] = useState<any[]>([]);
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDay, setSelectedDay] = useState<string>("");
+  const [dayUseOnly, setDayUseOnly] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const [{ data: e }, { data: s }, { data: a }] = await Promise.all([
+      sb.from("vacation_camp_enrollments").select("*, vacation_camp_packages(name)").eq("camp_id", campId).neq("payment_status", "cancelled").order("child_name"),
+      sb.from("vacation_camp_schedule").select("*").eq("camp_id", campId).order("sort_order"),
+      sb.from("vacation_camp_attendance").select("*").eq("camp_id", campId),
+    ]);
+    setEnrollments(e || []);
+    setSchedule(s || []);
+    setAttendance(a || []);
+    if (!selectedDay && s?.length) setSelectedDay(s[0].day_label);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, [campId]);
+
+  // Gera os dias a partir da schedule
+  const days = schedule.map(s => ({ label: s.day_label, sort: s.sort_order }));
+
+  // Filtra inscritos por Day Use se o toggle estiver ativo
+  const filteredEnrollments = dayUseOnly
+    ? enrollments.filter(e => e.vacation_camp_packages?.name?.toLowerCase().includes("day"))
+    : enrollments;
+
+  // Encontra o dia selecionado na schedule
+  const currentDaySchedule = schedule.find(s => s.day_label === selectedDay);
+  const isPasseio = currentDaySchedule?.day_label === "Sexta-feira 10/07";
+
+  const toggleAttendance = async (enrollmentId: string, dayLabel: string) => {
+    const existing = attendance.find(a => a.enrollment_id === enrollmentId && a.day_date === dayLabelToDate(dayLabel));
+    const dayDate = dayLabelToDate(dayLabel);
+
+    if (existing) {
+      // Alterna presença
+      const newPresent = !existing.present;
+      await sb.from("vacation_camp_attendance").update({
+        present: newPresent,
+        check_in_time: newPresent ? new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : null,
+      }).eq("id", existing.id);
+    } else {
+      // Cria registro
+      await sb.from("vacation_camp_attendance").insert({
+        enrollment_id: enrollmentId,
+        camp_id: campId,
+        day_date: dayDate,
+        present: true,
+        check_in_time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      });
+    }
+    // Recarrega attendance
+    const { data: a } = await sb.from("vacation_camp_attendance").select("*").eq("camp_id", campId);
+    setAttendance(a || []);
+  };
+
+  // Marca dia específico para Day Use
+  const toggleDayUse = async (enrollmentId: string, dayLabel: string) => {
+    const enrollment = enrollments.find(e => e.id === enrollmentId);
+    if (!enrollment) return;
+    const current = (enrollment.scheduled_days || []) as string[];
+    const idx = current.indexOf(dayLabel);
+    const updated = idx >= 0 ? current.filter(d => d !== dayLabel) : [...current, dayLabel];
+    await sb.from("vacation_camp_enrollments").update({ scheduled_days: updated }).eq("id", enrollmentId);
+    setEnrollments(prev => prev.map(e => e.id === enrollmentId ? { ...e, scheduled_days: updated } : e));
+  };
+
+  const isPresent = (enrollmentId: string) => {
+    if (!selectedDay) return false;
+    const dayDate = dayLabelToDate(selectedDay);
+    const a = attendance.find(x => x.enrollment_id === enrollmentId && x.day_date === dayDate);
+    return a?.present || false;
+  };
+
+  const getScheduledDays = (enrollment: any) => enrollment.scheduled_days || [];
+
+  // Contadores
+  const totalConfirmed = enrollments.filter(e => e.payment_status === "confirmed" || e.payment_status === "exempt").length;
+  const presentToday = attendance.filter(a => a.day_date === dayLabelToDate(selectedDay) && a.present).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ClipboardCheck className="w-5 h-5 text-primary" />
+          <span className="font-semibold">Controle de Presença</span>
+        </div>
+        <Select value={selectedDay} onValueChange={setSelectedDay}>
+          <SelectTrigger className="w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {days.map(d => (
+              <SelectItem key={d.label} value={d.label}>{d.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <label className="flex items-center gap-2 text-xs cursor-pointer">
+          <Switch checked={dayUseOnly} onCheckedChange={setDayUseOnly} />
+          <span>Day Use apenas</span>
+        </label>
+        <Badge variant="secondary">
+          {presentToday}/{totalConfirmed} presentes hoje
+        </Badge>
+        {isPasseio && (
+          <Badge className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30">
+            ⚠️ Passeio: 8h-11h30 (calça comprida e tênis)
+          </Badge>
+        )}
+      </div>
+
+      {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : (
+        <Card>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr className="text-left">
+                  <th className="p-2 w-8">✅</th>
+                  <th className="p-2">Criança</th>
+                  <th className="p-2">Responsável</th>
+                  <th className="p-2">Pacote</th>
+                  <th className="p-2">Dias agendados</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEnrollments.map((e) => {
+                  const present = isPresent(e.id);
+                  const isDayUse = e.vacation_camp_packages?.name?.toLowerCase().includes("day");
+                  const scheduled = getScheduledDays(e);
+                  return (
+                    <tr key={e.id} className={`border-t ${present ? "bg-green-50" : ""}`}>
+                      <td className="p-2">
+                        <button
+                          onClick={() => toggleAttendance(e.id, selectedDay)}
+                          className={`w-7 h-7 rounded border-2 flex items-center justify-center transition-colors ${
+                            present ? "bg-green-500 border-green-500 text-white" : "border-gray-300 hover:border-green-400"
+                          }`}
+                        >
+                          {present ? "✓" : ""}
+                        </button>
+                      </td>
+                      <td className="p-2 font-medium">{e.child_name}</td>
+                      <td className="p-2">{e.guardian_name}</td>
+                      <td className="p-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">{e.vacation_camp_packages?.name || "—"}</Badge>
+                          {isDayUse && (
+                            <span className="text-xs text-muted-foreground">
+                              {scheduled.length > 0 ? `${scheduled.length} dia(s)` : "Não agendado"}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-2">
+                        {isDayUse && (
+                          <div className="flex flex-wrap gap-1">
+                            {days.map(d => (
+                              <button
+                                key={d.label}
+                                onClick={() => toggleDayUse(e.id, d.label)}
+                                title={d.label}
+                                className={`px-2 py-0.5 rounded text-xs transition-colors ${
+                                  scheduled.includes(d.label)
+                                    ? "bg-primary/20 text-primary font-semibold"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                }`}
+                              >
+                                {d.sort}ª
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {!isDayUse && <span className="text-xs text-muted-foreground">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredEnrollments.length === 0 && (
+                  <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">Nenhum inscrito confirmado.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Legenda de dias */}
+      <Card className="p-4">
+        <h4 className="font-semibold text-sm mb-2">📅 Dias da colônia</h4>
+        <div className="flex flex-wrap gap-2">
+          {days.map(d => (
+            <Badge key={d.label} variant={selectedDay === d.label ? "default" : "outline"}
+              className="cursor-pointer" onClick={() => setSelectedDay(d.label)}>
+              {d.sort}ª — {d.label}
+            </Badge>
+          ))}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function dayLabelToDate(label: string): string {
+  // Converte "Segunda-feira 06/07" -> "2026-07-06"
+  const match = label.match(/(\d{2})\/(\d{2})/);
+  if (match) return `2026-07-${match[1]}`;
+  return "";
 }
