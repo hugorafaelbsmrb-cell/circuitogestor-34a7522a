@@ -130,6 +130,15 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
         <div><Label>WhatsApp (rodapé)</Label><Input value={f.whatsapp_number} onChange={(e) => setF({ ...f, whatsapp_number: e.target.value })} placeholder="5511999999999" /></div>
       </div>
       <div>
+        <Label>Meta Pixel ID</Label>
+        <Input
+          value={f.meta_pixel_id}
+          onChange={(e) => setF({ ...f, meta_pixel_id: e.target.value })}
+          placeholder="Ex: 1234567890123456"
+        />
+        <p className="text-xs text-muted-foreground mt-1">ID do Pixel do Facebook/Meta para rastreamento da landing page.</p>
+      </div>
+      <div>
         <Label>Status</Label>
         <Select value={f.status} onValueChange={(v) => setF({ ...f, status: v })}>
           <SelectTrigger><SelectValue /></SelectTrigger>
