@@ -83,6 +83,7 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
     location: camp.location || "", age_min: camp.age_min || "", age_max: camp.age_max || "",
     theme_color: camp.theme_color || "#f97316", cta_text: camp.cta_text || "Garantir vaga",
     whatsapp_number: camp.whatsapp_number || "",
+    meta_pixel_id: camp.meta_pixel_id || "",
   });
   const [saving, setSaving] = useState(false);
 
