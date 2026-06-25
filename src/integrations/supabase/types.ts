@@ -2472,6 +2472,8 @@ export type Database = {
           payment_method: string | null
           payment_notes: string | null
           payment_status: string
+          reservation_sent_at: string | null
+          reserved_payment_date: string | null
           scheduled_days: Json | null
           source: string
           split_card_amount: number | null
@@ -2507,6 +2509,8 @@ export type Database = {
           payment_method?: string | null
           payment_notes?: string | null
           payment_status?: string
+          reservation_sent_at?: string | null
+          reserved_payment_date?: string | null
           scheduled_days?: Json | null
           source?: string
           split_card_amount?: number | null
@@ -2542,6 +2546,8 @@ export type Database = {
           payment_method?: string | null
           payment_notes?: string | null
           payment_status?: string
+          reservation_sent_at?: string | null
+          reserved_payment_date?: string | null
           scheduled_days?: Json | null
           source?: string
           split_card_amount?: number | null
