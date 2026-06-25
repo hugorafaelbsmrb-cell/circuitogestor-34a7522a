@@ -179,6 +179,7 @@ export default function VacationCampPayment() {
                 ⚠️ Pagamento misto: é necessário pagar <strong>as duas partes</strong> (PIX e cartão) para confirmar a inscrição.
               </div>
             )}
+            {result.pixPayload && (
               <div className="space-y-2">
                 <p className="text-sm flex items-center gap-2"><QrCode className="w-4 h-4" /> PIX copia e cola:</p>
                 {result.pixEncodedImage && (
