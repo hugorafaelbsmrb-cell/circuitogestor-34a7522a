@@ -213,11 +213,43 @@ export default function VacationCampPayment() {
                   <div className="text-xs text-muted-foreground">Até {maxInst}x</div>
                 </button>
               )}
+              {allowedMethods.includes("PIX") && allowedMethods.includes("CREDIT_CARD") && (
+                <button
+                  onClick={() => {
+                    setMethod("SPLIT");
+                    if (!pixAmountStr) setPixAmountStr((price / 2).toFixed(2));
+                  }}
+                  className={`p-3 border-2 rounded-lg text-left transition col-span-2 ${method === "SPLIT" ? "border-primary bg-primary/5" : "border-border"}`}
+                >
+                  <div className="flex gap-1 mb-1"><QrCode className="w-5 h-5" /><span className="text-muted-foreground">+</span><CreditCard className="w-5 h-5" /></div>
+                  <div className="font-medium">Pagamento Misto (PIX + Cartão)</div>
+                  <div className="text-xs text-muted-foreground">Pague parte no PIX e parte no cartão</div>
+                </button>
+              )}
             </div>
 
-            {method === "CREDIT_CARD" && maxInst > 1 && (
+            {method === "SPLIT" && (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <Label>Quanto pagar no PIX?</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={price - 0.01}
+                  value={pixAmountStr}
+                  onChange={(e) => setPixAmountStr(e.target.value)}
+                  placeholder="0,00"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Total: <strong className="text-foreground">{fmtBRL(price)}</strong></span>
+                  <span>Restante no cartão: <strong className="text-foreground">{fmtBRL(cardPortion)}</strong></span>
+                </div>
+              </div>
+            )}
+
+            {(method === "CREDIT_CARD" || method === "SPLIT") && maxInst > 1 && cardPortion > 0 && (
               <div>
-                <Label>Parcelamento</Label>
+                <Label>Parcelamento {method === "SPLIT" ? "(parte no cartão)" : ""}</Label>
                 <Select value={String(installments)} onValueChange={(v) => setInstallments(Number(v))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
