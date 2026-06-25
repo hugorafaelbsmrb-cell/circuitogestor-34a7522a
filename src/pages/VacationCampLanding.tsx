@@ -1005,11 +1005,28 @@ function PaymentInstructions({ payment, theme }: { payment: any; theme: string }
     navigator.clipboard.writeText(txt);
     toast.success("Copiado!");
   };
+  if (payment.reserved) {
+    const d = payment.reserved_payment_date;
+    const dateBR = d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "";
+    return (
+      <div className="space-y-3 text-center">
+        <div className="text-5xl">🎉</div>
+        <p className="text-base font-semibold">Vaga reservada com sucesso!</p>
+        <p className="text-sm text-muted-foreground">
+          Enviaremos o link de pagamento no seu WhatsApp {dateBR && (<>no dia <strong>{dateBR}</strong></>)}.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Se quiser antecipar, é só responder a nossa mensagem que enviamos o link agora.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Inscrição registrada! Conclua o pagamento abaixo para confirmar a vaga.
       </p>
+
       {payment.split && (
         <div className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-800 dark:text-amber-200">
           ⚠️ Pagamento misto: você precisa concluir <strong>as duas partes</strong> abaixo (PIX de {payment.pixAmount?.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} e Cartão de {payment.cardAmount?.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}) para confirmar a vaga.
