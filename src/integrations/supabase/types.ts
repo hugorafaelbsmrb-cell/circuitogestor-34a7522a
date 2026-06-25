@@ -2452,6 +2452,7 @@ export type Database = {
           asaas_customer_id: string | null
           asaas_invoice_url: string | null
           asaas_payment_id: string | null
+          asaas_payment_id_2: string | null
           asaas_pix_payload: string | null
           camp_id: string
           child_age: number | null
@@ -2473,6 +2474,10 @@ export type Database = {
           payment_status: string
           scheduled_days: Json | null
           source: string
+          split_card_amount: number | null
+          split_card_paid: boolean
+          split_pix_amount: number | null
+          split_pix_paid: boolean
           updated_at: string
         }
         Insert: {
@@ -2482,6 +2487,7 @@ export type Database = {
           asaas_customer_id?: string | null
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
+          asaas_payment_id_2?: string | null
           asaas_pix_payload?: string | null
           camp_id: string
           child_age?: number | null
@@ -2503,6 +2509,10 @@ export type Database = {
           payment_status?: string
           scheduled_days?: Json | null
           source?: string
+          split_card_amount?: number | null
+          split_card_paid?: boolean
+          split_pix_amount?: number | null
+          split_pix_paid?: boolean
           updated_at?: string
         }
         Update: {
@@ -2512,6 +2522,7 @@ export type Database = {
           asaas_customer_id?: string | null
           asaas_invoice_url?: string | null
           asaas_payment_id?: string | null
+          asaas_payment_id_2?: string | null
           asaas_pix_payload?: string | null
           camp_id?: string
           child_age?: number | null
@@ -2533,6 +2544,10 @@ export type Database = {
           payment_status?: string
           scheduled_days?: Json | null
           source?: string
+          split_card_amount?: number | null
+          split_card_paid?: boolean
+          split_pix_amount?: number | null
+          split_pix_paid?: boolean
           updated_at?: string
         }
         Relationships: [
