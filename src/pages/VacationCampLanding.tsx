@@ -1012,10 +1012,10 @@ function PaymentInstructions({ payment, theme }: { payment: any; theme: string }
           </Button>
         </a>
       )}
-      {payment.billingType === "CREDIT_CARD" && payment.invoiceUrl && (
+      {(payment.billingType === "CREDIT_CARD" || payment.split) && payment.invoiceUrl && (
         <a href={payment.invoiceUrl} target="_blank" rel="noreferrer">
           <Button className="w-full text-white" style={{ background: theme }}>
-            Pagar com cartão
+            {payment.split ? "Pagar parte do Cartão" : "Pagar com cartão"}
           </Button>
         </a>
       )}
