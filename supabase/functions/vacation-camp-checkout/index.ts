@@ -82,9 +82,10 @@ async function findOrCreateCustomer(cfg: any, payload: any) {
 }
 
 function getPaymentMethodAsaas(m: string) {
-  const map: Record<string, string> = { PIX: "PIX", BOLETO: "BOLETO", CREDIT_CARD: "CREDIT_CARD", SPLIT: "SPLIT" };
+  const map: Record<string, string> = { PIX: "PIX", BOLETO: "BOLETO", CREDIT_CARD: "CREDIT_CARD", SPLIT: "SPLIT", RESERVE: "RESERVE" };
   return map[m] || "PIX";
 }
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -105,7 +106,9 @@ serve(async (req) => {
       installments,
       notes,
       pix_amount,
+      reserved_payment_date,
     } = body;
+
 
     if (!camp_slug || !package_id || !guardian_name || !guardian_phone || !guardian_cpf || !child_name) {
       return new Response(JSON.stringify({ error: "Campos obrigatórios ausentes" }), {
@@ -146,9 +149,15 @@ serve(async (req) => {
       if (!(allowedMethods.includes("PIX") && allowedMethods.includes("CREDIT_CARD"))) {
         throw new Error("Pagamento misto requer PIX e Cartão habilitados no pacote");
       }
+    } else if (billingType === "RESERVE") {
+      if (!reserved_payment_date) throw new Error("Data de pagamento futura é obrigatória");
+      const today = new Date(); today.setHours(0,0,0,0);
+      const target = new Date(String(reserved_payment_date) + "T00:00:00");
+      if (isNaN(target.getTime()) || target < today) throw new Error("Data de pagamento deve ser hoje ou futura");
     } else if (!allowedMethods.includes(billingType)) {
       throw new Error("Forma de pagamento não disponível para este pacote");
     }
+
 
     const normalizedPhone = normalizePhone(guardian_phone);
     const price = Number(pkg.price);
@@ -165,7 +174,8 @@ serve(async (req) => {
       return Math.round(pmt * n * 100) / 100;
     }
 
-    // Insert enrollment as pending
+    // Insert enrollment as pending (or reserved)
+    const isReserve = billingType === "RESERVE";
     const { data: enrollment, error: insErr } = await supabase
       .from("vacation_camp_enrollments")
       .insert({
@@ -180,14 +190,39 @@ serve(async (req) => {
         child_birthdate: child_birthdate || null,
         notes: notes || null,
         source: "landing",
-        payment_status: "pending",
+        payment_status: isReserve ? "reserved" : "pending",
         payment_method: billingType,
         installments: requestedInst,
         amount: price,
+        reserved_payment_date: isReserve ? reserved_payment_date : null,
       })
       .select()
       .single();
     if (insErr) throw insErr;
+
+    // ----- RESERVA: nenhum charge agora, só envia confirmação por WhatsApp -----
+    if (isReserve) {
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/vacation-camp-notify`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SERVICE_ROLE}`,
+            apikey: SERVICE_ROLE,
+          },
+          body: JSON.stringify({ event: "reservation_created", enrollment_id: enrollment.id }),
+        });
+      } catch (_e) { /* ignore */ }
+      return new Response(JSON.stringify({
+        success: true,
+        enrollment_id: enrollment.id,
+        reserved: true,
+        reserved_payment_date,
+        payment: { reserved: true, reserved_payment_date },
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
+    }
+
+
 
     const cfg = await getAsaasConfig(supabase);
     const customer = await findOrCreateCustomer(cfg, {

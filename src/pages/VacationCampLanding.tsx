@@ -779,10 +779,13 @@ function CheckoutDialog({
     child_name: "", child_age: "", payment_method: (pkg.payment_methods?.[0] || "PIX").toUpperCase(),
     installments: 1, notes: "",
     pix_amount: Math.round(Number(pkg.price) / 2),
+    reserved_payment_date: "",
   });
 
   const methods = (pkg.payment_methods || ["PIX"]).map((m) => m.toUpperCase());
   const canSplit = methods.includes("PIX") && methods.includes("CREDIT_CARD");
+  const todayStr = new Date().toISOString().slice(0, 10);
+
 
   const submit = async () => {
     if (!form.guardian_name.trim() || !form.guardian_phone.trim() || !form.guardian_cpf.trim() || !form.child_name.trim()) {
@@ -800,7 +803,12 @@ function CheckoutDialog({
         return;
       }
     }
+    if (form.payment_method === "RESERVE" && !form.reserved_payment_date) {
+      toast.error("Escolha a data em que deseja receber o link de pagamento");
+      return;
+    }
     setLoading(true);
+
     try {
       const { data, error } = await supabase.functions.invoke("vacation-camp-checkout", {
         body: {
@@ -883,9 +891,27 @@ function CheckoutDialog({
                   {methods.includes("BOLETO") && <SelectItem value="BOLETO">Boleto</SelectItem>}
                   {methods.includes("CREDIT_CARD") && <SelectItem value="CREDIT_CARD">Cartão de crédito</SelectItem>}
                   {canSplit && <SelectItem value="SPLIT">Misto (PIX + Cartão)</SelectItem>}
+                  <SelectItem value="RESERVE">Reservar vaga e pagar depois</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {form.payment_method === "RESERVE" && (
+              <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+                <Label>Quando deseja receber o link de pagamento?</Label>
+                <Input
+                  type="date"
+                  min={todayStr}
+                  value={form.reserved_payment_date}
+                  onChange={(e) => setForm({ ...form, reserved_payment_date: e.target.value })}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Na data escolhida enviaremos automaticamente o link no seu WhatsApp para concluir o pagamento (PIX, Cartão ou Misto).
+                </p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                  ⚠️ A vaga fica reservada — confirme o pagamento até a data combinada.
+                </p>
+              </div>
+            )}
             {form.payment_method === "SPLIT" && (
               <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
                 <Label>Valor no PIX (restante no cartão)</Label>
@@ -904,6 +930,7 @@ function CheckoutDialog({
                 </p>
               </div>
             )}
+
             {(form.payment_method === "CREDIT_CARD" || form.payment_method === "SPLIT") && pkg.max_installments > 1 && (() => {
               const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
               const monthlyPct = Number(pkg.card_interest_percent) || 0;
@@ -978,11 +1005,28 @@ function PaymentInstructions({ payment, theme }: { payment: any; theme: string }
     navigator.clipboard.writeText(txt);
     toast.success("Copiado!");
   };
+  if (payment.reserved) {
+    const d = payment.reserved_payment_date;
+    const dateBR = d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "";
+    return (
+      <div className="space-y-3 text-center">
+        <div className="text-5xl">🎉</div>
+        <p className="text-base font-semibold">Vaga reservada com sucesso!</p>
+        <p className="text-sm text-muted-foreground">
+          Enviaremos o link de pagamento no seu WhatsApp {dateBR && (<>no dia <strong>{dateBR}</strong></>)}.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Se quiser antecipar, é só responder a nossa mensagem que enviamos o link agora.
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Inscrição registrada! Conclua o pagamento abaixo para confirmar a vaga.
       </p>
+
       {payment.split && (
         <div className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-800 dark:text-amber-200">
           ⚠️ Pagamento misto: você precisa concluir <strong>as duas partes</strong> abaixo (PIX de {payment.pixAmount?.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} e Cartão de {payment.cardAmount?.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}) para confirmar a vaga.

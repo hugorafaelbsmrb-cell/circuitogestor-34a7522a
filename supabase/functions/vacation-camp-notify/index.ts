@@ -236,6 +236,28 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    if (event === "reservation_created") {
+      const dateBR = enrollment.reserved_payment_date ? formatDateBR(enrollment.reserved_payment_date) : "";
+      const message = [
+        `Olá, ${firstName}! 🎉`,
+        ``,
+        `A vaga de *${childFirst}* na *${campName}* (pacote *${pkgName}*) está *reservada*.`,
+        ``,
+        `💰 Valor: *${value}*`,
+        dateBR ? `📅 Vamos te enviar o *link de pagamento no dia ${dateBR}*, conforme combinado.` : "",
+        ``,
+        `Se preferir antecipar, é só responder por aqui que enviamos o link na hora. 💚`,
+        ``,
+        `_${schoolName}_`,
+      ].filter(Boolean).join("\n");
+
+      const ok = await sendWhatsAppText(wapi, phone, message);
+      await logMessage(supabase, phone, message, ok ? "sent" : "error", "vacation_camp_reservation_created");
+      return new Response(JSON.stringify({ success: true, sent: ok }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     return new Response(JSON.stringify({ error: `Evento desconhecido: ${event}` }), {
       status: 400,
