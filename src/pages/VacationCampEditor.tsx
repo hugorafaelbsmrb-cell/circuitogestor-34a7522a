@@ -535,6 +535,7 @@ function EnrollmentsTab({ campId }: { campId: string }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ status: "all", pkg: "all", q: "" });
   const [addOpen, setAddOpen] = useState(false);
+  const [payEdit, setPayEdit] = useState<any>(null);
 
   const load = async () => {
     setLoading(true);
