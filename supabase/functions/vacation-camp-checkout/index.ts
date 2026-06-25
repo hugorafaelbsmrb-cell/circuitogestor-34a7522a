@@ -106,7 +106,9 @@ serve(async (req) => {
       installments,
       notes,
       pix_amount,
+      reserved_payment_date,
     } = body;
+
 
     if (!camp_slug || !package_id || !guardian_name || !guardian_phone || !guardian_cpf || !child_name) {
       return new Response(JSON.stringify({ error: "Campos obrigatórios ausentes" }), {
