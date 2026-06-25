@@ -62,14 +62,12 @@ async function asaasFetch(url: string, opts: RequestInit, op: string) {
 
 async function findOrCreateCustomer(cfg: any, payload: any) {
   const cleanCpf = payload.cpf.replace(/\D/g, "");
-  // search
   const search = await asaasFetch(
     `${cfg.baseUrl}/customers?cpfCnpj=${cleanCpf}`,
     { method: "GET", headers: headers(cfg.apiKey) },
     "searchCustomer"
   );
   if (search?.data?.length) return search.data[0];
-  // create
   return await asaasFetch(`${cfg.baseUrl}/customers`, {
     method: "POST",
     headers: headers(cfg.apiKey),
@@ -84,7 +82,7 @@ async function findOrCreateCustomer(cfg: any, payload: any) {
 }
 
 function getPaymentMethodAsaas(m: string) {
-  const map: Record<string, string> = { PIX: "PIX", BOLETO: "BOLETO", CREDIT_CARD: "CREDIT_CARD" };
+  const map: Record<string, string> = { PIX: "PIX", BOLETO: "BOLETO", CREDIT_CARD: "CREDIT_CARD", SPLIT: "SPLIT" };
   return map[m] || "PIX";
 }
 
@@ -106,9 +104,9 @@ serve(async (req) => {
       payment_method,
       installments,
       notes,
+      pix_amount,
     } = body;
 
-    // Basic validation
     if (!camp_slug || !package_id || !guardian_name || !guardian_phone || !guardian_cpf || !child_name) {
       return new Response(JSON.stringify({ error: "Campos obrigatórios ausentes" }), {
         status: 400,
@@ -124,7 +122,6 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Load camp + package
     const { data: camp, error: campErr } = await supabase
       .from("vacation_camps")
       .select("id, name, status")
@@ -143,13 +140,30 @@ serve(async (req) => {
     if (!pkg.active) throw new Error("Pacote indisponível");
     if (pkg.max_slots && pkg.sold_count >= pkg.max_slots) throw new Error("Pacote esgotado");
 
-    const allowedMethods: string[] = pkg.payment_methods || ["PIX"];
+    const allowedMethods: string[] = (pkg.payment_methods || ["PIX"]).map((m: string) => m.toUpperCase());
     const billingType = getPaymentMethodAsaas(payment_method || "PIX");
-    if (!allowedMethods.map((m: string) => m.toUpperCase()).includes(billingType)) {
+    if (billingType === "SPLIT") {
+      if (!(allowedMethods.includes("PIX") && allowedMethods.includes("CREDIT_CARD"))) {
+        throw new Error("Pagamento misto requer PIX e Cartão habilitados no pacote");
+      }
+    } else if (!allowedMethods.includes(billingType)) {
       throw new Error("Forma de pagamento não disponível para este pacote");
     }
 
     const normalizedPhone = normalizePhone(guardian_phone);
+    const price = Number(pkg.price);
+    const maxInst = Math.max(1, Number(pkg.max_installments) || 1);
+    const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
+    const monthlyPct = Number(pkg.card_interest_percent) || 0;
+    const requestedInst = Math.min(maxInst, Math.max(1, Number(installments) || 1));
+
+    function calcTotal(p: number, n: number) {
+      if (n <= freeInst || monthlyPct <= 0) return p;
+      const i = monthlyPct / 100;
+      const factor = Math.pow(1 + i, n);
+      const pmt = (p * i * factor) / (factor - 1);
+      return Math.round(pmt * n * 100) / 100;
+    }
 
     // Insert enrollment as pending
     const { data: enrollment, error: insErr } = await supabase
@@ -168,14 +182,13 @@ serve(async (req) => {
         source: "landing",
         payment_status: "pending",
         payment_method: billingType,
-        installments: installments || 1,
-        amount: Number(pkg.price),
+        installments: requestedInst,
+        amount: price,
       })
       .select()
       .single();
     if (insErr) throw insErr;
 
-    // Asaas setup
     const cfg = await getAsaasConfig(supabase);
     const customer = await findOrCreateCustomer(cfg, {
       name: guardian_name,
@@ -184,106 +197,132 @@ serve(async (req) => {
       phone: normalizedPhone,
     });
 
-    // Due date: today + due_days (UTC-3)
     const due = new Date();
     due.setDate(due.getDate() + (pkg.due_days || 3));
     const dueDate = due.toISOString().slice(0, 10);
+    const baseDesc = `Colônia ${camp.name} - ${pkg.name} - ${child_name}`;
 
-    const description = `Colônia ${camp.name} - ${pkg.name} - ${child_name}`;
-    const externalReference = `camp_${enrollment.id}`;
-
-    const maxInst = Math.max(1, Number(pkg.max_installments) || 1);
-    const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
-    const monthlyPct = Number(pkg.card_interest_percent) || 0;
-    const requestedInst = Math.min(maxInst, Math.max(1, Number(installments) || 1));
-
-    // Tabela Price (compound interest) — applies only above the interest-free range
-    function calcTotal(price: number, n: number) {
-      if (n <= freeInst || monthlyPct <= 0) return price;
-      const i = monthlyPct / 100;
-      const factor = Math.pow(1 + i, n);
-      const pmt = (price * i * factor) / (factor - 1);
-      return Math.round(pmt * n * 100) / 100;
-    }
-
-    const paymentPayload: Record<string, unknown> = {
-      customer: customer.id,
-      billingType,
-      dueDate,
-      description,
-      externalReference,
-      value: Number(pkg.price),
-    };
-
-    // Credit card with installments: send precomputed installmentCount + totalValue
-    // so fees configured by the admin (not Asaas) are honored.
-    if (billingType === "CREDIT_CARD" && requestedInst > 1) {
-      const totalValue = calcTotal(Number(pkg.price), requestedInst);
-      delete paymentPayload.value;
-      paymentPayload.installmentCount = requestedInst;
-      paymentPayload.totalValue = totalValue;
-    }
-
-
-    const paymentResp = await asaasFetch(
-      `${cfg.baseUrl}/payments`,
-      { method: "POST", headers: headers(cfg.apiKey), body: JSON.stringify(paymentPayload) },
-      "createPayment"
-    );
-
-    // If this was an installment (credit card parcelado), the response is an
-    // installment object without invoiceUrl. Fetch the first child payment.
-    let firstPaymentId: string = paymentResp.id;
-    let invoiceUrl: string | null = paymentResp.invoiceUrl || null;
-    let bankSlipUrl: string | null = paymentResp.bankSlipUrl || null;
-
-    if (!invoiceUrl && paymentResp.id) {
-      try {
-        const children = await asaasFetch(
-          `${cfg.baseUrl}/payments?installment=${paymentResp.id}&limit=1`,
-          { method: "GET", headers: headers(cfg.apiKey) },
-          "getInstallmentPayments"
-        );
-        const first = children?.data?.[0];
-        if (first) {
-          firstPaymentId = first.id;
-          invoiceUrl = first.invoiceUrl || null;
-          bankSlipUrl = first.bankSlipUrl || null;
-        }
-      } catch (e) {
-        console.warn("getInstallmentPayments failed:", e);
+    async function createCharge(billing: string, value: number, suffix: string, opts?: { installments?: number }) {
+      const payload: Record<string, unknown> = {
+        customer: customer.id,
+        billingType: billing,
+        dueDate,
+        description: suffix ? `${baseDesc} (${suffix === "pix" ? "Parte PIX" : "Parte Cartão"})` : baseDesc,
+        externalReference: `camp_${enrollment.id}${suffix ? `_${suffix}` : ""}`,
+        value,
+      };
+      if (billing === "CREDIT_CARD" && (opts?.installments || 0) > 1) {
+        delete payload.value;
+        payload.installmentCount = opts!.installments;
+        payload.totalValue = calcTotal(value, opts!.installments!);
       }
-    }
-
-    let pixPayload: string | null = null;
-    let pixEncodedImage: string | null = null;
-    if (billingType === "PIX") {
-      try {
-        const pix = await asaasFetch(
-          `${cfg.baseUrl}/payments/${firstPaymentId}/pixQrCode`,
-          { method: "GET", headers: headers(cfg.apiKey) },
-          "getPix"
-        );
-        pixPayload = pix.payload || null;
-        pixEncodedImage = pix.encodedImage || null;
-      } catch (e) {
-        console.warn("PIX QR error:", e);
+      const resp = await asaasFetch(
+        `${cfg.baseUrl}/payments`,
+        { method: "POST", headers: headers(cfg.apiKey), body: JSON.stringify(payload) },
+        "createPayment"
+      );
+      let firstId: string = resp.id;
+      let invoiceUrl: string | null = resp.invoiceUrl || null;
+      let bankSlipUrl: string | null = resp.bankSlipUrl || null;
+      if (!invoiceUrl && resp.id) {
+        try {
+          const children = await asaasFetch(
+            `${cfg.baseUrl}/payments?installment=${resp.id}&limit=1`,
+            { method: "GET", headers: headers(cfg.apiKey) },
+            "getInstallmentPayments"
+          );
+          const first = children?.data?.[0];
+          if (first) {
+            firstId = first.id;
+            invoiceUrl = first.invoiceUrl || null;
+            bankSlipUrl = first.bankSlipUrl || null;
+          }
+        } catch (_e) { /* ignore */ }
       }
+      let pixPayload: string | null = null;
+      let pixEncodedImage: string | null = null;
+      if (billing === "PIX") {
+        try {
+          const pix = await asaasFetch(
+            `${cfg.baseUrl}/payments/${firstId}/pixQrCode`,
+            { method: "GET", headers: headers(cfg.apiKey) },
+            "getPix"
+          );
+          pixPayload = pix.payload || null;
+          pixEncodedImage = pix.encodedImage || null;
+        } catch (_e) { /* ignore */ }
+      }
+      return { firstId, invoiceUrl, bankSlipUrl, pixPayload, pixEncodedImage };
     }
 
-    // Update enrollment with Asaas info
+    // ----- SPLIT (PIX + CREDIT_CARD) -----
+    if (billingType === "SPLIT") {
+      const pixAmount = Math.round(Number(pix_amount || 0) * 100) / 100;
+      const cardAmount = Math.round((price - pixAmount) * 100) / 100;
+      if (!(pixAmount > 0) || !(cardAmount > 0) || pixAmount >= price) {
+        throw new Error("Valor do PIX deve ser maior que 0 e menor que o total");
+      }
+
+      const pixRes = await createCharge("PIX", pixAmount, "pix");
+      const cardRes = await createCharge("CREDIT_CARD", cardAmount, "cc", { installments: requestedInst });
+
+      await supabase
+        .from("vacation_camp_enrollments")
+        .update({
+          asaas_customer_id: customer.id,
+          asaas_payment_id: pixRes.firstId,
+          asaas_payment_id_2: cardRes.firstId,
+          asaas_invoice_url: cardRes.invoiceUrl,
+          asaas_pix_payload: pixRes.pixPayload,
+          split_pix_amount: pixAmount,
+          split_card_amount: cardAmount,
+          split_pix_paid: false,
+          split_card_paid: false,
+        })
+        .eq("id", enrollment.id);
+
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/vacation-camp-notify`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SERVICE_ROLE}`,
+            apikey: SERVICE_ROLE,
+          },
+          body: JSON.stringify({ event: "enrollment_created", enrollment_id: enrollment.id }),
+        });
+      } catch (_e) { /* ignore */ }
+
+      return new Response(JSON.stringify({
+        success: true,
+        enrollment_id: enrollment.id,
+        split: true,
+        payment: {
+          split: true,
+          pixAmount,
+          cardAmount,
+          invoiceUrl: cardRes.invoiceUrl,
+          bankSlipUrl: cardRes.bankSlipUrl,
+          pixPayload: pixRes.pixPayload,
+          pixEncodedImage: pixRes.pixEncodedImage,
+        },
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
+    }
+
+    // ----- Single method -----
+    const single = await createCharge(billingType, price, "", { installments: requestedInst });
+
     await supabase
       .from("vacation_camp_enrollments")
       .update({
         asaas_customer_id: customer.id,
-        asaas_payment_id: firstPaymentId,
-        asaas_invoice_url: invoiceUrl,
-        asaas_bank_slip_url: bankSlipUrl,
-        asaas_pix_payload: pixPayload,
+        asaas_payment_id: single.firstId,
+        asaas_invoice_url: single.invoiceUrl,
+        asaas_bank_slip_url: single.bankSlipUrl,
+        asaas_pix_payload: single.pixPayload,
       })
       .eq("id", enrollment.id);
 
-    // Fire-and-forget WhatsApp welcome with payment info
     try {
       await fetch(`${SUPABASE_URL}/functions/v1/vacation-camp-notify`, {
         method: "POST",
@@ -303,14 +342,14 @@ serve(async (req) => {
         success: true,
         enrollment_id: enrollment.id,
         payment: {
-          id: firstPaymentId,
+          id: single.firstId,
           billingType,
-          value: Number(pkg.price),
+          value: price,
           dueDate,
-          invoiceUrl,
-          bankSlipUrl,
-          pixPayload,
-          pixEncodedImage,
+          invoiceUrl: single.invoiceUrl,
+          bankSlipUrl: single.bankSlipUrl,
+          pixPayload: single.pixPayload,
+          pixEncodedImage: single.pixEncodedImage,
         },
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
