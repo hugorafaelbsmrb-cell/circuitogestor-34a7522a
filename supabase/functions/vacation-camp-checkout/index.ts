@@ -174,7 +174,8 @@ serve(async (req) => {
       return Math.round(pmt * n * 100) / 100;
     }
 
-    // Insert enrollment as pending
+    // Insert enrollment as pending (or reserved)
+    const isReserve = billingType === "RESERVE";
     const { data: enrollment, error: insErr } = await supabase
       .from("vacation_camp_enrollments")
       .insert({
@@ -189,14 +190,39 @@ serve(async (req) => {
         child_birthdate: child_birthdate || null,
         notes: notes || null,
         source: "landing",
-        payment_status: "pending",
+        payment_status: isReserve ? "reserved" : "pending",
         payment_method: billingType,
         installments: requestedInst,
         amount: price,
+        reserved_payment_date: isReserve ? reserved_payment_date : null,
       })
       .select()
       .single();
     if (insErr) throw insErr;
+
+    // ----- RESERVA: nenhum charge agora, só envia confirmação por WhatsApp -----
+    if (isReserve) {
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/vacation-camp-notify`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${SERVICE_ROLE}`,
+            apikey: SERVICE_ROLE,
+          },
+          body: JSON.stringify({ event: "reservation_created", enrollment_id: enrollment.id }),
+        });
+      } catch (_e) { /* ignore */ }
+      return new Response(JSON.stringify({
+        success: true,
+        enrollment_id: enrollment.id,
+        reserved: true,
+        reserved_payment_date,
+        payment: { reserved: true, reserved_payment_date },
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
+    }
+
+
 
     const cfg = await getAsaasConfig(supabase);
     const customer = await findOrCreateCustomer(cfg, {
