@@ -803,7 +803,12 @@ function CheckoutDialog({
         return;
       }
     }
+    if (form.payment_method === "RESERVE" && !form.reserved_payment_date) {
+      toast.error("Escolha a data em que deseja receber o link de pagamento");
+      return;
+    }
     setLoading(true);
+
     try {
       const { data, error } = await supabase.functions.invoke("vacation-camp-checkout", {
         body: {
