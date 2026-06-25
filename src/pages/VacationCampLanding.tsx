@@ -882,21 +882,43 @@ function CheckoutDialog({
                   {methods.includes("PIX") && <SelectItem value="PIX">PIX</SelectItem>}
                   {methods.includes("BOLETO") && <SelectItem value="BOLETO">Boleto</SelectItem>}
                   {methods.includes("CREDIT_CARD") && <SelectItem value="CREDIT_CARD">Cartão de crédito</SelectItem>}
+                  {canSplit && <SelectItem value="SPLIT">Misto (PIX + Cartão)</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
-            {form.payment_method === "CREDIT_CARD" && pkg.max_installments > 1 && (() => {
+            {form.payment_method === "SPLIT" && (
+              <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+                <Label>Valor no PIX (restante no cartão)</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={Number(pkg.price) - 1}
+                  value={form.pix_amount}
+                  onChange={(e) => setForm({ ...form, pix_amount: Number(e.target.value) })}
+                />
+                <div className="text-xs text-muted-foreground">
+                  PIX: <strong>{fmtBRL(Number(form.pix_amount) || 0)}</strong> · Cartão: <strong>{fmtBRL(Math.max(0, Number(pkg.price) - (Number(form.pix_amount) || 0)))}</strong>
+                </div>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                  ⚠️ Você precisa pagar as duas partes para confirmar a vaga.
+                </p>
+              </div>
+            )}
+            {(form.payment_method === "CREDIT_CARD" || form.payment_method === "SPLIT") && pkg.max_installments > 1 && (() => {
               const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
               const monthlyPct = Number(pkg.card_interest_percent) || 0;
+              const baseAmt = form.payment_method === "SPLIT"
+                ? Math.max(0, Number(pkg.price) - (Number(form.pix_amount) || 0))
+                : Number(pkg.price);
               return (
                 <div>
-                  <Label>Parcelas</Label>
+                  <Label>Parcelas do cartão</Label>
                   <Select value={String(form.installments)} onValueChange={(v) => setForm({ ...form, installments: parseInt(v) })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {Array.from({ length: pkg.max_installments }).map((_, i) => {
                         const n = i + 1;
-                        const { perInstallment, total } = calcInstallment(Number(pkg.price), n, freeInst, monthlyPct);
+                        const { perInstallment, total } = calcInstallment(baseAmt, n, freeInst, monthlyPct);
                         const hasInterest = n > freeInst && monthlyPct > 0;
                         return (
                           <SelectItem key={n} value={String(n)}>
