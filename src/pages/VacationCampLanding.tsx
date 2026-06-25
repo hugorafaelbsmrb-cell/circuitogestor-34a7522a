@@ -983,7 +983,12 @@ function PaymentInstructions({ payment, theme }: { payment: any; theme: string }
       <p className="text-sm text-muted-foreground">
         Inscrição registrada! Conclua o pagamento abaixo para confirmar a vaga.
       </p>
-      {payment.billingType === "PIX" && payment.pixEncodedImage && (
+      {payment.split && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-800 dark:text-amber-200">
+          ⚠️ Pagamento misto: você precisa concluir <strong>as duas partes</strong> abaixo (PIX de {payment.pixAmount?.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} e Cartão de {payment.cardAmount?.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}) para confirmar a vaga.
+        </div>
+      )}
+      {(payment.billingType === "PIX" || payment.split) && payment.pixEncodedImage && (
         <div className="text-center">
           <img
             src={`data:image/png;base64,${payment.pixEncodedImage}`}
