@@ -82,9 +82,10 @@ async function findOrCreateCustomer(cfg: any, payload: any) {
 }
 
 function getPaymentMethodAsaas(m: string) {
-  const map: Record<string, string> = { PIX: "PIX", BOLETO: "BOLETO", CREDIT_CARD: "CREDIT_CARD", SPLIT: "SPLIT" };
+  const map: Record<string, string> = { PIX: "PIX", BOLETO: "BOLETO", CREDIT_CARD: "CREDIT_CARD", SPLIT: "SPLIT", RESERVE: "RESERVE" };
   return map[m] || "PIX";
 }
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
