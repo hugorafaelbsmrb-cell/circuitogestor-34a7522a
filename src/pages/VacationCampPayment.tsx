@@ -93,25 +93,39 @@ export default function VacationCampPayment() {
   const freeInst = info?.package.card_interest_free_installments || 1;
   const monthlyPct = info?.package.card_interest_percent || 0;
 
+  const pixAmount = useMemo(() => {
+    const n = Number((pixAmountStr || "").replace(",", "."));
+    return isNaN(n) ? 0 : n;
+  }, [pixAmountStr]);
+  const cardPortion = method === "SPLIT" ? Math.max(0, Math.round((price - pixAmount) * 100) / 100) : price;
+
   const installmentOptions = useMemo(() => {
     if (!info) return [];
+    const base = cardPortion > 0 ? cardPortion : price;
     return Array.from({ length: maxInst }, (_, i) => i + 1).map((n) => {
-      const { perInstallment, total, hasInterest } = calcInstallment(price, n, freeInst, monthlyPct);
+      const { perInstallment, total, hasInterest } = calcInstallment(base, n, freeInst, monthlyPct);
       const label = n === 1
-        ? `À vista — ${fmtBRL(price)}`
+        ? `À vista — ${fmtBRL(base)}`
         : `${n}x de ${fmtBRL(perInstallment)}${hasInterest ? " (c/ juros)" : " s/ juros"} — total ${fmtBRL(total)}`;
       return { n, label };
     });
-  }, [info, price, maxInst, freeInst, monthlyPct]);
+  }, [info, price, cardPortion, maxInst, freeInst, monthlyPct]);
 
   const pay = async () => {
     if (!id) return;
+    if (method === "SPLIT") {
+      if (!(pixAmount > 0) || pixAmount >= price) {
+        toast.error("Informe um valor de PIX maior que 0 e menor que o total");
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const data = await callFn({
         action: "pay", enrollment_id: id,
         payment_method: method,
-        installments: method === "CREDIT_CARD" ? installments : 1,
+        installments: (method === "CREDIT_CARD" || method === "SPLIT") ? installments : 1,
+        pix_amount: method === "SPLIT" ? pixAmount : undefined,
       });
       setResult(data);
       toast.success("Cobrança gerada!");
