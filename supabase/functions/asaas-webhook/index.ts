@@ -155,15 +155,18 @@ async function sendPaymentConfirmationWhatsApp(
 }
 
 async function processCampEnrollment(supabase: any, payment: AsaasWebhookPayment, status: string) {
-  const enrollmentId = payment.externalReference?.replace(/^camp_/, "");
-  if (!enrollmentId) return;
+  const ref = payment.externalReference || "";
+  // Format: camp_<id>  OR  camp_<id>_pix  OR  camp_<id>_cc
+  const m = ref.match(/^camp_(.+?)(?:_(pix|cc))?$/);
+  if (!m) return;
+  const enrollmentId = m[1];
+  const part = m[2] as "pix" | "cc" | undefined;
 
   const isPaid = ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(status);
-  const newStatus = isPaid ? "confirmed" : status === "OVERDUE" ? "overdue" : "pending";
 
   const { data: enrollment } = await supabase
     .from("vacation_camp_enrollments")
-    .select("id, package_id, payment_status")
+    .select("id, package_id, payment_status, payment_method, split_pix_paid, split_card_paid, asaas_payment_id, asaas_payment_id_2")
     .eq("id", enrollmentId)
     .maybeSingle();
 
@@ -173,21 +176,36 @@ async function processCampEnrollment(supabase: any, payment: AsaasWebhookPayment
   }
 
   const wasConfirmed = enrollment.payment_status === "confirmed";
+  const isSplit = enrollment.payment_method === "SPLIT";
+
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+
+  if (isSplit && part) {
+    if (part === "pix") updates.split_pix_paid = isPaid;
+    if (part === "cc") updates.split_card_paid = isPaid;
+    const pixPaid = part === "pix" ? isPaid : !!enrollment.split_pix_paid;
+    const cardPaid = part === "cc" ? isPaid : !!enrollment.split_card_paid;
+    const bothPaid = pixPaid && cardPaid;
+    updates.payment_status = bothPaid ? "confirmed" : status === "OVERDUE" ? "overdue" : "pending";
+    if (bothPaid && !wasConfirmed) updates.confirmed_at = new Date().toISOString();
+  } else {
+    const newStatus = isPaid ? "confirmed" : status === "OVERDUE" ? "overdue" : "pending";
+    updates.payment_status = newStatus;
+    updates.asaas_payment_id = payment.id;
+    updates.asaas_invoice_url = payment.invoiceUrl;
+    updates.asaas_bank_slip_url = payment.bankSlipUrl;
+    if (isPaid && !wasConfirmed) updates.confirmed_at = new Date().toISOString();
+  }
 
   await supabase
     .from("vacation_camp_enrollments")
-    .update({
-      payment_status: newStatus,
-      asaas_payment_id: payment.id,
-      asaas_invoice_url: payment.invoiceUrl,
-      asaas_bank_slip_url: payment.bankSlipUrl,
-      confirmed_at: isPaid && !wasConfirmed ? new Date().toISOString() : undefined,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updates)
     .eq("id", enrollmentId);
 
+  const becameConfirmed = updates.payment_status === "confirmed" && !wasConfirmed;
+
   // Increment sold_count on first confirmation
-  if (isPaid && !wasConfirmed && enrollment.package_id) {
+  if (becameConfirmed && enrollment.package_id) {
     const { data: pkg } = await supabase
       .from("vacation_camp_packages")
       .select("sold_count")
@@ -202,7 +220,7 @@ async function processCampEnrollment(supabase: any, payment: AsaasWebhookPayment
   }
 
   // Notify guardian via WhatsApp on first confirmation
-  if (isPaid && !wasConfirmed) {
+  if (becameConfirmed) {
     try {
       await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/vacation-camp-notify`, {
         method: "POST",
@@ -218,7 +236,7 @@ async function processCampEnrollment(supabase: any, payment: AsaasWebhookPayment
     }
   }
 
-  console.log(`✅ Camp enrollment ${enrollmentId} -> ${newStatus}`);
+  console.log(`✅ Camp enrollment ${enrollmentId}${part ? `[${part}]` : ""} -> ${updates.payment_status}`);
 }
 
 async function processPaymentEvent(supabaseUrl: string, supabaseKey: string, event: string, payment: AsaasWebhookPayment) {
