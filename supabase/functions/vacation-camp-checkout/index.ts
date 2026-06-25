@@ -149,9 +149,15 @@ serve(async (req) => {
       if (!(allowedMethods.includes("PIX") && allowedMethods.includes("CREDIT_CARD"))) {
         throw new Error("Pagamento misto requer PIX e Cartão habilitados no pacote");
       }
+    } else if (billingType === "RESERVE") {
+      if (!reserved_payment_date) throw new Error("Data de pagamento futura é obrigatória");
+      const today = new Date(); today.setHours(0,0,0,0);
+      const target = new Date(String(reserved_payment_date) + "T00:00:00");
+      if (isNaN(target.getTime()) || target < today) throw new Error("Data de pagamento deve ser hoje ou futura");
     } else if (!allowedMethods.includes(billingType)) {
       throw new Error("Forma de pagamento não disponível para este pacote");
     }
+
 
     const normalizedPhone = normalizePhone(guardian_phone);
     const price = Number(pkg.price);
