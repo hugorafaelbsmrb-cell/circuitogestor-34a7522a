@@ -938,13 +938,21 @@ function CheckoutDialog({
             <div className="flex items-center justify-between pt-2 border-t">
               <div className="text-sm">
                 {(() => {
-                  const isCC = form.payment_method === "CREDIT_CARD";
                   const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
                   const monthlyPct = Number(pkg.card_interest_percent) || 0;
+                  const price = Number(pkg.price);
+                  if (form.payment_method === "SPLIT") {
+                    const pixAmt = Number(form.pix_amount) || 0;
+                    const cardAmt = Math.max(0, price - pixAmt);
+                    const n = Math.max(1, form.installments);
+                    const { total: cardTotal } = calcInstallment(cardAmt, n, freeInst, monthlyPct);
+                    return <>Total: <strong style={{ color: theme }}>{fmtBRL(pixAmt + cardTotal)}</strong></>;
+                  }
+                  const isCC = form.payment_method === "CREDIT_CARD";
                   const n = isCC ? Math.max(1, form.installments) : 1;
                   const { total } = isCC
-                    ? calcInstallment(Number(pkg.price), n, freeInst, monthlyPct)
-                    : { total: Number(pkg.price) };
+                    ? calcInstallment(price, n, freeInst, monthlyPct)
+                    : { total: price };
                   return <>Total: <strong style={{ color: theme }}>{fmtBRL(total)}</strong></>;
                 })()}
               </div>
