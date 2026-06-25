@@ -778,9 +778,11 @@ function CheckoutDialog({
     guardian_name: "", guardian_phone: "", guardian_email: "", guardian_cpf: "",
     child_name: "", child_age: "", payment_method: (pkg.payment_methods?.[0] || "PIX").toUpperCase(),
     installments: 1, notes: "",
+    pix_amount: Math.round(Number(pkg.price) / 2),
   });
 
   const methods = (pkg.payment_methods || ["PIX"]).map((m) => m.toUpperCase());
+  const canSplit = methods.includes("PIX") && methods.includes("CREDIT_CARD");
 
   const submit = async () => {
     if (!form.guardian_name.trim() || !form.guardian_phone.trim() || !form.guardian_cpf.trim() || !form.child_name.trim()) {
