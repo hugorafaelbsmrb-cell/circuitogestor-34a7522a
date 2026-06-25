@@ -891,9 +891,27 @@ function CheckoutDialog({
                   {methods.includes("BOLETO") && <SelectItem value="BOLETO">Boleto</SelectItem>}
                   {methods.includes("CREDIT_CARD") && <SelectItem value="CREDIT_CARD">Cartão de crédito</SelectItem>}
                   {canSplit && <SelectItem value="SPLIT">Misto (PIX + Cartão)</SelectItem>}
+                  <SelectItem value="RESERVE">Reservar vaga e pagar depois</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {form.payment_method === "RESERVE" && (
+              <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+                <Label>Quando deseja receber o link de pagamento?</Label>
+                <Input
+                  type="date"
+                  min={todayStr}
+                  value={form.reserved_payment_date}
+                  onChange={(e) => setForm({ ...form, reserved_payment_date: e.target.value })}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Na data escolhida enviaremos automaticamente o link no seu WhatsApp para concluir o pagamento (PIX, Cartão ou Misto).
+                </p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                  ⚠️ A vaga fica reservada — confirme o pagamento até a data combinada.
+                </p>
+              </div>
+            )}
             {form.payment_method === "SPLIT" && (
               <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
                 <Label>Valor no PIX (restante no cartão)</Label>
@@ -912,6 +930,7 @@ function CheckoutDialog({
                 </p>
               </div>
             )}
+
             {(form.payment_method === "CREDIT_CARD" || form.payment_method === "SPLIT") && pkg.max_installments > 1 && (() => {
               const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
               const monthlyPct = Number(pkg.card_interest_percent) || 0;
