@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, ArrowLeft, Upload, X, Search, Download, MessageCircle, CheckCircle, Send, Copy, ClipboardCheck } from "lucide-react";
+import { Loader2, Plus, Trash2, ArrowLeft, Upload, X, Search, Download, MessageCircle, CheckCircle, Send, Copy, ClipboardCheck, CreditCard } from "lucide-react";
 import { formatCPF, formatPhone, normalizePhoneToWAPI } from "@/utils/validators";
 
 const sb: any = supabase;
@@ -535,6 +535,7 @@ function EnrollmentsTab({ campId }: { campId: string }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ status: "all", pkg: "all", q: "" });
   const [addOpen, setAddOpen] = useState(false);
+  const [payEdit, setPayEdit] = useState<any>(null);
 
   const load = async () => {
     setLoading(true);
@@ -679,6 +680,7 @@ function EnrollmentsTab({ campId }: { campId: string }) {
                     <td className="p-2 text-right whitespace-nowrap">
                       {r.payment_status !== "confirmed" && r.payment_status !== "cancelled" && (
                         <>
+                          <Button size="icon" variant="ghost" title="Alterar forma de pagamento" onClick={() => setPayEdit(r)}><CreditCard className="w-4 h-4 text-blue-600" /></Button>
                           <Button size="icon" variant="ghost" title="Enviar link de pagamento por WhatsApp" onClick={() => sendPaymentLink(r)}><Send className="w-4 h-4 text-primary" /></Button>
                           <Button size="icon" variant="ghost" title="Copiar link de pagamento" onClick={() => copyPaymentLink(r)}><Copy className="w-4 h-4" /></Button>
                         </>
@@ -708,7 +710,137 @@ function EnrollmentsTab({ campId }: { campId: string }) {
       )}
 
       <AddOurStudentDialog open={addOpen} onOpenChange={setAddOpen} campId={campId} pkgs={pkgs} onAdded={load} />
+      <ChangePaymentMethodDialog enrollment={payEdit} onClose={() => setPayEdit(null)} onUpdated={load} />
     </div>
+  );
+}
+
+function ChangePaymentMethodDialog({ enrollment, onClose, onUpdated }: { enrollment: any; onClose: () => void; onUpdated: () => void }) {
+  const [pkg, setPkg] = useState<any>(null);
+  const [method, setMethod] = useState<string>("PIX");
+  const [installments, setInstallments] = useState<number>(1);
+  const [pixAmount, setPixAmount] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const [sendWhats, setSendWhats] = useState(true);
+
+  useEffect(() => {
+    if (!enrollment) return;
+    (async () => {
+      const { data } = await sb.from("vacation_camp_packages").select("*").eq("id", enrollment.package_id).maybeSingle();
+      setPkg(data);
+      const current = (enrollment.payment_method || "").toUpperCase();
+      const allowed = (data?.payment_methods || ["PIX"]).map((m: string) => m.toUpperCase());
+      setMethod(current && (allowed.includes(current) || current === "SPLIT") ? current : (allowed[0] || "PIX"));
+      setInstallments(enrollment.installments || 1);
+      const total = Number(enrollment.amount ?? data?.price ?? 0);
+      setPixAmount(enrollment.split_pix_amount ?? Math.round(total / 2));
+    })();
+  }, [enrollment?.id]);
+
+  if (!enrollment) return null;
+
+  const total = Number(enrollment.amount ?? pkg?.price ?? 0);
+  const allowed = (pkg?.payment_methods || ["PIX"]).map((m: string) => m.toUpperCase());
+  const maxInst = Math.max(1, Number(pkg?.max_installments) || 1);
+  const splitAvailable = allowed.includes("PIX") && allowed.includes("CREDIT_CARD");
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await sb.functions.invoke("vacation-camp-pay-existing", {
+        body: {
+          action: "pay",
+          enrollment_id: enrollment.id,
+          payment_method: method,
+          installments,
+          pix_amount: method === "SPLIT" ? pixAmount : undefined,
+        },
+      });
+      if (error || data?.error) throw new Error(error?.message || data?.error || "Falha");
+      toast.success("Forma de pagamento atualizada");
+      if (sendWhats && enrollment.guardian_phone) {
+        const { error: ne } = await sb.functions.invoke("vacation-camp-notify", {
+          body: { event: "payment_link", enrollment_id: enrollment.id },
+        });
+        if (ne) toast.warning("Atualizado, mas falha ao enviar WhatsApp");
+        else toast.success("Link enviado por WhatsApp");
+      }
+      onUpdated();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message || "Erro");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!enrollment} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Alterar forma de pagamento</DialogTitle></DialogHeader>
+        <div className="space-y-3 text-sm">
+          <div className="p-3 bg-muted/40 rounded">
+            <div className="font-medium">{enrollment.child_name}</div>
+            <div className="text-xs text-muted-foreground">{pkg?.name} · R$ {total.toFixed(2)}</div>
+            <div className="text-xs text-muted-foreground">Atual: {enrollment.payment_method || "—"}</div>
+          </div>
+
+          <div>
+            <Label>Nova forma de pagamento</Label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {allowed.includes("PIX") && <SelectItem value="PIX">PIX</SelectItem>}
+                {allowed.includes("CREDIT_CARD") && <SelectItem value="CREDIT_CARD">Cartão de crédito</SelectItem>}
+                {allowed.includes("BOLETO") && <SelectItem value="BOLETO">Boleto</SelectItem>}
+                {splitAvailable && <SelectItem value="SPLIT">Misto (PIX + Cartão)</SelectItem>}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {(method === "CREDIT_CARD" || method === "SPLIT") && maxInst > 1 && (
+            <div>
+              <Label>Parcelas (cartão)</Label>
+              <Select value={String(installments)} onValueChange={(v) => setInstallments(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: maxInst }, (_, i) => i + 1).map((n) => (
+                    <SelectItem key={n} value={String(n)}>{n}x</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {method === "SPLIT" && (
+            <div>
+              <Label>Valor no PIX (R$)</Label>
+              <Input
+                type="number" min={0.01} max={total - 0.01} step="0.01"
+                value={pixAmount}
+                onChange={(e) => setPixAmount(Number(e.target.value))}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Restante no cartão: R$ {Math.max(0, total - pixAmount).toFixed(2)}
+              </p>
+            </div>
+          )}
+
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={sendWhats} onChange={(e) => setSendWhats(e.target.checked)} />
+            Enviar novo link por WhatsApp ao responsável
+          </label>
+
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
+            <Button onClick={handleSubmit} disabled={loading}>
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Atualizar
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
