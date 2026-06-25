@@ -54,8 +54,9 @@ export default function VacationCampPayment() {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [info, setInfo] = useState<Info | null>(null);
-  const [method, setMethod] = useState<"PIX" | "CREDIT_CARD" | "BOLETO">("PIX");
+  const [method, setMethod] = useState<"PIX" | "CREDIT_CARD" | "BOLETO" | "SPLIT">("PIX");
   const [installments, setInstallments] = useState(1);
+  const [pixAmountStr, setPixAmountStr] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{
     invoiceUrl: string | null;
