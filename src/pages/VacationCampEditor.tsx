@@ -84,6 +84,8 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
     theme_color: camp.theme_color || "#f97316", cta_text: camp.cta_text || "Garantir vaga",
     whatsapp_number: camp.whatsapp_number || "",
     meta_pixel_id: camp.meta_pixel_id || "",
+    tuition_skip_month: camp.tuition_skip_month || "",
+    tuition_skip_year: camp.tuition_skip_year || "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -95,6 +97,8 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
       age_max: f.age_max ? parseInt(String(f.age_max)) : null,
       start_date: f.start_date || null,
       end_date: f.end_date || null,
+      tuition_skip_month: f.tuition_skip_month ? parseInt(String(f.tuition_skip_month)) : null,
+      tuition_skip_year: f.tuition_skip_year ? parseInt(String(f.tuition_skip_year)) : null,
     }).eq("id", camp.id);
     setSaving(false);
     if (error) return toast.error(error.message);
