@@ -126,7 +126,7 @@ serve(async (req) => {
         throw new Error("Pagamento misto requer PIX e Cartão habilitados no pacote");
       }
 
-      const price = Number(enr.amount ?? pkg.price);
+      const price = Number(enr.amount_override ?? enr.amount ?? pkg.price);
       const maxInst = Math.max(1, Number(pkg.max_installments) || 1);
       const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
       const monthlyPct = Number(pkg.card_interest_percent) || 0;
