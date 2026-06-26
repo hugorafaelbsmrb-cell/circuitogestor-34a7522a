@@ -107,6 +107,9 @@ serve(async (req) => {
       notes,
       pix_amount,
       reserved_payment_date,
+      // ------- Fluxo "aluno nosso" -------
+      internal_student_id,
+      base_tuition,
     } = body;
 
 
