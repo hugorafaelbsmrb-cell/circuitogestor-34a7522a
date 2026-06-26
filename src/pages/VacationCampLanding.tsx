@@ -1085,3 +1085,279 @@ function PaymentInstructions({ payment, theme }: { payment: any; theme: string }
     </div>
   );
 }
+
+/* ===================== STUDENT CHECKOUT DIALOG ===================== */
+interface StudentItem { id: string; name: string; birth_date: string | null; base_tuition: number | null }
+
+function StudentCheckoutDialog({
+  camp, pkg, theme, open, onOpenChange,
+}: { camp: Camp; pkg: Pkg; theme: string; open: boolean; onOpenChange: (b: boolean) => void }) {
+  const [step, setStep] = useState<"cpf" | "select" | "form" | "payment">("cpf");
+  const [cpf, setCpf] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [students, setStudents] = useState<StudentItem[]>([]);
+  const [guardianFromDb, setGuardianFromDb] = useState<{ name?: string; phone?: string; email?: string } | null>(null);
+  const [selected, setSelected] = useState<StudentItem | null>(null);
+  const [result, setResult] = useState<any>(null);
+  const [form, setForm] = useState({
+    guardian_name: "", guardian_phone: "", guardian_email: "",
+    payment_method: (pkg.payment_methods?.[0] || "PIX").toUpperCase(),
+    installments: 1, notes: "",
+    pix_amount: Math.round(Number(pkg.price) / 2),
+    reserved_payment_date: "",
+  });
+
+  const methods = (pkg.payment_methods || ["PIX"]).map((m) => m.toUpperCase());
+  const canSplit = methods.includes("PIX") && methods.includes("CREDIT_CARD");
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const lookup = async () => {
+    if (!isValidCPF(cpf)) { toast.error("CPF inválido"); return; }
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("vacation-camp-student-lookup", {
+        body: { cpf: cpf.replace(/\D/g, ""), camp_slug: camp.slug },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!data?.found) {
+        toast.error("CPF não encontrado em nosso cadastro. Use um dos pacotes abertos ao público.");
+        return;
+      }
+      if (!data?.students?.length) {
+        toast.error("Não encontramos alunos ativos vinculados a este CPF. Fale com a secretaria.");
+        return;
+      }
+      setStudents(data.students);
+      setGuardianFromDb(data.guardian || null);
+      setForm((f) => ({
+        ...f,
+        guardian_name: data.guardian?.name || f.guardian_name,
+        guardian_phone: data.guardian?.phone ? formatPhone(data.guardian.phone) : f.guardian_phone,
+        guardian_email: data.guardian?.email || f.guardian_email,
+      }));
+      if (data.students.length === 1) {
+        setSelected(data.students[0]);
+        setStep("form");
+      } else {
+        setStep("select");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao buscar cadastro");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submit = async () => {
+    if (!selected) return;
+    if (!form.guardian_name.trim() || !form.guardian_phone.trim()) {
+      toast.error("Preencha nome e telefone do responsável");
+      return;
+    }
+    if (form.payment_method === "SPLIT") {
+      const p = Number(form.pix_amount);
+      if (!(p > 0) || p >= Number(pkg.price)) {
+        toast.error("Valor do PIX deve ser maior que 0 e menor que o total");
+        return;
+      }
+    }
+    if (form.payment_method === "RESERVE" && !form.reserved_payment_date) {
+      toast.error("Escolha a data em que deseja receber o link de pagamento");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("vacation-camp-checkout", {
+        body: {
+          camp_slug: camp.slug,
+          package_id: pkg.id,
+          guardian_name: form.guardian_name,
+          guardian_phone: form.guardian_phone,
+          guardian_email: form.guardian_email,
+          guardian_cpf: cpf,
+          child_name: selected.name,
+          child_age: null,
+          payment_method: form.payment_method,
+          installments: form.installments,
+          notes: form.notes,
+          pix_amount: form.pix_amount,
+          reserved_payment_date: form.reserved_payment_date,
+          internal_student_id: selected.id,
+          base_tuition: selected.base_tuition,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setResult(data);
+      setStep("payment");
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao processar inscrição");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const price = Number(pkg.price);
+  const base = selected?.base_tuition ? Number(selected.base_tuition) : null;
+  const diff = base != null ? Math.max(0, price - base) : null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {step === "cpf" && "Sou aluno da escola"}
+            {step === "select" && "Escolha o aluno"}
+            {step === "form" && `Inscrição — ${pkg.name}`}
+            {step === "payment" && "Quase lá!"}
+          </DialogTitle>
+        </DialogHeader>
+
+        {step === "cpf" && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Informe o <strong>CPF do responsável financeiro</strong> cadastrado na escola.
+              Vamos buscar o aluno e calcular o valor já considerando a mensalidade.
+            </p>
+            <div>
+              <Label>CPF do responsável</Label>
+              <Input
+                value={cpf}
+                onChange={(e) => setCpf(formatCPF(e.target.value))}
+                placeholder="000.000.000-00"
+                maxLength={14}
+              />
+            </div>
+            <Button onClick={lookup} disabled={loading} className="w-full text-white" style={{ background: theme }}>
+              {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Buscar meu cadastro
+            </Button>
+          </div>
+        )}
+
+        {step === "select" && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">Selecione qual aluno fará a colônia:</p>
+            <div className="space-y-2">
+              {students.map((s) => (
+                <Card key={s.id} className="p-3 cursor-pointer hover:border-primary transition" onClick={() => { setSelected(s); setStep("form"); }}>
+                  <div className="font-semibold">{s.name}</div>
+                  {s.base_tuition != null && (
+                    <div className="text-xs text-muted-foreground">Mensalidade base: {fmtBRL(Number(s.base_tuition))}</div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === "form" && selected && (
+          <div className="space-y-3">
+            <Card className="p-3 bg-muted/40 space-y-1">
+              <div className="text-sm"><strong>{selected.name}</strong></div>
+              <div className="text-xs text-muted-foreground">Pacote: {pkg.name} · {fmtBRL(price)}</div>
+              {base != null && (
+                <>
+                  <div className="text-xs text-muted-foreground">Mensalidade base do aluno: {fmtBRL(base)}</div>
+                  <div className="text-xs" style={{ color: theme }}>
+                    Diferença em relação à mensalidade: <strong>{fmtBRL(diff || 0)}</strong>
+                  </div>
+                </>
+              )}
+              <div className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                ⚠️ A mensalidade de {camp ? `${String(camp.start_date ? new Date(camp.start_date+"T00:00:00").toLocaleString("pt-BR",{month:"long"}) : "julho")}` : "julho"} será considerada quitada — você não receberá cobrança duplicada.
+              </div>
+            </Card>
+
+            <div>
+              <Label>Nome do responsável *</Label>
+              <Input value={form.guardian_name} onChange={(e) => setForm({ ...form, guardian_name: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Telefone *</Label>
+                <Input value={form.guardian_phone} onChange={(e) => setForm({ ...form, guardian_phone: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" />
+              </div>
+              <div>
+                <Label>E-mail</Label>
+                <Input type="email" value={form.guardian_email} onChange={(e) => setForm({ ...form, guardian_email: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <Label>Forma de pagamento</Label>
+              <Select value={form.payment_method} onValueChange={(v) => setForm({ ...form, payment_method: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {methods.includes("PIX") && <SelectItem value="PIX">PIX</SelectItem>}
+                  {methods.includes("BOLETO") && <SelectItem value="BOLETO">Boleto</SelectItem>}
+                  {methods.includes("CREDIT_CARD") && <SelectItem value="CREDIT_CARD">Cartão de crédito</SelectItem>}
+                  {canSplit && <SelectItem value="SPLIT">Misto (PIX + Cartão)</SelectItem>}
+                  <SelectItem value="RESERVE">Reservar vaga e pagar depois</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {form.payment_method === "RESERVE" && (
+              <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+                <Label>Quando deseja receber o link de pagamento?</Label>
+                <Input type="date" min={todayStr} value={form.reserved_payment_date} onChange={(e) => setForm({ ...form, reserved_payment_date: e.target.value })} />
+                <p className="text-[11px] text-muted-foreground">Na data escolhida enviaremos automaticamente o link no seu WhatsApp.</p>
+              </div>
+            )}
+            {form.payment_method === "SPLIT" && (
+              <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+                <Label>Valor no PIX (restante no cartão)</Label>
+                <Input type="number" min={1} max={price - 1} value={form.pix_amount} onChange={(e) => setForm({ ...form, pix_amount: Number(e.target.value) })} />
+                <div className="text-xs text-muted-foreground">
+                  PIX: <strong>{fmtBRL(Number(form.pix_amount) || 0)}</strong> · Cartão: <strong>{fmtBRL(Math.max(0, price - (Number(form.pix_amount) || 0)))}</strong>
+                </div>
+              </div>
+            )}
+            {(form.payment_method === "CREDIT_CARD" || form.payment_method === "SPLIT") && pkg.max_installments > 1 && (() => {
+              const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
+              const monthlyPct = Number(pkg.card_interest_percent) || 0;
+              const baseAmt = form.payment_method === "SPLIT" ? Math.max(0, price - (Number(form.pix_amount) || 0)) : price;
+              return (
+                <div>
+                  <Label>Parcelas do cartão</Label>
+                  <Select value={String(form.installments)} onValueChange={(v) => setForm({ ...form, installments: parseInt(v) })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: pkg.max_installments }).map((_, i) => {
+                        const n = i + 1;
+                        const { perInstallment, total } = calcInstallment(baseAmt, n, freeInst, monthlyPct);
+                        const hasInterest = n > freeInst && monthlyPct > 0;
+                        return (
+                          <SelectItem key={n} value={String(n)}>
+                            {n}x de {fmtBRL(perInstallment)} {hasInterest ? `(total ${fmtBRL(total)} c/ juros)` : "sem juros"}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              );
+            })()}
+            <div>
+              <Label>Observações</Label>
+              <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t">
+              <div className="text-sm">Total: <strong style={{ color: theme }}>{fmtBRL(price)}</strong></div>
+              <Button onClick={submit} disabled={loading} style={{ background: theme }} className="text-white">
+                {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                Finalizar inscrição
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {step === "payment" && result?.payment && (
+          <PaymentInstructions payment={result.payment} theme={theme} />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
