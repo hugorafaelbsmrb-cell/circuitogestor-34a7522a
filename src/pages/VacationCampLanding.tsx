@@ -68,6 +68,7 @@ export default function VacationCampLanding() {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedPkg, setSelectedPkg] = useState<Pkg | null>(null);
+  const [studentFlow, setStudentFlow] = useState<null | { pkg: Pkg }>(null);
 
   // ===== COUNTDOWN =====
   const [now, setNow] = useState(new Date());
