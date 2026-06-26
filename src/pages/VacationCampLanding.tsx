@@ -769,6 +769,15 @@ export default function VacationCampLanding() {
           onOpenChange={setCheckoutOpen}
         />
       )}
+      {studentFlow && camp && (
+        <StudentCheckoutDialog
+          camp={camp}
+          pkg={studentFlow.pkg}
+          theme={theme}
+          open={!!studentFlow}
+          onOpenChange={(b) => !b && setStudentFlow(null)}
+        />
+      )}
     </div>
   );
 }
