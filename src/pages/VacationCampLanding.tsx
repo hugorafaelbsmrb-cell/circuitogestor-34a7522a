@@ -677,14 +677,9 @@ export default function VacationCampLanding() {
                     {soldOut ? "Esgotado" : `${left} vagas restantes`}
                   </div>
                 )}
-                {isExclusive || isNegotiable ? (
+                {isNegotiable ? (
                   waNumber ? (
-                    <a
-                      href={`https://wa.me/${waNumber}?text=${waMsg}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-5 w-full"
-                    >
+                    <a href={`https://wa.me/${waNumber}?text=${waMsg}`} target="_blank" rel="noreferrer" className="mt-5 w-full">
                       <Button className="w-full text-white" style={{ background: theme }}>
                         Falar com a secretaria
                       </Button>
@@ -694,6 +689,15 @@ export default function VacationCampLanding() {
                       Falar com a secretaria
                     </Button>
                   )
+                ) : isExclusive ? (
+                  <Button
+                    className="mt-5 w-full text-white"
+                    style={{ background: theme }}
+                    disabled={soldOut}
+                    onClick={() => setStudentFlow({ pkg: p })}
+                  >
+                    {soldOut ? "Esgotado" : "Sou aluno da escola"}
+                  </Button>
                 ) : (
                   <Button
                     className="mt-5 w-full text-white"
