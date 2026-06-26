@@ -104,7 +104,7 @@ serve(async (req) => {
         camp: { name: enr.camp?.name, slug: enr.camp?.slug },
         package: {
           name: pkg.name,
-          price: enr.amount ?? pkg.price,
+          price: enr.amount_override ?? enr.amount ?? pkg.price,
           payment_methods: pkg.payment_methods || ["PIX"],
           max_installments: pkg.max_installments || 1,
           card_interest_free_installments: pkg.card_interest_free_installments || 1,
@@ -126,7 +126,7 @@ serve(async (req) => {
         throw new Error("Pagamento misto requer PIX e Cartão habilitados no pacote");
       }
 
-      const price = Number(enr.amount ?? pkg.price);
+      const price = Number(enr.amount_override ?? enr.amount ?? pkg.price);
       const maxInst = Math.max(1, Number(pkg.max_installments) || 1);
       const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
       const monthlyPct = Number(pkg.card_interest_percent) || 0;
@@ -237,6 +237,7 @@ serve(async (req) => {
             split_card_amount: cardAmount,
             split_pix_paid: false,
             split_card_paid: false,
+            amount: price,
             guardian_phone: normalizePhone(enr.guardian_phone),
           })
           .eq("id", enr.id);
@@ -271,6 +272,7 @@ serve(async (req) => {
           split_card_amount: null,
           split_pix_paid: false,
           split_card_paid: false,
+          amount: price,
           guardian_phone: normalizePhone(enr.guardian_phone),
         })
         .eq("id", enr.id);
