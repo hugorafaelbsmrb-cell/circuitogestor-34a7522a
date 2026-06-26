@@ -104,7 +104,7 @@ serve(async (req) => {
         camp: { name: enr.camp?.name, slug: enr.camp?.slug },
         package: {
           name: pkg.name,
-          price: enr.amount ?? pkg.price,
+          price: enr.amount_override ?? enr.amount ?? pkg.price,
           payment_methods: pkg.payment_methods || ["PIX"],
           max_installments: pkg.max_installments || 1,
           card_interest_free_installments: pkg.card_interest_free_installments || 1,
