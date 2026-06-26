@@ -166,7 +166,7 @@ async function processCampEnrollment(supabase: any, payment: AsaasWebhookPayment
 
   const { data: enrollment } = await supabase
     .from("vacation_camp_enrollments")
-    .select("id, package_id, payment_status, payment_method, split_pix_paid, split_card_paid, asaas_payment_id, asaas_payment_id_2")
+    .select("id, camp_id, package_id, payment_status, payment_method, split_pix_paid, split_card_paid, asaas_payment_id, asaas_payment_id_2, is_internal_student, internal_student_id, tuition_settled_at")
     .eq("id", enrollmentId)
     .maybeSingle();
 
@@ -216,6 +216,65 @@ async function processCampEnrollment(supabase: any, payment: AsaasWebhookPayment
         .from("vacation_camp_packages")
         .update({ sold_count: (pkg.sold_count || 0) + 1 })
         .eq("id", enrollment.package_id);
+    }
+  }
+
+  // Quita a mensalidade do mês configurado quando é aluno da escola
+  if (becameConfirmed && enrollment.is_internal_student && enrollment.internal_student_id && !enrollment.tuition_settled_at) {
+    try {
+      const { data: camp } = await supabase
+        .from("vacation_camps")
+        .select("tuition_skip_month, tuition_skip_year")
+        .eq("id", enrollment.camp_id)
+        .maybeSingle();
+      const month = camp?.tuition_skip_month;
+      const year = camp?.tuition_skip_year;
+      if (month && year) {
+        // Matrículas ativas do aluno
+        const { data: enrolls } = await supabase
+          .from("enrollments")
+          .select("id")
+          .eq("student_id", enrollment.internal_student_id)
+          .eq("status", "active");
+        const ids = (enrolls || []).map((e: any) => e.id);
+        if (ids.length > 0) {
+          const from = `${year}-${String(month).padStart(2, "0")}-01`;
+          const toMonth = month === 12 ? 1 : month + 1;
+          const toYear = month === 12 ? year + 1 : year;
+          const to = `${toYear}-${String(toMonth).padStart(2, "0")}-01`;
+          const { data: parcela } = await supabase
+            .from("payments")
+            .select("id, status")
+            .in("enrollment_id", ids)
+            .gte("due_date", from)
+            .lt("due_date", to)
+            .order("value", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (parcela && !["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"].includes(parcela.status)) {
+            await supabase
+              .from("payments")
+              .update({
+                status: "RECEIVED",
+                payment_date: new Date().toISOString().slice(0, 10),
+                description: `Quitada via pacote Colônia de Férias (inscrição ${enrollmentId})`,
+              })
+              .eq("id", parcela.id);
+            await supabase
+              .from("vacation_camp_enrollments")
+              .update({ settled_payment_id: parcela.id, tuition_settled_at: new Date().toISOString() })
+              .eq("id", enrollmentId);
+            console.log(`💸 Mensalidade ${parcela.id} quitada via colônia ${enrollmentId}`);
+          } else if (parcela) {
+            await supabase
+              .from("vacation_camp_enrollments")
+              .update({ settled_payment_id: parcela.id, tuition_settled_at: new Date().toISOString() })
+              .eq("id", enrollmentId);
+          }
+        }
+      }
+    } catch (settleErr) {
+      console.warn("settle tuition failed:", settleErr);
     }
   }
 

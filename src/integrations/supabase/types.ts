@@ -2454,6 +2454,7 @@ export type Database = {
           asaas_payment_id: string | null
           asaas_payment_id_2: string | null
           asaas_pix_payload: string | null
+          base_tuition: number | null
           camp_id: string
           child_age: number | null
           child_birthdate: string | null
@@ -2466,6 +2467,9 @@ export type Database = {
           guardian_phone: string
           id: string
           installments: number | null
+          internal_guardian_id: string | null
+          internal_student_id: string | null
+          is_internal_student: boolean
           linked_student_id: string | null
           notes: string | null
           package_id: string | null
@@ -2475,11 +2479,14 @@ export type Database = {
           reservation_sent_at: string | null
           reserved_payment_date: string | null
           scheduled_days: Json | null
+          settled_payment_id: string | null
           source: string
           split_card_amount: number | null
           split_card_paid: boolean
           split_pix_amount: number | null
           split_pix_paid: boolean
+          tuition_diff: number | null
+          tuition_settled_at: string | null
           updated_at: string
         }
         Insert: {
@@ -2491,6 +2498,7 @@ export type Database = {
           asaas_payment_id?: string | null
           asaas_payment_id_2?: string | null
           asaas_pix_payload?: string | null
+          base_tuition?: number | null
           camp_id: string
           child_age?: number | null
           child_birthdate?: string | null
@@ -2503,6 +2511,9 @@ export type Database = {
           guardian_phone: string
           id?: string
           installments?: number | null
+          internal_guardian_id?: string | null
+          internal_student_id?: string | null
+          is_internal_student?: boolean
           linked_student_id?: string | null
           notes?: string | null
           package_id?: string | null
@@ -2512,11 +2523,14 @@ export type Database = {
           reservation_sent_at?: string | null
           reserved_payment_date?: string | null
           scheduled_days?: Json | null
+          settled_payment_id?: string | null
           source?: string
           split_card_amount?: number | null
           split_card_paid?: boolean
           split_pix_amount?: number | null
           split_pix_paid?: boolean
+          tuition_diff?: number | null
+          tuition_settled_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -2528,6 +2542,7 @@ export type Database = {
           asaas_payment_id?: string | null
           asaas_payment_id_2?: string | null
           asaas_pix_payload?: string | null
+          base_tuition?: number | null
           camp_id?: string
           child_age?: number | null
           child_birthdate?: string | null
@@ -2540,6 +2555,9 @@ export type Database = {
           guardian_phone?: string
           id?: string
           installments?: number | null
+          internal_guardian_id?: string | null
+          internal_student_id?: string | null
+          is_internal_student?: boolean
           linked_student_id?: string | null
           notes?: string | null
           package_id?: string | null
@@ -2549,11 +2567,14 @@ export type Database = {
           reservation_sent_at?: string | null
           reserved_payment_date?: string | null
           scheduled_days?: Json | null
+          settled_payment_id?: string | null
           source?: string
           split_card_amount?: number | null
           split_card_paid?: boolean
           split_pix_amount?: number | null
           split_pix_paid?: boolean
+          tuition_diff?: number | null
+          tuition_settled_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2562,6 +2583,27 @@ export type Database = {
             columns: ["camp_id"]
             isOneToOne: false
             referencedRelation: "vacation_camps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vacation_camp_enrollments_internal_guardian_id_fkey"
+            columns: ["internal_guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vacation_camp_enrollments_internal_guardian_id_fkey"
+            columns: ["internal_guardian_id"]
+            isOneToOne: false
+            referencedRelation: "guardians_masked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vacation_camp_enrollments_internal_student_id_fkey"
+            columns: ["internal_student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
             referencedColumns: ["id"]
           },
           {
@@ -2576,6 +2618,13 @@ export type Database = {
             columns: ["package_id"]
             isOneToOne: false
             referencedRelation: "vacation_camp_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vacation_camp_enrollments_settled_payment_id_fkey"
+            columns: ["settled_payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
             referencedColumns: ["id"]
           },
         ]
@@ -2727,6 +2776,8 @@ export type Database = {
           status: string
           terms_text: string | null
           theme_color: string | null
+          tuition_skip_month: number | null
+          tuition_skip_year: number | null
           updated_at: string
           whatsapp_number: string | null
         }
@@ -2752,6 +2803,8 @@ export type Database = {
           status?: string
           terms_text?: string | null
           theme_color?: string | null
+          tuition_skip_month?: number | null
+          tuition_skip_year?: number | null
           updated_at?: string
           whatsapp_number?: string | null
         }
@@ -2777,6 +2830,8 @@ export type Database = {
           status?: string
           terms_text?: string | null
           theme_color?: string | null
+          tuition_skip_month?: number | null
+          tuition_skip_year?: number | null
           updated_at?: string
           whatsapp_number?: string | null
         }

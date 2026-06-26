@@ -84,6 +84,8 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
     theme_color: camp.theme_color || "#f97316", cta_text: camp.cta_text || "Garantir vaga",
     whatsapp_number: camp.whatsapp_number || "",
     meta_pixel_id: camp.meta_pixel_id || "",
+    tuition_skip_month: camp.tuition_skip_month || "",
+    tuition_skip_year: camp.tuition_skip_year || "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -95,6 +97,8 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
       age_max: f.age_max ? parseInt(String(f.age_max)) : null,
       start_date: f.start_date || null,
       end_date: f.end_date || null,
+      tuition_skip_month: f.tuition_skip_month ? parseInt(String(f.tuition_skip_month)) : null,
+      tuition_skip_year: f.tuition_skip_year ? parseInt(String(f.tuition_skip_year)) : null,
     }).eq("id", camp.id);
     setSaving(false);
     if (error) return toast.error(error.message);
@@ -137,6 +141,23 @@ function GeneralTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
           placeholder="Ex: 1234567890123456"
         />
         <p className="text-xs text-muted-foreground mt-1">ID do Pixel do Facebook/Meta para rastreamento da landing page.</p>
+      </div>
+      <div className="rounded border p-3 bg-muted/30 space-y-2">
+        <Label>Mensalidade quitada automaticamente (alunos da escola)</Label>
+        <div className="grid grid-cols-2 gap-3">
+          <Select value={String(f.tuition_skip_month || "")} onValueChange={(v) => setF({ ...f, tuition_skip_month: v })}>
+            <SelectTrigger><SelectValue placeholder="Mês" /></SelectTrigger>
+            <SelectContent>
+              {["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"].map((m, i) => (
+                <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input type="number" placeholder="Ano (ex: 2026)" value={f.tuition_skip_year} onChange={(e) => setF({ ...f, tuition_skip_year: e.target.value })} />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Quando um aluno da escola pagar um pacote, a parcela vencida neste mês/ano será marcada como quitada para evitar cobrança duplicada.
+        </p>
       </div>
       <div>
         <Label>Status</Label>

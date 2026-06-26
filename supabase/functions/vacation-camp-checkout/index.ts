@@ -107,6 +107,9 @@ serve(async (req) => {
       notes,
       pix_amount,
       reserved_payment_date,
+      // ------- Fluxo "aluno nosso" -------
+      internal_student_id,
+      base_tuition,
     } = body;
 
 
@@ -174,6 +177,30 @@ serve(async (req) => {
       return Math.round(pmt * n * 100) / 100;
     }
 
+    // Valida vínculo aluno x responsável (CPF) quando informado
+    let internalGuardianId: string | null = null;
+    let internalStudentId: string | null = null;
+    let baseTuitionFinal: number | null = null;
+    if (internal_student_id) {
+      const cleanCpf = guardian_cpf.replace(/\D/g, "");
+      const { data: g } = await supabase
+        .from("guardians")
+        .select("id")
+        .eq("cpf", cleanCpf)
+        .maybeSingle();
+      if (!g) throw new Error("Responsável não encontrado no cadastro da escola");
+      const { data: st } = await supabase
+        .from("students")
+        .select("id")
+        .eq("id", internal_student_id)
+        .eq("guardian_id", g.id)
+        .maybeSingle();
+      if (!st) throw new Error("Aluno informado não pertence a este responsável");
+      internalGuardianId = g.id;
+      internalStudentId = st.id;
+      baseTuitionFinal = base_tuition != null ? Number(base_tuition) : null;
+    }
+
     // Insert enrollment as pending (or reserved)
     const isReserve = billingType === "RESERVE";
     const { data: enrollment, error: insErr } = await supabase
@@ -189,12 +216,17 @@ serve(async (req) => {
         child_age: child_age ? parseInt(String(child_age)) : null,
         child_birthdate: child_birthdate || null,
         notes: notes || null,
-        source: "landing",
+        source: internalStudentId ? "landing_student" : "landing",
         payment_status: isReserve ? "reserved" : "pending",
         payment_method: billingType,
         installments: requestedInst,
         amount: price,
         reserved_payment_date: isReserve ? reserved_payment_date : null,
+        internal_student_id: internalStudentId,
+        internal_guardian_id: internalGuardianId,
+        is_internal_student: !!internalStudentId,
+        base_tuition: baseTuitionFinal,
+        tuition_diff: baseTuitionFinal != null ? Math.max(0, price - baseTuitionFinal) : null,
       })
       .select()
       .single();
