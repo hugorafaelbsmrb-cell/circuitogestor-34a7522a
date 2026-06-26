@@ -272,6 +272,7 @@ serve(async (req) => {
           split_card_amount: null,
           split_pix_paid: false,
           split_card_paid: false,
+          amount: price,
           guardian_phone: normalizePhone(enr.guardian_phone),
         })
         .eq("id", enr.id);
