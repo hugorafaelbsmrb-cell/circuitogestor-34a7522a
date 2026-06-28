@@ -990,11 +990,12 @@ function CheckoutDialog({
                 <Input
                   type="date"
                   min={todayStr}
+                  max={maxReserveDateStr}
                   value={form.reserved_payment_date}
                   onChange={(e) => setForm({ ...form, reserved_payment_date: e.target.value })}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Na data escolhida enviaremos automaticamente o link no seu WhatsApp para concluir o pagamento (PIX, Cartão ou Misto).
+                  Na data escolhida enviaremos automaticamente o link no seu WhatsApp para concluir o pagamento (PIX, Cartão ou Misto). Data limite: 06/07/2026.
                 </p>
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
                   ⚠️ A vaga fica reservada — confirme o pagamento até a data combinada.
