@@ -704,8 +704,37 @@ export default function VacationCampLanding() {
                     ))}
                   </ul>
                 )}
+                {!isNegotiable && (hasPix || hasCard) && (
+                  <div className="mt-4 rounded-lg border p-3 space-y-1.5" style={{ borderColor: `${theme}40`, background: `${theme}08` }}>
+                    <div className="flex flex-wrap gap-1.5">
+                      {hasPix && (
+                        <Badge variant="outline" className="text-[10px] font-semibold" style={{ borderColor: theme, color: theme }}>PIX à vista</Badge>
+                      )}
+                      {hasCard && (
+                        <Badge variant="outline" className="text-[10px] font-semibold" style={{ borderColor: theme, color: theme }}>
+                          Cartão em até {maxInst}x
+                        </Badge>
+                      )}
+                      {hasPix && hasCard && (
+                        <Badge variant="outline" className="text-[10px] font-semibold" style={{ borderColor: theme, color: theme }}>
+                          PIX + Cartão (misto)
+                        </Badge>
+                      )}
+                    </div>
+                    {hasCard && maxInst > 1 && (
+                      <p className="text-[10px] text-muted-foreground leading-tight">
+                        {freeInst >= maxInst
+                          ? `Sem juros em até ${maxInst}x`
+                          : `Sem juros em ${freeInst}x · demais parcelas com juros do emissor`}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground leading-tight">
+                      💡 Também é possível <strong>reservar a vaga</strong> e pagar em data futura
+                    </p>
+                  </div>
+                )}
                 {left !== null && (
-                  <div className="text-xs text-muted-foreground mt-4">
+                  <div className="text-xs text-muted-foreground mt-3">
                     {soldOut ? "Esgotado" : `${left} vagas restantes`}
                   </div>
                 )}
