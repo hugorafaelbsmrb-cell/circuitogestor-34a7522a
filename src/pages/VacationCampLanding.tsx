@@ -873,6 +873,7 @@ function CheckoutDialog({
   const methods = (pkg.payment_methods || ["PIX"]).map((m) => m.toUpperCase());
   const canSplit = methods.includes("PIX") && methods.includes("CREDIT_CARD");
   const todayStr = new Date().toISOString().slice(0, 10);
+  const maxReserveDateStr = "2026-07-06";
 
 
   const submit = async () => {
