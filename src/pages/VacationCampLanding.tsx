@@ -622,7 +622,13 @@ export default function VacationCampLanding() {
           <Badge variant="outline" className="mb-2">Escolha seu pacote</Badge>
           <h2 className="text-3xl md:text-4xl font-bold">Garanta a vaga</h2>
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {(() => {
+          const externals = packages.filter((x) => !x.students_only && !x.price_negotiable);
+          const featuredId = externals.length
+            ? externals.reduce((a, b) => (Number(a.price) >= Number(b.price) ? a : b)).id
+            : null;
+          return (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
           {packages.map((p) => {
             const left = p.max_slots ? Math.max(0, p.max_slots - p.sold_count) : null;
             const soldOut = left === 0;
@@ -630,20 +636,46 @@ export default function VacationCampLanding() {
             const hasStudentsOnly = packages.some((x) => x.students_only);
             const isExclusive = !!p.students_only;
             const isNegotiable = !!p.price_negotiable;
+            const isFeatured = p.id === featuredId;
+            const methodsList = (p.payment_methods || ["PIX"]).map((m) => m.toUpperCase());
+            const hasPix = methodsList.includes("PIX");
+            const hasCard = methodsList.includes("CREDIT_CARD");
+            const maxInst = Math.max(1, Number(p.max_installments) || 1);
+            const freeInst = Math.max(1, Number(p.card_interest_free_installments) || 1);
             const waNumber = camp.whatsapp_number?.replace(/\D/g, "") || "";
             const waMsg = encodeURIComponent(
               `Olá! Tenho interesse no pacote "${p.name}" da ${camp.name} e gostaria de mais informações.`
             );
             return (
-              <Card key={p.id} className={`p-6 flex flex-col relative overflow-hidden ${isExclusive ? "ring-2" : ""}`} style={isExclusive ? { boxShadow: `0 0 0 2px ${theme}` } : undefined}>
+              <Card
+                key={p.id}
+                className={`p-6 flex flex-col relative overflow-hidden transition-transform ${isExclusive ? "ring-2" : ""} ${isFeatured ? "lg:scale-[1.04] lg:-my-2 shadow-2xl" : ""}`}
+                style={
+                  isFeatured
+                    ? { boxShadow: `0 20px 60px -20px ${theme}66, 0 0 0 2px ${theme}` }
+                    : isExclusive
+                    ? { boxShadow: `0 0 0 2px ${theme}` }
+                    : undefined
+                }
+              >
+                {isFeatured && (
+                  <div
+                    className="absolute -top-px left-0 right-0 text-center py-1.5 text-xs font-bold text-white tracking-wider uppercase"
+                    style={{ background: theme }}
+                  >
+                    ⭐ Mais escolhido
+                  </div>
+                )}
                 <div
-                  className="absolute top-0 left-0 right-0 h-1"
+                  className={`absolute left-0 right-0 h-1 ${isFeatured ? "top-7" : "top-0"}`}
                   style={{ background: theme }}
                 />
+                <div className={isFeatured ? "mt-6" : ""}>
                 {isExclusive && (
                   <Badge className="self-start mb-2 text-white" style={{ background: theme }}>Exclusivo para alunos</Badge>
                 )}
                 <h3 className="text-xl font-bold">{p.name}</h3>
+                </div>
                 {p.description && <p className="text-sm text-muted-foreground mt-1">{p.description}</p>}
                 <div className="mt-4">
                   {isNegotiable ? (
