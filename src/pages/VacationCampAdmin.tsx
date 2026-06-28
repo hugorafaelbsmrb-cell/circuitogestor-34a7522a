@@ -19,12 +19,61 @@ const slugify = (s: string) =>
   s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
+interface StatRow {
+  payment_status: string;
+  qtd: number;
+  total: number;
+}
+
+const STATUS_LABEL: Record<string, { label: string; color: string }> = {
+  confirmed: { label: "Confirmado", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  paid: { label: "Pago", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  received: { label: "Recebido", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  pending: { label: "Pendente", color: "bg-amber-100 text-amber-700 border-amber-200" },
+  reserved: { label: "Reservado", color: "bg-sky-100 text-sky-700 border-sky-200" },
+  overdue: { label: "Vencido", color: "bg-rose-100 text-rose-700 border-rose-200" },
+  cancelled: { label: "Cancelado", color: "bg-muted text-muted-foreground border-border" },
+  refunded: { label: "Estornado", color: "bg-muted text-muted-foreground border-border" },
+};
+
+const PAID_STATUSES = ["paid", "received", "confirmed"];
+
+const fmtBRL = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
 export default function VacationCampAdmin() {
   const [camps, setCamps] = useState<Camp[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [newCamp, setNewCamp] = useState({ name: "", slug: "" });
   const [creating, setCreating] = useState(false);
+  const [stats, setStats] = useState<StatRow[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [campFilter, setCampFilter] = useState<string>("all");
+
+  const loadStats = async (campId: string) => {
+    setStatsLoading(true);
+    let q = supabase
+      .from("vacation_camp_enrollments")
+      .select("payment_status, amount, amount_override");
+    if (campId !== "all") q = q.eq("camp_id", campId);
+    const { data } = await q;
+    const map = new Map<string, { qtd: number; total: number }>();
+    (data || []).forEach((r: any) => {
+      const status = r.payment_status || "pending";
+      const value = Number(r.amount_override ?? r.amount ?? 0);
+      const cur = map.get(status) || { qtd: 0, total: 0 };
+      cur.qtd += 1;
+      cur.total += value;
+      map.set(status, cur);
+    });
+    setStats(
+      Array.from(map.entries())
+        .map(([payment_status, v]) => ({ payment_status, ...v }))
+        .sort((a, b) => a.payment_status.localeCompare(b.payment_status))
+    );
+    setStatsLoading(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -33,6 +82,14 @@ export default function VacationCampAdmin() {
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => { loadStats(campFilter); }, [campFilter]);
+
+  const totalQtd = stats.reduce((s, r) => s + r.qtd, 0);
+  const totalValor = stats.reduce((s, r) => s + r.total, 0);
+  const recebido = stats
+    .filter((r) => PAID_STATUSES.includes(r.payment_status))
+    .reduce((s, r) => s + r.total, 0);
+  const aReceber = totalValor - recebido;
 
   const create = async () => {
     if (!newCamp.name.trim()) return toast.error("Nome obrigatório");
