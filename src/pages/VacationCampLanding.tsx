@@ -873,6 +873,7 @@ function CheckoutDialog({
   const methods = (pkg.payment_methods || ["PIX"]).map((m) => m.toUpperCase());
   const canSplit = methods.includes("PIX") && methods.includes("CREDIT_CARD");
   const todayStr = new Date().toISOString().slice(0, 10);
+  const maxReserveDateStr = "2026-07-06";
 
 
   const submit = async () => {
@@ -893,6 +894,10 @@ function CheckoutDialog({
     }
     if (form.payment_method === "RESERVE" && !form.reserved_payment_date) {
       toast.error("Escolha a data em que deseja receber o link de pagamento");
+      return;
+    }
+    if (form.payment_method === "RESERVE" && form.reserved_payment_date > maxReserveDateStr) {
+      toast.error("A data de pagamento futuro não pode passar de 06/07/2026");
       return;
     }
     setLoading(true);
@@ -989,11 +994,12 @@ function CheckoutDialog({
                 <Input
                   type="date"
                   min={todayStr}
+                  max={maxReserveDateStr}
                   value={form.reserved_payment_date}
                   onChange={(e) => setForm({ ...form, reserved_payment_date: e.target.value })}
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Na data escolhida enviaremos automaticamente o link no seu WhatsApp para concluir o pagamento (PIX, Cartão ou Misto).
+                  Na data escolhida enviaremos automaticamente o link no seu WhatsApp para concluir o pagamento (PIX, Cartão ou Misto). Data limite: 06/07/2026.
                 </p>
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
                   ⚠️ A vaga fica reservada — confirme o pagamento até a data combinada.
@@ -1184,6 +1190,7 @@ function StudentCheckoutDialog({
   const methods = (pkg.payment_methods || ["PIX"]).map((m) => m.toUpperCase());
   const canSplit = methods.includes("PIX") && methods.includes("CREDIT_CARD");
   const todayStr = new Date().toISOString().slice(0, 10);
+  const maxReserveDateStr = "2026-07-06";
 
   const lookup = async () => {
     if (!isValidCPF(cpf)) { toast.error("CPF inválido"); return; }
@@ -1238,6 +1245,10 @@ function StudentCheckoutDialog({
     }
     if (form.payment_method === "RESERVE" && !form.reserved_payment_date) {
       toast.error("Escolha a data em que deseja receber o link de pagamento");
+      return;
+    }
+    if (form.payment_method === "RESERVE" && form.reserved_payment_date > maxReserveDateStr) {
+      toast.error("A data de pagamento futuro não pode passar de 06/07/2026");
       return;
     }
     setLoading(true);
@@ -1375,8 +1386,8 @@ function StudentCheckoutDialog({
             {form.payment_method === "RESERVE" && (
               <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
                 <Label>Quando deseja receber o link de pagamento?</Label>
-                <Input type="date" min={todayStr} value={form.reserved_payment_date} onChange={(e) => setForm({ ...form, reserved_payment_date: e.target.value })} />
-                <p className="text-[11px] text-muted-foreground">Na data escolhida enviaremos automaticamente o link no seu WhatsApp.</p>
+                <Input type="date" min={todayStr} max={maxReserveDateStr} value={form.reserved_payment_date} onChange={(e) => setForm({ ...form, reserved_payment_date: e.target.value })} />
+                <p className="text-[11px] text-muted-foreground">Na data escolhida enviaremos automaticamente o link no seu WhatsApp. Data limite: 06/07/2026.</p>
               </div>
             )}
             {form.payment_method === "SPLIT" && (
