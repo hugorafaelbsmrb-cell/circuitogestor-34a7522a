@@ -1378,8 +1378,8 @@ function StudentCheckoutDialog({
             {form.payment_method === "RESERVE" && (
               <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
                 <Label>Quando deseja receber o link de pagamento?</Label>
-                <Input type="date" min={todayStr} value={form.reserved_payment_date} onChange={(e) => setForm({ ...form, reserved_payment_date: e.target.value })} />
-                <p className="text-[11px] text-muted-foreground">Na data escolhida enviaremos automaticamente o link no seu WhatsApp.</p>
+                <Input type="date" min={todayStr} max={maxReserveDateStr} value={form.reserved_payment_date} onChange={(e) => setForm({ ...form, reserved_payment_date: e.target.value })} />
+                <p className="text-[11px] text-muted-foreground">Na data escolhida enviaremos automaticamente o link no seu WhatsApp. Data limite: 06/07/2026.</p>
               </div>
             )}
             {form.payment_method === "SPLIT" && (
