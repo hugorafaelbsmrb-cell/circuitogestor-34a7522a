@@ -50,7 +50,9 @@ export function MainLayout({ children }: MainLayoutProps) {
         variant="secondary"
         size="icon"
         onClick={() => setDesktopHidden((v) => !v)}
-        className="hidden lg:flex fixed bottom-4 left-4 z-50 h-10 w-10 rounded-full shadow-lg border border-border"
+        className={`hidden lg:flex fixed bottom-4 z-50 h-10 w-10 rounded-full shadow-lg border border-border ${
+          desktopHidden ? 'left-4' : 'left-[17rem]'
+        }`}
         aria-label={desktopHidden ? 'Mostrar menu' : 'Esconder menu'}
         title={desktopHidden ? 'Mostrar menu' : 'Esconder menu'}
       >
