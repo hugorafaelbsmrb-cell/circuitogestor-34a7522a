@@ -773,7 +773,10 @@ export default function VacationCampLanding() {
             );
           })}
         </div>
+          );
+        })()}
       </section>
+
 
       {/* FAQ */}
       {faq.length > 0 && (
