@@ -176,6 +176,97 @@ export default function VacationCampAdmin() {
         </Dialog>
       </div>
 
+      {/* Painel de acompanhamento financeiro */}
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold flex items-center gap-2">
+              <Wallet className="w-4 h-4 text-primary" /> Acompanhamento financeiro
+            </h2>
+            <p className="text-xs text-muted-foreground">Inscrições e valores por status de pagamento</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs">Edição:</Label>
+            <Select value={campFilter} onValueChange={setCampFilter}>
+              <SelectTrigger className="w-[220px] h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as edições</SelectItem>
+                {camps.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {statsLoading ? (
+          <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card className="p-3 bg-muted/30">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground"><Users className="w-3.5 h-3.5" /> Inscrições</div>
+                <div className="text-2xl font-bold mt-1">{totalQtd}</div>
+              </Card>
+              <Card className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200/50">
+                <div className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="w-3.5 h-3.5" /> Recebido</div>
+                <div className="text-2xl font-bold mt-1 text-emerald-700 dark:text-emerald-400">{fmtBRL(recebido)}</div>
+              </Card>
+              <Card className="p-3 bg-amber-50 dark:bg-amber-950/20 border-amber-200/50">
+                <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400"><Clock className="w-3.5 h-3.5" /> A receber</div>
+                <div className="text-2xl font-bold mt-1 text-amber-700 dark:text-amber-400">{fmtBRL(aReceber)}</div>
+              </Card>
+              <Card className="p-3 bg-primary/5 border-primary/20">
+                <div className="flex items-center gap-2 text-xs text-primary"><Wallet className="w-3.5 h-3.5" /> Total geral</div>
+                <div className="text-2xl font-bold mt-1 text-primary">{fmtBRL(totalValor)}</div>
+              </Card>
+            </div>
+
+            {stats.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma inscrição ainda.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-xs text-muted-foreground">
+                      <th className="py-2 px-2 font-medium">Status</th>
+                      <th className="py-2 px-2 font-medium text-right">Quantidade</th>
+                      <th className="py-2 px-2 font-medium text-right">Valor</th>
+                      <th className="py-2 px-2 font-medium text-right">% do total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.map((r) => {
+                      const meta = STATUS_LABEL[r.payment_status] || { label: r.payment_status, color: "bg-muted text-muted-foreground border-border" };
+                      const pct = totalValor > 0 ? (r.total / totalValor) * 100 : 0;
+                      return (
+                        <tr key={r.payment_status} className="border-b last:border-0">
+                          <td className="py-2 px-2">
+                            <Badge variant="outline" className={meta.color}>{meta.label}</Badge>
+                          </td>
+                          <td className="py-2 px-2 text-right font-medium">{r.qtd}</td>
+                          <td className="py-2 px-2 text-right font-medium">{fmtBRL(r.total)}</td>
+                          <td className="py-2 px-2 text-right text-muted-foreground">{pct.toFixed(1)}%</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="font-semibold">
+                      <td className="py-2 px-2">Total</td>
+                      <td className="py-2 px-2 text-right">{totalQtd}</td>
+                      <td className="py-2 px-2 text-right">{fmtBRL(totalValor)}</td>
+                      <td className="py-2 px-2 text-right">100%</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+
+
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
       ) : camps.length === 0 ? (
