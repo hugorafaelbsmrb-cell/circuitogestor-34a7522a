@@ -1,4 +1,4 @@
-import { Users, GraduationCap, BookOpen, FileText, TrendingUp, Calendar, AlertTriangle, Clock } from 'lucide-react';
+import { Users, GraduationCap, BookOpen, FileText, TrendingUp, Calendar, AlertTriangle, Clock, Palmtree } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { useSchool } from '@/contexts/SchoolContext';
 import { Link } from 'react-router-dom';
@@ -229,6 +229,15 @@ export default function Dashboard() {
               <Calendar className="w-6 h-6 lg:w-8 lg:h-8 text-warning mb-2 lg:mb-3" />
               <p className="font-medium text-sm lg:text-base text-foreground">Horários</p>
               <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">Ver horários</p>
+            </Link>
+            <Link to="/colonia-admin" className="col-span-2 p-3 lg:p-4 bg-gradient-to-r from-orange-500/15 to-amber-500/15 rounded-lg hover:from-orange-500/25 hover:to-amber-500/25 transition-colors group border border-orange-500/30">
+              <div className="flex items-center gap-3">
+                <Palmtree className="w-6 h-6 lg:w-8 lg:h-8 text-orange-600" />
+                <div>
+                  <p className="font-medium text-sm lg:text-base text-foreground">Colônia de Férias</p>
+                  <p className="text-xs lg:text-sm text-muted-foreground">Gerenciar inscrições e pagamentos</p>
+                </div>
+              </div>
             </Link>
           </div>
         </div>
