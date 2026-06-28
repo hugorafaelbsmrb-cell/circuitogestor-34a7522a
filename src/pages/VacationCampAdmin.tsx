@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Copy, ExternalLink, Loader2, Palmtree, Settings2, Trash2 } from "lucide-react";
+import { Plus, Copy, ExternalLink, Loader2, Palmtree, Settings2, Trash2, Users, Wallet, CheckCircle2, Clock } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Camp {
   id: string; name: string; slug: string; status: string;
