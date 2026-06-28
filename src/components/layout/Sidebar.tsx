@@ -145,9 +145,10 @@ const menuSections: MenuSection[] = [
 interface SidebarProps {
   open?: boolean;
   onClose?: () => void;
+  desktopHidden?: boolean;
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({ open, onClose, desktopHidden }: SidebarProps) {
   const location = useLocation();
   const { profile } = useAuthContext();
   const { branding } = useSystemBranding();
@@ -249,9 +250,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex w-64 bg-card border-r border-border h-screen fixed left-0 top-0 flex-col">
-        {sidebarContent}
-      </aside>
+      {!desktopHidden && (
+        <aside className="hidden lg:flex w-64 bg-card border-r border-border h-screen fixed left-0 top-0 flex-col">
+          {sidebarContent}
+        </aside>
+      )}
 
       {/* Mobile Sidebar as Sheet */}
       <Sheet open={open} onOpenChange={(isOpen) => !isOpen && onClose?.()}>
