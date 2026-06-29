@@ -2706,6 +2706,75 @@ export type Database = {
           },
         ]
       }
+      vacation_camp_photos: {
+        Row: {
+          activity_tag: string | null
+          camp_id: string
+          created_at: string
+          day_label: string | null
+          external_path: string | null
+          external_url: string
+          has_frame: boolean
+          has_watermark: boolean
+          height: number | null
+          id: string
+          schedule_id: string | null
+          sort_order: number
+          thumbnail_url: string | null
+          updated_at: string
+          width: number | null
+        }
+        Insert: {
+          activity_tag?: string | null
+          camp_id: string
+          created_at?: string
+          day_label?: string | null
+          external_path?: string | null
+          external_url: string
+          has_frame?: boolean
+          has_watermark?: boolean
+          height?: number | null
+          id?: string
+          schedule_id?: string | null
+          sort_order?: number
+          thumbnail_url?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Update: {
+          activity_tag?: string | null
+          camp_id?: string
+          created_at?: string
+          day_label?: string | null
+          external_path?: string | null
+          external_url?: string
+          has_frame?: boolean
+          has_watermark?: boolean
+          height?: number | null
+          id?: string
+          schedule_id?: string | null
+          sort_order?: number
+          thumbnail_url?: string | null
+          updated_at?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vacation_camp_photos_camp_id_fkey"
+            columns: ["camp_id"]
+            isOneToOne: false
+            referencedRelation: "vacation_camps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vacation_camp_photos_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "vacation_camp_schedule"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vacation_camp_schedule: {
         Row: {
           camp_id: string
@@ -2757,6 +2826,11 @@ export type Database = {
         Row: {
           age_max: number | null
           age_min: number | null
+          album_enabled: boolean
+          album_frame_color: string | null
+          album_logo_url: string | null
+          album_title: string | null
+          album_welcome_message: string | null
           created_at: string
           cta_text: string | null
           description: string | null
@@ -2784,6 +2858,11 @@ export type Database = {
         Insert: {
           age_max?: number | null
           age_min?: number | null
+          album_enabled?: boolean
+          album_frame_color?: string | null
+          album_logo_url?: string | null
+          album_title?: string | null
+          album_welcome_message?: string | null
           created_at?: string
           cta_text?: string | null
           description?: string | null
@@ -2811,6 +2890,11 @@ export type Database = {
         Update: {
           age_max?: number | null
           age_min?: number | null
+          album_enabled?: boolean
+          album_frame_color?: string | null
+          album_logo_url?: string | null
+          album_title?: string | null
+          album_welcome_message?: string | null
           created_at?: string
           cta_text?: string | null
           description?: string | null
