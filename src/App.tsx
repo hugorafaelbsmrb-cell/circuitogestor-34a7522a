@@ -57,6 +57,7 @@ import VacationCampEditor from "./pages/VacationCampEditor";
 import VacationCampPayment from "./pages/VacationCampPayment";
 import VacationCampAlbum from "./pages/VacationCampAlbum";
 import VacationCampPhotos from "./pages/VacationCampPhotos";
+import VacationCampPublicUpload from "./pages/VacationCampPublicUpload";
 import Oficios from "./pages/Oficios";
 import { Loader2 } from "lucide-react";
 
@@ -93,6 +94,7 @@ const App = () => (
               <Route path="/assinar/:token" element={<ContractSign />} />
               <Route path="/colonia/:slug" element={<VacationCampLanding />} />
               <Route path="/colonia/:slug/album" element={<VacationCampAlbum />} />
+              <Route path="/colonia/:slug/enviar-fotos" element={<VacationCampPublicUpload />} />
               <Route path="/colonia-pagamento/:id" element={<VacationCampPayment />} />
               <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
               <Route path="/campanha" element={<CampaignLanding />} />

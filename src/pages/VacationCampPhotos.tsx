@@ -152,17 +152,26 @@ export default function VacationCampPhotos() {
   };
 
   const publicUrl = `${window.location.origin}/colonia/${camp.slug}/album`;
+  const publicUploadUrl = `${window.location.origin}/colonia/${camp.slug}/enviar-fotos`;
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Link to={`/colonia-admin/${camp.id}`}><Button variant="ghost" size="sm"><ArrowLeft className="w-4 h-4" /></Button></Link>
-        <div className="flex-1">
+        <div className="flex-1 min-w-[200px]">
           <h1 className="text-2xl font-bold">Álbum de Fotos — {camp.name}</h1>
           <p className="text-xs text-muted-foreground">Envie as fotos da colônia. Marca d'água e moldura são aplicadas antes do upload.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success("Link copiado"); }}>
-          <Copy className="w-4 h-4 mr-2" /> Link público
+        <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success("Link do álbum copiado"); }}>
+          <Copy className="w-4 h-4 mr-2" /> Link álbum
+        </Button>
+        <Button
+          variant="outline" size="sm"
+          disabled={!camp.public_uploads_enabled}
+          title={camp.public_uploads_enabled ? "" : "Ative em Editor → Álbum"}
+          onClick={() => { navigator.clipboard.writeText(publicUploadUrl); toast.success("Link de envio copiado"); }}
+        >
+          <Upload className="w-4 h-4 mr-2" /> Link envio público
         </Button>
         <a href={publicUrl} target="_blank" rel="noreferrer"><Button variant="outline" size="sm"><ExternalLink className="w-4 h-4 mr-2" /> Abrir álbum</Button></a>
       </div>

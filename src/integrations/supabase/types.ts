@@ -2720,8 +2720,11 @@ export type Database = {
           id: string
           schedule_id: string | null
           sort_order: number
+          source: string | null
           thumbnail_url: string | null
           updated_at: string
+          uploader_name: string | null
+          uploader_phone: string | null
           width: number | null
         }
         Insert: {
@@ -2737,8 +2740,11 @@ export type Database = {
           id?: string
           schedule_id?: string | null
           sort_order?: number
+          source?: string | null
           thumbnail_url?: string | null
           updated_at?: string
+          uploader_name?: string | null
+          uploader_phone?: string | null
           width?: number | null
         }
         Update: {
@@ -2754,8 +2760,11 @@ export type Database = {
           id?: string
           schedule_id?: string | null
           sort_order?: number
+          source?: string | null
           thumbnail_url?: string | null
           updated_at?: string
+          uploader_name?: string | null
+          uploader_phone?: string | null
           width?: number | null
         }
         Relationships: [
@@ -2845,6 +2854,7 @@ export type Database = {
           location: string | null
           meta_pixel_id: string | null
           name: string
+          public_uploads_enabled: boolean
           slug: string
           start_date: string | null
           status: string
@@ -2877,6 +2887,7 @@ export type Database = {
           location?: string | null
           meta_pixel_id?: string | null
           name: string
+          public_uploads_enabled?: boolean
           slug: string
           start_date?: string | null
           status?: string
@@ -2909,6 +2920,7 @@ export type Database = {
           location?: string | null
           meta_pixel_id?: string | null
           name?: string
+          public_uploads_enabled?: boolean
           slug?: string
           start_date?: string | null
           status?: string

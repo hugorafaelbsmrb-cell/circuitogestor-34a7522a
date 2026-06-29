@@ -1316,10 +1316,12 @@ function AlbumTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
     album_frame_color: camp.album_frame_color || "#f97316",
     album_title: camp.album_title || "",
     album_welcome_message: camp.album_welcome_message || "",
+    public_uploads_enabled: camp.public_uploads_enabled ?? false,
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const publicUrl = `${window.location.origin}/colonia/${camp.slug}/album`;
+  const publicUploadUrl = `${window.location.origin}/colonia/${camp.slug}/enviar-fotos`;
 
   const uploadLogo = async (file: File) => {
     setUploading(true);
@@ -1383,17 +1385,40 @@ function AlbumTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button onClick={save} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Salvar
           </Button>
           <Button variant="outline" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success("Link copiado"); }}>
-            <Copy className="w-4 h-4 mr-2" /> Copiar link público
+            <Copy className="w-4 h-4 mr-2" /> Copiar link do álbum
           </Button>
           <a href={publicUrl} target="_blank" rel="noreferrer">
             <Button variant="outline">Abrir álbum</Button>
           </a>
         </div>
+      </Card>
+
+      <Card className="p-5 space-y-3 border-orange-200 bg-orange-50/40">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold">Envio público de fotos</h2>
+            <p className="text-xs text-muted-foreground">Permita que os pais enviem fotos diretamente para o álbum.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={f.public_uploads_enabled} onCheckedChange={v => setF({ ...f, public_uploads_enabled: v })} />
+            <span className="text-sm">{f.public_uploads_enabled ? "Liberado" : "Desativado"}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Input readOnly value={publicUploadUrl} className="font-mono text-xs" />
+          <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(publicUploadUrl); toast.success("Link copiado"); }}>
+            <Copy className="w-4 h-4 mr-2" /> Copiar
+          </Button>
+          <a href={publicUploadUrl} target="_blank" rel="noreferrer">
+            <Button variant="outline" size="sm">Abrir</Button>
+          </a>
+        </div>
+        <p className="text-[11px] text-muted-foreground">As fotos enviadas vão direto para o álbum com marca d'água da logo do evento.</p>
       </Card>
 
       <Card className="p-5 space-y-3">
