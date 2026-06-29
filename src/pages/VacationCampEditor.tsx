@@ -1307,3 +1307,102 @@ function dayLabelToDate(label: string): string {
   if (match) return `2026-07-${match[1]}`;
   return "";
 }
+
+/* ---------------- ÁLBUM ---------------- */
+function AlbumTab({ camp, onSaved }: { camp: any; onSaved: () => void }) {
+  const [f, setF] = useState({
+    album_enabled: camp.album_enabled ?? true,
+    album_logo_url: camp.album_logo_url || "",
+    album_frame_color: camp.album_frame_color || "#f97316",
+    album_title: camp.album_title || "",
+    album_welcome_message: camp.album_welcome_message || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const publicUrl = `${window.location.origin}/colonia/${camp.slug}/album`;
+
+  const uploadLogo = async (file: File) => {
+    setUploading(true);
+    try {
+      const path = `vacation-camps/${camp.id}/album-logo-${Date.now()}-${file.name}`;
+      const { error } = await sb.storage.from("system-branding").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data } = sb.storage.from("system-branding").getPublicUrl(path);
+      setF(prev => ({ ...prev, album_logo_url: data.publicUrl }));
+      toast.success("Logo enviada");
+    } catch (e: any) {
+      toast.error("Erro ao enviar logo: " + e.message);
+    } finally { setUploading(false); }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await sb.from("vacation_camps").update(f).eq("id", camp.id);
+    setSaving(false);
+    if (error) toast.error(error.message); else { toast.success("Álbum salvo"); onSaved(); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-semibold">Configurações do Álbum</h2>
+            <p className="text-xs text-muted-foreground">A galeria pública usa estas informações.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={f.album_enabled} onCheckedChange={v => setF({ ...f, album_enabled: v })} />
+            <span className="text-sm">{f.album_enabled ? "Público" : "Oculto"}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Logo do evento (aparece nas fotos)</Label>
+            <div className="flex items-center gap-3">
+              {f.album_logo_url && <img src={f.album_logo_url} alt="logo" className="h-16 w-16 object-contain border rounded" />}
+              <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && uploadLogo(e.target.files[0])} className="text-sm" />
+              {uploading && <Loader2 className="w-4 h-4 animate-spin" />}
+            </div>
+            {f.album_logo_url && <Input value={f.album_logo_url} onChange={e => setF({ ...f, album_logo_url: e.target.value })} />}
+          </div>
+          <div className="space-y-2">
+            <Label>Cor da moldura</Label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={f.album_frame_color} onChange={e => setF({ ...f, album_frame_color: e.target.value })} className="h-10 w-14 rounded border" />
+              <Input value={f.album_frame_color} onChange={e => setF({ ...f, album_frame_color: e.target.value })} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Título do álbum</Label>
+            <Input value={f.album_title} onChange={e => setF({ ...f, album_title: e.target.value })} placeholder={`Álbum • ${camp.name}`} />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Mensagem de boas-vindas</Label>
+            <Textarea value={f.album_welcome_message} onChange={e => setF({ ...f, album_welcome_message: e.target.value })} placeholder="Que mensagem deseja exibir para os pais ao abrirem o álbum?" />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button onClick={save} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Salvar
+          </Button>
+          <Button variant="outline" onClick={() => { navigator.clipboard.writeText(publicUrl); toast.success("Link copiado"); }}>
+            <Copy className="w-4 h-4 mr-2" /> Copiar link público
+          </Button>
+          <a href={publicUrl} target="_blank" rel="noreferrer">
+            <Button variant="outline">Abrir álbum</Button>
+          </a>
+        </div>
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <h2 className="font-semibold">Gerenciar fotos</h2>
+        <p className="text-sm text-muted-foreground">Envio em lote, marcação por dia/atividade, marca d'água e moldura temática.</p>
+        <Link to={`/colonia-admin/${camp.id}/fotos`}>
+          <Button><Upload className="w-4 h-4 mr-2" /> Abrir gerenciador de fotos</Button>
+        </Link>
+      </Card>
+    </div>
+  );
+}
