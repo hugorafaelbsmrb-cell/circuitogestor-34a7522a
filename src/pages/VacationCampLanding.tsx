@@ -924,6 +924,10 @@ function CheckoutDialog({
           package_id: pkg.id,
           ...form,
           child_age: form.child_age ? parseInt(form.child_age) : null,
+          quantity: isDayUse ? quantity : 1,
+          notes: isDayUse
+            ? `${quantity} dia(s) de Day Use${form.notes ? ` — ${form.notes}` : ""}`
+            : form.notes,
         },
       });
       if (error) throw error;
@@ -934,7 +938,7 @@ function CheckoutDialog({
       if (typeof (window as any).fbq === 'function') {
         (window as any).fbq('track', 'Lead', {
           content_name: pkg.name,
-          value: pkg.price,
+          value: effectivePrice,
           currency: 'BRL',
         });
       }
