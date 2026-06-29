@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Download, Image as ImageIcon, X, ChevronLeft, ChevronRight } from "lucide-react";
-import JSZip from "jszip";
 import { saveAs } from "file-saver";
 
 const sb: any = supabase;
@@ -17,7 +16,6 @@ export default function VacationCampAlbum() {
   const [dayFilter, setDayFilter] = useState<string>("");
   const [actFilter, setActFilter] = useState<string>("");
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
-  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -53,24 +51,6 @@ export default function VacationCampAlbum() {
     }
   };
 
-  const downloadAll = async () => {
-    if (!filtered.length) return;
-    setDownloading(true);
-    try {
-      const zip = new JSZip();
-      let i = 0;
-      for (const p of filtered) {
-        try {
-          const r = await fetch(p.external_url, { mode: "cors" });
-          const blob = await r.blob();
-          const name = `${String(++i).padStart(3, "0")}-${(p.external_path?.split("/").pop()) || `foto-${p.id}.jpg`}`;
-          zip.file(name, blob);
-        } catch (e) { console.warn("skip", p.id, e); }
-      }
-      const content = await zip.generateAsync({ type: "blob" });
-      saveAs(content, `${camp.slug}-album${dayFilter ? `-${dayFilter}` : ""}.zip`);
-    } finally { setDownloading(false); }
-  };
 
   return (
     <div className="min-h-screen" style={{ background: `linear-gradient(180deg, ${themeColor}15 0%, #fff 280px)` }}>
@@ -99,12 +79,6 @@ export default function VacationCampAlbum() {
           {activities.map(a => (
             <Badge key={a} variant={actFilter === a ? "default" : "outline"} className="cursor-pointer" onClick={() => setActFilter(a)}>{a}</Badge>
           ))}
-          <div className="ml-auto">
-            <Button size="sm" onClick={downloadAll} disabled={downloading || !filtered.length} style={{ background: themeColor }}>
-              {downloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-              Baixar todas ({filtered.length})
-            </Button>
-          </div>
         </div>
 
         {filtered.length === 0 ? (
@@ -115,12 +89,22 @@ export default function VacationCampAlbum() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-3">
             {filtered.map((p, idx) => (
-              <button key={p.id} onClick={() => setLightboxIdx(idx)} className="group relative aspect-square overflow-hidden rounded-lg bg-muted">
-                <img src={p.external_url} loading="lazy" alt={p.activity_tag || ""} className="w-full h-full object-cover transition group-hover:scale-105" />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[11px] p-2 text-left opacity-0 group-hover:opacity-100 transition">
-                  {p.day_label}{p.activity_tag ? ` · ${p.activity_tag}` : ""}
-                </div>
-              </button>
+              <div key={p.id} className="group relative aspect-square overflow-hidden rounded-lg bg-muted">
+                <button onClick={() => setLightboxIdx(idx)} className="absolute inset-0">
+                  <img src={p.external_url} loading="lazy" alt={p.activity_tag || ""} className="w-full h-full object-cover transition group-hover:scale-105" />
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent text-white text-[11px] p-2 text-left opacity-0 group-hover:opacity-100 transition">
+                    {p.day_label}{p.activity_tag ? ` · ${p.activity_tag}` : ""}
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); downloadOne(p); }}
+                  className="absolute top-2 right-2 bg-white/90 hover:bg-white text-gray-900 rounded-full p-2 shadow-md opacity-0 group-hover:opacity-100 transition"
+                  title="Baixar foto"
+                  style={{ color: themeColor }}
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </div>
             ))}
           </div>
         )}
