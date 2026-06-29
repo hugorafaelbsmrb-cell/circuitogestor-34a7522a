@@ -53,7 +53,7 @@ export default function VacationCampEditor() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid grid-cols-7 w-full">
+        <TabsList className="grid grid-cols-8 w-full">
           <TabsTrigger value="general">Geral</TabsTrigger>
           <TabsTrigger value="hero">Hero & Imagens</TabsTrigger>
           <TabsTrigger value="schedule">Programação</TabsTrigger>
@@ -61,6 +61,7 @@ export default function VacationCampEditor() {
           <TabsTrigger value="texts">Textos</TabsTrigger>
           <TabsTrigger value="enrollments">Inscritos</TabsTrigger>
           <TabsTrigger value="attendance">Presença</TabsTrigger>
+          <TabsTrigger value="album">Álbum</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general"><GeneralTab camp={camp} onSaved={load} /></TabsContent>
@@ -70,6 +71,7 @@ export default function VacationCampEditor() {
         <TabsContent value="texts"><TextsTab camp={camp} onSaved={load} /></TabsContent>
         <TabsContent value="enrollments"><EnrollmentsTab campId={camp.id} /></TabsContent>
         <TabsContent value="attendance"><AttendanceTab campId={camp.id} /></TabsContent>
+        <TabsContent value="album"><AlbumTab camp={camp} onSaved={load} /></TabsContent>
       </Tabs>
     </div>
   );
