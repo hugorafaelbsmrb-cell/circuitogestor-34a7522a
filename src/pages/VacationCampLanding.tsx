@@ -869,6 +869,9 @@ function CheckoutDialog({
   const [step, setStep] = useState<"form" | "payment">("form");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const isDayUse = /day\s*use/i.test(pkg.name);
+  const [quantity, setQuantity] = useState(1);
+  const effectivePrice = Number(pkg.price) * (isDayUse ? quantity : 1);
   const [form, setForm] = useState({
     guardian_name: "", guardian_phone: "", guardian_email: "", guardian_cpf: "",
     child_name: "", child_age: "", payment_method: (pkg.payment_methods?.[0] || "PIX").toUpperCase(),
@@ -876,6 +879,11 @@ function CheckoutDialog({
     pix_amount: Math.round(Number(pkg.price) / 2),
     reserved_payment_date: "",
   });
+
+  // Mantém pix_amount válido quando muda a quantidade de dias
+  useEffect(() => {
+    setForm((f) => ({ ...f, pix_amount: Math.min(Math.max(1, f.pix_amount), Math.max(1, effectivePrice - 1)) }));
+  }, [effectivePrice]);
 
   const methods = (pkg.payment_methods || ["PIX"]).map((m) => m.toUpperCase());
   const canSplit = methods.includes("PIX") && methods.includes("CREDIT_CARD");
