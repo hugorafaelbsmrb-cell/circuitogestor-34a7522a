@@ -1103,7 +1103,7 @@ function CheckoutDialog({
                 {(() => {
                   const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
                   const monthlyPct = Number(pkg.card_interest_percent) || 0;
-                  const price = Number(pkg.price);
+                  const price = effectivePrice;
                   if (form.payment_method === "SPLIT") {
                     const pixAmt = Number(form.pix_amount) || 0;
                     const cardAmt = Math.max(0, price - pixAmt);
