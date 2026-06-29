@@ -869,6 +869,9 @@ function CheckoutDialog({
   const [step, setStep] = useState<"form" | "payment">("form");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const isDayUse = /day\s*use/i.test(pkg.name);
+  const [quantity, setQuantity] = useState(1);
+  const effectivePrice = Number(pkg.price) * (isDayUse ? quantity : 1);
   const [form, setForm] = useState({
     guardian_name: "", guardian_phone: "", guardian_email: "", guardian_cpf: "",
     child_name: "", child_age: "", payment_method: (pkg.payment_methods?.[0] || "PIX").toUpperCase(),
@@ -876,6 +879,11 @@ function CheckoutDialog({
     pix_amount: Math.round(Number(pkg.price) / 2),
     reserved_payment_date: "",
   });
+
+  // Mantém pix_amount válido quando muda a quantidade de dias
+  useEffect(() => {
+    setForm((f) => ({ ...f, pix_amount: Math.min(Math.max(1, f.pix_amount), Math.max(1, effectivePrice - 1)) }));
+  }, [effectivePrice]);
 
   const methods = (pkg.payment_methods || ["PIX"]).map((m) => m.toUpperCase());
   const canSplit = methods.includes("PIX") && methods.includes("CREDIT_CARD");
@@ -894,7 +902,7 @@ function CheckoutDialog({
     }
     if (form.payment_method === "SPLIT") {
       const p = Number(form.pix_amount);
-      if (!(p > 0) || p >= Number(pkg.price)) {
+      if (!(p > 0) || p >= effectivePrice) {
         toast.error("Valor do PIX deve ser maior que 0 e menor que o total");
         return;
       }
@@ -916,6 +924,10 @@ function CheckoutDialog({
           package_id: pkg.id,
           ...form,
           child_age: form.child_age ? parseInt(form.child_age) : null,
+          quantity: isDayUse ? quantity : 1,
+          notes: isDayUse
+            ? `${quantity} dia(s) de Day Use${form.notes ? ` — ${form.notes}` : ""}`
+            : form.notes,
         },
       });
       if (error) throw error;
@@ -926,7 +938,7 @@ function CheckoutDialog({
       if (typeof (window as any).fbq === 'function') {
         (window as any).fbq('track', 'Lead', {
           content_name: pkg.name,
-          value: pkg.price,
+          value: effectivePrice,
           currency: 'BRL',
         });
       }
@@ -982,6 +994,29 @@ function CheckoutDialog({
                 <Input type="number" value={form.child_age} onChange={(e) => setForm({ ...form, child_age: e.target.value })} />
               </div>
             </div>
+            {isDayUse && (
+              <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: theme, background: `${theme}10` }}>
+                <Label>Quantos dias de Day Use?</Label>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>−</Button>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                    className="w-20 text-center"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => setQuantity((q) => Math.min(10, q + 1))}>+</Button>
+                  <div className="text-xs text-muted-foreground ml-2">
+                    {fmtBRL(Number(pkg.price))} × {quantity} = <strong style={{ color: theme }}>{fmtBRL(effectivePrice)}</strong>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Indique nas observações abaixo quais dias deseja utilizar.
+                </p>
+              </div>
+            )}
             <div>
               <Label>Forma de pagamento</Label>
               <Select value={form.payment_method} onValueChange={(v) => setForm({ ...form, payment_method: v })}>
@@ -1019,12 +1054,12 @@ function CheckoutDialog({
                 <Input
                   type="number"
                   min={1}
-                  max={Number(pkg.price) - 1}
+                  max={effectivePrice - 1}
                   value={form.pix_amount}
                   onChange={(e) => setForm({ ...form, pix_amount: Number(e.target.value) })}
                 />
                 <div className="text-xs text-muted-foreground">
-                  PIX: <strong>{fmtBRL(Number(form.pix_amount) || 0)}</strong> · Cartão: <strong>{fmtBRL(Math.max(0, Number(pkg.price) - (Number(form.pix_amount) || 0)))}</strong>
+                  PIX: <strong>{fmtBRL(Number(form.pix_amount) || 0)}</strong> · Cartão: <strong>{fmtBRL(Math.max(0, effectivePrice - (Number(form.pix_amount) || 0)))}</strong>
                 </div>
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
                   ⚠️ Você precisa pagar as duas partes para confirmar a vaga.
@@ -1036,8 +1071,8 @@ function CheckoutDialog({
               const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
               const monthlyPct = Number(pkg.card_interest_percent) || 0;
               const baseAmt = form.payment_method === "SPLIT"
-                ? Math.max(0, Number(pkg.price) - (Number(form.pix_amount) || 0))
-                : Number(pkg.price);
+                ? Math.max(0, effectivePrice - (Number(form.pix_amount) || 0))
+                : effectivePrice;
               return (
                 <div>
                   <Label>Parcelas do cartão</Label>
@@ -1068,7 +1103,7 @@ function CheckoutDialog({
                 {(() => {
                   const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
                   const monthlyPct = Number(pkg.card_interest_percent) || 0;
-                  const price = Number(pkg.price);
+                  const price = effectivePrice;
                   if (form.payment_method === "SPLIT") {
                     const pixAmt = Number(form.pix_amount) || 0;
                     const cardAmt = Math.max(0, price - pixAmt);
