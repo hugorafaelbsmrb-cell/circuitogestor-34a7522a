@@ -902,7 +902,7 @@ function CheckoutDialog({
     }
     if (form.payment_method === "SPLIT") {
       const p = Number(form.pix_amount);
-      if (!(p > 0) || p >= Number(pkg.price)) {
+      if (!(p > 0) || p >= effectivePrice) {
         toast.error("Valor do PIX deve ser maior que 0 e menor que o total");
         return;
       }
