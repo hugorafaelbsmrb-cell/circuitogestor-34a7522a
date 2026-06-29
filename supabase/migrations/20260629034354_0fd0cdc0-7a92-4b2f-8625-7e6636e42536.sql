@@ -1,0 +1,1 @@
+UPDATE public.vacation_camps SET public_uploads_enabled = true WHERE slug = 'colonia-2026';
