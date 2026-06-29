@@ -319,7 +319,7 @@ export default function VacationCampLanding() {
           </div>
 
           {/* CTA */}
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-700">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-700 flex flex-wrap gap-3 justify-center">
             <Button
               size="lg"
               className="text-base font-bold shadow-2xl hover:shadow-white/20 hover:scale-105 transition-all duration-300"
@@ -328,6 +328,13 @@ export default function VacationCampLanding() {
             >
               {camp.cta_text || "Garantir vaga"}
             </Button>
+            {(camp as any).album_enabled && (
+              <a href={`/colonia/${camp.slug}/album`} target="_blank" rel="noreferrer">
+                <Button size="lg" variant="outline" className="text-base font-bold border-2 border-white text-white bg-white/10 hover:bg-white hover:text-foreground backdrop-blur transition-all">
+                  📸 Álbum de Fotos
+                </Button>
+              </a>
+            )}
           </div>
         </div>
 

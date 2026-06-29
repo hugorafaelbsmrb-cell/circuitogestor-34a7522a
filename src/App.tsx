@@ -55,6 +55,8 @@ import VacationCampLanding from "./pages/VacationCampLanding";
 import VacationCampAdmin from "./pages/VacationCampAdmin";
 import VacationCampEditor from "./pages/VacationCampEditor";
 import VacationCampPayment from "./pages/VacationCampPayment";
+import VacationCampAlbum from "./pages/VacationCampAlbum";
+import VacationCampPhotos from "./pages/VacationCampPhotos";
 import Oficios from "./pages/Oficios";
 import { Loader2 } from "lucide-react";
 
@@ -90,6 +92,7 @@ const App = () => (
               {/* Public routes - no authentication required */}
               <Route path="/assinar/:token" element={<ContractSign />} />
               <Route path="/colonia/:slug" element={<VacationCampLanding />} />
+              <Route path="/colonia/:slug/album" element={<VacationCampAlbum />} />
               <Route path="/colonia-pagamento/:id" element={<VacationCampPayment />} />
               <Route path="/pre-matricula" element={<PreEnrollmentForm />} />
               <Route path="/campanha" element={<CampaignLanding />} />
@@ -143,6 +146,7 @@ const App = () => (
                        <Route path="/recibos-ir" element={<Receipts />} />
                        <Route path="/colonia-admin" element={<VacationCampAdmin />} />
                        <Route path="/colonia-admin/:id" element={<VacationCampEditor />} />
+                       <Route path="/colonia-admin/:id/fotos" element={<VacationCampPhotos />} />
                        <Route path="/oficios" element={<Oficios />} />
                        <Route path="/configuracoes" element={<Settings />} />
                       <Route path="*" element={<NotFound />} />
