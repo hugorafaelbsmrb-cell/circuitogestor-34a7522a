@@ -19,16 +19,17 @@ function b64ToBytes(b64: string): Uint8Array {
   return arr;
 }
 
-async function login(baseUrl: string, apiKey: string): Promise<string | null> {
+async function login(baseUrl: string, apiKey: string): Promise<{ token: string | null; detail: string }> {
   try {
     const r = await fetch(`${baseUrl}/auth.php`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ api_key: apiKey }),
+      body: JSON.stringify({ action: "login_api_key", api_key: apiKey }),
     });
     const txt = await r.text();
-    try { const j = JSON.parse(txt); return j.token || j.jwt || j.access_token || null; } catch { return null; }
-  } catch { return null; }
+    try { const j = JSON.parse(txt); return { token: j.token || j.jwt || j.access_token || null, detail: txt.slice(0, 300) }; }
+    catch { return { token: null, detail: txt.slice(0, 300) }; }
+  } catch (e) { return { token: null, detail: String(e) }; }
 }
 
 async function tryUpload(baseUrl: string, headers: Record<string, string>, file: Uint8Array, fileName: string, contentType: string) {
@@ -73,12 +74,11 @@ Deno.serve(async (req) => {
     if (!apiKey) return new Response(JSON.stringify({ error: "API de fotos não configurada" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const fileBytes = b64ToBytes(base64);
-    let attempt = await tryUpload(baseUrl, { "X-API-Key": apiKey }, fileBytes, fileName, contentType);
-    if (!attempt.ok) attempt = await tryUpload(baseUrl, { Authorization: `Bearer ${apiKey}` }, fileBytes, fileName, contentType);
-    if (!attempt.ok) {
-      const token = await login(baseUrl, apiKey);
-      if (token) attempt = await tryUpload(baseUrl, { Authorization: `Bearer ${token}` }, fileBytes, fileName, contentType);
+    const { token, detail: loginDetail } = await login(baseUrl, apiKey);
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Falha no login na API de fotos", detail: loginDetail }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    const attempt = await tryUpload(baseUrl, { Authorization: `Bearer ${token}` }, fileBytes, fileName, contentType);
     if (!attempt.ok) {
       return new Response(JSON.stringify({ error: "Falha no upload externo", status: attempt.status, detail: attempt.text?.slice(0, 500) }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
