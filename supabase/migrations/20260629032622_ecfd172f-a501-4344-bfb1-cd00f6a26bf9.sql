@@ -1,0 +1,2 @@
+ALTER TABLE public.vacation_camp_photos ADD COLUMN IF NOT EXISTS uploader_name text, ADD COLUMN IF NOT EXISTS uploader_phone text, ADD COLUMN IF NOT EXISTS source text DEFAULT 'admin';
+ALTER TABLE public.vacation_camps ADD COLUMN IF NOT EXISTS public_uploads_enabled boolean NOT NULL DEFAULT false;
