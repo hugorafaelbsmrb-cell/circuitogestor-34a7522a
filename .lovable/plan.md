@@ -1,98 +1,92 @@
-## Objetivo
 
-Permitir que o responsável de aluno **nosso** faça a reserva e pagamento do pacote da Colônia direto na landing pública, buscando o cadastro do aluno pelo CPF do responsável e cobrando o valor integral do pacote — com a mensalidade de **julho** marcada como paga para evitar duplicidade.
+# Álbum de fotos da Colônia de Férias
 
-## Fluxo na landing (`VacationCampLanding.tsx`)
+Galeria pública por edição da colônia, com fotos hospedadas na API externa (`hospedagemcpanel.lovable.app`) que já usamos via `useExternalApiConfig` (x-api-key). Admin envia em lote, marca dia/atividade, escolhe por foto se aplica marca d'água ou moldura temática. Pais acessam por link público e baixam.
 
-Hoje pacotes com `students_only = true` mostram apenas o botão "Falar com a secretaria". Vamos trocar por um botão **"Sou aluno da escola"** que abre um modal próprio:
+## 1. Configurações
 
-1. **Etapa 1 — Identificação**
-   - Input CPF do responsável (com máscara/validação).
-   - Edge function `vacation-camp-student-lookup` busca no banco: `guardians` por CPF → `students` ativos vinculados → para cada aluno, valor da última parcela paga do `carnes` (fallback: `courses.price` da matrícula ativa).
-   - Retorna lista de alunos com nome, idade, mensalidade base.
+**Configurações do Sistema (`Settings.tsx`)**
+- Nova seção "Galeria de Fotos (API Externa)" reaproveitando `useExternalApiConfig`: URL base e x-api-key.
+- Botão "Testar conexão" (já existe no hook).
+- Campo opcional: pasta padrão na API (ex.: `colonia`).
 
-2. **Etapa 2 — Seleção do aluno**
-   - Se 1 aluno: avança automático. Se múltiplos: cards para escolher.
-   - Mostra:
-     - Pacote escolhido: R$ 250 (ex.)
-     - Mensalidade base do aluno: R$ 200 (maior valor entre matrículas ativas)
-     - **Diferença a complementar: R$ 50**
-     - Total a pagar: R$ 250 (valor integral)
-     - Aviso: *"A mensalidade de julho deste aluno será considerada quitada — você não receberá cobrança duplicada."*
+**Configurações do Evento (`VacationCampEditor.tsx`)**
+- Novo bloco "Álbum de Fotos":
+  - Upload da **logo do evento** (PNG transparente, salva no bucket `system-branding` ou na API externa).
+  - Campos: cor da moldura, título exibido no álbum, mensagem de boas-vindas.
+  - Toggle "Álbum público ativo".
 
-3. **Etapa 3 — Pagamento**
-   - Reusa o mesmo seletor de método (PIX / Cartão / Misto / Reservar) já existente.
-   - Submete via `vacation-camp-checkout` com payload extendido (student_id, base_tuition, package_diff).
+## 2. Banco de dados
 
-## Backend
+Nova tabela `vacation_camp_photos`:
 
-### Nova edge function `vacation-camp-student-lookup`
-- Input: `{ cpf, camp_slug }`
-- Valida CPF.
-- Busca guardian por CPF normalizado → retorna `students` ativos com:
-  - `id`, `name`, `birth_date`
-  - `base_tuition`: maior valor entre as matrículas ativas, calculado por:
-    1. última parcela com `status='RECEIVED'` em `carnes` do aluno;
-    2. fallback `courses.price` da matrícula ativa.
-- Sem dados sensíveis (não retorna CPF/email do guardian).
-- Rate limit (uso da função `check_rate_limit`).
+| coluna | tipo | obs |
+|---|---|---|
+| id | uuid PK | |
+| camp_id | uuid FK → vacation_camps | |
+| external_url | text | URL retornada pela API externa |
+| external_name | text | nome/path do arquivo na API (para delete) |
+| thumbnail_url | text nullable | |
+| day_label | text | ex.: "Dia 1 - 06/07" |
+| activity_tag | text nullable | ex.: "Piscina", "Oficina" |
+| schedule_id | uuid nullable FK → vacation_camp_schedule | |
+| has_watermark | boolean default false | |
+| has_frame | boolean default false | |
+| width / height | int nullable | |
+| created_at / updated_at | timestamptz | |
 
-### Ajuste em `vacation-camp-checkout`
-- Aceita campos opcionais: `student_id`, `base_tuition`, `is_existing_student=true`.
-- Quando `is_existing_student`:
-  - Cobra `package.price` integral (não a diferença).
-  - Marca em `vacation_camp_enrollments` o `student_id` interno e flag `internal_student=true`.
-  - Não cria novo `guardian` — usa o existente (busca pelo CPF).
+Atualizar `vacation_camps`:
+- `album_enabled boolean default true`
+- `album_logo_url text`
+- `album_frame_color text default '#FF6B00'`
+- `album_title text`
+- `album_welcome_message text`
 
-### Ajuste em `asaas-webhook` (quando pagamento confirmado)
-- Se `enrollment.internal_student = true`:
-  - Localiza a parcela de **julho/2026** do aluno em `carnes` (mês de referência = mês da colônia, configurável via `vacation_camps.tuition_skip_month`).
-  - Marca essa parcela como `RECEIVED` com `payment_method='COLONIA_FERIAS'`, `paid_at=now()`, `notes='Quitada via pacote Colônia de Férias #<enrollment_id>'`.
-  - Se a parcela já estiver paga, apenas registra observação (sem duplicar).
-  - Notificação WhatsApp inclui linha: *"Mensalidade de julho já quitada."*
+RLS:
+- `SELECT` público (anon + authenticated) quando `album_enabled = true` (via join com camp).
+- `INSERT/UPDATE/DELETE` apenas admin.
+- GRANTs explícitos para anon/authenticated/service_role.
 
-## Migrações
+## 3. Upload e processamento (frontend)
 
-```sql
-ALTER TABLE public.vacation_camp_enrollments
-  ADD COLUMN IF NOT EXISTS internal_student_id uuid REFERENCES public.students(id),
-  ADD COLUMN IF NOT EXISTS internal_student boolean DEFAULT false,
-  ADD COLUMN IF NOT EXISTS base_tuition numeric,
-  ADD COLUMN IF NOT EXISTS tuition_carne_id uuid REFERENCES public.carnes(id);
+Nova página `src/pages/VacationCampPhotos.tsx` (rota `/colonia/admin/:slug/fotos`):
+- Multi-upload (drag-and-drop, até N arquivos por vez).
+- Para cada foto: preview, seletor de dia (puxado de `vacation_camp_schedule`), tag de atividade livre, e dois toggles: "Marca d'água" e "Moldura temática".
+- Processamento client-side com `<canvas>`:
+  - **Marca d'água**: logo do evento renderizada a 15% da largura, canto inferior direito, opacidade 0.7.
+  - **Moldura temática**: borda de 4% com `album_frame_color`, faixa inferior com logo + texto do evento.
+- Resultado convertido em dataURL e enviado para a API externa via `useExternalApi.uploadImage()` (pasta `colonia/{slug}`).
+- Após sucesso, insere registro em `vacation_camp_photos` com `external_url`.
 
-ALTER TABLE public.vacation_camps
-  ADD COLUMN IF NOT EXISTS tuition_skip_month smallint, -- 1-12
-  ADD COLUMN IF NOT EXISTS tuition_skip_year smallint;
-```
+Reusa o padrão de `ImagesTab.tsx` para list/upload/delete.
 
-Admin já define no `VacationCampEditor` qual mês/ano será "quitado" (default julho/2026).
+## 4. Galeria pública
 
-## Pacotes padrão (insert)
+Nova rota pública `/colonia/:slug/album` (`src/pages/VacationCampAlbum.tsx`):
+- Header temático com logo do evento e título configurável.
+- Filtros: por dia e por atividade.
+- Grid responsivo (masonry/grid), lazy-loading, lightbox ao clicar.
+- Botão "Baixar foto" individual e "Baixar todas do dia" (zip via `jszip` client-side).
+- Sem login. Sem busca por aluno (fotos abertas).
+- Link compartilhável adicionado na landing da colônia (`VacationCampLanding.tsx`) como botão "📸 Álbum de Fotos".
 
-Atualizar (via `supabase--insert` na fase de build) os pacotes da `colonia-2026` `students_only=true`:
-- Day Use: R$ 50
-- Semana: R$ 250
-- Completo: R$ 400
+## 5. Painel admin existente
 
-## UI — Editor (`VacationCampEditor.tsx`)
+Em `VacationCampAdmin.tsx` / `VacationCampEditor.tsx`:
+- Card novo "Álbum de Fotos" com contagem total, atalho para gerenciar e link público copiável.
 
-- Novo campo no formulário da colônia: "Mês/ano da mensalidade quitada" (select mês + ano).
-- Pacotes exclusivos para alunos passam a ter preço fixo editável (deixa de redirecionar para WhatsApp na landing).
+## Detalhes técnicos
 
-## Arquivos afetados
+- **API externa**: usar exatamente o mesmo `useExternalApi` (uploadImage, deleteImage, getImages). Pasta padrão `colonia/{camp-slug}`. Sem nova edge function — chamadas direto do frontend autenticado (admin) e leitura via tabela `vacation_camp_photos` (URLs já são públicas na CDN da API).
+- **Marca d'água/moldura**: processamento 100% no navegador (canvas) antes do upload, então a API recebe a imagem final já tratada. Não há reprocessamento depois.
+- **Logo do evento**: upload via bucket público `system-branding` (já existe), URL salva em `vacation_camps.album_logo_url`.
+- **Download em lote**: `jszip` + `file-saver` (já comum no projeto; instalo se faltar).
+- **Permissões**: tela admin protegida por `useAdminGuard`; rota pública sem guard.
+- **Performance**: thumbnails opcionais — se a API externa não gerar, o canvas também produz um thumb 400px e faz segundo upload em `colonia/{slug}/thumbs`.
 
-- `src/pages/VacationCampLanding.tsx` — modal "Sou aluno", busca por CPF, exibição de base+diferença.
-- `src/pages/VacationCampEditor.tsx` — campo mês/ano de quitação.
-- `supabase/functions/vacation-camp-student-lookup/index.ts` — nova.
-- `supabase/functions/vacation-camp-checkout/index.ts` — suporte a aluno interno.
-- `supabase/functions/asaas-webhook/index.ts` — quita parcela de julho ao confirmar.
-- Migração SQL conforme acima.
-- Insert ajustando preços dos pacotes da `colonia-2026`.
+## Fora do escopo
 
-## Pontos importantes
-
-- Função de lookup é pública (sem JWT) mas com rate limit por IP+CPF.
-- CPF é validado server-side com checksum (`isValidCPF`).
-- Nenhum dado sensível além de nome do aluno e mensalidade base é exposto.
-- Idempotência: se o webhook reprocessar, não quita a parcela duas vezes (checa status atual).
-- Se o aluno não tiver carnê/curso ativo, mostra erro claro: "Aluno sem matrícula ativa — fale com a secretaria."
+- Reconhecimento facial ou marcação automática por aluno.
+- Filtro por aluno (decisão: galeria geral aberta).
+- Comentários/curtidas.
+- App mobile nativo.
