@@ -74,12 +74,11 @@ Deno.serve(async (req) => {
     if (!apiKey) return new Response(JSON.stringify({ error: "API de fotos não configurada" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const fileBytes = b64ToBytes(base64);
-    let attempt = await tryUpload(baseUrl, { "X-API-Key": apiKey }, fileBytes, fileName, contentType);
-    if (!attempt.ok) attempt = await tryUpload(baseUrl, { Authorization: `Bearer ${apiKey}` }, fileBytes, fileName, contentType);
-    if (!attempt.ok) {
-      const token = await login(baseUrl, apiKey);
-      if (token) attempt = await tryUpload(baseUrl, { Authorization: `Bearer ${token}` }, fileBytes, fileName, contentType);
+    const { token, detail: loginDetail } = await login(baseUrl, apiKey);
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Falha no login na API de fotos", detail: loginDetail }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    const attempt = await tryUpload(baseUrl, { Authorization: `Bearer ${token}` }, fileBytes, fileName, contentType);
     if (!attempt.ok) {
       return new Response(JSON.stringify({ error: "Falha no upload externo", status: attempt.status, detail: attempt.text?.slice(0, 500) }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
