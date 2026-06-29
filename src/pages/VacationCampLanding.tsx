@@ -1054,12 +1054,12 @@ function CheckoutDialog({
                 <Input
                   type="number"
                   min={1}
-                  max={Number(pkg.price) - 1}
+                  max={effectivePrice - 1}
                   value={form.pix_amount}
                   onChange={(e) => setForm({ ...form, pix_amount: Number(e.target.value) })}
                 />
                 <div className="text-xs text-muted-foreground">
-                  PIX: <strong>{fmtBRL(Number(form.pix_amount) || 0)}</strong> · Cartão: <strong>{fmtBRL(Math.max(0, Number(pkg.price) - (Number(form.pix_amount) || 0)))}</strong>
+                  PIX: <strong>{fmtBRL(Number(form.pix_amount) || 0)}</strong> · Cartão: <strong>{fmtBRL(Math.max(0, effectivePrice - (Number(form.pix_amount) || 0)))}</strong>
                 </div>
                 <p className="text-[11px] text-amber-700 dark:text-amber-400">
                   ⚠️ Você precisa pagar as duas partes para confirmar a vaga.
@@ -1071,8 +1071,8 @@ function CheckoutDialog({
               const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
               const monthlyPct = Number(pkg.card_interest_percent) || 0;
               const baseAmt = form.payment_method === "SPLIT"
-                ? Math.max(0, Number(pkg.price) - (Number(form.pix_amount) || 0))
-                : Number(pkg.price);
+                ? Math.max(0, effectivePrice - (Number(form.pix_amount) || 0))
+                : effectivePrice;
               return (
                 <div>
                   <Label>Parcelas do cartão</Label>
