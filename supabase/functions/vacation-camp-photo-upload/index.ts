@@ -53,9 +53,9 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     const userSb = createClient(SUPABASE_URL, SERVICE_KEY, { global: { headers: { Authorization: auth } } });
-    const { data: claims } = await userSb.auth.getClaims(auth.replace("Bearer ", ""));
-    const userId = claims?.claims?.sub;
-    if (!userId) return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { data: userData, error: userErr } = await userSb.auth.getUser(auth.replace("Bearer ", ""));
+    const userId = userData?.user?.id;
+    if (userErr || !userId) return new Response(JSON.stringify({ error: "Invalid token" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const sbAdmin = createClient(SUPABASE_URL, SERVICE_KEY);
     const { data: isAdmin } = await sbAdmin.rpc("has_role", { _user_id: userId, _role: "admin" });
