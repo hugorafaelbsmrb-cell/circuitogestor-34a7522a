@@ -164,7 +164,9 @@ serve(async (req) => {
 
 
     const normalizedPhone = normalizePhone(guardian_phone);
-    const price = Number(pkg.price);
+    const isDayUse = /day\s*use/i.test(String(pkg.name || ""));
+    const qty = isDayUse ? Math.max(1, Math.min(10, parseInt(String(quantity)) || 1)) : 1;
+    const price = Number(pkg.price) * qty;
     const maxInst = Math.max(1, Number(pkg.max_installments) || 1);
     const freeInst = Math.max(1, Number(pkg.card_interest_free_installments) || 1);
     const monthlyPct = Number(pkg.card_interest_percent) || 0;
