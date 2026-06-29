@@ -994,6 +994,29 @@ function CheckoutDialog({
                 <Input type="number" value={form.child_age} onChange={(e) => setForm({ ...form, child_age: e.target.value })} />
               </div>
             </div>
+            {isDayUse && (
+              <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: theme, background: `${theme}10` }}>
+                <Label>Quantos dias de Day Use?</Label>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>−</Button>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                    className="w-20 text-center"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => setQuantity((q) => Math.min(10, q + 1))}>+</Button>
+                  <div className="text-xs text-muted-foreground ml-2">
+                    {fmtBRL(Number(pkg.price))} × {quantity} = <strong style={{ color: theme }}>{fmtBRL(effectivePrice)}</strong>
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Indique nas observações abaixo quais dias deseja utilizar.
+                </p>
+              </div>
+            )}
             <div>
               <Label>Forma de pagamento</Label>
               <Select value={form.payment_method} onValueChange={(v) => setForm({ ...form, payment_method: v })}>
